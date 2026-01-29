@@ -290,12 +290,12 @@ async function runOnce() {
       await processWhatsAppEvent(eventRow);
     }
     await supabase
-      .from("inbound_events")
+      .from("v_actionable_inbound_events")
       .update({ status: "done", processed_at: nowIso() })
       .eq("id", eventRow.id);
   } catch (e) {
     await supabase
-      .from("inbound_events")
+      .from("v_actionable_inbound_events")
       .update({ status: "error", last_error: String(e).slice(0, 500) })
       .eq("id", eventRow.id);
   }

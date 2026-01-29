@@ -25,7 +25,7 @@ async function safeInsertInboundEvent(supabase, row) {
   }
 
   try {
-    const { error } = await supabase.from("inbound_events").insert(row);
+    const { error } = await supabase.from("v_actionable_inbound_events").insert(row);
     if (error) {
       // Common: table not created yet, unique constraint conflict, etc.
       console.log("[supabase] insert error:", error.message);
