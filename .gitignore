@@ -1,4 +1,16 @@
-node_modules
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Environment secrets
+# =========================
 .env
-.env.*
+.env.local
+
+# =========================
+# OS / editor junk
+# =========================
 .DS_Store
+Thumbs.db
