@@ -6,7 +6,7 @@ const morgan = require("morgan");
 const { v4: uuidv4 } = require("uuid");
 
 const { getSupabaseAdmin, safeInsertInboundEvent } = require("./supabase");
-const { redact, verifyLemonSignature, extractWhatsAppMeta, sha256Hex } = require("./util");
+const { redact, verifyLemonSignature, sha256Hex } = require("./util");
 
 const app = express();
 const supabase = getSupabaseAdmin();
@@ -14,13 +14,6 @@ const supabase = getSupabaseAdmin();
 app.use(helmet());
 app.use(morgan("tiny"));
 
-/**
- * Optional debug logging (OFF by default).
- * Turn on by setting: DEBUG_WEBHOOKS=1
- *
- * This helps us see payload SHAPE when parsing fails,
- * without storing raw payload in DB.
- */
 function debugWebhookSample(label, body) {
   if (process.env.DEBUG_WEBHOOKS !== "1") return;
   try {
@@ -34,54 +27,43 @@ function debugWebhookSample(label, body) {
 }
 
 /**
- * Fallback WhatsApp meta extraction.
- * We first try your existing extractWhatsAppMeta(body).
- * If that returns null fields, we try the Meta webhook structure:
- * body.entry[0].changes[0].value.messages[0]...
+ * Extract minimal message fields from Meta/360dialog webhook payload.
+ * 360dialog webhooks can include:
+ * - messages (inbound user messages)
+ * - statuses (delivery/read updates)  :contentReference[oaicite:2]{index=2}
  *
- * Meta webhook reference: messages notifications payloads. :contentReference[oaicite:3]{index=3}
+ * We ONLY want to queue inbound text messages for the worker.
  */
 function extractWhatsAppMetaSafe(body) {
-  // 1) Try existing util extractor (your current logic)
-  let meta = null;
-  try {
-    meta = extractWhatsAppMeta(body);
-  } catch {
-    meta = null;
-  }
-
-  // If util extractor succeeded, keep it.
-  const utilLooksGood =
-    meta &&
-    (meta.msg_type || meta.text_body || meta.from_phone || meta.wa_message_id || meta.timestamp);
-
-  if (utilLooksGood) return meta;
-
-  // 2) Fallback to Meta/Cloud style payload
-  // Common structure:
-  // body.entry[0].changes[0].field === "messages"
-  // body.entry[0].changes[0].value.messages[0] = { from, id, timestamp, type, text: { body } }
   const entry = Array.isArray(body?.entry) ? body.entry[0] : null;
   const change = Array.isArray(entry?.changes) ? entry.changes[0] : null;
-
   const field = change?.field ?? null;
   const value = change?.value ?? null;
 
   const msg = Array.isArray(value?.messages) ? value.messages[0] : null;
+
+  if (!msg) {
+    return {
+      field,
+      msg_type: null,
+      text_body: null,
+      from_phone: null,
+      wa_message_id: null,
+      timestamp: null,
+    };
+  }
 
   const msg_type = msg?.type ?? null;
   const from_phone = msg?.from ?? null;
   const wa_message_id = msg?.id ?? null;
   const timestamp = msg?.timestamp ?? null;
 
-  // Text message body (most common)
-  let text_body = msg?.text?.body ?? null;
-
-  // Some interactive/button payloads use other shapes; keep minimal fallback:
-  if (!text_body && msg_type === "button") {
+  let text_body = null;
+  if (msg_type === "text") {
+    text_body = msg?.text?.body ?? null;
+  } else if (msg_type === "button") {
     text_body = msg?.button?.text ?? null;
-  }
-  if (!text_body && msg_type === "interactive") {
+  } else if (msg_type === "interactive") {
     text_body =
       msg?.interactive?.button_reply?.title ??
       msg?.interactive?.list_reply?.title ??
@@ -89,22 +71,17 @@ function extractWhatsAppMetaSafe(body) {
   }
 
   return {
-    field: field || null,
-    wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
-    object: entry?.id ? "whatsapp_business_account" : null,
-    msg_type: msg_type || null,
+    field,
+    msg_type,
     text_body: text_body ? String(text_body).slice(0, 4096) : null,
-    timestamp: timestamp || null,
-    from_phone: from_phone || null,
-    wa_message_id: wa_message_id || null,
+    from_phone,
+    wa_message_id,
+    timestamp,
   };
 }
 
 /**
- * Lemon webhook:
- * - MUST use RAW body for signature verification (X-Signature + HMAC SHA-256)
- * - ACK fast
- * Docs: Lemon Squeezy signing requests. :contentReference[oaicite:4]{index=4}
+ * Lemon webhook: RAW body required for signature verification
  */
 app.post(
   "/webhooks/lemonsqueezy",
@@ -124,15 +101,13 @@ app.post(
       return res.status(401).json({ ok: false, error: "invalid_signature" });
     }
 
-    // ACK immediately
     res.status(200).json({ ok: true });
 
-    // Parse JSON for minimal meta
     let parsed = null;
     try {
       parsed = JSON.parse(req.body.toString("utf8"));
     } catch {
-      parsed = null;
+      return;
     }
 
     const eventName = parsed?.meta?.event_name || "unknown";
@@ -178,7 +153,7 @@ app.post(
   }
 );
 
-// Normal JSON parser after Lemon raw route
+// JSON parser AFTER Lemon route
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (req, res) => {
@@ -187,33 +162,39 @@ app.get("/health", (req, res) => {
 
 /**
  * WhatsApp webhook:
- * - Must ACK 200 quickly or provider retries (360dialog hard 5s rule). :contentReference[oaicite:5]{index=5}
- * - We store minimal meta (msg_type/text_body/from_phone/wa_message_id), not full raw payload.
+ * - ACK fast
+ * - Ignore statuses/noise; only insert real inbound TEXT messages :contentReference[oaicite:3]{index=3}
  */
 app.post("/webhooks/whatsapp", (req, res) => {
-  // ACK immediately (do not block)
   res.sendStatus(200);
 
-  // Safe optional debug: payload shape (OFF unless DEBUG_WEBHOOKS=1)
   debugWebhookSample("whatsapp", req.body);
 
   const body = req.body || {};
   const meta = extractWhatsAppMetaSafe(body);
 
-  const eventId = meta?.wa_message_id || uuidv4();
-  const payloadHash = sha256Hex(JSON.stringify(body));
+  // ✅ HARD FILTER: only queue inbound text messages
+  if (!meta?.from_phone || meta?.msg_type !== "text" || !meta?.text_body) {
+    if (process.env.DEBUG_WEBHOOKS === "1") {
+      console.log("[whatsapp] ignored non-text/status event:", {
+        field: meta?.field,
+        msg_type: meta?.msg_type,
+        has_from: Boolean(meta?.from_phone),
+        has_text: Boolean(meta?.text_body),
+      });
+    }
+    return;
+  }
 
-  const waNumberTopLevel =
-    meta?.from_phone ||
-    body?.from ||
-    null;
+  const eventId = meta.wa_message_id || uuidv4();
+  const payloadHash = sha256Hex(JSON.stringify(body));
 
   const row = {
     provider: "whatsapp",
     provider_event_id: eventId,
-    event_type: meta?.field || "unknown",
+    event_type: meta.field || "messages",
     payload_sha256: payloadHash,
-    wa_number: waNumberTopLevel,
+    wa_number: meta.from_phone,
     meta,
   };
 
