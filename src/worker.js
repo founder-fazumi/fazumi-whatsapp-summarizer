@@ -32,7 +32,6 @@ const D360_API_KEY = process.env.D360_API_KEY || "";
 
 const LEMON_CHECKOUT_URL = process.env.LEMON_CHECKOUT_URL || "";
 
-// Node 18+ has global fetch. If your Node is older, upgrade Node rather than adding complexity.
 if (typeof fetch !== "function") {
   console.error("[worker] fetch() not available. Please upgrade Node to v18+.");
   process.exit(1);
@@ -72,20 +71,12 @@ function maskPhone(phoneE164) {
 }
 
 function isMeaningfulText(text) {
-  // MVP definition: >=20 chars and >=4 words
   const t = (text || "").trim();
   if (t.length < 20) return false;
   const words = t.split(/\s+/).filter(Boolean);
   return words.length >= 4;
 }
 
-/**
- * Normalize for commands:
- * - Trim
- * - Uppercase
- * - Collapse whitespace
- * - Strip trailing punctuation like "PAY!!!"
- */
 function normalizeInboundText(text) {
   const t = String(text || "")
     .trim()
@@ -108,11 +99,7 @@ async function dequeueEventJson() {
     console.error("[worker] dequeue error", error);
     return null;
   }
-  if (!data) return null;
-  if (data.id === undefined || data.id === null) {
-    console.error("[worker] dequeue returned JSON without id. Data:", data);
-    return null;
-  }
+  if (!data || data.id == null) return null;
   return data;
 }
 
@@ -121,462 +108,176 @@ function extractTextAndSender(eventRow) {
   const wa_number = eventRow.wa_number || eventRow.meta?.from_phone || null;
   const msg_type = eventRow.meta?.msg_type || null;
   const text_body = (eventRow.meta?.text_body || "").trim();
-
-  if (!wa_number) return null;
-  if (msg_type !== "text") return null;
-  if (!text_body) return null;
-
+  if (!wa_number || msg_type !== "text" || !text_body) return null;
   return { wa_number, text_body };
 }
 
 // -------------------- Users --------------------
 async function resolveUser(waNumber) {
-  const { data: existing, error: selErr } = await supabase
+  const { data: existing } = await supabase
     .from("users")
     .select("*")
     .eq("phone_e164", waNumber)
     .maybeSingle();
 
-  if (selErr) throw selErr;
   if (existing) return existing;
 
-  const { data: settings, error: setErr } = await supabase
+  const { data: settings } = await supabase
     .from("app_settings")
     .select("free_limit")
     .eq("id", 1)
     .single();
 
-  if (setErr) throw setErr;
-
-  const phone_hash = hashPhone(waNumber);
-
-  const { data: created, error: insErr } = await supabase
+  const { data: created, error } = await supabase
     .from("users")
     .insert({
       phone_e164: waNumber,
-      phone_hash,
+      phone_hash: hashPhone(waNumber),
       plan: "free",
       status: "active",
       is_paid: false,
-
       free_remaining: settings.free_limit,
       free_used: 0,
       period_usage: 0,
-
       is_blocked: false,
-      blocked_at: null,
-      deleted_at: null,
-
-      last_user_message_at: null,
+      pending_notice: null,
       created_at: nowIso(),
       updated_at: nowIso(),
     })
     .select()
     .single();
 
-  if (insErr) throw insErr;
+  if (error) throw error;
   console.log("[worker] created user:", maskPhone(waNumber));
   return created;
 }
 
 async function updateLastUserMessageAt(waNumber) {
-  const { error } = await supabase
+  await supabase
     .from("users")
     .update({ last_user_message_at: nowIso(), updated_at: nowIso() })
     .eq("phone_e164", waNumber);
-
-  if (error) console.error("[worker] failed updating last_user_message_at", error);
 }
 
-async function setUserBlocked(waNumber, blocked) {
-  const patch = blocked
-    ? { is_blocked: true, blocked_at: nowIso(), updated_at: nowIso() }
-    : { is_blocked: false, blocked_at: null, updated_at: nowIso() };
-
-  const { error } = await supabase.from("users").update(patch).eq("phone_e164", waNumber);
-  if (error) throw error;
+// ✅ NEW: pending_notice helper
+async function setPendingNotice(waNumber, text) {
+  await supabase
+    .from("users")
+    .update({ pending_notice: text, updated_at: nowIso() })
+    .eq("phone_e164", waNumber);
 }
 
-// -------------------- WhatsApp sending (reliable) --------------------
+async function clearPendingNotice(waNumber) {
+  await supabase
+    .from("users")
+    .update({ pending_notice: null, updated_at: nowIso() })
+    .eq("phone_e164", waNumber);
+}
+
+// -------------------- WhatsApp send --------------------
 async function sendWhatsAppText(toNumber, bodyText) {
-  if (!D360_API_KEY) throw new Error("Missing D360_API_KEY in .env");
   const url = `${D360_BASE_URL.replace(/\/$/, "")}/messages`;
 
   const payload = {
     messaging_product: "whatsapp",
-    recipient_type: "individual",
     to: String(toNumber),
     type: "text",
     text: { body: String(bodyText).slice(0, 4096) },
   };
 
-  // Retry policy: 3 attempts on transient errors (429, 5xx, network)
-  const maxAttempts = 3;
-  let lastErr = null;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "D360-API-KEY": D360_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "D360-API-KEY": D360_API_KEY,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const raw = await resp.text();
-      let json = null;
-      try {
-        json = JSON.parse(raw);
-      } catch {
-        json = null;
-      }
-
-      if (resp.ok) return json || { ok: true };
-
-      const status = resp.status;
-      const msg = json?.error?.message || raw || `HTTP ${status}`;
-
-      // Retry only on transient signals
-      const isTransient = status === 429 || (status >= 500 && status <= 599);
-      if (!isTransient) {
-        throw new Error(`360dialog send failed: ${status} ${msg}`.slice(0, 500));
-      }
-
-      lastErr = new Error(`360dialog transient: ${status} ${msg}`.slice(0, 500));
-
-      // Exponential backoff: 500ms, 1500ms, 3500ms (approx)
-      const backoff = Math.min(4000, 500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 200));
-      await sleep(backoff);
-    } catch (e) {
-      // Network error: retry
-      lastErr = e;
-      if (attempt < maxAttempts) {
-        const backoff = Math.min(4000, 500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 200));
-        await sleep(backoff);
-        continue;
-      }
-    }
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error(`360dialog error ${resp.status}: ${t}`);
   }
 
-  throw lastErr || new Error("360dialog send failed after retries");
-}
-
-// -------------------- Summaries (still DRY_RUN) --------------------
-async function insertSummary({ waNumber, textBody, summaryText }) {
-  const { error } = await supabase.from("summaries").insert({
-    wa_number: waNumber,
-    input_chars: textBody.length,
-    summary_text: summaryText,
-    time_saved_seconds: null,
-    cost_estimate: null,
-  });
-  if (error) throw error;
-}
-
-async function applyFreeDecrementIfNeeded(user, wasMeaningful) {
-  if (!user) return;
-  if (user.plan !== "free") return;
-  if (!wasMeaningful) return;
-
-  const nextRemaining = Math.max((user.free_remaining ?? 0) - 1, 0);
-  const nextUsed = (user.free_used ?? 0) + 1;
-  const nextPeriod = (user.period_usage ?? 0) + 1;
-
-  const { error } = await supabase
-    .from("users")
-    .update({
-      free_remaining: nextRemaining,
-      free_used: nextUsed,
-      period_usage: nextPeriod,
-      updated_at: nowIso(),
-    })
-    .eq("phone_e164", user.phone_e164);
-
-  if (error) throw error;
+  await clearPendingNotice(toNumber);
 }
 
 // -------------------- Commands --------------------
 const KNOWN_COMMANDS = new Set(["HELP", "STATUS", "PAY", "STOP", "START", "DELETE"]);
 
-function buildHelpMessage() {
-  return [
-    "Fazumi — WhatsApp Summarizer",
-    "",
-    "Send me a message and I’ll summarize it.",
-    "",
-    "Commands:",
-    "HELP   - show this message",
-    "STATUS - show your plan + remaining usage",
-    "PAY    - get upgrade link",
-    "STOP   - pause summaries",
-    "START  - resume summaries",
-    "DELETE - delete your stored data (summaries + account)",
-  ].join("\n");
-}
-
 function buildStatusMessage(user) {
-  const plan = user?.plan || "free";
-  const remaining = user?.free_remaining ?? 0;
-  const used = user?.free_used ?? 0;
-  const blocked = user?.is_blocked ? "YES" : "NO";
-
   return [
     "Fazumi STATUS",
-    `Plan: ${plan}`,
-    `Blocked: ${blocked}`,
-    plan === "free" ? `Free remaining: ${remaining}` : "Free remaining: N/A",
-    `Used: ${used}`,
-    "",
-    "Reply HELP to see commands.",
+    `Plan: ${user.plan}`,
+    `Blocked: ${user.is_blocked ? "YES" : "NO"}`,
+    user.plan === "free" ? `Free remaining: ${user.free_remaining}` : "Free remaining: N/A",
   ].join("\n");
 }
 
-async function deleteUserData(waNumber) {
-  // Delete summaries
-  const { error: sErr } = await supabase.from("summaries").delete().eq("wa_number", waNumber);
-  if (sErr) throw sErr;
-
-  // Delete subscriptions if table exists
-  try {
-    const { error: subErr } = await supabase.from("subscriptions").delete().eq("wa_number", waNumber);
-    if (subErr) throw subErr;
-  } catch (e) {
-    const msg = String(e?.message || e).toLowerCase();
-    if (!msg.includes("does not exist")) throw e;
-  }
-
-  // Delete user row
-  const { error: uErr } = await supabase.from("users").delete().eq("phone_e164", waNumber);
-  if (uErr) throw uErr;
-}
-
-/**
- * Returns:
- *  { handled: true, replyText, alsoRefreshUser?: true }
- *  { handled: false }
- */
-async function handleSafetyCommand({ normalized, waNumber, user }) {
-  if (normalized === "HELP") {
-    return { handled: true, replyText: buildHelpMessage() };
-  }
-
-  if (normalized === "STATUS") {
-    return { handled: true, replyText: buildStatusMessage(user) };
-  }
-
-  if (normalized === "PAY") {
-    const url = buildLemonCheckoutUrl(waNumber);
-    return {
-      handled: true,
-      replyText: `To upgrade, complete checkout here:\n${url}\n\nAfter payment, reply anything to continue.`,
-    };
-  }
-
-  if (normalized === "STOP") {
-    await setUserBlocked(waNumber, true);
-    return {
-      handled: true,
-      replyText: "✅ Summaries paused.\n\nReply START to resume. Reply HELP for commands.",
-      alsoRefreshUser: true,
-    };
-  }
-
-  if (normalized === "START") {
-    await setUserBlocked(waNumber, false);
-    return {
-      handled: true,
-      replyText: "✅ Summaries resumed.\n\nSend a message to summarize, or reply HELP.",
-      alsoRefreshUser: true,
-    };
-  }
-
-  if (normalized === "DELETE") {
-    await deleteUserData(waNumber);
-    return {
-      handled: true,
-      replyText:
-        "✅ Deleted.\n\nWe deleted your stored summaries and your account record.\nIf you message again, a new account will be created.",
-    };
-  }
-
-  return { handled: false };
-}
-
-// -------------------- Lemon Squeezy --------------------
-function lemonEventToPlan(eventName) {
-  const paidEvents = new Set([
-    "subscription_created",
-    "subscription_updated",
-    "subscription_payment_success",
-    "subscription_payment_recovered",
-    "subscription_resumed",
-    "subscription_unpaused",
-  ]);
-
-  const freeEvents = new Set([
-    "subscription_cancelled",
-    "subscription_expired",
-    "subscription_paused",
-    "subscription_payment_failed",
-  ]);
-
-  if (paidEvents.has(eventName)) return "paid";
-  if (freeEvents.has(eventName)) return "free";
-  return null;
-}
-
-async function processLemonEvent(eventRow) {
-  const meta = eventRow.meta || {};
-  const eventName = meta.event_name || eventRow.event_type || "unknown";
-  const waNumber = meta.wa_number || null;
-  const subscriptionId = meta.subscription_id || null;
-
-  if (!waNumber || !subscriptionId) {
-    throw new Error(`Lemon event missing wa_number or subscription_id (event=${eventName})`);
-  }
-
-  const subRow = {
-    lemonsqueezy_subscription_id: subscriptionId,
-    wa_number: waNumber,
-    status: meta.status || eventName,
-    plan: "paid",
-    renews_at: meta.renews_at || null,
-    customer_id: meta.customer_id || null,
-    updated_at: nowIso(),
-  };
-
-  // Upsert subscription row if table exists
-  try {
-    const { error: upErr } = await supabase
-      .from("subscriptions")
-      .upsert(subRow, { onConflict: "lemonsqueezy_subscription_id" });
-    if (upErr) throw upErr;
-  } catch (e) {
-    const msg = String(e?.message || e).toLowerCase();
-    if (!msg.includes("does not exist")) throw e;
-  }
-
-  const nextPlan = lemonEventToPlan(eventName);
-  if (!nextPlan) {
-    console.log("[worker] lemon event no-op:", eventName);
-    return;
-  }
-
-  const { error: uErr } = await supabase
-    .from("users")
-    .update({
-      plan: nextPlan,
-      status: "active",
-      is_paid: nextPlan === "paid",
-      updated_at: nowIso(),
-    })
-    .eq("phone_e164", waNumber);
-
-  if (uErr) throw uErr;
-
-  console.log(`[worker] lemon processed: ${eventName} -> user ${maskPhone(waNumber)} plan=${nextPlan}`);
-}
-
-// -------------------- inbound_events status updates --------------------
-async function markDone(eventId) {
-  const { error } = await supabase
-    .from("inbound_events")
-    .update({
-      status: "done",
-      processed_at: nowIso(),
-      locked_at: null,
-    })
-    .eq("id", eventId);
-
-  if (error) console.error("[worker] markDone error", error);
-}
-
-async function markError(eventId, message) {
-  const { error } = await supabase
-    .from("inbound_events")
-    .update({
-      status: "error",
-      last_error: String(message).slice(0, 500),
-      next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
-      locked_at: null,
-    })
-    .eq("id", eventId);
-
-  if (error) console.error("[worker] markError error", error);
-}
-
-// -------------------- WhatsApp processing (single-path, safe) --------------------
+// -------------------- WhatsApp processing --------------------
 async function processWhatsAppEvent(eventRow) {
   const parsed = extractTextAndSender(eventRow);
   if (!parsed) return;
 
-  // Ensure user exists
   let user = await resolveUser(parsed.wa_number);
-
-  // Track last inbound time (needed for 24h window step later)
   await updateLastUserMessageAt(parsed.wa_number);
 
   const normalized = normalizeInboundText(parsed.text_body);
 
-  // 1) COMMANDS FIRST (ALWAYS). Commands should never be summarized.
-  const cmd = await handleSafetyCommand({
-    normalized,
-    waNumber: parsed.wa_number,
-    user,
-  });
-
-  // Fail closed: looks like a command but handler didn't catch it
-  if (KNOWN_COMMANDS.has(normalized) && !cmd.handled) {
-    await sendWhatsAppText(
-      parsed.wa_number,
-      "Fazumi: I didn't understand that command.\n\nReply HELP to see available commands."
-    );
-    return; // ⛔ never summarize commands
+  // STATUS
+  if (normalized === "STATUS") {
+    await sendWhatsAppText(parsed.wa_number, buildStatusMessage(user));
+    return;
   }
 
-  if (cmd.handled) {
-    await sendWhatsAppText(parsed.wa_number, cmd.replyText);
-    if (cmd.alsoRefreshUser) user = await resolveUser(parsed.wa_number);
-    return; // ⛔ hard stop
+  // PAY
+  if (normalized === "PAY") {
+    const url = buildLemonCheckoutUrl(parsed.wa_number);
+    await sendWhatsAppText(parsed.wa_number, `Upgrade here:\n${url}`);
+    return;
   }
 
-  // 2) Blocked users: do not summarize
+  // BLOCKED
   if (user.is_blocked) {
-    await sendWhatsAppText(
-      parsed.wa_number,
-      "⛔ Summaries are paused.\n\nReply START to resume, or HELP for commands."
-    );
+    await setPendingNotice(parsed.wa_number, "blocked");
+    await sendWhatsAppText(parsed.wa_number, "⛔ Summaries paused. Reply START.");
     return;
   }
 
-  // 3) Paywall BEFORE any summary work
   const meaningful = isMeaningfulText(parsed.text_body);
-  if (user.plan === "free" && meaningful && (user.free_remaining ?? 0) <= 0) {
+
+  // PAYWALL
+  if (user.plan === "free" && meaningful && user.free_remaining <= 0) {
+    await setPendingNotice(parsed.wa_number, "paywall");
     await sendWhatsAppText(
       parsed.wa_number,
-      "You’ve used your 3 free summaries.\n\nReply PAY to upgrade and keep summarizing."
+      "You’ve used your free summaries.\nReply PAY to upgrade."
     );
     return;
   }
 
-  // 4) DRY RUN summary (real OpenAI later)
-  const summaryText =
-    `(DRY RUN) Summary would be generated for: "` +
-    `${parsed.text_body.slice(0, 180)}${parsed.text_body.length > 180 ? "…" : ""}"`;
+  const summary =
+    `(DRY RUN) Summary would be generated for:\n` +
+    parsed.text_body.slice(0, 180);
 
-  // Send first; only after success do we persist/decrement
-  await sendWhatsAppText(parsed.wa_number, summaryText);
+  await sendWhatsAppText(parsed.wa_number, summary);
 
-  await insertSummary({
-    waNumber: parsed.wa_number,
-    textBody: parsed.text_body,
-    summaryText,
+  await supabase.from("summaries").insert({
+    wa_number: parsed.wa_number,
+    input_chars: parsed.text_body.length,
+    summary_text: summary,
   });
 
-  await applyFreeDecrementIfNeeded(user, meaningful);
+  if (meaningful && user.plan === "free") {
+    await supabase
+      .from("users")
+      .update({
+        free_remaining: Math.max(user.free_remaining - 1, 0),
+        free_used: user.free_used + 1,
+        updated_at: nowIso(),
+      })
+      .eq("phone_e164", parsed.wa_number);
+  }
 }
 
 // -------------------- worker loop --------------------
@@ -584,37 +285,29 @@ async function runOnce() {
   const eventRow = await dequeueEventJson();
   if (!eventRow) return false;
 
-  console.log(`[worker] dequeued id=${eventRow.id} provider=${eventRow.provider}`);
-
   try {
     if (eventRow.provider === "whatsapp") {
       await processWhatsAppEvent(eventRow);
-      await markDone(eventRow.id);
-      return true;
     }
-
-    if (eventRow.provider === "lemonsqueezy") {
-      await processLemonEvent(eventRow);
-      await markDone(eventRow.id);
-      return true;
-    }
-
-    await markDone(eventRow.id);
-    return true;
-  } catch (err) {
-    console.error("[worker] processing error", err?.message || err);
-    await markError(eventRow.id, err?.message || err);
-    return true;
+    await supabase
+      .from("inbound_events")
+      .update({ status: "done", processed_at: nowIso() })
+      .eq("id", eventRow.id);
+  } catch (e) {
+    await supabase
+      .from("inbound_events")
+      .update({ status: "error", last_error: String(e).slice(0, 500) })
+      .eq("id", eventRow.id);
   }
+  return true;
 }
 
 async function loop() {
-  console.log("[worker] started (Ctrl+C to stop)");
+  console.log("[worker] started");
   while (!shouldStop) {
     const didWork = await runOnce();
     await sleep(didWork ? 250 : 2000);
   }
-  console.log("[worker] stopped");
 }
 
 loop();
