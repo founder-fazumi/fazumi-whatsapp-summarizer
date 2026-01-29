@@ -17,9 +17,7 @@ app.use(morgan("tiny"));
 /**
  * Optional debug logging (OFF by default).
  * Turn on by setting: DEBUG_WEBHOOKS=1
- *
- * This prints payload SHAPE to logs (not DB) to help troubleshoot parsing,
- * while keeping DB minimal.
+ * This prints payload shape to logs (does NOT store raw payload in DB).
  */
 function debugWebhookSample(label, body) {
   if (process.env.DEBUG_WEBHOOKS !== "1") return;
@@ -34,13 +32,20 @@ function debugWebhookSample(label, body) {
 }
 
 /**
- * WhatsApp meta extraction (safe):
- * - Try your existing extractWhatsAppMeta(body) first
- * - If it returns mostly empty fields, fallback to Meta Cloud payload shape:
+ * Extract WhatsApp meta safely.
+ *
+ * We try your existing extractWhatsAppMeta(body) first.
+ * If it looks empty, we fallback to Meta/Cloud style payload:
  *   body.entry[0].changes[0].value.messages[0]
+ * and also handle:
+ *   body.entry[0].changes[0].value.statuses[0]
+ *
+ * IMPORTANT:
+ * - "Test Webhook" events in 360dialog often do NOT include messages[0].
+ *   We will treat those as non-actionable and skip inserting them.
  */
 function extractWhatsAppMetaSafe(body) {
-  // 1) Try existing util extractor
+  // 1) Try your util extractor first
   let meta = null;
   try {
     meta = extractWhatsAppMeta(body);
@@ -61,42 +66,72 @@ function extractWhatsAppMetaSafe(body) {
   const field = change?.field ?? null;
   const value = change?.value ?? null;
 
+  // --- messages ---
   const msg = Array.isArray(value?.messages) ? value.messages[0] : null;
+  if (msg) {
+    const msg_type = msg?.type ?? null;
+    const from_phone = msg?.from ?? null;
+    const wa_message_id = msg?.id ?? null;
+    const timestamp = msg?.timestamp ?? null;
 
-  const msg_type = msg?.type ?? null;
-  const from_phone = msg?.from ?? null;
-  const wa_message_id = msg?.id ?? null;
-  const timestamp = msg?.timestamp ?? null;
+    let text_body = msg?.text?.body ?? null;
 
-  // Text message body
-  let text_body = msg?.text?.body ?? null;
+    // Some other inbound types
+    if (!text_body && msg_type === "button") {
+      text_body = msg?.button?.text ?? null;
+    }
+    if (!text_body && msg_type === "interactive") {
+      text_body =
+        msg?.interactive?.button_reply?.title ??
+        msg?.interactive?.list_reply?.title ??
+        null;
+    }
 
-  // Minimal support for common non-text inbound types
-  if (!text_body && msg_type === "button") {
-    text_body = msg?.button?.text ?? null;
+    return {
+      field: field || "messages",
+      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
+      object: body?.object || "whatsapp_business_account",
+      msg_type: msg_type || null,
+      text_body: text_body ? String(text_body).slice(0, 4096) : null,
+      timestamp: timestamp || null,
+      from_phone: from_phone || null,
+      wa_message_id: wa_message_id || null,
+    };
   }
-  if (!text_body && msg_type === "interactive") {
-    text_body =
-      msg?.interactive?.button_reply?.title ??
-      msg?.interactive?.list_reply?.title ??
-      null;
+
+  // --- statuses (delivery/read/etc) ---
+  const st = Array.isArray(value?.statuses) ? value.statuses[0] : null;
+  if (st) {
+    // statuses don’t include text; we store minimal info so it’s not “empty”
+    return {
+      field: field || "statuses",
+      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
+      object: body?.object || "whatsapp_business_account",
+      msg_type: "status",
+      text_body: null,
+      timestamp: st?.timestamp ?? null,
+      from_phone: st?.recipient_id ?? null, // best available “who it relates to”
+      wa_message_id: st?.id ?? null,
+      status: st?.status ?? null,
+    };
   }
 
+  // Nothing usable found
   return {
     field: field || null,
-    wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
-    object: entry?.id ? "whatsapp_business_account" : null,
-    msg_type: msg_type || null,
-    text_body: text_body ? String(text_body).slice(0, 4096) : null,
-    timestamp: timestamp || null,
-    from_phone: from_phone || null,
-    wa_message_id: wa_message_id || null,
+    wa_id: null,
+    object: body?.object || null,
+    msg_type: null,
+    text_body: null,
+    timestamp: null,
+    from_phone: null,
+    wa_message_id: null,
   };
 }
 
 /**
  * Lemon webhook:
- * - MUST use RAW body for signature verification (X-Signature + HMAC SHA-256)
+ * - MUST use RAW body for signature verification
  * - ACK fast
  */
 app.post(
@@ -171,7 +206,7 @@ app.post(
   }
 );
 
-// Normal JSON parser after Lemon raw route
+// Normal JSON parser AFTER Lemon raw route
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (req, res) => {
@@ -180,9 +215,9 @@ app.get("/health", (req, res) => {
 
 /**
  * WhatsApp webhook:
- * - Must ACK 200 quickly or provider retries.
- * 360dialog has a hard 5-second limit to return 200 OK. :contentReference[oaicite:1]{index=1}
- * - Store minimal meta, not full payload.
+ * - ACK 200 immediately
+ * - Store minimal meta only
+ * - SKIP inserts for payloads that contain neither messages nor statuses
  */
 app.post("/webhooks/whatsapp", (req, res) => {
   // ACK immediately
@@ -193,10 +228,25 @@ app.post("/webhooks/whatsapp", (req, res) => {
   const body = req.body || {};
   const meta = extractWhatsAppMetaSafe(body);
 
+  // ✅ IMPORTANT: If we got no message id, no sender, and no type, this is not actionable.
+  // This prevents the 360dialog Test Webhook spam from filling your DB with null rows.
+  const hasAnythingUseful =
+    Boolean(meta?.wa_message_id) ||
+    Boolean(meta?.from_phone) ||
+    Boolean(meta?.msg_type) ||
+    Boolean(meta?.field);
+
+  const isRealInboundMessage = meta?.msg_type === "text" && Boolean(meta?.from_phone);
+
+  // If it's neither a real inbound message nor a status notification, skip storing
+  if (!isRealInboundMessage && meta?.msg_type !== "status") {
+    // You can still see it in logs if DEBUG_WEBHOOKS=1
+    return;
+  }
+
   const eventId = meta?.wa_message_id || uuidv4();
   const payloadHash = sha256Hex(JSON.stringify(body));
 
-  // Keep wa_number at top level for easier filtering, but meta is source of truth.
   const waNumberTopLevel = meta?.from_phone || null;
 
   const row = {
