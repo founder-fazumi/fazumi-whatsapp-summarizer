@@ -1,31 +1,23 @@
-// src/util.js
+"use strict";
+
 const crypto = require("crypto");
 
-/**
- * Redact secrets in logs (very basic).
- */
-function redact(value) {
-  if (!value) return null;
-  const s = String(value);
-  if (s.length <= 6) return "***";
-  return `${s.slice(0, 3)}***${s.slice(-3)}`;
+/** Redact secrets in logs */
+function redact(v) {
+  const s = String(v || "");
+  if (s.length <= 8) return "****";
+  return `${s.slice(0, 4)}****${s.slice(-4)}`;
 }
 
-/**
- * sha256 helper
- * - If input is Buffer -> hash raw bytes
- * - If input is string -> hash utf8 string
- */
 function sha256Hex(input) {
-  const h = crypto.createHash("sha256");
-  if (Buffer.isBuffer(input)) h.update(input);
-  else h.update(String(input), "utf8");
-  return h.digest("hex");
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(String(input || ""), "utf8");
+  return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
 /**
- * Verify Lemon Squeezy webhook signature (HMAC-SHA256 hex over payload).
- * Lemon docs: X-Signature + signing secret. :contentReference[oaicite:5]{index=5}
+ * Lemon Squeezy signing (official docs):
+ * - Use raw body
+ * - Compare HMAC SHA-256 with X-Signature header
  */
 function verifyLemonSignature({ rawBody, signatureHeader, signingSecret }) {
   if (!signingSecret) return { ok: false, reason: "missing_signing_secret" };
@@ -37,60 +29,97 @@ function verifyLemonSignature({ rawBody, signatureHeader, signingSecret }) {
     hmac.update(rawBody);
     const expected = hmac.digest("hex");
 
-    // timing-safe compare
     const a = Buffer.from(expected, "utf8");
     const b = Buffer.from(String(signatureHeader), "utf8");
-
     if (a.length !== b.length) return { ok: false, reason: "length_mismatch" };
-    const match = crypto.timingSafeEqual(a, b);
 
-    return match ? { ok: true } : { ok: false, reason: "mismatch" };
-  } catch (err) {
-    return { ok: false, reason: err?.message || "exception" };
+    const ok = crypto.timingSafeEqual(a, b);
+    return ok ? { ok: true } : { ok: false, reason: "mismatch" };
+  } catch (e) {
+    return { ok: false, reason: "exception", error: e?.message || String(e) };
   }
 }
 
 /**
- * Extract ONLY the minimum WhatsApp message fields needed for async processing.
+ * Robust extraction for 360dialog / Meta-style payload.
+ * 360dialog documents messages/statuses events. We support both. :contentReference[oaicite:5]{index=5}
  *
- * Expected message payload location (360dialog / WhatsApp):
- * body.entry[0].changes[0].value.messages[0]
- * docs: receiving messages webhook. :contentReference[oaicite:6]{index=6}
- *
- * We intentionally do NOT store the full raw payload.
- * We store text_body only for type="text" and truncate to limit retention.
+ * Returns stable keys:
+ * - field, object
+ * - msg_type, text_body
+ * - from_phone, wa_message_id, timestamp
  */
-function extractWhatsAppMeta(body) {
-  const entry = body?.entry?.[0];
-  const change = entry?.changes?.[0];
-  const value = change?.value;
+function extractWhatsAppMetaSafe(body) {
+  const entry = Array.isArray(body?.entry) ? body.entry[0] : null;
+  const change = Array.isArray(entry?.changes) ? entry.changes[0] : null;
 
-  const field = change?.field || null;
-  const wa_id = value?.metadata?.phone_number_id || null;
+  const field = change?.field ?? null;
+  const value = change?.value ?? null;
 
-  const msg = value?.messages?.[0] || null;
+  // messages[0]
+  const msg = Array.isArray(value?.messages) ? value.messages[0] : null;
+  if (msg) {
+    const msg_type = msg?.type ?? null;
+    const from_phone = msg?.from ?? null;
+    const wa_message_id = msg?.id ?? null;
+    const timestamp = msg?.timestamp ?? null;
 
-  const wa_message_id = msg?.id || null;
-  const from_phone = msg?.from || null;
-  const msg_type = msg?.type || null;
+    let text_body = msg?.text?.body ?? null;
 
-  let text_body = null;
-  if (msg_type === "text") {
-    text_body = (msg?.text?.body || "").trim();
-    if (text_body.length > 4000) text_body = text_body.slice(0, 4000);
+    // button reply
+    if (!text_body && msg_type === "button") {
+      text_body = msg?.button?.text ?? null;
+    }
+
+    // interactive reply
+    if (!text_body && msg_type === "interactive") {
+      text_body =
+        msg?.interactive?.button_reply?.title ??
+        msg?.interactive?.list_reply?.title ??
+        null;
+    }
+
+    // cap length, do not store huge payload
+    const cappedText = text_body ? String(text_body).slice(0, 4096) : null;
+
+    return {
+      field: field || "messages",
+      object: body?.object || "whatsapp_business_account",
+      msg_type: msg_type || null,
+      text_body: cappedText,
+      timestamp: timestamp || null,
+      from_phone: from_phone || null,
+      wa_message_id: wa_message_id || null,
+      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
+    };
   }
 
-  const timestamp = msg?.timestamp || null;
+  // statuses[0] (delivery/read receipts, etc)
+  const st = Array.isArray(value?.statuses) ? value.statuses[0] : null;
+  if (st) {
+    return {
+      field: field || "statuses",
+      object: body?.object || "whatsapp_business_account",
+      msg_type: "status",
+      text_body: null,
+      timestamp: st?.timestamp ?? null,
+      from_phone: st?.recipient_id ?? null,
+      wa_message_id: st?.id ?? null,
+      status: st?.status ?? null,
+      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
+    };
+  }
 
+  // Non-actionable/test payload
   return {
-    field,
-    wa_id,
-    wa_message_id,
-    from_phone,
-    msg_type,
-    text_body,
-    timestamp,
+    field: field || null,
     object: body?.object || null,
+    msg_type: null,
+    text_body: null,
+    timestamp: null,
+    from_phone: null,
+    wa_message_id: null,
+    wa_id: null,
   };
 }
 
@@ -98,5 +127,5 @@ module.exports = {
   redact,
   sha256Hex,
   verifyLemonSignature,
-  extractWhatsAppMeta,
+  extractWhatsAppMetaSafe,
 };

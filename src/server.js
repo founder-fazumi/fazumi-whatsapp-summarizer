@@ -1,3 +1,5 @@
+"use strict";
+
 require("dotenv").config();
 
 const express = require("express");
@@ -6,7 +8,7 @@ const morgan = require("morgan");
 const { v4: uuidv4 } = require("uuid");
 
 const { getSupabaseAdmin, safeInsertInboundEvent } = require("./supabase");
-const { redact, verifyLemonSignature, extractWhatsAppMeta, sha256Hex } = require("./util");
+const { redact, verifyLemonSignature, extractWhatsAppMetaSafe, sha256Hex } = require("./util");
 
 const app = express();
 const supabase = getSupabaseAdmin();
@@ -17,7 +19,7 @@ app.use(morgan("tiny"));
 /**
  * Optional debug logging (OFF by default).
  * Turn on by setting: DEBUG_WEBHOOKS=1
- * This prints payload shape to logs (does NOT store raw payload in DB).
+ * WARNING: This prints inbound payload samples to logs; don't enable in production unless needed.
  */
 function debugWebhookSample(label, body) {
   if (process.env.DEBUG_WEBHOOKS !== "1") return;
@@ -32,106 +34,8 @@ function debugWebhookSample(label, body) {
 }
 
 /**
- * Extract WhatsApp meta safely.
- *
- * We try your existing extractWhatsAppMeta(body) first.
- * If it looks empty, we fallback to Meta/Cloud style payload:
- *   body.entry[0].changes[0].value.messages[0]
- * and also handle:
- *   body.entry[0].changes[0].value.statuses[0]
- *
- * IMPORTANT:
- * - "Test Webhook" events in 360dialog often do NOT include messages[0].
- *   We will treat those as non-actionable and skip inserting them.
- */
-function extractWhatsAppMetaSafe(body) {
-  // 1) Try your util extractor first
-  let meta = null;
-  try {
-    meta = extractWhatsAppMeta(body);
-  } catch {
-    meta = null;
-  }
-
-  const utilLooksGood =
-    meta &&
-    (meta.msg_type || meta.text_body || meta.from_phone || meta.wa_message_id || meta.timestamp);
-
-  if (utilLooksGood) return meta;
-
-  // 2) Fallback to Meta/Cloud style payload
-  const entry = Array.isArray(body?.entry) ? body.entry[0] : null;
-  const change = Array.isArray(entry?.changes) ? entry.changes[0] : null;
-
-  const field = change?.field ?? null;
-  const value = change?.value ?? null;
-
-  // --- messages ---
-  const msg = Array.isArray(value?.messages) ? value.messages[0] : null;
-  if (msg) {
-    const msg_type = msg?.type ?? null;
-    const from_phone = msg?.from ?? null;
-    const wa_message_id = msg?.id ?? null;
-    const timestamp = msg?.timestamp ?? null;
-
-    let text_body = msg?.text?.body ?? null;
-
-    // Some other inbound types
-    if (!text_body && msg_type === "button") {
-      text_body = msg?.button?.text ?? null;
-    }
-    if (!text_body && msg_type === "interactive") {
-      text_body =
-        msg?.interactive?.button_reply?.title ??
-        msg?.interactive?.list_reply?.title ??
-        null;
-    }
-
-    return {
-      field: field || "messages",
-      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
-      object: body?.object || "whatsapp_business_account",
-      msg_type: msg_type || null,
-      text_body: text_body ? String(text_body).slice(0, 4096) : null,
-      timestamp: timestamp || null,
-      from_phone: from_phone || null,
-      wa_message_id: wa_message_id || null,
-    };
-  }
-
-  // --- statuses (delivery/read/etc) ---
-  const st = Array.isArray(value?.statuses) ? value.statuses[0] : null;
-  if (st) {
-    // statuses don’t include text; we store minimal info so it’s not “empty”
-    return {
-      field: field || "statuses",
-      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
-      object: body?.object || "whatsapp_business_account",
-      msg_type: "status",
-      text_body: null,
-      timestamp: st?.timestamp ?? null,
-      from_phone: st?.recipient_id ?? null, // best available “who it relates to”
-      wa_message_id: st?.id ?? null,
-      status: st?.status ?? null,
-    };
-  }
-
-  // Nothing usable found
-  return {
-    field: field || null,
-    wa_id: null,
-    object: body?.object || null,
-    msg_type: null,
-    text_body: null,
-    timestamp: null,
-    from_phone: null,
-    wa_message_id: null,
-  };
-}
-
-/**
  * Lemon webhook:
- * - MUST use RAW body for signature verification
+ * - MUST use RAW body for signature verification (Lemon docs)
  * - ACK fast
  */
 app.post(
@@ -155,7 +59,7 @@ app.post(
     // ACK immediately
     res.status(200).json({ ok: true });
 
-    // Parse JSON for minimal meta
+    // Parse JSON after ACK
     let parsed = null;
     try {
       parsed = JSON.parse(req.body.toString("utf8"));
@@ -164,6 +68,7 @@ app.post(
     }
 
     const eventName = parsed?.meta?.event_name || "unknown";
+    const dataId = parsed?.data?.id || null;
 
     const waNumber =
       parsed?.meta?.custom_data?.wa_number ||
@@ -173,28 +78,28 @@ app.post(
       parsed?.meta?.custom?.waNumber ||
       null;
 
-    const dataId = parsed?.data?.id || null;
-    const subscriptionId = dataId;
+    // Idempotency: prefer stable event id when possible
+    const providerEventId = eventName && dataId ? `${eventName}:${dataId}` : uuidv4();
+    const payloadHash = sha256Hex(req.body);
 
     const attrs = parsed?.data?.attributes || {};
-    const customerId = attrs?.customer_id || attrs?.customerId || null;
     const status = attrs?.status || null;
     const renewsAt = attrs?.renews_at || attrs?.renewsAt || null;
-
-    const eventId = eventName && dataId ? `${eventName}:${dataId}` : uuidv4();
-    const payloadHash = sha256Hex(req.body);
+    const customerId = attrs?.customer_id || attrs?.customerId || null;
 
     const row = {
       provider: "lemonsqueezy",
-      provider_event_id: eventId,
-      event_type: eventName,
+      status: "pending",
+      attempts: 0,
+      provider_event_id: providerEventId,
       payload_sha256: payloadHash,
+      wa_number: waNumber,
       meta: {
         event_name: eventName,
         wa_number: waNumber,
-        subscription_id: subscriptionId,
+        data_id: dataId,
         customer_id: customerId,
-        status: status,
+        status,
         renews_at: renewsAt,
         test_mode: parsed?.meta?.test_mode ?? null,
       },
@@ -214,13 +119,14 @@ app.get("/health", (req, res) => {
 });
 
 /**
- * WhatsApp webhook:
+ * WhatsApp webhook (360dialog):
  * - ACK 200 immediately
- * - Store minimal meta only
- * - SKIP inserts for payloads that contain neither messages nor statuses
+ * - Insert ONLY into inbound_events table (never view)
+ * - Store minimal meta (no secrets; cap text length)
+ * - Ignore empty/test payloads
  */
 app.post("/webhooks/whatsapp", (req, res) => {
-  // ACK immediately
+  // ACK immediately (timing expectation)
   res.sendStatus(200);
 
   debugWebhookSample("whatsapp", req.body);
@@ -228,34 +134,38 @@ app.post("/webhooks/whatsapp", (req, res) => {
   const body = req.body || {};
   const meta = extractWhatsAppMetaSafe(body);
 
-  // ✅ IMPORTANT: If we got no message id, no sender, and no type, this is not actionable.
-  // This prevents the 360dialog Test Webhook spam from filling your DB with null rows.
-  const hasAnythingUseful =
-    Boolean(meta?.wa_message_id) ||
-    Boolean(meta?.from_phone) ||
-    Boolean(meta?.msg_type) ||
-    Boolean(meta?.field);
+  // We only enqueue actionable inbound messages for the worker.
+  // Status receipts can be stored but should NOT be queued for summarization.
+  const isInboundMessage =
+    (meta.field === "messages" || meta.msg_type === "text" || meta.msg_type === "interactive" || meta.msg_type === "button") &&
+    Boolean(meta.from_phone) &&
+    Boolean(meta.wa_message_id);
 
-  const isRealInboundMessage = meta?.msg_type === "text" && Boolean(meta?.from_phone);
+  const isStatus = meta.field === "statuses" || meta.msg_type === "status";
 
-  // If it's neither a real inbound message nor a status notification, skip storing
-  if (!isRealInboundMessage && meta?.msg_type !== "status") {
-    // You can still see it in logs if DEBUG_WEBHOOKS=1
-    return;
-  }
+  // If neither a real inbound message nor a status update, skip (prevents DB spam from test webhooks)
+  if (!isInboundMessage && !isStatus) return;
 
-  const eventId = meta?.wa_message_id || uuidv4();
   const payloadHash = sha256Hex(JSON.stringify(body));
+  const providerEventId = meta.wa_message_id || uuidv4();
 
-  const waNumberTopLevel = meta?.from_phone || null;
-
+  // IMPORTANT:
+  // - inbound user messages => status=pending (worker should process)
+  // - statuses => status=done (worker should ignore)
   const row = {
     provider: "whatsapp",
-    provider_event_id: eventId,
-    event_type: meta?.field || "unknown",
+    status: isInboundMessage ? "pending" : "done",
+    attempts: 0,
+    provider_event_id: providerEventId,
     payload_sha256: payloadHash,
-    wa_number: waNumberTopLevel,
-    meta,
+
+    // normalized columns (if your table has them; if not, safeInsert will still insert core fields)
+    wa_number: meta.from_phone || null,
+    from_phone: meta.from_phone || null,
+    wa_message_id: meta.wa_message_id || null,
+    user_msg_ts: meta.timestamp ? new Date(Number(meta.timestamp) * 1000).toISOString() : null,
+
+    meta, // includes text_body capped to 4096
   };
 
   setImmediate(async () => {
