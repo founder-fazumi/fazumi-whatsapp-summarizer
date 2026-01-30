@@ -38,6 +38,8 @@ const D360_API_KEY = process.env.D360_API_KEY || "";
 const LEMON_CHECKOUT_URL = process.env.LEMON_CHECKOUT_URL || "";
 
 const DRY_RUN = String(process.env.DRY_RUN || "true").toLowerCase() !== "false";
+console.log("[worker] env DRY_RUN raw =", JSON.stringify(process.env.DRY_RUN));
+console.log("[worker] computed DRY_RUN =", DRY_RUN);
 
 if (typeof fetch !== "function") {
   console.error("[worker] fetch() not available. Please upgrade Node to v18+.");
