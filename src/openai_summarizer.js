@@ -6,9 +6,10 @@
  * - Simple concurrency limiter (process-wide) to cap parallel OpenAI calls
  * - Cost estimate based on OpenAI pricing page
  *
- * OpenAI Node SDK uses ESM in examples, but CommonJS projects can load it via dynamic import().
- * Responses API is the primary interface per official SDK docs. :contentReference[oaicite:1]{index=1}
+ * Uses OpenAI Responses API (recommended in docs).
  */
+
+"use strict";
 
 const crypto = require("crypto");
 
@@ -80,8 +81,9 @@ function roughTokenEstimateFromChars(chars) {
 
 /** ---------- pricing for cost estimate ---------- **/
 function getModelPricingUSDPer1M(model) {
-  // Source: OpenAI pricing page. :contentReference[oaicite:2]{index=2}
+  // Keep this conservative; you can update later if you change models.
   const m = String(model || "").toLowerCase();
+  if (m.includes("gpt-4o-mini")) return { input: 0.15, output: 0.60 };
   if (m.includes("gpt-4.1-mini")) return { input: 0.80, output: 3.20 };
   if (m.includes("gpt-4.1")) return { input: 3.00, output: 12.00 };
   return null;
@@ -92,16 +94,13 @@ function getModelPricingUSDPer1M(model) {
  * Returns OpenAI constructor/class.
  */
 async function loadOpenAI() {
+  // Works in CommonJS even if the package is ESM
   const mod = await import("openai");
   return mod.default || mod;
 }
 
 /**
  * Summarize a single WhatsApp message text.
- *
- * IMPORTANT CALLER CONTRACT:
- * - Caller MUST enforce paywall BEFORE calling this.
- * - Caller MUST enforce WhatsApp 24h compliance BEFORE sending freeform reply.
  *
  * Returns:
  * {
@@ -113,7 +112,7 @@ async function loadOpenAI() {
  */
 async function summarizeText({ text }) {
   const DRY_RUN = getBoolEnv("DRY_RUN", true);
-  const model = (process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
+  const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
 
   const maxInputChars = getIntEnv("OPENAI_MAX_INPUT_CHARS", 6000);
   const maxOutputTokens = getIntEnv("OPENAI_MAX_OUTPUT_TOKENS", 220);
@@ -124,7 +123,7 @@ async function summarizeText({ text }) {
   const trimmed = safeText.trim();
   const clipped = trimmed.length > maxInputChars ? trimmed.slice(0, maxInputChars) : trimmed;
 
-  const requestFingerprint = crypto
+  const request_fingerprint = crypto
     .createHash("sha256")
     .update(`${model}::${clipped}`)
     .digest("hex");
@@ -134,7 +133,7 @@ async function summarizeText({ text }) {
       summaryText: `DRY_RUN summary (${Math.min(clipped.length, maxInputChars)} chars).`,
       usage: null,
       cost_usd_est: null,
-      request_fingerprint: requestFingerprint,
+      request_fingerprint,
     };
   }
 
@@ -149,7 +148,7 @@ async function summarizeText({ text }) {
     const system = [
       "You summarize a single WhatsApp message.",
       "Return a concise, helpful summary in plain English.",
-      "No markdown. No bullets unless essential.",
+      "No markdown.",
       "Max 2 short sentences.",
       "If the message is not meaningful, reply: 'Please send a message to summarize.'",
     ].join(" ");
@@ -160,7 +159,7 @@ async function summarizeText({ text }) {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // Responses API per official SDK docs. :contentReference[oaicite:3]{index=3}
+        // Responses API (recommended)
         const resp = await client.responses.create({
           model,
           input: [
@@ -200,7 +199,7 @@ async function summarizeText({ text }) {
           summaryText: outText || "Please send a message to summarize.",
           usage: usage && usage.input_tokens != null ? usage : null,
           cost_usd_est: costUsdEst,
-          request_fingerprint: requestFingerprint,
+          request_fingerprint,
         };
       } catch (err) {
         lastErr = err;
@@ -220,6 +219,42 @@ async function summarizeText({ text }) {
   }
 }
 
+/**
+ * ✅ Compatibility wrapper for worker.js
+ * Worker expects: openaiSummarize({ inputText }) -> { ok, summary_text, openai_model, tokens..., cost_usd_est, error_code }
+ */
+async function openaiSummarize({ inputText }) {
+  try {
+    const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
+    const r = await summarizeText({ text: inputText });
+
+    return {
+      ok: true,
+      summary_text: r.summaryText,
+      openai_model: model,
+      input_tokens: r.usage?.input_tokens ?? null,
+      output_tokens: r.usage?.output_tokens ?? null,
+      total_tokens: r.usage?.total_tokens ?? null,
+      cost_usd_est: r.cost_usd_est ?? null,
+      error_code: null,
+      request_fingerprint: r.request_fingerprint,
+    };
+  } catch (err) {
+    const status = err?.status ?? err?.response?.status ?? null;
+    return {
+      ok: false,
+      summary_text: null,
+      openai_model: (process.env.OPENAI_MODEL || "gpt-4o-mini").trim(),
+      input_tokens: null,
+      output_tokens: null,
+      total_tokens: null,
+      cost_usd_est: null,
+      error_code: status ? `openai_${status}` : "openai_error",
+    };
+  }
+}
+
 module.exports = {
   summarizeText,
+  openaiSummarize,
 };
