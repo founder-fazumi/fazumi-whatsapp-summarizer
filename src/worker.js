@@ -410,14 +410,53 @@ async function runOnce() {
   const eventRow = await dequeueEventJson();
   if (!eventRow) return false;
 
+  const evId = eventRow.id;
+  const provider = eventRow.provider || "unknown";
+  const phone = eventRow.wa_number || eventRow.meta?.from_phone || null;
+
+  console.log(`[worker] dequeued id=${evId} provider=${provider} phone=${maskPhone(phone)}`);
+
+  const startedAt = Date.now();
+
   try {
-    if (eventRow.provider === "whatsapp") {
-      await processWhatsAppEvent(eventRow);
+    if (provider === "whatsapp") {
+      const parsed = extractTextAndSender(eventRow);
+
+      if (!parsed) {
+        console.log(`[worker] skip id=${evId} not-actionable`);
+      } else {
+        const normalized = normalizeInboundText(parsed.text_body);
+        const isCmd = KNOWN_COMMANDS.has(normalized);
+
+        console.log(
+          `[worker] whatsapp id=${evId} cmd=${isCmd ? normalized : "NO"} meaningful=${isMeaningfulText(parsed.text_body)}`
+        );
+
+        await processWhatsAppEvent(eventRow);
+        console.log(`[worker] processed id=${evId} ok`);
+      }
+    } else if (provider === "lemonsqueezy") {
+      console.log(`[worker] lemonsqueezy id=${evId} (worker may handle later)`);
+    } else {
+      console.log(`[worker] unknown provider id=${evId}, skipping`);
     }
-    await markEventDone(eventRow.id);
+
+    await supabase
+      .from("inbound_events")
+      .update({ status: "done", processed_at: nowIso(), last_error: null })
+      .eq("id", evId);
+
+    console.log(`[worker] done id=${evId} ms=${Date.now() - startedAt}`);
   } catch (e) {
-    await markEventError(eventRow.id, e);
+    const msg = String(e?.message || e).slice(0, 300);
+    console.log(`[worker] error id=${evId} ms=${Date.now() - startedAt} err=${msg}`);
+
+    await supabase
+      .from("inbound_events")
+      .update({ status: "error", last_error: msg, processed_at: nowIso() })
+      .eq("id", evId);
   }
+
   return true;
 }
 
