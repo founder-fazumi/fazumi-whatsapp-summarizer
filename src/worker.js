@@ -1,19 +1,14 @@
 /**
- * Fazumi Worker (Phase 4 — OpenAI summaries + cost controls + reliability)
+ * Fazumi Worker (Phase 5 — SG3 24h gate + reliability hardening)
  *
- * Core behavior:
- * - Dequeues inbound events from Supabase (RPC: dequeue_inbound_event_json)
- * - WhatsApp inbound text:
- *    - Commands: HELP / STOP / START / STATUS / PAY / DELETE
- *    - Paywall: 3 free MEANINGFUL summaries per user (BEFORE any OpenAI call)
- *    - DRY_RUN toggle: if DRY_RUN=true => synthetic summary, else real OpenAI
- * - SAFETY:
- *    - Dedupe is DB-first (provider_event_id/wa_message_id unique at insert layer)
- *    - Increment free usage ONLY after successful WhatsApp send
- *    - PII-safe logs (no message content)
- *
- * WhatsApp template support:
- * - sendWhatsAppTemplate() added for approved templates (e.g., "hello_fazumi")
+ * Key Phase 5 upgrades:
+ * - SG3: Strict 24-hour gate enforced BEFORE OpenAI:
+ *     if now - (event.user_msg_ts || user.last_user_message_at) > 24h
+ *       => send approved template only, NO OpenAI, NO free decrement
+ * - Prevent duplicate WhatsApp sends:
+ *     once a WhatsApp message is successfully sent, never throw afterwards
+ *     (post-send DB writes are best-effort)
+ * - last_user_message_at updated ONLY for actionable inbound messages (already true)
  */
 
 "use strict";
@@ -23,7 +18,6 @@ const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 
 // ---- OpenAI summarizer (CommonJS) ----
-// Expecting: module.exports = { summarizeText }
 let summarizeText = null;
 try {
   ({ summarizeText } = require("./openai_summarizer"));
@@ -38,11 +32,15 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const D360_BASE_URL = process.env.D360_BASE_URL || "https://waba-v2.360dialog.io";
 const D360_API_KEY = process.env.D360_API_KEY || "";
 
+// SG3 / templates
 const D360_TEMPLATE_LANG = process.env.D360_TEMPLATE_LANG || "en";
 const HELLO_TEMPLATE_NAME = process.env.HELLO_TEMPLATE_NAME || "hello_fazumi";
+const WHATSAPP_WINDOW_HOURS = Number(process.env.WHATSAPP_WINDOW_HOURS || 24);
 
+// Payments
 const LEMON_CHECKOUT_URL = process.env.LEMON_CHECKOUT_URL || "";
 
+// Runtime controls
 const DRY_RUN = String(process.env.DRY_RUN || "true").toLowerCase() !== "false";
 
 console.log("[worker] env DRY_RUN raw =", JSON.stringify(process.env.DRY_RUN));
@@ -80,6 +78,17 @@ function sleep(ms) {
 function nowIso() {
   return new Date().toISOString();
 }
+function safeIso(input) {
+  // Returns ISO string or null
+  if (!input) return null;
+  try {
+    const d = new Date(input);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  } catch {
+    return null;
+  }
+}
 
 // -------------------- PII-safe helpers --------------------
 function hashPhone(phoneE164) {
@@ -107,6 +116,19 @@ function buildLemonCheckoutUrl(waNumber) {
   return u.toString();
 }
 
+// -------------------- SG3 24h gate --------------------
+function isOutsideCustomerWindow(referenceTsIso) {
+  // If we have no reference timestamp, assume "inside" (safer for MVP).
+  const ref = safeIso(referenceTsIso);
+  if (!ref) return false;
+
+  const refMs = new Date(ref).getTime();
+  const nowMs = Date.now();
+  const hours = (nowMs - refMs) / (1000 * 60 * 60);
+
+  return hours > WHATSAPP_WINDOW_HOURS;
+}
+
 // -------------------- Simple concurrency gate --------------------
 const MAX_CONCURRENCY = Math.max(1, Number(process.env.OPENAI_CONCURRENCY || 2));
 let inFlight = 0;
@@ -132,43 +154,58 @@ async function dequeueEventJson() {
   return data;
 }
 
-// -------------------- WhatsApp event parsing --------------------
 /**
- * Robust extraction:
- * - Use normalized columns when present (from_phone / wa_message_id / user_msg_ts)
- * - Fall back to meta
- * - Accept text from either meta.text_body or meta.text.body
+ * Centralized event marker.
+ * Always writes outcome + skip_reason when relevant.
  */
-function extractTextAndSender(eventRow) {
+async function markEvent(id, patch) {
+  const update = {
+    processed_at: nowIso(),
+    ...patch,
+  };
+
+  const { error } = await supabase.from("inbound_events").update(update).eq("id", id);
+  if (error) console.log("[worker] markEvent error", error.message || error);
+}
+
+/**
+ * Classify WhatsApp event from row.
+ * Returns one of:
+ * - { kind: 'inbound_message', wa_number, text_body }
+ * - { kind: 'status_event' }
+ * - { kind: 'not_actionable' }
+ */
+function classifyWhatsAppEvent(eventRow) {
+  const meta = eventRow.meta || {};
+  const msgType = String(meta.msg_type || meta.type || meta.message_type || "").toLowerCase();
+
+  // Status receipts
+  if (msgType === "status" || meta.status) {
+    return { kind: "status_event" };
+  }
+
+  // Actionable inbound text-like
   const wa_number =
     eventRow.from_phone ||
     eventRow.wa_number ||
-    eventRow.meta?.from_phone ||
-    eventRow.meta?.from ||
-    null;
-
-  const msg_type =
-    eventRow.meta?.msg_type ||
-    eventRow.meta?.type ||
-    eventRow.meta?.message_type ||
+    meta.from_phone ||
+    meta.from ||
     null;
 
   const text_body = (
-    eventRow.meta?.text_body ||
-    eventRow.meta?.text?.body ||
-    eventRow.meta?.body ||
+    meta.text_body ||
+    meta.text?.body ||
+    meta.body ||
     ""
   ).trim();
 
-  if (!wa_number) return null;
+  const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
 
-  // Actionable types only
-  const isTextLike = msg_type === "text" || msg_type === "interactive" || msg_type === "button";
-  if (!isTextLike) return null;
+  if (!wa_number) return { kind: "not_actionable" };
+  if (!isTextLike) return { kind: "not_actionable" };
+  if (!text_body) return { kind: "not_actionable" };
 
-  if (!text_body) return null;
-
-  return { wa_number, text_body };
+  return { kind: "inbound_message", wa_number, text_body };
 }
 
 // -------------------- Users --------------------
@@ -213,10 +250,12 @@ async function resolveUser(waNumber) {
   return created;
 }
 
-async function updateLastUserMessageAt(waNumber) {
+// Rewritten: accept timestamp so we can use provider event time when available
+async function updateLastUserMessageAt(waNumber, tsIso) {
+  const stamp = safeIso(tsIso) || nowIso();
   await supabase
     .from("users")
-    .update({ last_user_message_at: nowIso(), updated_at: nowIso() })
+    .update({ last_user_message_at: stamp, updated_at: nowIso() })
     .eq("phone_e164", waNumber);
 }
 
@@ -262,16 +301,12 @@ async function sendWhatsAppText(toNumber, bodyText) {
   await clearPendingNotice(toNumber);
 }
 
-/**
- * ✅ NEW FUNCTION: send WhatsApp template (approved template, e.g. "hello_fazumi")
- * Use this when you need a template message (e.g., outside the 24h customer care window).
- *
- * Requires:
- * - Template exists in 360dialog and is APPROVED
- * - Template name set in HELLO_TEMPLATE_NAME (default: hello_fazumi)
- * - Language in D360_TEMPLATE_LANG (default: en)
- */
-async function sendWhatsAppTemplate(toNumber, templateName, langCode = D360_TEMPLATE_LANG, components = []) {
+async function sendWhatsAppTemplate(
+  toNumber,
+  templateName,
+  langCode = D360_TEMPLATE_LANG,
+  components = []
+) {
   const url = `${D360_BASE_URL.replace(/\/$/, "")}/messages`;
 
   const payload = {
@@ -348,8 +383,6 @@ async function generateSummaryOrDryRun(inputText) {
 
   return await withConcurrency(async () => {
     try {
-      // summarizeText returns:
-      // { summaryText, usage, cost_usd_est, request_fingerprint }
       const r = await summarizeText({ text: capped });
 
       return {
@@ -367,7 +400,6 @@ async function generateSummaryOrDryRun(inputText) {
       const code = e?.code || e?.error?.code || null;
       const msg = (e?.message || String(e)).slice(0, 200);
 
-      // common OpenAI failure you hit
       const isQuota =
         String(msg).toLowerCase().includes("quota") ||
         String(code).toLowerCase().includes("insufficient_quota");
@@ -387,123 +419,162 @@ async function generateSummaryOrDryRun(inputText) {
 }
 
 // -------------------- WhatsApp processing --------------------
-async function processWhatsAppEvent(eventRow) {
-  const parsed = extractTextAndSender(eventRow);
-  if (!parsed) return { action: "skip_not_actionable" };
+// Rewritten signature: include eventTsIso so SG3 gate can use it
+async function processWhatsAppTextMessage(waNumber, textBody, eventTsIso) {
+  let user = await resolveUser(waNumber);
 
-  let user = await resolveUser(parsed.wa_number);
-  await updateLastUserMessageAt(parsed.wa_number);
+  // Update last_user_message_at ONLY for inbound actionable messages (we’re in that path)
+  // Use provider timestamp if available; fallback to now
+  await updateLastUserMessageAt(waNumber, eventTsIso);
 
-  const normalized = normalizeInboundText(parsed.text_body);
+  // ---------------- SG3: strict 24-hour gate BEFORE OpenAI ----------------
+  const referenceTs = safeIso(eventTsIso) || safeIso(user.last_user_message_at);
+  if (isOutsideCustomerWindow(referenceTs)) {
+    // Template-only branch, NO OpenAI call, NO paywall, NO decrement
+    await sendWhatsAppTemplate(waNumber, HELLO_TEMPLATE_NAME, D360_TEMPLATE_LANG, []);
+    return { action: "outside_24h_template_sent", skip_reason: "outside_24h_template_sent" };
+  }
 
-  // HELP
+  const normalized = normalizeInboundText(textBody);
+
   if (normalized === "HELP") {
-    await sendWhatsAppText(parsed.wa_number, buildHelpMessage());
+    await sendWhatsAppText(waNumber, buildHelpMessage());
     return { action: "help" };
   }
 
-  // STATUS
   if (normalized === "STATUS") {
-    await sendWhatsAppText(parsed.wa_number, buildStatusMessage(user));
+    await sendWhatsAppText(waNumber, buildStatusMessage(user));
     return { action: "status" };
   }
 
-  // PAY
   if (normalized === "PAY") {
-    const url = buildLemonCheckoutUrl(parsed.wa_number);
-    await sendWhatsAppText(parsed.wa_number, `Upgrade here:\n${url}`);
+    const url = buildLemonCheckoutUrl(waNumber);
+    await sendWhatsAppText(waNumber, `Upgrade here:\n${url}`);
     return { action: "pay_link" };
   }
 
-  // STOP
   if (normalized === "STOP") {
     await supabase
       .from("users")
       .update({ is_blocked: true, blocked_at: nowIso(), updated_at: nowIso() })
-      .eq("phone_e164", parsed.wa_number);
+      .eq("phone_e164", waNumber);
 
-    await setPendingNotice(parsed.wa_number, "blocked");
-    await sendWhatsAppText(parsed.wa_number, "⛔ Summaries paused. Reply START to resume.");
+    await setPendingNotice(waNumber, "blocked");
+    await sendWhatsAppText(waNumber, "⛔ Summaries paused. Reply START to resume.");
     return { action: "stop" };
   }
 
-  // START
   if (normalized === "START") {
     await supabase
       .from("users")
       .update({ is_blocked: false, blocked_at: null, updated_at: nowIso() })
-      .eq("phone_e164", parsed.wa_number);
+      .eq("phone_e164", waNumber);
 
-    await sendWhatsAppText(parsed.wa_number, "✅ Summaries resumed.");
+    await sendWhatsAppText(waNumber, "✅ Summaries resumed.");
     return { action: "start" };
   }
 
-  // DELETE (minimal)
   if (normalized === "DELETE") {
     await supabase
       .from("users")
       .update({ deleted_at: nowIso(), status: "deleted", updated_at: nowIso() })
-      .eq("phone_e164", parsed.wa_number);
+      .eq("phone_e164", waNumber);
 
-    await sendWhatsAppText(parsed.wa_number, "✅ Your data is marked for deletion.");
+    await sendWhatsAppText(waNumber, "✅ Your data is marked for deletion.");
     return { action: "delete" };
   }
 
-  // BLOCKED users: only commands allowed
+  // Refresh user state (block could have been changed elsewhere)
+  user = await resolveUser(waNumber);
+
   if (user.is_blocked) {
-    await setPendingNotice(parsed.wa_number, "blocked");
-    await sendWhatsAppText(parsed.wa_number, "⛔ Summaries paused. Reply START.");
+    await setPendingNotice(waNumber, "blocked");
+    await sendWhatsAppText(waNumber, "⛔ Summaries paused. Reply START.");
     return { action: "blocked_notice" };
   }
 
-  const meaningful = isMeaningfulText(parsed.text_body);
+  const meaningful = isMeaningfulText(textBody);
 
   // PAYWALL — MUST happen BEFORE any OpenAI call
   if (user.plan === "free" && meaningful && Number(user.free_remaining || 0) <= 0) {
-    await setPendingNotice(parsed.wa_number, "paywall");
-    await sendWhatsAppText(parsed.wa_number, "You’ve used your free summaries.\nReply PAY to upgrade.");
+    await setPendingNotice(waNumber, "paywall");
+    await sendWhatsAppText(waNumber, "You’ve used your free summaries.\nReply PAY to upgrade.");
     return { action: "paywall" };
   }
 
-  // Generate summary (or DRY_RUN)
-  const result = await generateSummaryOrDryRun(parsed.text_body);
+  const result = await generateSummaryOrDryRun(textBody);
 
   if (!result.ok) {
-    // If you prefer template for "busy", replace sendWhatsAppText with sendWhatsAppTemplate
-    // await sendWhatsAppTemplate(parsed.wa_number, HELLO_TEMPLATE_NAME);
-    await sendWhatsAppText(parsed.wa_number, "⚠️ Sorry—summarizer is temporarily busy. Try again.");
+    await sendWhatsAppText(waNumber, "⚠️ Sorry—summarizer is temporarily busy. Try again.");
     return { action: "summary_failed", error_code: result.error_code || null };
   }
 
-  // Send reply first
-  await sendWhatsAppText(parsed.wa_number, result.summary_text);
+  // SEND FIRST (source of truth for decrement rule)
+  await sendWhatsAppText(waNumber, result.summary_text);
 
-  // Store summary record (best-effort)
-  await supabase.from("summaries").insert({
-    wa_number: parsed.wa_number,
-    input_chars: parsed.text_body.length,
-    summary_text: result.summary_text,
-    openai_model: result.openai_model || null,
-    input_tokens: result.input_tokens ?? null,
-    output_tokens: result.output_tokens ?? null,
-    total_tokens: result.total_tokens ?? null,
-    cost_usd_est: result.cost_usd_est ?? null,
-    error_code: result.error_code ?? null,
-  });
+  // From here on: never throw (avoid duplicate WhatsApp sends on retries)
+  // Best-effort inserts/updates only.
+  try {
+    await supabase.from("summaries").insert({
+      wa_number: waNumber,
+      input_chars: textBody.length,
+      summary_text: result.summary_text,
+      openai_model: result.openai_model || null,
+      input_tokens: result.input_tokens ?? null,
+      output_tokens: result.output_tokens ?? null,
+      total_tokens: result.total_tokens ?? null,
+      cost_usd_est: result.cost_usd_est ?? null,
+      error_code: result.error_code ?? null,
+    });
+  } catch (e) {
+    console.log("[worker] non-fatal: summaries insert failed", String(e?.message || e).slice(0, 120));
+  }
 
-  // Decrement free usage ONLY after successful WhatsApp send
   if (meaningful && user.plan === "free") {
-    await supabase
-      .from("users")
-      .update({
-        free_remaining: Math.max(Number(user.free_remaining || 0) - 1, 0),
-        free_used: Number(user.free_used || 0) + 1,
-        updated_at: nowIso(),
-      })
-      .eq("phone_e164", parsed.wa_number);
+    try {
+      await supabase
+        .from("users")
+        .update({
+          free_remaining: Math.max(Number(user.free_remaining || 0) - 1, 0),
+          free_used: Number(user.free_used || 0) + 1,
+          updated_at: nowIso(),
+        })
+        .eq("phone_e164", waNumber);
+    } catch (e) {
+      console.log("[worker] non-fatal: user usage update failed", String(e?.message || e).slice(0, 120));
+    }
   }
 
   return { action: "summarized", dry_run: DRY_RUN };
+}
+
+// -------------------- Retry policy --------------------
+function isRetryableError(err) {
+  const msg = String(err?.message || err || "").toLowerCase();
+
+  // network-ish / transient
+  if (msg.includes("fetch failed")) return true;
+  if (msg.includes("etimedout") || msg.includes("timeout")) return true;
+  if (msg.includes("econnreset") || msg.includes("econnrefused")) return true;
+
+  // 360dialog transient patterns
+  if (msg.includes("360dialog error 429")) return true;
+  if (
+    msg.includes("360dialog error 500") ||
+    msg.includes("360dialog error 502") ||
+    msg.includes("360dialog error 503")
+  ) return true;
+
+  // supabase transient
+  if (msg.includes("connection") && msg.includes("terminated")) return true;
+
+  return false;
+}
+
+function computeNextAttempt(attempts) {
+  // exponential backoff: 5s, 15s, 45s, 2m, 5m (cap)
+  const secs = Math.min(300, 5 * Math.pow(3, Math.max(0, attempts)));
+  return new Date(Date.now() + secs * 1000).toISOString();
 }
 
 // -------------------- worker loop --------------------
@@ -520,45 +591,105 @@ async function runOnce() {
   const startedAt = Date.now();
 
   try {
-    if (provider === "whatsapp") {
-      const parsed = extractTextAndSender(eventRow);
-
-      if (!parsed) {
-        console.log(`[worker] skip id=${evId} not-actionable`);
-      } else {
-        const normalized = normalizeInboundText(parsed.text_body);
-        const isCmd = KNOWN_COMMANDS.has(normalized);
-
-        console.log(
-          `[worker] whatsapp id=${evId} cmd=${isCmd ? normalized : "NO"} meaningful=${isMeaningfulText(
-            parsed.text_body
-          )} dry_run=${DRY_RUN}`
-        );
-
-        const result = await processWhatsAppEvent(eventRow);
-        console.log(`[worker] processed id=${evId} action=${result.action}`);
-      }
-    } else {
-      console.log(`[worker] provider=${provider} id=${evId} (ignored)`);
+    if (provider !== "whatsapp") {
+      await markEvent(evId, {
+        status: "done",
+        outcome: "skipped",
+        skip_reason: "provider_ignored",
+        last_error: null,
+      });
+      console.log(`[worker] skipped id=${evId} provider=${provider}`);
+      return true;
     }
 
-    await supabase
-      .from("inbound_events")
-      .update({ status: "done", processed_at: nowIso(), last_error: null })
-      .eq("id", evId);
+    const classification = classifyWhatsAppEvent(eventRow);
 
-    console.log(`[worker] done id=${evId} ms=${Date.now() - startedAt}`);
+    if (classification.kind === "status_event") {
+      // Never process status receipts
+      await markEvent(evId, {
+        status: "done",
+        outcome: "skipped",
+        skip_reason: "status_event",
+        last_error: null,
+      });
+      console.log(`[worker] skipped id=${evId} reason=status_event`);
+      return true;
+    }
+
+    if (classification.kind === "not_actionable") {
+      await markEvent(evId, {
+        status: "done",
+        outcome: "skipped",
+        skip_reason: "not_actionable",
+        last_error: null,
+      });
+      console.log(`[worker] skipped id=${evId} reason=not_actionable`);
+      return true;
+    }
+
+    // inbound_message
+    const { wa_number, text_body } = classification;
+
+    const normalized = normalizeInboundText(text_body);
+    const isCmd = KNOWN_COMMANDS.has(normalized);
+
+    console.log(
+      `[worker] whatsapp id=${evId} cmd=${isCmd ? normalized : "NO"} meaningful=${isMeaningfulText(
+        text_body
+      )} dry_run=${DRY_RUN}`
+    );
+
+    // Prefer provider timestamp from DB column if present
+    const eventTsIso = safeIso(eventRow.user_msg_ts) || null;
+
+    const result = await processWhatsAppTextMessage(wa_number, text_body, eventTsIso);
+
+    // outcome tracking
+    const isTemplateOnly = result?.action === "outside_24h_template_sent";
+    await markEvent(evId, {
+      status: "done",
+      outcome: isTemplateOnly ? "skipped" : "done",
+      skip_reason: isTemplateOnly ? (result.skip_reason || "outside_24h_template_sent") : null,
+      last_error: null,
+    });
+
+    console.log(`[worker] done id=${evId} action=${result.action} ms=${Date.now() - startedAt}`);
+    return true;
   } catch (e) {
     const msg = String(e?.message || e).slice(0, 300);
-    console.log(`[worker] error id=${evId} ms=${Date.now() - startedAt} err=${msg}`);
+    const attempts = Number(eventRow.attempts || 0) + 1;
 
-    await supabase
-      .from("inbound_events")
-      .update({ status: "error", last_error: msg, processed_at: nowIso() })
-      .eq("id", evId);
+    const retryable = isRetryableError(e);
+
+    if (retryable && attempts <= 5) {
+      const nextAt = computeNextAttempt(attempts);
+
+      await markEvent(evId, {
+        status: "pending",
+        outcome: "error",
+        skip_reason: null,
+        last_error: msg,
+        attempts,
+        next_attempt_at: nextAt,
+        locked_at: null,
+      });
+
+      console.log(`[worker] retry scheduled id=${evId} attempts=${attempts} next=${nextAt} err=${msg}`);
+    } else {
+      await markEvent(evId, {
+        status: "error",
+        outcome: "error",
+        skip_reason: null,
+        last_error: msg,
+        attempts,
+        next_attempt_at: null,
+      });
+
+      console.log(`[worker] error id=${evId} attempts=${attempts} err=${msg}`);
+    }
+
+    return true;
   }
-
-  return true;
 }
 
 async function loop() {
