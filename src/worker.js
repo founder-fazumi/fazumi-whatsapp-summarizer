@@ -1,30 +1,32 @@
 /**
- * Fazumi Worker (Phase 4 — OpenAI summaries + cost controls foundation)
+ * Fazumi Worker (Phase 4 — real OpenAI summaries + cost controls + reliability)
  *
- * What this worker does:
+ * Core behavior:
  * - Dequeues inbound events from Supabase (RPC: dequeue_inbound_event_json)
- * - Processes WhatsApp TEXT:
+ * - WhatsApp inbound text:
  *    - Commands: HELP / STOP / START / STATUS / PAY / DELETE
- *    - Blocked users: only commands allowed (no summaries)
  *    - Paywall: 3 free MEANINGFUL summaries per user (BEFORE any OpenAI call)
- *    - DRY_RUN=true => no OpenAI calls
- *    - DRY_RUN=false => real OpenAI call via src/openai_summarizer.js
- * - Stores minimal summary audit in summaries: tokens + cost estimate + model + error_code (no raw input stored)
- *
- * SAFETY RULES (MANDATORY):
- * - Paywall decision happens BEFORE any OpenAI call.
- * - Free usage decremented ONLY AFTER successful WhatsApp send.
- * - Dedupe is DB-first (unique provider msg id in DB; worker processes queue rows).
- *
- * DATA MINIMIZATION:
- * - Do not store raw inbound message text in DB.
+ *    - DRY_RUN toggle: if DRY_RUN=true => synthetic summary, else real OpenAI
+ * - SAFETY:
+ *    - Dedupe is DB-first (provider_event_id/wa_message_id unique at insert layer)
+ *    - Increment free usage ONLY after successful WhatsApp send
+ *    - PII-safe logs (no message content)
  */
+
+"use strict";
 
 require("dotenv").config();
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 
-const { summarizeText } = require("./openai_summarizer");
+// OpenAI summarizer module (must be CommonJS export in src/openai_summarizer.js)
+let openaiSummarize = null;
+try {
+  ({ openaiSummarize } = require("./openai_summarizer"));
+} catch (e) {
+  // OK if DRY_RUN=true; we will error if DRY_RUN=false and module missing
+  openaiSummarize = null;
+}
 
 // -------------------- ENV --------------------
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -35,6 +37,8 @@ const D360_API_KEY = process.env.D360_API_KEY || "";
 
 const LEMON_CHECKOUT_URL = process.env.LEMON_CHECKOUT_URL || "";
 
+const DRY_RUN = String(process.env.DRY_RUN || "true").toLowerCase() !== "false";
+
 if (typeof fetch !== "function") {
   console.error("[worker] fetch() not available. Please upgrade Node to v18+.");
   process.exit(1);
@@ -42,6 +46,11 @@ if (typeof fetch !== "function") {
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("[worker] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env");
+  process.exit(1);
+}
+
+if (!DRY_RUN && typeof openaiSummarize !== "function") {
+  console.error("[worker] DRY_RUN=false but openai_summarizer.js is not loadable.");
   process.exit(1);
 }
 
@@ -95,6 +104,22 @@ function buildLemonCheckoutUrl(waNumber) {
   return u.toString();
 }
 
+// -------------------- Simple concurrency gate --------------------
+const MAX_CONCURRENCY = Math.max(1, Number(process.env.OPENAI_CONCURRENCY || 2));
+let inFlight = 0;
+
+async function withConcurrency(fn) {
+  while (inFlight >= MAX_CONCURRENCY) {
+    await sleep(50);
+  }
+  inFlight++;
+  try {
+    return await fn();
+  } finally {
+    inFlight--;
+  }
+}
+
 // -------------------- Supabase queue --------------------
 async function dequeueEventJson() {
   const { data, error } = await supabase.rpc("dequeue_inbound_event_json");
@@ -106,26 +131,39 @@ async function dequeueEventJson() {
   return data;
 }
 
-// -------------------- WhatsApp event parsing (REWRITTEN) --------------------
+// -------------------- WhatsApp event parsing --------------------
+/**
+ * Robust extraction:
+ * - Use normalized columns when present (from_phone / wa_message_id / user_msg_ts)
+ * - Fall back to meta
+ * - Accept text from either meta.text_body or Meta-style meta.text.body
+ */
 function extractTextAndSender(eventRow) {
-  // Prefer view-provided normalized fields, then fallback to meta.
   const wa_number =
-    eventRow.from_phone_effective ||
     eventRow.from_phone ||
     eventRow.wa_number ||
     eventRow.meta?.from_phone ||
     null;
 
-  // Do NOT require msg_type. Your meta often has msg_type null.
-  const text_body = String(eventRow.meta?.text_body || "").trim();
+  const msg_type =
+    eventRow.meta?.msg_type ||
+    eventRow.meta?.type ||
+    null;
 
-  // eventRow.user_msg_ts may exist (preferred). Otherwise meta.timestamp is a string.
-  const user_msg_ts =
-    eventRow.user_msg_ts ||
-    null; // keep as-is; timestamp parsing is handled in DB already
+  const text_body =
+    (eventRow.meta?.text_body ||
+      eventRow.meta?.text?.body ||
+      "").trim();
 
-  if (!wa_number || !text_body) return null;
-  return { wa_number, text_body, user_msg_ts };
+  if (!wa_number) return null;
+
+  // only actionable: inbound user text-like messages
+  const isTextLike = msg_type === "text" || msg_type === "interactive" || msg_type === "button";
+  if (!isTextLike) return null;
+
+  if (!text_body) return null;
+
+  return { wa_number, text_body };
 }
 
 // -------------------- Users --------------------
@@ -152,7 +190,7 @@ async function resolveUser(waNumber) {
       plan: "free",
       status: "active",
       is_paid: false,
-      free_remaining: settings.free_limit,
+      free_remaining: settings?.free_limit ?? 3,
       free_used: 0,
       period_usage: 0,
       is_blocked: false,
@@ -168,12 +206,10 @@ async function resolveUser(waNumber) {
   return created;
 }
 
-// REWRITTEN: prefer event timestamp if provided
-async function updateLastUserMessageAt(waNumber, userMsgTsIsoOrNull) {
-  const value = userMsgTsIsoOrNull ? String(userMsgTsIsoOrNull) : nowIso();
+async function updateLastUserMessageAt(waNumber) {
   await supabase
     .from("users")
-    .update({ last_user_message_at: value, updated_at: nowIso() })
+    .update({ last_user_message_at: nowIso(), updated_at: nowIso() })
     .eq("phone_e164", waNumber);
 }
 
@@ -191,7 +227,7 @@ async function clearPendingNotice(waNumber) {
     .eq("phone_e164", waNumber);
 }
 
-// -------------------- WhatsApp send --------------------
+// -------------------- WhatsApp send (360dialog) --------------------
 async function sendWhatsAppText(toNumber, bodyText) {
   const url = `${D360_BASE_URL.replace(/\/$/, "")}/messages`;
 
@@ -222,6 +258,20 @@ async function sendWhatsAppText(toNumber, bodyText) {
 // -------------------- Commands --------------------
 const KNOWN_COMMANDS = new Set(["HELP", "STATUS", "PAY", "STOP", "START", "DELETE"]);
 
+function buildHelpMessage() {
+  return [
+    "Fazumi HELP",
+    "Send a message and I’ll summarize it.",
+    "",
+    "Commands:",
+    "STATUS - show your plan and remaining usage",
+    "PAY - upgrade",
+    "STOP - pause summaries",
+    "START - resume summaries",
+    "DELETE - delete your data",
+  ].join("\n");
+}
+
 function buildStatusMessage(user) {
   return [
     "Fazumi STATUS",
@@ -231,178 +281,143 @@ function buildStatusMessage(user) {
   ].join("\n");
 }
 
-// -------------------- Summary audit insert (minimal) --------------------
-async function insertSummaryAudit({
-  wa_number,
-  summary_text,
-  input_chars,
-  openai_model,
-  usage,
-  cost_usd_est,
-  error_code,
-}) {
-  // Minimal fields; your summaries table may differ. If insert errors, it won't block sending.
-  try {
-    await supabase.from("summaries").insert({
-      wa_number,
-      input_chars,
-      summary_text,
-      openai_model: openai_model || null,
-      input_tokens: usage?.input_tokens ?? null,
-      output_tokens: usage?.output_tokens ?? null,
-      total_tokens: usage?.total_tokens ?? null,
-      cost_usd_est: cost_usd_est ?? null,
-      error_code: error_code || null,
-      created_at: nowIso(),
-    });
-  } catch (e) {
-    console.warn("[worker] summaries insert failed (non-fatal):", String(e).slice(0, 200));
+// -------------------- OpenAI summary wrapper --------------------
+async function generateSummaryOrDryRun(inputText) {
+  const capped = String(inputText || "").slice(0, Number(process.env.OPENAI_MAX_INPUT_CHARS || 6000));
+
+  if (DRY_RUN) {
+    return {
+      ok: true,
+      summary_text: `(DRY RUN) Summary would be generated for:\n${capped.slice(0, 200)}`,
+      openai_model: null,
+      input_tokens: null,
+      output_tokens: null,
+      total_tokens: null,
+      cost_usd_est: null,
+      error_code: null,
+    };
   }
+
+  // Real OpenAI call (with concurrency cap)
+  return await withConcurrency(async () => {
+    return await openaiSummarize({ inputText: capped });
+  });
 }
 
 // -------------------- WhatsApp processing --------------------
 async function processWhatsAppEvent(eventRow) {
   const parsed = extractTextAndSender(eventRow);
-  if (!parsed) return;
+  if (!parsed) return { action: "skip_not_actionable" };
 
   let user = await resolveUser(parsed.wa_number);
-
-  // Update last_user_message_at using event timestamp if available
-  await updateLastUserMessageAt(parsed.wa_number, parsed.user_msg_ts);
+  await updateLastUserMessageAt(parsed.wa_number);
 
   const normalized = normalizeInboundText(parsed.text_body);
 
   // HELP
   if (normalized === "HELP") {
-    await sendWhatsAppText(
-      parsed.wa_number,
-      "Fazumi commands:\nHELP\nSTATUS\nPAY\nSTOP\nSTART\nDELETE\n\nSend any message to summarize."
-    );
-    return;
+    await sendWhatsAppText(parsed.wa_number, buildHelpMessage());
+    return { action: "help" };
   }
 
   // STATUS
   if (normalized === "STATUS") {
     await sendWhatsAppText(parsed.wa_number, buildStatusMessage(user));
-    return;
-  }
-
-  // STOP
-  if (normalized === "STOP") {
-    await supabase
-      .from("users")
-      .update({ is_blocked: true, updated_at: nowIso() })
-      .eq("phone_e164", parsed.wa_number);
-    await setPendingNotice(parsed.wa_number, "blocked");
-    await sendWhatsAppText(parsed.wa_number, "⛔ Summaries paused. Reply START to resume.");
-    return;
-  }
-
-  // START
-  if (normalized === "START") {
-    await supabase
-      .from("users")
-      .update({ is_blocked: false, updated_at: nowIso() })
-      .eq("phone_e164", parsed.wa_number);
-    await sendWhatsAppText(parsed.wa_number, "✅ Summaries resumed. Send a message anytime.");
-    return;
-  }
-
-  // DELETE (minimal: mark deleted_at, block, and confirm)
-  if (normalized === "DELETE") {
-    await supabase
-      .from("users")
-      .update({ deleted_at: nowIso(), is_blocked: true, updated_at: nowIso() })
-      .eq("phone_e164", parsed.wa_number);
-    await sendWhatsAppText(parsed.wa_number, "✅ Your data has been marked for deletion.");
-    return;
+    return { action: "status" };
   }
 
   // PAY
   if (normalized === "PAY") {
     const url = buildLemonCheckoutUrl(parsed.wa_number);
     await sendWhatsAppText(parsed.wa_number, `Upgrade here:\n${url}`);
-    return;
+    return { action: "pay_link" };
   }
 
-  // BLOCKED (no summaries)
+  // STOP/START
+  if (normalized === "STOP") {
+    await supabase
+      .from("users")
+      .update({ is_blocked: true, blocked_at: nowIso(), updated_at: nowIso() })
+      .eq("phone_e164", parsed.wa_number);
+    await setPendingNotice(parsed.wa_number, "blocked");
+    await sendWhatsAppText(parsed.wa_number, "⛔ Summaries paused. Reply START to resume.");
+    return { action: "stop" };
+  }
+
+  if (normalized === "START") {
+    await supabase
+      .from("users")
+      .update({ is_blocked: false, blocked_at: null, updated_at: nowIso() })
+      .eq("phone_e164", parsed.wa_number);
+    await sendWhatsAppText(parsed.wa_number, "✅ Summaries resumed.");
+    return { action: "start" };
+  }
+
+  // DELETE (minimal)
+  if (normalized === "DELETE") {
+    await supabase
+      .from("users")
+      .update({ deleted_at: nowIso(), status: "deleted", updated_at: nowIso() })
+      .eq("phone_e164", parsed.wa_number);
+    await sendWhatsAppText(parsed.wa_number, "✅ Your data is marked for deletion.");
+    return { action: "delete" };
+  }
+
+  // BLOCKED users: only commands allowed
   if (user.is_blocked) {
     await setPendingNotice(parsed.wa_number, "blocked");
     await sendWhatsAppText(parsed.wa_number, "⛔ Summaries paused. Reply START.");
-    return;
+    return { action: "blocked_notice" };
   }
 
   const meaningful = isMeaningfulText(parsed.text_body);
 
-  // PAYWALL (MUST happen before OpenAI)
-  if (user.plan === "free" && meaningful && user.free_remaining <= 0) {
+  // PAYWALL — MUST happen BEFORE any OpenAI call
+  if (user.plan === "free" && meaningful && Number(user.free_remaining || 0) <= 0) {
     await setPendingNotice(parsed.wa_number, "paywall");
-    await sendWhatsAppText(
-      parsed.wa_number,
-      "You’ve used your free summaries.\nReply PAY to upgrade."
-    );
-    return;
+    await sendWhatsAppText(parsed.wa_number, "You’ve used your free summaries.\nReply PAY to upgrade.");
+    return { action: "paywall" };
   }
 
-  // -------------------- REAL SUMMARY (DRY_RUN-safe) --------------------
-  // Paywall check already passed; now it is allowed to call OpenAI (if DRY_RUN=false).
-  let summaryText = null;
-  let usage = null;
-  let costUsdEst = null;
-  let errorCode = null;
-  const openaiModel = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  // REAL SUMMARY (or dry run)
+  const result = await generateSummaryOrDryRun(parsed.text_body);
 
-  try {
-    const res = await summarizeText({ text: parsed.text_body });
-    summaryText = res.summaryText;
-    usage = res.usage || null;
-    costUsdEst = res.cost_usd_est ?? null;
-  } catch (e) {
-    errorCode = "openai_error";
-    summaryText = "Sorry — I couldn’t summarize that right now. Please try again.";
-    console.warn("[worker] OpenAI summarize failed:", String(e).slice(0, 200));
+  if (!result.ok) {
+    await sendWhatsAppText(parsed.wa_number, "⚠️ Sorry—summarizer is temporarily busy. Try again.");
+    return { action: "summary_failed" };
   }
 
-  // Send WhatsApp reply (ONLY after send succeeds do we decrement free)
-  await sendWhatsAppText(parsed.wa_number, summaryText);
+  // Send reply first
+  await sendWhatsAppText(parsed.wa_number, result.summary_text);
 
-  // Store summary audit (minimal)
-  await insertSummaryAudit({
+  // Store summary record (best-effort)
+  const insertSummary = {
     wa_number: parsed.wa_number,
-    summary_text: summaryText,
     input_chars: parsed.text_body.length,
-    openai_model: openaiModel,
-    usage,
-    cost_usd_est: costUsdEst,
-    error_code: errorCode,
-  });
+    summary_text: result.summary_text,
+    openai_model: result.openai_model || null,
+    input_tokens: result.input_tokens ?? null,
+    output_tokens: result.output_tokens ?? null,
+    total_tokens: result.total_tokens ?? null,
+    cost_usd_est: result.cost_usd_est ?? null,
+    error_code: result.error_code ?? null,
+  };
 
-  // Decrement free usage ONLY after WhatsApp send success
+  await supabase.from("summaries").insert(insertSummary);
+
+  // Decrement free usage ONLY after successful WhatsApp send
   if (meaningful && user.plan === "free") {
     await supabase
       .from("users")
       .update({
-        free_remaining: Math.max(user.free_remaining - 1, 0),
-        free_used: user.free_used + 1,
+        free_remaining: Math.max(Number(user.free_remaining || 0) - 1, 0),
+        free_used: Number(user.free_used || 0) + 1,
         updated_at: nowIso(),
       })
       .eq("phone_e164", parsed.wa_number);
   }
-}
 
-// -------------------- mark queue row (REWRITTEN: update base table, not view) --------------------
-async function markEventDone(id) {
-  await supabase
-    .from("inbound_events")
-    .update({ status: "done", processed_at: nowIso() })
-    .eq("id", id);
-}
-
-async function markEventError(id, err) {
-  await supabase
-    .from("inbound_events")
-    .update({ status: "error", last_error: String(err).slice(0, 500) })
-    .eq("id", id);
+  return { action: "summarized", dry_run: DRY_RUN };
 }
 
 // -------------------- worker loop --------------------
@@ -412,7 +427,7 @@ async function runOnce() {
 
   const evId = eventRow.id;
   const provider = eventRow.provider || "unknown";
-  const phone = eventRow.wa_number || eventRow.meta?.from_phone || null;
+  const phone = eventRow.from_phone || eventRow.wa_number || eventRow.meta?.from_phone || null;
 
   console.log(`[worker] dequeued id=${evId} provider=${provider} phone=${maskPhone(phone)}`);
 
@@ -429,16 +444,14 @@ async function runOnce() {
         const isCmd = KNOWN_COMMANDS.has(normalized);
 
         console.log(
-          `[worker] whatsapp id=${evId} cmd=${isCmd ? normalized : "NO"} meaningful=${isMeaningfulText(parsed.text_body)}`
+          `[worker] whatsapp id=${evId} cmd=${isCmd ? normalized : "NO"} meaningful=${isMeaningfulText(parsed.text_body)} dry_run=${DRY_RUN}`
         );
 
-        await processWhatsAppEvent(eventRow);
-        console.log(`[worker] processed id=${evId} ok`);
+        const result = await processWhatsAppEvent(eventRow);
+        console.log(`[worker] processed id=${evId} action=${result.action}`);
       }
-    } else if (provider === "lemonsqueezy") {
-      console.log(`[worker] lemonsqueezy id=${evId} (worker may handle later)`);
     } else {
-      console.log(`[worker] unknown provider id=${evId}, skipping`);
+      console.log(`[worker] provider=${provider} id=${evId} (ignored)`);
     }
 
     await supabase
