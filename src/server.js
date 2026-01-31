@@ -1,5 +1,18 @@
 "use strict";
 
+/**
+ * Fazumi Webhook Server (Phase 5)
+ *
+ * Responsibilities:
+ * 1) ACK webhooks FAST (<= 5 seconds) then enqueue work to Supabase.
+ * 2) Never do heavy processing inside the webhook handler.
+ * 3) Never log secrets or full user message bodies.
+ *
+ * Phase 5 additions:
+ * - Enqueue WhatsApp DOCUMENT messages (ZIP uploads) into inbound_events,
+ *   so the worker can later download + parse the ZIP (R3/R4).
+ */
+
 require("dotenv").config();
 
 const express = require("express");
@@ -14,9 +27,10 @@ const app = express();
 const supabase = getSupabaseAdmin();
 
 /**
- * VERSION MARKER (SG4-1)
+ * VERSION MARKER
+ * Bump this string whenever you deploy changes so logs prove what's running.
  */
-const SERVER_BUILD_TAG = "SG4-1-server-v4-route-hit-logger-2026-01-30";
+const SERVER_BUILD_TAG = "SG4-2-server-enqueue-document-zip-2026-01-31";
 
 app.use(helmet());
 app.use(morgan("tiny"));
@@ -74,13 +88,52 @@ function parseToIsoOrNull(ts) {
 
   const n = Number(s);
   if (!Number.isNaN(n)) {
-    const ms = n < 1e12 ? n * 1000 : n;
+    const ms = n < 1e12 ? n * 1000 : n; // seconds vs millis
     const d = new Date(ms);
     return isNaN(d.getTime()) ? null : d.toISOString();
   }
 
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Extract DOCUMENT info (ZIP upload) from the raw webhook payload safely.
+ *
+ * We DO NOT log or store binary.
+ * We only keep the minimal document metadata:
+ * - media_id (document.id)
+ * - filename
+ * - mime_type
+ * - sha256 (if provided by provider)
+ * - caption (optional)
+ */
+function extractDocumentMetaSafe(body) {
+  try {
+    const entry0 = Array.isArray(body?.entry) ? body.entry[0] : null;
+    const change0 = Array.isArray(entry0?.changes) ? entry0.changes[0] : null;
+    const value = change0?.value || null;
+
+    // WhatsApp Cloud API shape: value.messages[0]
+    const msg0 = Array.isArray(value?.messages) ? value.messages[0] : null;
+    if (!msg0) return null;
+
+    if (String(msg0.type || "").toLowerCase() !== "document") return null;
+
+    const doc = msg0.document || null;
+    if (!doc) return null;
+
+    return {
+      // Standard fields seen in Cloud API payloads
+      media_id: doc.id || null,
+      mime_type: doc.mime_type || null,
+      filename: doc.filename || null,
+      sha256: doc.sha256 || null,
+      caption: doc.caption || msg0.caption || null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -182,39 +235,54 @@ app.get("/debug/ping", (req, res) => {
 
 /**
  * WhatsApp webhook (360dialog):
- * - ACK 200 immediately
- * - Insert ONLY into inbound_events table
+ * - ACK 200 immediately (<= 5s requirement)
+ * - Insert ONLY into inbound_events table (worker does processing)
  *
- * IMPORTANT: We must distinguish inbound user messages from status receipts.
- * 360dialog sends `messages` and `statuses` events. :contentReference[oaicite:1]{index=1}
+ * IMPORTANT:
+ * - We must distinguish inbound user messages vs status receipts
+ * - AND we must enqueue DOCUMENT messages (ZIP) for Phase 5 R3/R4.
  */
 app.post("/webhooks/whatsapp", (req, res) => {
-  // ACK immediately
+  // ACK immediately (never block here)
   res.sendStatus(200);
 
-  // This line MUST print if the route is being hit.
+  // Proof log: route hit
   console.log(`[whatsapp] webhook hit build=${SERVER_BUILD_TAG} at=${new Date().toISOString()}`);
 
   debugWebhookSample("whatsapp", req.body);
 
   const body = req.body || {};
+
+  // Existing safe meta extraction (text/status)
   const meta = extractWhatsAppMetaSafe(body);
 
-  const msgType = String(meta.msg_type || "").toLowerCase();
-  const hasSender = Boolean(meta.from_phone);
+  // Additional safe doc extraction (document/zip)
+  const docMeta = extractDocumentMetaSafe(body);
+
+  const msgType = String(meta.msg_type || (docMeta ? "document" : "") || "").toLowerCase();
+
+  const hasSender = Boolean(meta.from_phone); // for docs, your extractWhatsAppMetaSafe MUST still provide from_phone
   const hasMsgId = Boolean(meta.wa_message_id);
   const hasTextBody = Boolean(meta.text_body && String(meta.text_body).trim().length > 0);
 
   const isTextLikeType = msgType === "text" || msgType === "interactive" || msgType === "button";
   const isStatusType = msgType === "status" || Boolean(meta.status);
+  const isDocumentType = msgType === "document" || Boolean(docMeta);
 
-  const isActionableInbound = isTextLikeType && hasSender && hasMsgId && hasTextBody;
+  // What we accept into the queue:
+  const isActionableTextInbound = isTextLikeType && hasSender && hasMsgId && hasTextBody;
   const isStatusEvent = isStatusType && hasSender && hasMsgId;
+  const isDocumentInbound = isDocumentType && hasSender && hasMsgId; // doc doesn't need text_body
 
-  if (!isActionableInbound && !isStatusEvent) return;
+  // If it's none of the above, ignore it
+  if (!isActionableTextInbound && !isStatusEvent && !isDocumentInbound) return;
 
+  // Hash the full payload (safe, no secrets) for debugging / dedupe analysis
   const payloadHash = sha256Hex(Buffer.from(JSON.stringify(body)));
 
+  // Stable provider_event_id:
+  // - Status events: add a suffix so sent/delivered/read are distinct
+  // - Text/doc messages: use wa_message_id if present
   const statusSuffix = meta.status ? String(meta.status).toLowerCase() : "status";
   const providerEventId = isStatusEvent
     ? `${meta.wa_message_id}:${statusSuffix}`
@@ -224,7 +292,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
   const row = {
     provider: "whatsapp",
-    status: isActionableInbound ? "pending" : "done",
+    status: isActionableTextInbound || isDocumentInbound ? "pending" : "done",
     attempts: 0,
 
     provider_event_id: providerEventId,
@@ -235,13 +303,25 @@ app.post("/webhooks/whatsapp", (req, res) => {
     wa_message_id: meta.wa_message_id || null,
     user_msg_ts: userMsgIso,
 
+    // IMPORTANT: store only minimal safe metadata
     meta: {
       ...meta,
-      event_kind: isActionableInbound ? "inbound_message" : "status_event",
+
+      // Attach document fields if present
+      ...(docMeta ? { document: docMeta } : {}),
+
+      // Classify for worker
+      event_kind: isActionableTextInbound
+        ? "inbound_message"
+        : isDocumentInbound
+        ? "inbound_document"
+        : "status_event",
+
       ...(isStatusEvent ? { skip_reason: "status_event" } : {}),
     },
   };
 
+  // Enqueue asynchronously after ACK
   setImmediate(async () => {
     try {
       debugMetaKeys("whatsapp_insert", row);
