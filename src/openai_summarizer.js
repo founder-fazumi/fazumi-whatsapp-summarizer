@@ -9,12 +9,8 @@
  * - Data minimization: store:false, no logging of user text, fingerprint only
  *
  * IMPORTANT:
- * - If you use project-scoped keys (sk-proj-...), some setups require project context for write calls.
- *   Set OPENAI_PROJECT_ID to be safe.
- *
- * Docs:
- * - Responses API + instructions/input: https://platform.openai.com/docs/guides/migrate-to-responses
- * - Structured Outputs (json_schema strict): https://platform.openai.com/docs/guides/structured-outputs
+ * - Responses API: Structured Outputs moved from `response_format` to `text.format`.
+ *   (OpenAI docs explicitly say to use text.format.)  See Sources checked.
  */
 
 "use strict";
@@ -110,7 +106,6 @@ function roughTokenEstimateFromChars(chars) {
 
 /** ---------- pricing (optional estimate) ---------- **/
 function getModelPricingUSDPer1M(model) {
-  // Conservative defaults; update if you change models/pricing.
   const m = String(model || "").toLowerCase();
   if (m.includes("gpt-4o-mini")) return { input: 0.15, output: 0.60 };
   if (m.includes("gpt-4.1-mini")) return { input: 0.80, output: 3.20 };
@@ -144,7 +139,6 @@ function buildFazumiSystemPrompt() {
     "You must be a faithful extractor: do not infer or invent anything.",
     "If unclear, say so explicitly.",
     "",
-    "Output must follow the provided JSON schema strictly.",
     "Language: detect dominant language; set ISO 639-1 code (en/ar/etc).",
     "Arabic override: if meaning is Arabic even in Arabizi, output Arabic script and language='ar'.",
     "",
@@ -156,10 +150,11 @@ function buildFazumiSystemPrompt() {
   ].join("\n");
 }
 
-/** ---------- Structured Output JSON schema ---------- **/
-function fazumiJsonSchema() {
-  // Structured Outputs strict schema: additionalProperties must be false and required must include all keys.
+/** ---------- Structured Outputs (Responses API uses text.format) ---------- **/
+function fazumiTextFormat() {
+  // This object is meant to be used directly as: text: { format: <this object> }
   return {
+    type: "json_schema",
     name: "fazumi_summary",
     strict: true,
     schema: {
@@ -277,25 +272,16 @@ function formatForWhatsApp(schemaObj, maxChars) {
 
 /**
  * Summarize a single WhatsApp message text.
- *
- * Returns:
- * {
- *   summaryText: string,
- *   usage: { input_tokens, output_tokens, total_tokens } | null,
- *   cost_usd_est: number | null,
- *   request_fingerprint: string,
- *   raw_json: object | null
- * }
  */
 async function summarizeText({ text }) {
   const DRY_RUN = getBoolEnv("DRY_RUN", true);
 
   const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
-  const projectId = (process.env.OPENAI_PROJECT_ID || "").trim(); // optional but recommended for sk-proj keys
+  const projectId = (process.env.OPENAI_PROJECT_ID || "").trim();
 
   const maxInputChars = getIntEnv("OPENAI_MAX_INPUT_CHARS", 6000);
   const maxOutputTokensCfg = getIntEnv("OPENAI_MAX_OUTPUT_TOKENS", 450);
-  const maxOutputTokens = Math.max(16, maxOutputTokensCfg); // enforce API minimum
+  const maxOutputTokens = Math.max(16, maxOutputTokensCfg);
   const maxOutputChars = getIntEnv("WHATSAPP_MAX_OUTPUT_CHARS", 1800);
 
   const maxRetries = getIntEnv("OPENAI_MAX_RETRIES", 4);
@@ -352,10 +338,10 @@ async function summarizeText({ text }) {
           input,
           max_output_tokens: maxOutputTokens,
           temperature,
-          store: false, // data minimization (no server-side storage)
-          response_format: {
-            type: "json_schema",
-            json_schema: fazumiJsonSchema(),
+          store: false,
+          // ✅ Responses API structured outputs:
+          text: {
+            format: fazumiTextFormat(),
           },
         });
 
@@ -377,7 +363,6 @@ async function summarizeText({ text }) {
         if (pricing) {
           const inTok = usage?.input_tokens ?? roughTokenEstimateFromChars(instructions.length + input.length);
           const outTok = usage?.output_tokens ?? roughTokenEstimateFromChars(outText.length);
-
           costUsdEst = Number(
             (
               (inTok / 1_000_000) * pricing.input +
@@ -396,7 +381,6 @@ async function summarizeText({ text }) {
       } catch (err) {
         lastErr = err;
 
-        // do NOT waste retries if quota is insufficient
         if (looksLikeInsufficientQuota(err)) throw err;
 
         const status = err?.status ?? err?.response?.status ?? null;
@@ -415,7 +399,7 @@ async function summarizeText({ text }) {
 }
 
 /**
- * ✅ Compatibility wrapper (worker.js expects this signature)
+ * Compatibility wrapper (worker.js expects this signature)
  */
 async function openaiSummarize({ inputText }) {
   try {

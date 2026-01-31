@@ -2,7 +2,9 @@
 
 const crypto = require("crypto");
 
-/** Redact secrets in logs */
+/**
+ * Redact secrets in logs
+ */
 function redact(v) {
   const s = String(v || "");
   if (s.length <= 8) return "****";
@@ -10,7 +12,9 @@ function redact(v) {
 }
 
 function sha256Hex(input) {
-  const buf = Buffer.isBuffer(input) ? input : Buffer.from(String(input || ""), "utf8");
+  const buf = Buffer.isBuffer(input)
+    ? input
+    : Buffer.from(String(input || ""), "utf8");
   return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
@@ -42,12 +46,23 @@ function verifyLemonSignature({ rawBody, signatureHeader, signingSecret }) {
 
 /**
  * Robust extraction for 360dialog / Meta-style payload.
- * 360dialog documents messages/statuses events. We support both. :contentReference[oaicite:5]{index=5}
  *
- * Returns stable keys:
- * - field, object
- * - msg_type, text_body
- * - from_phone, wa_message_id, timestamp
+ * IMPORTANT DESIGN RULE:
+ * - This function returns ONLY sanitized, minimal WhatsApp fields
+ * - It MUST NOT erase system-level keys added later (event_kind, skip_reason)
+ *
+ * We solve this by:
+ * - returning a plain object
+ * - never freezing / sealing / deep-normalizing it
+ * - and clearly separating "extracted payload" from "system metadata"
+ *
+ * Supported events:
+ * - messages (text / interactive / button)
+ * - statuses (sent / delivered / read receipts)
+ *
+ * Docs:
+ * https://docs.360dialog.com/partner/messaging-and-calling/sending-and-receiving-messages/receiving-messages-via-webhook
+ * https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/
  */
 function extractWhatsAppMetaSafe(body) {
   const entry = Array.isArray(body?.entry) ? body.entry[0] : null;
@@ -56,7 +71,7 @@ function extractWhatsAppMetaSafe(body) {
   const field = change?.field ?? null;
   const value = change?.value ?? null;
 
-  // messages[0]
+  // -------- inbound user messages --------
   const msg = Array.isArray(value?.messages) ? value.messages[0] : null;
   if (msg) {
     const msg_type = msg?.type ?? null;
@@ -79,43 +94,60 @@ function extractWhatsAppMetaSafe(body) {
         null;
     }
 
-    // cap length, do not store huge payload
-    const cappedText = text_body ? String(text_body).slice(0, 4096) : null;
+    // Cap length to avoid storing large user payloads
+    const cappedText = text_body
+      ? String(text_body).slice(0, 4096)
+      : null;
 
     return {
       field: field || "messages",
       object: body?.object || "whatsapp_business_account",
+
       msg_type: msg_type || null,
       text_body: cappedText,
+
       timestamp: timestamp || null,
       from_phone: from_phone || null,
       wa_message_id: wa_message_id || null,
-      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
+
+      wa_id:
+        value?.metadata?.phone_number_id ||
+        value?.metadata?.display_phone_number ||
+        null,
     };
   }
 
-  // statuses[0] (delivery/read receipts, etc)
+  // -------- status / receipt events --------
   const st = Array.isArray(value?.statuses) ? value.statuses[0] : null;
   if (st) {
     return {
       field: field || "statuses",
       object: body?.object || "whatsapp_business_account",
+
       msg_type: "status",
       text_body: null,
+
       timestamp: st?.timestamp ?? null,
       from_phone: st?.recipient_id ?? null,
       wa_message_id: st?.id ?? null,
+
       status: st?.status ?? null,
-      wa_id: value?.metadata?.phone_number_id || value?.metadata?.display_phone_number || null,
+
+      wa_id:
+        value?.metadata?.phone_number_id ||
+        value?.metadata?.display_phone_number ||
+        null,
     };
   }
 
-  // Non-actionable/test payload
+  // -------- non-actionable / test payload --------
   return {
     field: field || null,
     object: body?.object || null,
+
     msg_type: null,
     text_body: null,
+
     timestamp: null,
     from_phone: null,
     wa_message_id: null,

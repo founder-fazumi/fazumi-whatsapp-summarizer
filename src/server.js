@@ -13,29 +13,79 @@ const { redact, verifyLemonSignature, extractWhatsAppMetaSafe, sha256Hex } = req
 const app = express();
 const supabase = getSupabaseAdmin();
 
+/**
+ * VERSION MARKER (SG4-1)
+ */
+const SERVER_BUILD_TAG = "SG4-1-server-v4-route-hit-logger-2026-01-30";
+
 app.use(helmet());
 app.use(morgan("tiny"));
 
 /**
  * Optional debug logging (OFF by default).
  * Turn on by setting: DEBUG_WEBHOOKS=1
- * WARNING: This prints inbound payload samples to logs; don't enable in production unless needed.
+ * SAFETY: never print full message bodies.
  */
 function debugWebhookSample(label, body) {
   if (process.env.DEBUG_WEBHOOKS !== "1") return;
   try {
-    const keys = Object.keys(body || {});
-    console.log(`[debug] ${label} keys:`, keys);
-    const sample = JSON.stringify(body || {}, null, 2).slice(0, 2000);
-    console.log(`[debug] ${label} sample (first 2000 chars):\n${sample}`);
+    const b = body || {};
+    console.log(`[debug] ${label} build=${SERVER_BUILD_TAG}`);
+    console.log(`[debug] ${label} top-level keys:`, Object.keys(b || {}).slice(0, 40));
+    console.log(`[debug] ${label} entry_count:`, Array.isArray(b.entry) ? b.entry.length : null);
   } catch (e) {
-    console.log(`[debug] ${label} failed to stringify`, e?.message || e);
+    console.log(`[debug] ${label} failed`, String(e?.message || e).slice(0, 200));
   }
 }
 
 /**
+ * OPTIONAL PROOF LOG (OFF by default):
+ * Prints ONLY meta keys + a few scalar flags. Never prints text_body.
+ * Enable with: DEBUG_META_KEYS=1
+ */
+function debugMetaKeys(label, row) {
+  if (process.env.DEBUG_META_KEYS !== "1") return;
+  try {
+    const keys = Object.keys(row?.meta || {}).sort();
+    console.log(
+      `[debug] ${label} meta_keys=${JSON.stringify(keys)}` +
+        ` event_kind=${row?.meta?.event_kind || null}` +
+        ` skip_reason=${row?.meta?.skip_reason || null}` +
+        ` msg_type=${row?.meta?.msg_type || null}` +
+        ` provider_event_id=${row?.provider_event_id || null}`
+    );
+  } catch (e) {
+    console.log(`[debug] ${label} meta_keys failed`, String(e?.message || e).slice(0, 200));
+  }
+}
+
+/**
+ * Parse timestamp robustly.
+ * Supports epoch seconds, epoch millis, or ISO strings.
+ * Returns ISO string or null.
+ */
+function parseToIsoOrNull(ts) {
+  if (ts == null) return null;
+
+  if (ts instanceof Date && !isNaN(ts.getTime())) return ts.toISOString();
+
+  const s = String(ts).trim();
+  if (!s) return null;
+
+  const n = Number(s);
+  if (!Number.isNaN(n)) {
+    const ms = n < 1e12 ? n * 1000 : n;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
  * Lemon webhook:
- * - MUST use RAW body for signature verification (Lemon docs)
+ * - MUST use RAW body for signature verification
  * - ACK fast
  */
 app.post(
@@ -78,7 +128,6 @@ app.post(
       parsed?.meta?.custom?.waNumber ||
       null;
 
-    // Idempotency: prefer stable event id when possible
     const providerEventId = eventName && dataId ? `${eventName}:${dataId}` : uuidv4();
     const payloadHash = sha256Hex(req.body);
 
@@ -106,7 +155,11 @@ app.post(
     };
 
     setImmediate(async () => {
-      await safeInsertInboundEvent(supabase, row);
+      try {
+        await safeInsertInboundEvent(supabase, row);
+      } catch (e) {
+        console.log("[lemonsqueezy] enqueue failed:", String(e?.message || e).slice(0, 300));
+      }
     });
   }
 );
@@ -115,66 +168,93 @@ app.post(
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (req, res) => {
-  res.status(200).json({ ok: true, name: process.env.APP_NAME || "fazumi-whatsapp-summarizer" });
+  res.status(200).json({
+    ok: true,
+    name: process.env.APP_NAME || "fazumi-whatsapp-summarizer",
+    build: SERVER_BUILD_TAG,
+  });
+});
+
+// Quick reachability check
+app.get("/debug/ping", (req, res) => {
+  res.status(200).json({ ok: true, build: SERVER_BUILD_TAG });
 });
 
 /**
  * WhatsApp webhook (360dialog):
  * - ACK 200 immediately
- * - Insert ONLY into inbound_events table (never view)
- * - Store minimal meta (no secrets; cap text length)
- * - Ignore empty/test payloads
+ * - Insert ONLY into inbound_events table
+ *
+ * IMPORTANT: We must distinguish inbound user messages from status receipts.
+ * 360dialog sends `messages` and `statuses` events. :contentReference[oaicite:1]{index=1}
  */
 app.post("/webhooks/whatsapp", (req, res) => {
-  // ACK immediately (timing expectation)
+  // ACK immediately
   res.sendStatus(200);
+
+  // This line MUST print if the route is being hit.
+  console.log(`[whatsapp] webhook hit build=${SERVER_BUILD_TAG} at=${new Date().toISOString()}`);
 
   debugWebhookSample("whatsapp", req.body);
 
   const body = req.body || {};
   const meta = extractWhatsAppMetaSafe(body);
 
-  // We only enqueue actionable inbound messages for the worker.
-  // Status receipts can be stored but should NOT be queued for summarization.
-  const isInboundMessage =
-    (meta.field === "messages" || meta.msg_type === "text" || meta.msg_type === "interactive" || meta.msg_type === "button") &&
-    Boolean(meta.from_phone) &&
-    Boolean(meta.wa_message_id);
+  const msgType = String(meta.msg_type || "").toLowerCase();
+  const hasSender = Boolean(meta.from_phone);
+  const hasMsgId = Boolean(meta.wa_message_id);
+  const hasTextBody = Boolean(meta.text_body && String(meta.text_body).trim().length > 0);
 
-  const isStatus = meta.field === "statuses" || meta.msg_type === "status";
+  const isTextLikeType = msgType === "text" || msgType === "interactive" || msgType === "button";
+  const isStatusType = msgType === "status" || Boolean(meta.status);
 
-  // If neither a real inbound message nor a status update, skip (prevents DB spam from test webhooks)
-  if (!isInboundMessage && !isStatus) return;
+  const isActionableInbound = isTextLikeType && hasSender && hasMsgId && hasTextBody;
+  const isStatusEvent = isStatusType && hasSender && hasMsgId;
 
-  const payloadHash = sha256Hex(JSON.stringify(body));
-  const providerEventId = meta.wa_message_id || uuidv4();
+  if (!isActionableInbound && !isStatusEvent) return;
 
-  // IMPORTANT:
-  // - inbound user messages => status=pending (worker should process)
-  // - statuses => status=done (worker should ignore)
+  const payloadHash = sha256Hex(Buffer.from(JSON.stringify(body)));
+
+  const statusSuffix = meta.status ? String(meta.status).toLowerCase() : "status";
+  const providerEventId = isStatusEvent
+    ? `${meta.wa_message_id}:${statusSuffix}`
+    : meta.wa_message_id || uuidv4();
+
+  const userMsgIso = parseToIsoOrNull(meta.timestamp);
+
   const row = {
     provider: "whatsapp",
-    status: isInboundMessage ? "pending" : "done",
+    status: isActionableInbound ? "pending" : "done",
     attempts: 0,
+
     provider_event_id: providerEventId,
     payload_sha256: payloadHash,
 
-    // normalized columns (if your table has them; if not, safeInsert will still insert core fields)
     wa_number: meta.from_phone || null,
     from_phone: meta.from_phone || null,
     wa_message_id: meta.wa_message_id || null,
-    user_msg_ts: meta.timestamp ? new Date(Number(meta.timestamp) * 1000).toISOString() : null,
+    user_msg_ts: userMsgIso,
 
-    meta, // includes text_body capped to 4096
+    meta: {
+      ...meta,
+      event_kind: isActionableInbound ? "inbound_message" : "status_event",
+      ...(isStatusEvent ? { skip_reason: "status_event" } : {}),
+    },
   };
 
   setImmediate(async () => {
-    await safeInsertInboundEvent(supabase, row);
+    try {
+      debugMetaKeys("whatsapp_insert", row);
+      await safeInsertInboundEvent(supabase, row);
+    } catch (e) {
+      console.log("[whatsapp] enqueue failed:", String(e?.message || e).slice(0, 300));
+    }
   });
 });
 
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
+  console.log(`[server] build=${SERVER_BUILD_TAG}`);
   console.log(`[server] listening on http://localhost:${port}`);
   console.log(`[server] supabase configured: ${Boolean(supabase)}`);
 });
