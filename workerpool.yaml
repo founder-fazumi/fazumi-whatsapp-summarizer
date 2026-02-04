@@ -1,0 +1,52 @@
+apiVersion: run.googleapis.com/v1
+kind: WorkerPool
+metadata:
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+    run.googleapis.com/manualInstanceCount: '1'
+    run.googleapis.com/scalingMode: manual
+  labels:
+    cloud.googleapis.com/location: europe-west1
+  name: fazumi-workerpool
+  namespace: '361487327014'
+spec:
+  instanceSplits:
+  - percent: 100
+    revisionName: fazumi-workerpool-00009-mqz
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+      labels:
+        client.knative.dev/nonce: 95997720-c9a5-4b91-898a-482d2f1bf58a
+    spec:
+      containerConcurrency: 0
+      containers:
+      - args:
+        - run
+        - worker
+        command:
+        - npm
+        env:
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: SUPABASE_URL
+        - name: SUPABASE_SERVICE_ROLE_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: SUPABASE_SERVICE_ROLE_KEY
+        - name: D360_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: D360_API_KEY
+        image: europe-west1-docker.pkg.dev/fazumi-whatsapp/fazumi/fazumi-worker:worker-20260204-061356
+        name: fazumi-webhook-1
+        resources:
+          limits:
+            cpu: '1'
+            memory: 512Mi
+      serviceAccountName: 361487327014-compute@developer.gserviceaccount.com
