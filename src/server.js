@@ -47,7 +47,7 @@ const CHAT_EXPORTS_BUCKET = process.env.CHAT_EXPORTS_BUCKET || "chat-exports";
  * VERSION MARKER
  * Bump this string whenever you deploy changes so logs prove what's running.
  */
-const SERVER_BUILD_TAG = "SG5-legal-safety-router-enc-text-reaction-multi-2026-02-02";
+const SERVER_BUILD_TAG = "SG6-webhook-skip-busy-2026-02-06";
 
 app.use(helmet());
 app.use(morgan("tiny"));
@@ -70,27 +70,47 @@ function debugWebhookSample(label, body) {
 }
 
 /**
+ * Parse boolean env flags explicitly with a safe default.
+ */
+function readEnvFlag(name, defaultValue) {
+  const raw = process.env[name];
+  if (raw == null) return defaultValue;
+
+  const normalized = String(raw).trim().toLowerCase();
+  if (!normalized) return defaultValue;
+
+  if (["1", "true", "yes", "on", "healthy", "enabled"].includes(normalized)) return true;
+  if (["0", "false", "no", "off", "unhealthy", "disabled"].includes(normalized)) return false;
+
+  return defaultValue;
+}
+
+const WORKER_POOL_HEALTHY = readEnvFlag("WORKER_POOL_HEALTHY", true);
+
+/**
  * Parse timestamp robustly.
  * Supports epoch seconds, epoch millis, or ISO strings.
  * Returns ISO string or null.
  */
-function parseToIsoOrNull(ts) {
+function parseTimestampToIsoOrNull(ts) {
   try {
     if (ts == null) return null;
 
-    if (ts instanceof Date && !isNaN(ts.getTime())) return ts.toISOString();
+    if (ts instanceof Date) {
+      return isNaN(ts.getTime()) ? null : ts.toISOString();
+    }
 
-    const s = String(ts).trim();
-    if (!s) return null;
+    const raw = String(ts).trim();
+    if (!raw) return null;
 
-    const n = Number(s);
-    if (!Number.isNaN(n)) {
-      const ms = n < 1e12 ? n * 1000 : n; // seconds vs millis
+    const asNumber = Number(raw);
+    if (Number.isFinite(asNumber)) {
+      const ms = asNumber < 1e12 ? asNumber * 1000 : asNumber;
       const d = new Date(ms);
       return isNaN(d.getTime()) ? null : d.toISOString();
     }
 
-    const d = new Date(s);
+    const d = new Date(raw);
     return isNaN(d.getTime()) ? null : d.toISOString();
   } catch {
     return null;
@@ -140,27 +160,33 @@ function encryptTextOrNull(plaintext) {
 /**
  * Extract WhatsApp Cloud API "value" envelope safely.
  */
-function getWaValue(body) {
+function extractWhatsAppValueEnvelope(body) {
   try {
-    const entry0 = Array.isArray(body?.entry) ? body.entry[0] : null;
-    const change0 = Array.isArray(entry0?.changes) ? entry0.changes[0] : null;
-    const value = change0?.value || null;
-    if (value) return value;
-    if (Array.isArray(body?.messages)) return body; // normalized payloads
-    return null;
+    if (!body || typeof body !== "object") return null;
+
+    if (Array.isArray(body.messages)) return body; // normalized payloads
+
+    const entry0 = Array.isArray(body.entry) ? body.entry[0] : null;
+    if (!entry0 || typeof entry0 !== "object") return null;
+
+    const change0 = Array.isArray(entry0.changes) ? entry0.changes[0] : null;
+    if (!change0 || typeof change0 !== "object") return null;
+
+    const value = change0.value || null;
+    return value && typeof value === "object" ? value : null;
   } catch {
     return null;
   }
 }
 
-function safeLast8ForPath(id) {
+function safeIdSuffixForPath(id) {
   const raw = String(id || "");
-  const last8 = raw.slice(-8) || "unknown";
-  return last8.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const suffix = raw.slice(-8) || "unknown";
+  return suffix.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
 function inboundTextPathFromMsgId(msgId) {
-  return `inbound_text/${safeLast8ForPath(msgId)}.txt`;
+  return `inbound_text/${safeIdSuffixForPath(msgId)}.txt`;
 }
 
 /**
@@ -183,11 +209,15 @@ function getCommonWaMeta(value) {
  * NOTE: Worker will still refuse processing except WhatsApp Export ZIP (.txt without media).
  * We do NOT download binary in server.
  */
-function extractDocumentMetaSafe(msg) {
+function extractDocumentMeta(msg) {
   try {
-    if (!msg || String(msg.type || "").toLowerCase() !== "document") return null;
-    const doc = msg.document || null;
-    if (!doc) return null;
+    if (!msg || typeof msg !== "object") return null;
+
+    const msgType = String(msg.type || "").toLowerCase();
+    if (msgType !== "document") return null;
+
+    const doc = msg.document;
+    if (!doc || typeof doc !== "object") return null;
 
     return {
       media_id: doc.id || null,
@@ -205,11 +235,16 @@ function extractDocumentMetaSafe(msg) {
  * Extract reaction meta (emoji + reacted message id).
  * 360dialog docs show reaction webhooks exist. (Handled by worker for prefs update.)
  */
-function extractReactionMetaSafe(msg) {
+function extractReactionMeta(msg) {
   try {
-    if (!msg || String(msg.type || "").toLowerCase() !== "reaction") return null;
-    const r = msg.reaction || null;
-    if (!r) return null;
+    if (!msg || typeof msg !== "object") return null;
+
+    const msgType = String(msg.type || "").toLowerCase();
+    if (msgType !== "reaction") return null;
+
+    const r = msg.reaction;
+    if (!r || typeof r !== "object") return null;
+
     return {
       emoji: r.emoji || null,
       reacted_to_message_id: r.message_id || null,
@@ -223,28 +258,47 @@ function extractReactionMetaSafe(msg) {
  * Extract other media types safely (image/audio/video/sticker).
  * We do NOT download or process these in MVP.
  */
-function extractOtherMediaMetaSafe(msg) {
+function extractOtherMediaMeta(msg) {
   try {
-    if (!msg) return null;
-    const t = String(msg.type || "").toLowerCase();
-    if (!t) return null;
+    if (!msg || typeof msg !== "object") return null;
 
-    // Allowed handled separately:
-    if (t === "text" || t === "interactive" || t === "button" || t === "status" || t === "document" || t === "reaction") {
-      return null;
-    }
+    const msgType = String(msg.type || "").toLowerCase();
+    if (!msgType) return null;
 
-    const carrier = msg[t] || null;
+    const ignored = new Set(["text", "interactive", "button", "status", "document", "reaction"]);
+    if (ignored.has(msgType)) return null;
+
+    const carrier = msg[msgType];
+    if (!carrier || typeof carrier !== "object") return null;
+
     return {
-      media_type: t,
-      media_id: carrier?.id || null,
-      mime_type: carrier?.mime_type || null,
-      sha256: carrier?.sha256 || null,
-      caption: carrier?.caption || msg.caption || null,
+      media_type: msgType,
+      media_id: carrier.id || null,
+      mime_type: carrier.mime_type || null,
+      sha256: carrier.sha256 || null,
+      caption: carrier.caption || msg.caption || null,
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * Decide if a WhatsApp event should be queued for the worker.
+ * We only suppress summary work when the worker pool is unhealthy.
+ */
+function shouldEnqueueInboundEvent(eventKind, workerPoolHealthy) {
+  if (workerPoolHealthy) return true;
+  return eventKind !== "inbound_text";
+}
+
+/**
+ * Only persist raw inbound text when we will enqueue summary work.
+ */
+function shouldPersistInboundText({ eventKind, hasText, shouldEnqueue }) {
+  if (!hasText) return false;
+  if (eventKind !== "inbound_text") return false;
+  return Boolean(shouldEnqueue);
 }
 
 /**
@@ -360,10 +414,11 @@ app.post("/webhooks/whatsapp", (req, res) => {
   // Do all processing async so webhook stays fast.
   setImmediate(async () => {
     try {
-      const value = getWaValue(body);
+      const value = extractWhatsAppValueEnvelope(body);
       if (!value) return;
 
       const common = getCommonWaMeta(value);
+      const workerPoolHealthy = WORKER_POOL_HEALTHY;
 
       // Status updates can come in value.statuses
       const statuses = Array.isArray(value.statuses) ? value.statuses : [];
@@ -384,7 +439,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
           wa_number: common.from_phone,
           from_phone: common.from_phone,
           wa_message_id: statusMsgId,
-          user_msg_ts: parseToIsoOrNull(st?.timestamp) || receivedAtIso,
+          user_msg_ts: parseTimestampToIsoOrNull(st?.timestamp) || receivedAtIso,
           meta: {
             ...common,
             msg_type: "status",
@@ -403,7 +458,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
         const msgId = msg?.id || null;
         const from = msg?.from || common.from_phone || null;
         const msgType = String(msg?.type || "").toLowerCase().trim();
-        const msgTsIso = parseToIsoOrNull(msg?.timestamp) || receivedAtIso;
+        const msgTsIso = parseTimestampToIsoOrNull(msg?.timestamp) || receivedAtIso;
 
         if (!msgId || !from || !msgType) continue;
 
@@ -433,9 +488,9 @@ app.post("/webhooks/whatsapp", (req, res) => {
         const hasText = rawText && rawText.trim().length > 0;
         const isCommand = isTextLike && hasText && COMMANDS.has(upper);
 
-        const docMeta = extractDocumentMetaSafe(msg);
-        const reactionMeta = extractReactionMetaSafe(msg);
-        const otherMediaMeta = extractOtherMediaMetaSafe(msg);
+        const docMeta = extractDocumentMeta(msg);
+        const reactionMeta = extractReactionMeta(msg);
+        const otherMediaMeta = extractOtherMediaMeta(msg);
 
         const isDocument = Boolean(docMeta);
         const isReaction = Boolean(reactionMeta);
@@ -455,13 +510,22 @@ app.post("/webhooks/whatsapp", (req, res) => {
         // Ignore unknowns to avoid noise
         if (event_kind === "unknown") continue;
 
+        const shouldEnqueue = shouldEnqueueInboundEvent(event_kind, workerPoolHealthy);
+        const skipReason = shouldEnqueue ? null : "worker_pool_unhealthy";
+
         const payloadHash = sha256Hex(Buffer.from(JSON.stringify({ kind: "message", msg_type: msgType, id: msgId })));
 
         const textSha = hasText ? sha256Hex(Buffer.from(rawText, "utf8")) : null;
         const textLen = hasText ? rawText.length : null;
         let textRef = null;
 
-        if (event_kind === "inbound_text" && hasText) {
+        const shouldPersistText = shouldPersistInboundText({
+          eventKind: event_kind,
+          hasText,
+          shouldEnqueue,
+        });
+
+        if (shouldPersistText) {
           const storagePath = inboundTextPathFromMsgId(msgId);
           textRef = { bucket: CHAT_EXPORTS_BUCKET, path: storagePath };
           try {
@@ -472,12 +536,12 @@ app.post("/webhooks/whatsapp", (req, res) => {
             });
             if (uploadErr) {
               console.log(
-                `[whatsapp] text_store outcome=error msg_id=${safeLast8ForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
+                `[whatsapp] text_store outcome=error msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
               );
             }
           } catch {
             console.log(
-              `[whatsapp] text_store outcome=error msg_id=${safeLast8ForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
+              `[whatsapp] text_store outcome=error msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
             );
           }
         }
@@ -495,11 +559,12 @@ app.post("/webhooks/whatsapp", (req, res) => {
           ...(docMeta ? { document: docMeta } : {}),
           ...(otherMediaMeta ? { media: otherMediaMeta } : {}),
           ...(reactionMeta ? { reaction: reactionMeta } : {}),
+          ...(skipReason ? { skip_reason: skipReason } : {}),
         };
 
         const row = {
           provider: "whatsapp",
-          status: event_kind === "status_event" ? "done" : "pending",
+          status: shouldEnqueue ? "pending" : "done",
           attempts: 0,
           provider_event_id: msgId, // dedupe key (DB must enforce)
           payload_sha256: payloadHash,
@@ -509,6 +574,12 @@ app.post("/webhooks/whatsapp", (req, res) => {
           user_msg_ts: msgTsIso,
           meta: safeMeta,
         };
+
+        if (!shouldEnqueue) {
+          console.log(
+            `[whatsapp] enqueue_skipped reason=${skipReason} msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType}`
+          );
+        }
 
         await safeInsertInboundEvent(supabase, row);
       }
@@ -527,4 +598,5 @@ app.listen(port, host, () => {
   console.log(`[server] listening on http://${host}:${port}`);
   console.log(`[server] supabase configured: ${Boolean(supabase)}`);
   console.log(`[server] inbound_text_bucket=${CHAT_EXPORTS_BUCKET}`);
+  console.log(`[server] worker_pool_healthy=${WORKER_POOL_HEALTHY}`);
 });
