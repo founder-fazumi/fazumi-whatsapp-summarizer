@@ -322,6 +322,7 @@ function fazumiTextFormat() {
     type: "json_schema",
     json_schema: {
       name: "fazumi_summary",
+      strict: true,
       schema: {
         type: "object",
         additionalProperties: false,
