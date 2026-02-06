@@ -998,10 +998,17 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
       };
     } catch (e) {
       const status = e?.status ?? e?.response?.status ?? null;
+      const model = (process.env.OPENAI_MODEL || "unknown").trim();
+      const errType = String(e?.name || e?.constructor?.name || "").slice(0, 40);
+      console.log("[openai] summary_failed", {
+        code: `openai_${status || "error"}`,
+        model: model || "unknown",
+        ...(errType ? { err_type: errType } : {}),
+      });
       return {
         ok: false,
         summary_text: null,
-        openai_model: (process.env.OPENAI_MODEL || "unknown").trim(),
+        openai_model: model,
         input_tokens: null,
         output_tokens: null,
         total_tokens: null,
