@@ -56,6 +56,7 @@ const D360_BASE_URL = envTrim("D360_BASE_URL") || "https://waba-v2.360dialog.io"
 const D360_API_KEY = envTrim("D360_API_KEY") || "";
 const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat_exports";
 const MEDIA_MAX_BYTES = Number(envTrim("MEDIA_MAX_BYTES") || 20 * 1024 * 1024);
+const ZIP_MAX_TEXT_CHARS = Number(envTrim("ZIP_MAX_TEXT_CHARS") || 1_200_000);
 
 // Templates (kept for future proactive messaging; not used for inbound-triggered replies)
 const D360_TEMPLATE_LANG = envTrim("D360_TEMPLATE_LANG") || "en";
@@ -537,17 +538,47 @@ async function downloadMediaBytes(downloadUrl) {
 async function pickBestTxtFromZip(zipBytes) {
   const zip = await JSZip.loadAsync(zipBytes);
   const allFiles = Object.values(zip.files).filter((f) => !f.dir);
-  const txtFiles = allFiles.filter((f) => /\.txt$/i.test(f.name));
-  if (!txtFiles.length) return { picked: null, entries: allFiles.length };
+  const txtFiles = allFiles.filter((f) => /\.txt$/i.test(f.name || ""));
+  if (!txtFiles.length) {
+    const e = new Error("zip_no_txt");
+    e.entries = allFiles.length;
+    throw e;
+  }
 
   let best = null;
   for (const f of txtFiles) {
+    const name = String(f.name || "");
+    const preferred = /_chat\.txt$/i.test(name) || /whatsapp chat/i.test(name) ? 1 : 0;
     const buf = Buffer.from(await f.async("uint8array"));
-    if (!best || buf.length > best.buf.length) {
-      best = { name: f.name, buf };
+    if (
+      !best ||
+      preferred > best.preferred ||
+      (preferred === best.preferred && buf.length > best.buf.length)
+    ) {
+      best = { name, buf, preferred };
     }
   }
-  return { picked: best, entries: allFiles.length };
+
+  if (!best || !best.buf) {
+    const e = new Error("zip_txt_select_failed");
+    e.entries = allFiles.length;
+    throw e;
+  }
+
+  let text = best.buf.toString("utf8");
+  const replacementCount = (text.match(/\uFFFD/g) || []).length;
+  if (replacementCount > Math.max(8, Math.floor(text.length * 0.005))) {
+    text = best.buf.toString("latin1");
+  }
+  if (text.length > ZIP_MAX_TEXT_CHARS) {
+    text = text.slice(0, ZIP_MAX_TEXT_CHARS);
+  }
+
+  return {
+    entries: allFiles.length,
+    text,
+    textChars: text.length,
+  };
 }
 
 async function upsertChatExportBestEffort(row, storagePath, shaHex, txtBytes) {
@@ -677,15 +708,17 @@ async function handleInboundMedia(waNumber, classified, row) {
     return { action: "zip_bad", skip_reason: "zip_magic_mismatch", error: "zip_signature_invalid" };
   }
 
-  let picked = null;
-  let entryCount = "?";
+  let parsed = null;
   try {
-    const parsed = await pickBestTxtFromZip(zipBytes);
-    picked = parsed?.picked || null;
-    entryCount = Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "?";
+    parsed = await pickBestTxtFromZip(zipBytes);
+    const entryCount = Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "?";
+    const textChars = Number.isFinite(Number(parsed?.textChars)) ? Number(parsed.textChars) : 0;
     console.log(`[unzip] id=${eventId} ok=true entries=${entryCount} bytes=${zipBytes.length}`);
+    console.log(`[zip_parse] id=${eventId} files=${entryCount} text_chars=${textChars}`);
   } catch (e) {
     console.log(`[unzip] id=${eventId} ok=false entries=? bytes=${zipBytes.length}`);
+    const files = Number.isFinite(Number(e?.entries)) ? Number(e.entries) : "?";
+    console.log(`[zip_parse] id=${eventId} files=${files} text_chars=0`);
     try {
       await sendWhatsAppText(
         waNumber,
@@ -695,10 +728,10 @@ async function handleInboundMedia(waNumber, classified, row) {
     } catch {
       // keep original unzip failure as primary outcome
     }
-    return { action: "zip_bad", skip_reason: "unzip_failed", error: truncateErr500(e) };
+    return { action: "zip_parse_failed", skip_reason: "unzip_failed", error: truncateErr500(e) };
   }
 
-  if (!picked || !picked.buf || picked.buf.length < 1) {
+  if (!parsed || !parsed.text || parsed.text.length < 1) {
     try {
       await sendWhatsAppText(
         waNumber,
@@ -708,23 +741,23 @@ async function handleInboundMedia(waNumber, classified, row) {
     } catch {
       // keep original unzip failure as primary outcome
     }
-    return { action: "zip_bad", skip_reason: "zip_no_txt", error: "zip_no_txt" };
+    return { action: "zip_parse_failed", skip_reason: "zip_no_txt", error: "zip_no_txt" };
   }
 
-  const userPart = safeStorageUserPart(row?.user_id);
-  const storagePath = `${userPart}/${row?.id}/${shaHex}.txt`;
-  const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, picked.buf, {
+  const storagePath = `chat_exports/${row?.id}.txt`;
+  const textBuf = Buffer.from(parsed.text, "utf8");
+  const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, textBuf, {
     upsert: true,
     contentType: "text/plain; charset=utf-8",
   });
   if (uploadErr) {
     return {
-      action: "zip_store_failed",
+      action: "zip_parse_failed",
       skip_reason: "zip_upload_failed",
       error: truncateErr500(uploadErr?.message || uploadErr),
     };
   }
-  await upsertChatExportBestEffort(row, storagePath, shaHex, picked.buf.length);
+  await upsertChatExportBestEffort(row, storagePath, shaHex, textBuf.length);
 
   try {
     await sendWhatsAppText(
@@ -737,7 +770,7 @@ async function handleInboundMedia(waNumber, classified, row) {
   }
 
   return {
-    action: "zip_extracted",
+    action: "zip_parsed",
     skip_reason: null,
     metaPatch: { zip_txt_path: storagePath },
   };
@@ -970,7 +1003,8 @@ async function mainLoop() {
           r.action === "media_download_bad_content" ||
           r.action === "media_too_large" ||
           r.action === "zip_bad" ||
-          r.action === "zip_store_failed"
+          r.action === "zip_store_failed" ||
+          r.action === "zip_parse_failed"
         ) {
           await markEvent(id, {
             status: "error",
