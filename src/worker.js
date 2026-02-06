@@ -478,7 +478,10 @@ async function get360MediaDownloadUrl(mediaId) {
   const endpoint = `${D360_BASE_URL.replace(/\/$/, "")}/${encodeURIComponent(String(mediaId || ""))}`;
   const resp = await fetch(endpoint, {
     method: "GET",
-    headers: { "D360-API-KEY": D360_API_KEY },
+    headers: {
+      "D360-API-KEY": D360_API_KEY,
+      "D360-Api-Key": D360_API_KEY,
+    },
   });
 
   const payload = await resp.json().catch(() => null);
@@ -503,29 +506,19 @@ async function downloadMediaBytes(downloadUrl) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
 
-  const attempt = async (headers) => {
+  const attempt = async () => {
     const resp = await fetch(downloadUrl, {
       method: "GET",
-      headers,
       signal: controller.signal,
+      redirect: "follow",
     });
     const buf = Buffer.from(await resp.arrayBuffer());
     return { resp, buf };
   };
 
   try {
-    let { resp, buf } = await attempt({
-      Authorization: `Bearer ${D360_API_KEY}`,
-      "D360-API-KEY": D360_API_KEY,
-    });
-
+    const { resp, buf } = await attempt();
     const ct = String(resp.headers.get("content-type") || "").toLowerCase();
-    const looksJsonError = ct.includes("application/json") && buf.length < 2048;
-    if ((resp.status === 401 || resp.status === 403 || looksJsonError) && resp.ok !== false) {
-      const retry = await attempt({ "D360-API-KEY": D360_API_KEY });
-      resp = retry.resp;
-      buf = retry.buf;
-    }
 
     if (!resp.ok) throw new Error(`media_download_${resp.status}`);
     if (buf.length > MEDIA_MAX_BYTES) throw new Error(`media_too_large_${buf.length}`);
@@ -661,49 +654,82 @@ async function handleInboundMedia(waNumber, classified, row) {
     return { action: "dry_run", skip_reason: "dry_run_no_send_no_download" };
   }
 
+  const sendZipFailureReply = async (code) => {
+    try {
+      await sendWhatsAppText(
+        waNumber,
+        `✅ ZIP received, but I couldn't download it (code ${code}). Please resend the ZIP.`,
+        { eventId }
+      );
+    } catch {
+      // Best effort; primary failure outcome still returned.
+    }
+  };
+
   if (!mediaId) {
+    await sendZipFailureReply("missing_media_id");
     return { action: "media_not_found", skip_reason: "missing_media_id", error: "missing_media_id" };
   }
 
-  const mediaMeta = await get360MediaDownloadUrl(mediaId);
-  console.log(
-    `[media_meta] id=${eventId} status=${mediaMeta.status} has_url=${Boolean(mediaMeta.url)} size=${mediaMeta.size ?? "?"} mime=${mediaMeta.mime} sha8=${mediaMeta.sha8}`
-  );
-  if (!mediaMeta.ok) {
-    if (mediaMeta.status === 404) {
-      return { action: "media_not_found", skip_reason: "media_meta_404", error: "media_not_found" };
+  const fetchMediaMetaLogged = async () => {
+    const mediaMeta = await get360MediaDownloadUrl(mediaId);
+    console.log(
+      `[media_meta] id=${eventId} status=${mediaMeta.status} ok=${mediaMeta.ok} mime=${mediaMeta.mime} size=${mediaMeta.size ?? "?"} sha8=${mediaMeta.sha8}`
+    );
+    return mediaMeta;
+  };
+
+  const tryDownloadFromMeta = async (mediaMeta) => {
+    if (!mediaMeta.ok || !mediaMeta.url) return { ok: false, failCode: mediaMeta.status, reason: "meta_unusable" };
+    if (Number.isFinite(mediaMeta.size) && mediaMeta.size > MEDIA_MAX_BYTES) {
+      return { ok: false, failCode: "too_large", reason: "media_too_large_meta" };
     }
-    return { action: "media_meta_failed", skip_reason: "media_meta_failed", error: `media_meta_${mediaMeta.status}` };
-  }
-  if (!mediaMeta.url) {
-    return { action: "media_not_found", skip_reason: "media_url_missing", error: "media_url_missing" };
-  }
-  if (Number.isFinite(mediaMeta.size) && mediaMeta.size > MEDIA_MAX_BYTES) {
+    const dl = await downloadMediaBytes(mediaMeta.url);
+    console.log(`[media_dl] id=${eventId} status=${dl.status} ok=${dl.ok} bytes=${dl.bytes.length}`);
+    if (!dl.ok) return { ok: false, failCode: dl.status, reason: "dl_not_ok" };
+    if (dl.bytes.length > MEDIA_MAX_BYTES) {
+      return { ok: false, failCode: "too_large", reason: "media_too_large_bytes" };
+    }
+    if (dl.contentType.includes("json") || startsLikeJson(dl.bytes)) {
+      return { ok: false, failCode: dl.status, reason: "downloaded_json" };
+    }
+    return { ok: true, bytes: dl.bytes };
+  };
+
+  let zipBytes = null;
+  let failCode = "n/a";
+  try {
+    let mediaMeta = await fetchMediaMetaLogged();
+    let downloadAttempt = await tryDownloadFromMeta(mediaMeta);
+
+    if (!downloadAttempt.ok && (downloadAttempt.failCode === 401 || downloadAttempt.failCode === 404)) {
+      mediaMeta = await fetchMediaMetaLogged();
+      downloadAttempt = await tryDownloadFromMeta(mediaMeta);
+    }
+
+    if (!downloadAttempt.ok) {
+      failCode = String(downloadAttempt.failCode ?? "n/a");
+      await sendZipFailureReply(failCode);
+      return {
+        action: "media_download_failed",
+        skip_reason: downloadAttempt.reason || "media_download_failed",
+        error: `media_download_failed_${failCode}`,
+      };
+    }
+
+    zipBytes = downloadAttempt.bytes;
+  } catch (e) {
+    const m = String(e?.message || e);
+    const statusMatch = m.match(/(\d{3})/);
+    failCode = statusMatch ? statusMatch[1] : "n/a";
+    await sendZipFailureReply(failCode);
     return {
-      action: "media_too_large",
-      skip_reason: "media_too_large_meta",
-      error: `media_too_large_${mediaMeta.size}`,
+      action: "media_download_failed",
+      skip_reason: "media_download_exception",
+      error: truncateErr500(e),
     };
   }
 
-  const mediaDl = await downloadMediaBytes(mediaMeta.url);
-  const zipBytes = mediaDl.bytes;
-  console.log(`[media_dl] id=${eventId} status=${mediaDl.status} bytes=${zipBytes.length} ct=${mediaDl.contentType}`);
-
-  if (mediaDl.contentType.includes("json") || startsLikeJson(zipBytes)) {
-    return {
-      action: "media_download_bad_content",
-      skip_reason: "downloaded_json",
-      error: "downloaded_json_instead_of_zip",
-    };
-  }
-  if (zipBytes.length > MEDIA_MAX_BYTES) {
-    return {
-      action: "media_too_large",
-      skip_reason: "media_too_large_bytes",
-      error: `media_too_large_${zipBytes.length}`,
-    };
-  }
   if (zipBytes.length < 2 || zipBytes[0] !== 0x50 || zipBytes[1] !== 0x4b) {
     return { action: "zip_bad", skip_reason: "zip_magic_mismatch", error: "zip_signature_invalid" };
   }
@@ -1000,6 +1026,7 @@ async function mainLoop() {
           r.action === "media_download_invalid" ||
           r.action === "media_not_found" ||
           r.action === "media_meta_failed" ||
+          r.action === "media_download_failed" ||
           r.action === "media_download_bad_content" ||
           r.action === "media_too_large" ||
           r.action === "zip_bad" ||
