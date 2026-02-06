@@ -56,6 +56,7 @@ const D360_BASE_URL = envTrim("D360_BASE_URL") || "https://waba-v2.360dialog.io"
 const D360_API_KEY = envTrim("D360_API_KEY") || "";
 const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat_exports";
 const MEDIA_MAX_BYTES = Number(envTrim("MEDIA_MAX_BYTES") || 20 * 1024 * 1024);
+const ZIP_MAX_BYTES = Number(envTrim("ZIP_MAX_BYTES") || MEDIA_MAX_BYTES);
 const ZIP_MAX_TEXT_CHARS = Number(envTrim("ZIP_MAX_TEXT_CHARS") || 1_200_000);
 
 // Templates (kept for future proactive messaging; not used for inbound-triggered replies)
@@ -107,16 +108,12 @@ if (!DRY_RUN && typeof summarizeText !== "function") {
 
 /**
  * REWRITE #2 (bugfix): Safe runtime env proof.
- * - Shows only prefix + length (no secrets)
- * - This is the fastest way to confirm Cloud Run secrets are injected correctly.
+ * - Only booleans (no secret material)
  */
 console.log("[env-check]", {
   hasUrl: !!SUPABASE_URL,
   hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY,
-  serviceKeyLen: SUPABASE_SERVICE_ROLE_KEY ? SUPABASE_SERVICE_ROLE_KEY.length : null,
-  serviceKeyPrefix: SUPABASE_SERVICE_ROLE_KEY ? SUPABASE_SERVICE_ROLE_KEY.slice(0, 6) : null,
   hasD360: !!D360_API_KEY,
-  d360KeyLen: D360_API_KEY ? D360_API_KEY.length : null,
 });
 
 // Supabase admin client
@@ -180,6 +177,28 @@ function startsLikeJson(buf) {
   while (i < buf.length && (buf[i] === 0x20 || buf[i] === 0x09 || buf[i] === 0x0a || buf[i] === 0x0d)) i++;
   if (i >= buf.length) return false;
   return buf[i] === 0x7b || buf[i] === 0x5b; // { or [
+}
+
+function safeUrlForLog(rawUrl) {
+  try {
+    const u = new URL(String(rawUrl || ""));
+    return {
+      host: u.host || "n/a",
+      path: u.pathname || "/",
+    };
+  } catch {
+    return { host: "n/a", path: "n/a" };
+  }
+}
+
+function get360MediaMetaEndpoint(mediaId) {
+  return `${D360_BASE_URL.replace(/\/$/, "")}/${encodeURIComponent(String(mediaId || ""))}`;
+}
+
+function rewriteMediaDownloadUrlToD360(downloadUrl) {
+  const source = new URL(String(downloadUrl || ""));
+  const d360 = new URL(D360_BASE_URL);
+  return `${d360.origin}${source.pathname}${source.search}`;
 }
 
 // -------------------- PII-safe helpers --------------------
@@ -475,12 +494,11 @@ function safeStorageUserPart(userId) {
 }
 
 async function get360MediaDownloadUrl(mediaId) {
-  const endpoint = `${D360_BASE_URL.replace(/\/$/, "")}/${encodeURIComponent(String(mediaId || ""))}`;
+  const endpoint = get360MediaMetaEndpoint(mediaId);
   const resp = await fetch(endpoint, {
     method: "GET",
     headers: {
       "D360-API-KEY": D360_API_KEY,
-      "D360-Api-Key": D360_API_KEY,
     },
   });
 
@@ -506,22 +524,17 @@ async function downloadMediaBytes(downloadUrl) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
 
-  const attempt = async () => {
+  try {
     const resp = await fetch(downloadUrl, {
       method: "GET",
+      headers: {
+        "D360-API-KEY": D360_API_KEY,
+      },
       signal: controller.signal,
       redirect: "follow",
     });
-    const buf = Buffer.from(await resp.arrayBuffer());
-    return { resp, buf };
-  };
-
-  try {
-    const { resp, buf } = await attempt();
     const ct = String(resp.headers.get("content-type") || "").toLowerCase();
-
-    if (!resp.ok) throw new Error(`media_download_${resp.status}`);
-    if (buf.length > MEDIA_MAX_BYTES) throw new Error(`media_too_large_${buf.length}`);
+    const buf = resp.ok ? Buffer.from(await resp.arrayBuffer()) : Buffer.alloc(0);
     return { status: resp.status, ok: resp.ok, bytes: buf, contentType: ct || "n/a" };
   } finally {
     clearTimeout(timeout);
@@ -632,6 +645,7 @@ async function handleInboundMedia(waNumber, classified, row) {
   const mediaIdLast6 = tailN(mediaId, 6) || "n/a";
   const shaHex = normalizeDocShaToHex(doc?.sha256);
   const sha8 = shaHex.slice(0, 8) || "unknown";
+  const d360ApiKeyPresent = !!D360_API_KEY;
   console.log(
     `[zip] id=${eventId} mime=${mimeType || "unknown"} filename_len=${filenameLen} media_id=${mediaIdLast6} sha8=${sha8}`
   );
@@ -654,13 +668,22 @@ async function handleInboundMedia(waNumber, classified, row) {
     return { action: "dry_run", skip_reason: "dry_run_no_send_no_download" };
   }
 
+  const DOWNLOAD_FAIL_MSG =
+    "⚠️ ZIP received, but I couldn't download it (auth error). Please retry in a few minutes.";
+  const ZIP_TOO_LARGE_MSG = "⚠️ ZIP too large to process. Please export without media and try again.";
+
   const sendZipFailureReply = async (code) => {
     try {
-      await sendWhatsAppText(
-        waNumber,
-        `✅ ZIP received, but I couldn't download it (code ${code}). Please resend the ZIP.`,
-        { eventId }
-      );
+      await sendWhatsAppText(waNumber, DOWNLOAD_FAIL_MSG, { eventId });
+      if (code) console.log(`[zip] id=${eventId} failure_code=${String(code).slice(0, 32)}`);
+    } catch {
+      // Best effort; primary failure outcome still returned.
+    }
+  };
+
+  const sendZipTooLargeReply = async () => {
+    try {
+      await sendWhatsAppText(waNumber, ZIP_TOO_LARGE_MSG, { eventId });
     } catch {
       // Best effort; primary failure outcome still returned.
     }
@@ -672,11 +695,25 @@ async function handleInboundMedia(waNumber, classified, row) {
   }
 
   const fetchMediaMetaLogged = async () => {
-    const mediaMeta = await get360MediaDownloadUrl(mediaId);
+    const endpoint = get360MediaMetaEndpoint(mediaId);
+    const endpointSafe = safeUrlForLog(endpoint);
     console.log(
-      `[media_meta] id=${eventId} status=${mediaMeta.status} ok=${mediaMeta.ok} mime=${mediaMeta.mime} size=${mediaMeta.size ?? "?"} sha8=${mediaMeta.sha8}`
+      `[media] step=meta_fetch outcome=attempt id=${eventId} status=n/a url_host=${endpointSafe.host} url_path=${endpointSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
     );
-    return mediaMeta;
+    try {
+      const mediaMeta = await get360MediaDownloadUrl(mediaId);
+      const metaSafe = mediaMeta?.url ? safeUrlForLog(mediaMeta.url) : endpointSafe;
+      const outcome = mediaMeta.ok && mediaMeta.url ? "ok" : "error";
+      console.log(
+        `[media] step=meta_fetch outcome=${outcome} id=${eventId} status=${mediaMeta.status} url_host=${metaSafe.host} url_path=${metaSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+      );
+      return mediaMeta;
+    } catch (e) {
+      console.log(
+        `[media] step=meta_fetch outcome=error id=${eventId} status=n/a url_host=${endpointSafe.host} url_path=${endpointSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+      );
+      throw e;
+    }
   };
 
   const tryDownloadFromMeta = async (mediaMeta) => {
@@ -684,15 +721,58 @@ async function handleInboundMedia(waNumber, classified, row) {
     if (Number.isFinite(mediaMeta.size) && mediaMeta.size > MEDIA_MAX_BYTES) {
       return { ok: false, failCode: "too_large", reason: "media_too_large_meta" };
     }
-    const dl = await downloadMediaBytes(mediaMeta.url);
-    console.log(`[media_dl] id=${eventId} status=${dl.status} ok=${dl.ok} bytes=${dl.bytes.length}`);
-    if (!dl.ok) return { ok: false, failCode: dl.status, reason: "dl_not_ok" };
+    if (Number.isFinite(mediaMeta.size) && mediaMeta.size > ZIP_MAX_BYTES) {
+      return { ok: false, failCode: "too_large", reason: "zip_too_large_meta" };
+    }
+    let downloadUrl = null;
+    try {
+      downloadUrl = rewriteMediaDownloadUrlToD360(mediaMeta.url);
+    } catch {
+      return { ok: false, failCode: "bad_url", reason: "meta_download_url_invalid" };
+    }
+    const downloadSafe = safeUrlForLog(downloadUrl);
+    console.log(
+      `[media] step=file_download outcome=attempt id=${eventId} status=n/a bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+    );
+    let dl;
+    try {
+      dl = await downloadMediaBytes(downloadUrl);
+    } catch (e) {
+      const msg = String(e?.message || e);
+      const m = msg.match(/(\d{3})/);
+      const status = m ? m[1] : "n/a";
+      console.log(
+        `[media] step=file_download outcome=error id=${eventId} status=${status} bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+      );
+      return { ok: false, failCode: "n/a", reason: "download_exception" };
+    }
+    if (!dl.ok) {
+      console.log(
+        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+      );
+      return { ok: false, failCode: dl.status, reason: "dl_not_ok" };
+    }
     if (dl.bytes.length > MEDIA_MAX_BYTES) {
+      console.log(
+        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+      );
       return { ok: false, failCode: "too_large", reason: "media_too_large_bytes" };
     }
+    if (dl.bytes.length > ZIP_MAX_BYTES) {
+      console.log(
+        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+      );
+      return { ok: false, failCode: "too_large", reason: "zip_too_large_bytes" };
+    }
     if (dl.contentType.includes("json") || startsLikeJson(dl.bytes)) {
+      console.log(
+        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+      );
       return { ok: false, failCode: dl.status, reason: "downloaded_json" };
     }
+    console.log(
+      `[media] step=file_download outcome=ok id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
+    );
     return { ok: true, bytes: dl.bytes };
   };
 
@@ -709,6 +789,22 @@ async function handleInboundMedia(waNumber, classified, row) {
 
     if (!downloadAttempt.ok) {
       failCode = String(downloadAttempt.failCode ?? "n/a");
+      if (failCode === "too_large") {
+        await sendZipTooLargeReply();
+        return {
+          action: "media_too_large",
+          skip_reason: downloadAttempt.reason || "media_too_large",
+          error: "zip_too_large",
+        };
+      }
+      if (failCode === "401") {
+        await sendZipFailureReply(failCode);
+        return {
+          action: "media_download_401",
+          skip_reason: downloadAttempt.reason || "media_download_401",
+          error: "media_download_401",
+        };
+      }
       await sendZipFailureReply(failCode);
       return {
         action: "media_download_failed",
@@ -731,42 +827,35 @@ async function handleInboundMedia(waNumber, classified, row) {
   }
 
   if (zipBytes.length < 2 || zipBytes[0] !== 0x50 || zipBytes[1] !== 0x4b) {
+    await sendZipFailureReply("zip_magic_mismatch");
     return { action: "zip_bad", skip_reason: "zip_magic_mismatch", error: "zip_signature_invalid" };
   }
 
   let parsed = null;
+  console.log(
+    `[zip] step=unzip outcome=attempt id=${eventId} file_count=null extracted_text_len=null`
+  );
   try {
     parsed = await pickBestTxtFromZip(zipBytes);
     const entryCount = Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "?";
     const textChars = Number.isFinite(Number(parsed?.textChars)) ? Number(parsed.textChars) : 0;
-    console.log(`[unzip] id=${eventId} ok=true entries=${entryCount} bytes=${zipBytes.length}`);
-    console.log(`[zip_parse] id=${eventId} files=${entryCount} text_chars=${textChars}`);
+    console.log(
+      `[zip] step=unzip outcome=ok id=${eventId} file_count=${entryCount} extracted_text_len=${textChars}`
+    );
   } catch (e) {
-    console.log(`[unzip] id=${eventId} ok=false entries=? bytes=${zipBytes.length}`);
-    const files = Number.isFinite(Number(e?.entries)) ? Number(e.entries) : "?";
-    console.log(`[zip_parse] id=${eventId} files=${files} text_chars=0`);
-    try {
-      await sendWhatsAppText(
-        waNumber,
-        "I couldn’t open that ZIP. Please resend as WhatsApp Chat export (ZIP) without media.",
-        { eventId }
-      );
-    } catch {
-      // keep original unzip failure as primary outcome
-    }
+    const fileCount = Number.isFinite(Number(e?.entries)) ? Number(e.entries) : "null";
+    console.log(
+      `[zip] step=unzip outcome=error id=${eventId} file_count=${fileCount} extracted_text_len=null`
+    );
+    await sendZipFailureReply("unzip_failed");
     return { action: "zip_parse_failed", skip_reason: "unzip_failed", error: truncateErr500(e) };
   }
 
   if (!parsed || !parsed.text || parsed.text.length < 1) {
-    try {
-      await sendWhatsAppText(
-        waNumber,
-        "I couldn’t open that ZIP. Please resend as WhatsApp Chat export (ZIP) without media.",
-        { eventId }
-      );
-    } catch {
-      // keep original unzip failure as primary outcome
-    }
+    console.log(
+      `[zip] step=unzip outcome=error id=${eventId} file_count=${Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "null"} extracted_text_len=null`
+    );
+    await sendZipFailureReply("zip_no_txt");
     return { action: "zip_parse_failed", skip_reason: "zip_no_txt", error: "zip_no_txt" };
   }
 
@@ -1023,6 +1112,7 @@ async function mainLoop() {
       if (classified.kind === "inbound_media") {
         const r = await handleInboundMedia(waNumber, classified, row);
         if (
+          r.action === "media_download_401" ||
           r.action === "media_download_invalid" ||
           r.action === "media_not_found" ||
           r.action === "media_meta_failed" ||
