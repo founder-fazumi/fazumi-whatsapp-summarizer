@@ -7,17 +7,12 @@
  *
  * Proven invariants retained:
  * - Paywall decision BEFORE OpenAI
- * - Increment/decrement usage ONLY after WhatsApp reply is sent
+ * - Increment usage ONLY after WhatsApp reply is sent
  * - First-time notice sent once (no summary on first msg)
  * - Implied TOS acceptance on next message after notice
  *
  * Data minimization:
  * - Worker decrypts meta.text_enc, uses it, then wipes it (best-effort)
- *
- * NOTE:
- * - This file references functions you said exist in your project:
- *   ensureFirstTimeNoticeAndTos, processCommand, handleInboundMedia
- * - Keep those as-is (unchanged).
  */
 
 "use strict";
@@ -26,10 +21,10 @@ require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
-const AdmZip = require("adm-zip");
+const JSZip = require("jszip");
 
 // ---- WORKER VERSION FINGERPRINT ----
-const WORKER_VERSION = "p5-workerpool-no-http-2026-02-03a";
+const WORKER_VERSION = "p5-workerpool-zip-ingest-mvp-2026-02-06a";
 
 // ---- OpenAI summarizer (CommonJS) ----
 let summarizeText = null;
@@ -40,41 +35,45 @@ try {
 }
 
 // -------------------- ENV --------------------
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/**
+ * REWRITE #1 (bugfix): Normalize env inputs safely.
+ * - trim() to remove hidden whitespace/newlines from Secret Manager / copy-paste
+ * - support a fallback name if you accidentally truncated an env var in Cloud Run UI
+ */
+function envTrim(name, fallbackName = null) {
+  const v = process.env[name] ?? (fallbackName ? process.env[fallbackName] : undefined);
+  if (v == null) return null;
+  const s = String(v);
+  const t = s.trim();
+  return t.length ? t : null;
+}
+
+const SUPABASE_URL = envTrim("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = envTrim("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KE"); // fallback for accidental truncation
 
 // 360dialog base
-const D360_BASE_URL = process.env.D360_BASE_URL || "https://waba-v2.360dialog.io";
-const D360_API_KEY = process.env.D360_API_KEY || "";
+const D360_BASE_URL = envTrim("D360_BASE_URL") || "https://waba-v2.360dialog.io";
+const D360_API_KEY = envTrim("D360_API_KEY") || "";
+const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat_exports";
 
 // Templates (kept for future proactive messaging; not used for inbound-triggered replies)
-const D360_TEMPLATE_LANG = process.env.D360_TEMPLATE_LANG || "en";
-const HELLO_TEMPLATE_NAME = process.env.HELLO_TEMPLATE_NAME || "hello_fazumi";
-const WHATSAPP_WINDOW_HOURS = Number(process.env.WHATSAPP_WINDOW_HOURS || 24);
+const D360_TEMPLATE_LANG = envTrim("D360_TEMPLATE_LANG") || "en";
+const HELLO_TEMPLATE_NAME = envTrim("HELLO_TEMPLATE_NAME") || "hello_fazumi";
+const WHATSAPP_WINDOW_HOURS = Number(envTrim("WHATSAPP_WINDOW_HOURS") || 24);
 
 // Payments
-const LEMON_CHECKOUT_URL = process.env.LEMON_CHECKOUT_URL || "";
+const LEMON_CHECKOUT_URL = envTrim("LEMON_CHECKOUT_URL") || "";
 
 // Timezone
-const FAZUMI_TZ = process.env.FAZUMI_TZ || "Asia/Qatar";
-
-// ZIP caps
-const ZIP_MAX_BYTES = Number(process.env.ZIP_MAX_BYTES || 6_000_000); // 6MB cap
-const ZIP_MAX_TEXT_CHARS = Number(process.env.ZIP_MAX_TEXT_CHARS || 1_200_000);
-
-// Supabase storage
-const CHAT_EXPORTS_BUCKET = process.env.CHAT_EXPORTS_BUCKET || "fazumi-chat-exports";
+const FAZUMI_TZ = envTrim("FAZUMI_TZ") || "Asia/Qatar";
 
 // Runtime controls
 const DRY_RUN = String(process.env.DRY_RUN || "true").toLowerCase() !== "false";
 
-// Legal links
-const TERMS_LINK = process.env.TERMS_LINK || "<terms_link>";
-const PRIVACY_LINK = process.env.PRIVACY_LINK || "<privacy_link>";
-
-// IMPORTANT: schema-safe column name for audit tables
-const MEDIA_CONFIRM_PHONE_COL = "user_phone";
-const DELETION_AUDIT_PHONE_COL = "user_phone";
+// Legal links (don’t invent links)
+const TERMS_LINK = envTrim("TERMS_LINK") || "Terms/Privacy pages coming soon.";
+const PRIVACY_LINK = envTrim("PRIVACY_LINK") || "Terms/Privacy pages coming soon.";
+const ZIP_ACCEPT_MIME_TYPES = new Set(["application/zip", "application/x-zip-compressed"]);
 
 console.log(
   `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS}`
@@ -87,6 +86,12 @@ if (typeof fetch !== "function") {
 }
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("[worker] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  console.error("[worker] env-check missing:", {
+    hasUrl: !!SUPABASE_URL,
+    hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY,
+    // also show whether the fallback truncated var exists
+    hasTruncatedFallback: !!process.env.SUPABASE_SERVICE_ROLE_KE,
+  });
   process.exit(1);
 }
 if (!D360_API_KEY) {
@@ -98,15 +103,36 @@ if (!DRY_RUN && typeof summarizeText !== "function") {
   process.exit(1);
 }
 
-console.log("[worker] env ok:", {
-  SUPABASE_URL_len: String(SUPABASE_URL).length,
-  SUPABASE_SERVICE_ROLE_KEY_len: String(SUPABASE_SERVICE_ROLE_KEY).length,
-  D360_API_KEY_len: String(D360_API_KEY).length,
-  has_openai: DRY_RUN ? "n/a(dry_run)" : typeof summarizeText === "function",
+/**
+ * REWRITE #2 (bugfix): Safe runtime env proof.
+ * - Shows only prefix + length (no secrets)
+ * - This is the fastest way to confirm Cloud Run secrets are injected correctly.
+ */
+console.log("[env-check]", {
+  hasUrl: !!SUPABASE_URL,
+  hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY,
+  serviceKeyLen: SUPABASE_SERVICE_ROLE_KEY ? SUPABASE_SERVICE_ROLE_KEY.length : null,
+  serviceKeyPrefix: SUPABASE_SERVICE_ROLE_KEY ? SUPABASE_SERVICE_ROLE_KEY.slice(0, 6) : null,
+  hasD360: !!D360_API_KEY,
+  d360KeyLen: D360_API_KEY ? D360_API_KEY.length : null,
 });
 
 // Supabase admin client
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+/**
+ * REWRITE #3 (bugfix): Use non-session client settings.
+ * - Avoid any token refresh/persist behavior in a stateless worker.
+ * - Ensure headers are set consistently.
+ */
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+  global: {
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY, // explicit
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, // explicit
+      "x-client-info": `fazumi-worker/${WORKER_VERSION}`,
+    },
+  },
+});
 
 // -------------------- graceful shutdown --------------------
 let shouldStop = false;
@@ -137,12 +163,13 @@ function safeIso(input) {
   }
 }
 
+function truncateErr500(errLike) {
+  return String(errLike?.message || errLike || "").slice(0, 500);
+}
+
 // -------------------- PII-safe helpers --------------------
 function hashPhone(phoneE164) {
   return crypto.createHash("sha256").update(String(phoneE164), "utf8").digest("hex");
-}
-function sha256Hex(buf) {
-  return crypto.createHash("sha256").update(buf).digest("hex");
 }
 function isMeaningfulText(text) {
   const t = (text || "").trim();
@@ -151,12 +178,7 @@ function isMeaningfulText(text) {
   return words.length >= 4;
 }
 
-/**
- * REWRITE #1 (bugfix): normalize consistently for command detection.
- * - trims, collapses whitespace
- * - uppercases
- * - strips trailing punctuation
- */
+// normalize for command detection
 function normalizeInboundText(text) {
   const raw = String(text || "");
   const collapsed = raw.trim().replace(/\s+/g, " ");
@@ -171,31 +193,9 @@ function buildLemonCheckoutUrl(waNumber) {
   return u.toString();
 }
 
-// -------------------- SG3 24h gate (kept for future proactive sending) --------------------
-function isOutsideCustomerWindow(referenceTsIso) {
-  const ref = safeIso(referenceTsIso);
-  if (!ref) return false;
-
-  const refMs = new Date(ref).getTime();
-  const hours = (Date.now() - refMs) / (1000 * 60 * 60);
-
-  if (hours < 0) return false; // clock skew
-  return hours > WHATSAPP_WINDOW_HOURS;
-}
-
-/**
- * IMPORTANT:
- * This worker sends messages only as replies to inbound user messages.
- * Therefore, we DO NOT force templates here (templates are for proactive).
- */
-function shouldForceTemplateForInboundReply() {
-  return false;
-}
-
 // -------------------- Simple concurrency gate --------------------
 const MAX_CONCURRENCY = Math.max(1, Number(process.env.OPENAI_CONCURRENCY || 2));
 let inFlight = 0;
-
 async function withConcurrency(fn) {
   while (inFlight >= MAX_CONCURRENCY) await sleep(50);
   inFlight++;
@@ -227,7 +227,6 @@ function decryptTextEncOrNull(textEnc) {
     const iv = Buffer.from(String(textEnc.iv_b64 || ""), "base64");
     const tag = Buffer.from(String(textEnc.tag_b64 || ""), "base64");
     const ct = Buffer.from(String(textEnc.ct_b64 || ""), "base64");
-
     if (iv.length !== 12 || tag.length < 12 || ct.length < 1) return null;
 
     const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
@@ -243,10 +242,19 @@ function decryptTextEncOrNull(textEnc) {
 // -------------------- Supabase queue --------------------
 async function dequeueEventJson() {
   const { data, error } = await supabase.rpc("dequeue_inbound_event_json");
+
   if (error) {
-    console.error("[worker] dequeue error:", error.message || error);
+    const msg = String(error.message || error);
+    // keep logs minimal + useful
+    console.error("[worker] dequeue error:", {
+      message: msg.slice(0, 160),
+      hint: msg.toLowerCase().includes("invalid api key")
+        ? "Supabase rejected the key. Check Secret value, rotation, whitespace, and Cloud Run env var name."
+        : null,
+    });
     return null;
   }
+
   if (!data || data.id == null) return null;
   return data;
 }
@@ -254,7 +262,7 @@ async function dequeueEventJson() {
 async function markEvent(id, patch) {
   const update = { processed_at: nowIso(), ...patch };
   const { error } = await supabase.from("inbound_events").update(update).eq("id", id);
-  if (error) console.log("[worker] markEvent error:", error.message || error);
+  if (error) console.log("[worker] markEvent error:", String(error.message || error).slice(0, 140));
 }
 
 async function wipeInboundEventTextEnc(id) {
@@ -325,16 +333,13 @@ function classifyWhatsAppEvent(eventRow) {
 }
 
 // -------------------- Users --------------------
-
-// REWRITE #2 (bugfix): cache free_limit to avoid hitting app_settings every message.
 let _cachedFreeLimit = null;
 let _cachedFreeLimitAtMs = 0;
 
 async function getFreeLimitCached() {
   const now = Date.now();
-  if (_cachedFreeLimit != null && now - _cachedFreeLimitAtMs < 60_000) {
-    return _cachedFreeLimit;
-  }
+  if (_cachedFreeLimit != null && now - _cachedFreeLimitAtMs < 60_000) return _cachedFreeLimit;
+
   const { data: settings } = await supabase
     .from("app_settings")
     .select("free_limit")
@@ -375,7 +380,10 @@ async function resolveUser(waNumber) {
 
 async function updateLastUserMessageAt(waNumber, tsIso) {
   const stamp = safeIso(tsIso) || nowIso();
-  await supabase.from("users").update({ last_user_message_at: stamp, updated_at: nowIso() }).eq("phone_e164", waNumber);
+  await supabase
+    .from("users")
+    .update({ last_user_message_at: stamp, updated_at: nowIso() })
+    .eq("phone_e164", waNumber);
 }
 
 // -------------------- WhatsApp send (360dialog) --------------------
@@ -401,6 +409,206 @@ async function sendWhatsAppText(toNumber, bodyText) {
   if (!resp.ok) {
     const t = await resp.text();
     throw new Error(`360dialog error ${resp.status}: ${t}`);
+  }
+}
+
+// -------------------- ZIP media handling (MVP) --------------------
+function normalizeDocShaToHex(v) {
+  const raw = String(v || "").trim();
+  if (!raw) return crypto.createHash("sha256").update("missing", "utf8").digest("hex");
+  if (/^[a-fA-F0-9]{64}$/.test(raw)) return raw.toLowerCase();
+
+  try {
+    const b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const padLen = b64.length % 4 === 0 ? 0 : 4 - (b64.length % 4);
+    const padded = b64 + "=".repeat(padLen);
+    const decoded = Buffer.from(padded, "base64");
+    if (decoded.length === 32) return decoded.toString("hex");
+  } catch {
+    // ignore
+  }
+
+  return crypto.createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+function isAcceptedZipDocument(doc) {
+  const mime = String(doc?.mime_type || "").toLowerCase();
+  const filename = String(doc?.filename || "").toLowerCase();
+  return ZIP_ACCEPT_MIME_TYPES.has(mime) || filename.endsWith(".zip");
+}
+
+function safeStorageUserPart(userId) {
+  const raw = userId == null ? "unknown" : String(userId);
+  const safe = raw.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
+  return safe || "unknown";
+}
+
+async function get360MediaDownloadUrl(mediaId) {
+  const endpoint = `${D360_BASE_URL.replace(/\/$/, "")}/${encodeURIComponent(String(mediaId || ""))}`;
+  const resp = await fetch(endpoint, {
+    method: "GET",
+    headers: { "D360-API-KEY": D360_API_KEY },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`media_url_lookup_${resp.status}`);
+  }
+
+  const payload = await resp.json().catch(() => null);
+  const url = payload?.url || payload?.data?.url || null;
+  if (!url) throw new Error("media_url_missing");
+  return String(url);
+}
+
+async function downloadZipBytes(downloadUrl) {
+  let resp = await fetch(downloadUrl);
+  if (resp.status === 401 || resp.status === 403) {
+    resp = await fetch(downloadUrl, {
+      headers: { "D360-API-KEY": D360_API_KEY },
+    });
+  }
+  if (!resp.ok) throw new Error(`media_download_${resp.status}`);
+  return Buffer.from(await resp.arrayBuffer());
+}
+
+async function pickBestTxtFromZip(zipBytes) {
+  const zip = await JSZip.loadAsync(zipBytes);
+  const txtFiles = Object.values(zip.files).filter((f) => !f.dir && /\.txt$/i.test(f.name));
+  if (!txtFiles.length) return null;
+
+  let best = null;
+  for (const f of txtFiles) {
+    const buf = Buffer.from(await f.async("uint8array"));
+    if (!best || buf.length > best.buf.length) {
+      best = { name: f.name, buf };
+    }
+  }
+  return best;
+}
+
+async function upsertChatExportBestEffort(row, storagePath, shaHex, txtBytes) {
+  try {
+    const payload = {
+      inbound_event_id: row?.id ?? null,
+      user_id: row?.user_id ?? null,
+      wa_message_id: row?.msg_id ?? null,
+      storage_path: storagePath,
+      document_sha256: shaHex,
+      txt_bytes: Number(txtBytes || 0),
+      updated_at: nowIso(),
+    };
+    const { error } = await supabase.from("chat_exports").upsert(payload, { onConflict: "inbound_event_id" });
+    if (error) {
+      const code = String(error.code || "");
+      const msg = String(error.message || error);
+      if (code === "42P01" || /relation .*chat_exports.* does not exist/i.test(msg)) return false;
+      if (code === "42703" || /column .* does not exist/i.test(msg)) return false;
+      console.log("[zip] chat_exports upsert skipped:", msg.slice(0, 120));
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.log("[zip] chat_exports upsert error:", String(e?.message || e).slice(0, 120));
+    return false;
+  }
+}
+
+async function handleInboundMedia(waNumber, classified, row) {
+  const doc = classified?.document || null;
+  const media = classified?.media || null;
+
+  // Non-document media is intentionally refused in MVP.
+  if (!doc && media) {
+    await sendWhatsAppText(
+      waNumber,
+      "I can’t process media files right now. Please send a WhatsApp Export Chat ZIP (Without media)."
+    );
+    return { action: "media_refused", skip_reason: "non_document_media" };
+  }
+
+  if (!doc) {
+    await sendWhatsAppText(
+      waNumber,
+      "I can only process WhatsApp Export Chat ZIP files (Without media). Please send a .zip file."
+    );
+    return { action: "media_refused", skip_reason: "missing_document_meta" };
+  }
+
+  const mimeType = String(doc?.mime_type || "").toLowerCase();
+  const mediaId = String(doc?.media_id || "").trim();
+  const shaHex = normalizeDocShaToHex(doc?.sha256);
+  const sha8 = shaHex.slice(0, 8) || "unknown";
+  const msgId = row?.msg_id || "unknown";
+  let sizeBytes = 0;
+
+  try {
+    if (!isAcceptedZipDocument(doc)) {
+      await sendWhatsAppText(
+        waNumber,
+        "I can only process WhatsApp Export Chat ZIP files (Export chat -> Without media). Please resend as .zip."
+      );
+      return { action: "media_refused", skip_reason: "unsupported_document_type" };
+    }
+
+    if (DRY_RUN) {
+      await sendWhatsAppText(waNumber, "ZIP detected (dry run)");
+      return { action: "zip_detected_dry_run", skip_reason: null };
+    }
+
+    if (!mediaId) {
+      await sendWhatsAppText(
+        waNumber,
+        "I couldn’t read that ZIP reference. Please export chat again as ZIP (Without media) and resend."
+      );
+      return { action: "media_skipped", skip_reason: "missing_media_id" };
+    }
+
+    const downloadUrl = await get360MediaDownloadUrl(mediaId);
+    const zipBytes = await downloadZipBytes(downloadUrl);
+    sizeBytes = zipBytes.length;
+
+    if (zipBytes.length < 2 || zipBytes[0] !== 0x50 || zipBytes[1] !== 0x4b) {
+      await sendWhatsAppText(
+        waNumber,
+        "That file does not look like a valid ZIP. Please send a WhatsApp Export Chat ZIP (Without media)."
+      );
+      return { action: "media_skipped", skip_reason: "zip_magic_mismatch" };
+    }
+
+    const picked = await pickBestTxtFromZip(zipBytes);
+    if (!picked || !picked.buf || picked.buf.length < 1) {
+      await sendWhatsAppText(
+        waNumber,
+        "I couldn’t find a chat .txt in that ZIP. Please export using WhatsApp 'Without media' and resend."
+      );
+      return { action: "media_skipped", skip_reason: "zip_no_txt" };
+    }
+
+    const userPart = safeStorageUserPart(row?.user_id);
+    const storagePath = `${userPart}/${row?.id}/${shaHex}.txt`;
+
+    const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, picked.buf, {
+      upsert: true,
+      contentType: "text/plain; charset=utf-8",
+    });
+    if (uploadErr) throw new Error(`storage_upload_${String(uploadErr.message || uploadErr).slice(0, 120)}`);
+
+    await upsertChatExportBestEffort(row, storagePath, shaHex, picked.buf.length);
+
+    await sendWhatsAppText(
+      waNumber,
+      "ZIP received. I extracted the chat text and saved it. Now you can ask: 'What did X say about Y?'"
+    );
+
+    return {
+      action: "zip_txt_stored",
+      skip_reason: null,
+      metaPatch: { zip_txt_path: storagePath },
+    };
+  } finally {
+    console.log(
+      `[zip] id=${row?.id} msg_id=${msgId} mime=${mimeType || "unknown"} size=${sizeBytes} sha256_8=${sha8}`
+    );
   }
 }
 
@@ -494,12 +702,9 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
   });
 }
 
-// ===================== Your existing ZIP / media / delete / command handlers =====================
-// Keep your existing implementations in your repo.
-// These are required and assumed to exist:
+// ===================== Existing handlers (unchanged) =====================
 const { ensureFirstTimeNoticeAndTos } = require("./legal");
 const { processCommand } = require("./commands");
-const { handleInboundMedia } = require("./media");
 
 // ===================== Main WhatsApp processing =====================
 async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
@@ -509,15 +714,7 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
     return { action: "blocked_notice" };
   }
 
-  // Always record the inbound user message timestamp first
   await updateLastUserMessageAt(waNumber, eventTsIso);
-
-  // Inbound replies never force templates
-  if (shouldForceTemplateForInboundReply()) {
-    // (kept for completeness; currently always false)
-    await sendWhatsAppText(waNumber, "Hello 👋");
-    return { action: "template_not_used_in_inbound_reply" };
-  }
 
   const meaningful = isMeaningfulText(textBody);
 
@@ -536,23 +733,6 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
 
   // Send FIRST
   await sendWhatsAppText(waNumber, result.summary_text);
-
-  // Non-fatal inserts
-  try {
-    await supabase.from("summaries").insert({
-      wa_number: waNumber,
-      input_chars: textBody.length,
-      summary_text: result.summary_text,
-      openai_model: result.openai_model || null,
-      input_tokens: result.input_tokens ?? null,
-      output_tokens: result.output_tokens ?? null,
-      total_tokens: result.total_tokens ?? null,
-      cost_usd_est: result.cost_usd_est ?? null,
-      error_code: result.error_code ?? null,
-    });
-  } catch (e) {
-    console.log("[worker] non-fatal: summaries insert failed:", String(e?.message || e).slice(0, 120));
-  }
 
   // Decrement after successful send
   try {
@@ -574,16 +754,22 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
 }
 
 // -------------------- main loop --------------------
-
-// REWRITE #3 (bugfix): better idle backoff + clear heartbeat + safe timestamp selection.
 async function mainLoop() {
   console.log("[worker] loop started (no HTTP)");
 
   let idleMs = 250;
   const idleMax = 2000;
+  let lastHeartbeatMs = 0;
 
   while (!shouldStop) {
     const row = await dequeueEventJson();
+
+    // heartbeat every ~60s when idle
+    const now = Date.now();
+    if (!row && now - lastHeartbeatMs > 60_000) {
+      console.log("[worker] heartbeat", { inFlight, idleMs });
+      lastHeartbeatMs = now;
+    }
 
     if (!row) {
       idleMs = Math.min(idleMax, Math.floor(idleMs * 1.2));
@@ -591,12 +777,11 @@ async function mainLoop() {
       continue;
     }
 
-    idleMs = 250; // reset on work
+    idleMs = 250;
 
     const { id, meta, received_at, user_msg_ts } = row;
     const classified = classifyWhatsAppEvent(row);
 
-    // prefer top-level user_msg_ts, then meta, then received_at
     const eventTsIso =
       safeIso(user_msg_ts) ||
       safeIso(meta?.user_msg_ts) ||
@@ -640,7 +825,12 @@ async function mainLoop() {
       // Media
       if (classified.kind === "inbound_media") {
         const r = await handleInboundMedia(waNumber, classified, row);
-        await markEvent(id, { status: "processed", outcome: r.action || "media_processed" });
+        await markEvent(id, {
+          status: "processed",
+          outcome: r.action || "media_processed",
+          skip_reason: r.skip_reason || null,
+          meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
+        });
         continue;
       }
 
@@ -676,7 +866,7 @@ async function mainLoop() {
       await markEvent(id, {
         status: "error",
         outcome: "worker_error",
-        last_error: String(e?.message || e).slice(0, 300),
+        last_error: truncateErr500(e),
       });
       console.log("[worker] non-fatal loop error:", String(e?.message || e).slice(0, 200));
     } finally {
@@ -688,6 +878,6 @@ async function mainLoop() {
 }
 
 mainLoop().catch((e) => {
-  console.error("[worker] fatal:", String(e?.message || e).slice(0, 300));
+  console.error("[worker] fatal:", truncateErr500(e));
   process.exit(1);
 });
