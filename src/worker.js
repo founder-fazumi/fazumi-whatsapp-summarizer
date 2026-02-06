@@ -55,6 +55,7 @@ const SUPABASE_SERVICE_ROLE_KEY = envTrim("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE
 const D360_BASE_URL = envTrim("D360_BASE_URL") || "https://waba-v2.360dialog.io";
 const D360_API_KEY = envTrim("D360_API_KEY") || "";
 const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat_exports";
+const MEDIA_MAX_BYTES = Number(envTrim("MEDIA_MAX_BYTES") || 20 * 1024 * 1024);
 
 // Templates (kept for future proactive messaging; not used for inbound-triggered replies)
 const D360_TEMPLATE_LANG = envTrim("D360_TEMPLATE_LANG") || "en";
@@ -170,6 +171,14 @@ function truncateErr500(errLike) {
 function tailN(v, n) {
   const s = String(v || "");
   return s.length <= n ? s : s.slice(-n);
+}
+
+function startsLikeJson(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 1) return false;
+  let i = 0;
+  while (i < buf.length && (buf[i] === 0x20 || buf[i] === 0x09 || buf[i] === 0x0a || buf[i] === 0x0d)) i++;
+  if (i >= buf.length) return false;
+  return buf[i] === 0x7b || buf[i] === 0x5b; // { or [
 }
 
 // -------------------- PII-safe helpers --------------------
@@ -471,31 +480,65 @@ async function get360MediaDownloadUrl(mediaId) {
     headers: { "D360-API-KEY": D360_API_KEY },
   });
 
-  if (!resp.ok) {
-    throw new Error(`media_url_lookup_${resp.status}`);
-  }
-
   const payload = await resp.json().catch(() => null);
   const url = payload?.url || payload?.data?.url || null;
-  if (!url) throw new Error("media_url_missing");
-  return String(url);
+  const mime = String(payload?.mime_type || payload?.data?.mime_type || "").toLowerCase() || "n/a";
+  const sizeRaw = payload?.file_size ?? payload?.data?.file_size ?? null;
+  const size = Number.isFinite(Number(sizeRaw)) ? Number(sizeRaw) : null;
+  const sha = String(payload?.sha256 || payload?.data?.sha256 || "");
+  const sha8 = sha ? sha.slice(0, 8) : "n/a";
+
+  return {
+    status: resp.status,
+    ok: resp.ok,
+    url: url ? String(url) : null,
+    mime,
+    size,
+    sha8,
+  };
 }
 
-async function downloadZipBytes(downloadUrl) {
-  let resp = await fetch(downloadUrl);
-  if (resp.status === 401 || resp.status === 403) {
-    resp = await fetch(downloadUrl, {
-      headers: { "D360-API-KEY": D360_API_KEY },
+async function downloadMediaBytes(downloadUrl) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  const attempt = async (headers) => {
+    const resp = await fetch(downloadUrl, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
     });
+    const buf = Buffer.from(await resp.arrayBuffer());
+    return { resp, buf };
+  };
+
+  try {
+    let { resp, buf } = await attempt({
+      Authorization: `Bearer ${D360_API_KEY}`,
+      "D360-API-KEY": D360_API_KEY,
+    });
+
+    const ct = String(resp.headers.get("content-type") || "").toLowerCase();
+    const looksJsonError = ct.includes("application/json") && buf.length < 2048;
+    if ((resp.status === 401 || resp.status === 403 || looksJsonError) && resp.ok !== false) {
+      const retry = await attempt({ "D360-API-KEY": D360_API_KEY });
+      resp = retry.resp;
+      buf = retry.buf;
+    }
+
+    if (!resp.ok) throw new Error(`media_download_${resp.status}`);
+    if (buf.length > MEDIA_MAX_BYTES) throw new Error(`media_too_large_${buf.length}`);
+    return { status: resp.status, ok: resp.ok, bytes: buf, contentType: ct || "n/a" };
+  } finally {
+    clearTimeout(timeout);
   }
-  if (!resp.ok) throw new Error(`media_download_${resp.status}`);
-  return Buffer.from(await resp.arrayBuffer());
 }
 
 async function pickBestTxtFromZip(zipBytes) {
   const zip = await JSZip.loadAsync(zipBytes);
-  const txtFiles = Object.values(zip.files).filter((f) => !f.dir && /\.txt$/i.test(f.name));
-  if (!txtFiles.length) return null;
+  const allFiles = Object.values(zip.files).filter((f) => !f.dir);
+  const txtFiles = allFiles.filter((f) => /\.txt$/i.test(f.name));
+  if (!txtFiles.length) return { picked: null, entries: allFiles.length };
 
   let best = null;
   for (const f of txtFiles) {
@@ -504,7 +547,7 @@ async function pickBestTxtFromZip(zipBytes) {
       best = { name: f.name, buf };
     }
   }
-  return best;
+  return { picked: best, entries: allFiles.length };
 }
 
 async function upsertChatExportBestEffort(row, storagePath, shaHex, txtBytes) {
@@ -587,40 +630,101 @@ async function handleInboundMedia(waNumber, classified, row) {
     return { action: "dry_run", skip_reason: "dry_run_no_send_no_download" };
   }
 
-  let metaPatch = null;
-  let internalSkipReason = null;
-  try {
-    if (!mediaId) {
-      internalSkipReason = "missing_media_id";
-    } else {
-      const downloadUrl = await get360MediaDownloadUrl(mediaId);
-      const zipBytes = await downloadZipBytes(downloadUrl);
-      if (zipBytes.length >= 2 && zipBytes[0] === 0x50 && zipBytes[1] === 0x4b) {
-        const picked = await pickBestTxtFromZip(zipBytes);
-        if (picked && picked.buf && picked.buf.length > 0) {
-          const userPart = safeStorageUserPart(row?.user_id);
-          const storagePath = `${userPart}/${row?.id}/${shaHex}.txt`;
-          const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, picked.buf, {
-            upsert: true,
-            contentType: "text/plain; charset=utf-8",
-          });
-          if (!uploadErr) {
-            await upsertChatExportBestEffort(row, storagePath, shaHex, picked.buf.length);
-            metaPatch = { zip_txt_path: storagePath };
-          } else {
-            internalSkipReason = "zip_upload_failed";
-          }
-        } else {
-          internalSkipReason = "zip_no_txt";
-        }
-      } else {
-        internalSkipReason = "zip_magic_mismatch";
-      }
-    }
-  } catch (e) {
-    internalSkipReason = internalSkipReason || "zip_process_failed";
-    console.log(`[zip] id=${eventId} process_error=1 ts=${nowIso()}`);
+  if (!mediaId) {
+    return { action: "media_not_found", skip_reason: "missing_media_id", error: "missing_media_id" };
   }
+
+  const mediaMeta = await get360MediaDownloadUrl(mediaId);
+  console.log(
+    `[media_meta] id=${eventId} status=${mediaMeta.status} has_url=${Boolean(mediaMeta.url)} size=${mediaMeta.size ?? "?"} mime=${mediaMeta.mime} sha8=${mediaMeta.sha8}`
+  );
+  if (!mediaMeta.ok) {
+    if (mediaMeta.status === 404) {
+      return { action: "media_not_found", skip_reason: "media_meta_404", error: "media_not_found" };
+    }
+    return { action: "media_meta_failed", skip_reason: "media_meta_failed", error: `media_meta_${mediaMeta.status}` };
+  }
+  if (!mediaMeta.url) {
+    return { action: "media_not_found", skip_reason: "media_url_missing", error: "media_url_missing" };
+  }
+  if (Number.isFinite(mediaMeta.size) && mediaMeta.size > MEDIA_MAX_BYTES) {
+    return {
+      action: "media_too_large",
+      skip_reason: "media_too_large_meta",
+      error: `media_too_large_${mediaMeta.size}`,
+    };
+  }
+
+  const mediaDl = await downloadMediaBytes(mediaMeta.url);
+  const zipBytes = mediaDl.bytes;
+  console.log(`[media_dl] id=${eventId} status=${mediaDl.status} bytes=${zipBytes.length} ct=${mediaDl.contentType}`);
+
+  if (mediaDl.contentType.includes("json") || startsLikeJson(zipBytes)) {
+    return {
+      action: "media_download_bad_content",
+      skip_reason: "downloaded_json",
+      error: "downloaded_json_instead_of_zip",
+    };
+  }
+  if (zipBytes.length > MEDIA_MAX_BYTES) {
+    return {
+      action: "media_too_large",
+      skip_reason: "media_too_large_bytes",
+      error: `media_too_large_${zipBytes.length}`,
+    };
+  }
+  if (zipBytes.length < 2 || zipBytes[0] !== 0x50 || zipBytes[1] !== 0x4b) {
+    return { action: "zip_bad", skip_reason: "zip_magic_mismatch", error: "zip_signature_invalid" };
+  }
+
+  let picked = null;
+  let entryCount = "?";
+  try {
+    const parsed = await pickBestTxtFromZip(zipBytes);
+    picked = parsed?.picked || null;
+    entryCount = Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "?";
+    console.log(`[unzip] id=${eventId} ok=true entries=${entryCount} bytes=${zipBytes.length}`);
+  } catch (e) {
+    console.log(`[unzip] id=${eventId} ok=false entries=? bytes=${zipBytes.length}`);
+    try {
+      await sendWhatsAppText(
+        waNumber,
+        "I couldn’t open that ZIP. Please resend as WhatsApp Chat export (ZIP) without media.",
+        { eventId }
+      );
+    } catch {
+      // keep original unzip failure as primary outcome
+    }
+    return { action: "zip_bad", skip_reason: "unzip_failed", error: truncateErr500(e) };
+  }
+
+  if (!picked || !picked.buf || picked.buf.length < 1) {
+    try {
+      await sendWhatsAppText(
+        waNumber,
+        "I couldn’t open that ZIP. Please resend as WhatsApp Chat export (ZIP) without media.",
+        { eventId }
+      );
+    } catch {
+      // keep original unzip failure as primary outcome
+    }
+    return { action: "zip_bad", skip_reason: "zip_no_txt", error: "zip_no_txt" };
+  }
+
+  const userPart = safeStorageUserPart(row?.user_id);
+  const storagePath = `${userPart}/${row?.id}/${shaHex}.txt`;
+  const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, picked.buf, {
+    upsert: true,
+    contentType: "text/plain; charset=utf-8",
+  });
+  if (uploadErr) {
+    return {
+      action: "zip_store_failed",
+      skip_reason: "zip_upload_failed",
+      error: truncateErr500(uploadErr?.message || uploadErr),
+    };
+  }
+  await upsertChatExportBestEffort(row, storagePath, shaHex, picked.buf.length);
 
   try {
     await sendWhatsAppText(
@@ -629,13 +733,13 @@ async function handleInboundMedia(waNumber, classified, row) {
       { eventId }
     );
   } catch (e) {
-    return { action: "wa_send_failed", skip_reason: internalSkipReason || null, error: truncateErr500(e) };
+    return { action: "wa_send_failed", skip_reason: null, error: truncateErr500(e) };
   }
 
   return {
-    action: metaPatch ? "zip_txt_stored" : "zip_received",
-    skip_reason: internalSkipReason || null,
-    metaPatch,
+    action: "zip_extracted",
+    skip_reason: null,
+    metaPatch: { zip_txt_path: storagePath },
   };
 }
 
@@ -859,6 +963,24 @@ async function mainLoop() {
       // Media
       if (classified.kind === "inbound_media") {
         const r = await handleInboundMedia(waNumber, classified, row);
+        if (
+          r.action === "media_download_invalid" ||
+          r.action === "media_not_found" ||
+          r.action === "media_meta_failed" ||
+          r.action === "media_download_bad_content" ||
+          r.action === "media_too_large" ||
+          r.action === "zip_bad" ||
+          r.action === "zip_store_failed"
+        ) {
+          await markEvent(id, {
+            status: "error",
+            outcome: r.action,
+            skip_reason: r.skip_reason || null,
+            last_error: truncateErr500(r.error || r.action),
+            meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
+          });
+          continue;
+        }
         if (r.action === "wa_send_failed") {
           await markEvent(id, {
             status: "error",
