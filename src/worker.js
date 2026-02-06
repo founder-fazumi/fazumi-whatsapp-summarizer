@@ -167,6 +167,11 @@ function truncateErr500(errLike) {
   return String(errLike?.message || errLike || "").slice(0, 500);
 }
 
+function tailN(v, n) {
+  const s = String(v || "");
+  return s.length <= n ? s : s.slice(-n);
+}
+
 // -------------------- PII-safe helpers --------------------
 function hashPhone(phoneE164) {
   return crypto.createHash("sha256").update(String(phoneE164), "utf8").digest("hex");
@@ -387,8 +392,10 @@ async function updateLastUserMessageAt(waNumber, tsIso) {
 }
 
 // -------------------- WhatsApp send (360dialog) --------------------
-async function sendWhatsAppText(toNumber, bodyText) {
+async function sendWhatsAppText(toNumber, bodyText, diag = {}) {
   const url = `${D360_BASE_URL.replace(/\/$/, "")}/messages`;
+  const eventId = diag?.eventId ?? "n/a";
+  const toLast4 = tailN(toNumber, 4) || "n/a";
 
   const payload = {
     messaging_product: "whatsapp",
@@ -397,18 +404,30 @@ async function sendWhatsAppText(toNumber, bodyText) {
     text: { body: String(bodyText).slice(0, 4096) },
   };
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "D360-API-KEY": D360_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let status = "n/a";
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "D360-API-KEY": D360_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!resp.ok) {
-    const t = await resp.text();
-    throw new Error(`360dialog error ${resp.status}: ${t}`);
+    status = String(resp.status);
+    const ok = Boolean(resp.ok);
+    console.log(`[wa_send] id=${eventId} to=${toLast4} status=${status} ok=${ok}`);
+
+    if (!resp.ok) throw new Error(`wa_send_http_${resp.status}`);
+    return { ok: true, status: resp.status };
+  } catch (e) {
+    if (status === "n/a") {
+      console.log(`[wa_send] id=${eventId} to=${toLast4} status=n/a ok=false`);
+    }
+    const error = new Error(truncateErr500(e));
+    error.code = "wa_send_failed";
+    throw error;
   }
 }
 
@@ -432,9 +451,11 @@ function normalizeDocShaToHex(v) {
 }
 
 function isAcceptedZipDocument(doc) {
-  const mime = String(doc?.mime_type || "").toLowerCase();
-  const filename = String(doc?.filename || "").toLowerCase();
-  return ZIP_ACCEPT_MIME_TYPES.has(mime) || filename.endsWith(".zip");
+  const mime = String(doc?.mime_type || "").toLowerCase().trim();
+  const filename = String(doc?.filename || "").toLowerCase().trim();
+  if (filename.endsWith(".zip")) return true;
+  if (ZIP_ACCEPT_MIME_TYPES.has(mime)) return true;
+  return mime.includes("zip");
 }
 
 function safeStorageUserPart(userId) {
@@ -516,100 +537,106 @@ async function upsertChatExportBestEffort(row, storagePath, shaHex, txtBytes) {
 async function handleInboundMedia(waNumber, classified, row) {
   const doc = classified?.document || null;
   const media = classified?.media || null;
+  const eventId = row?.id;
+  const msgType = String(row?.meta?.msg_type || "").toLowerCase();
 
-  // Non-document media is intentionally refused in MVP.
+  // Non-document media: explicit refusal path.
   if (!doc && media) {
-    await sendWhatsAppText(
-      waNumber,
-      "I can’t process media files right now. Please send a WhatsApp Export Chat ZIP (Without media)."
-    );
-    return { action: "media_refused", skip_reason: "non_document_media" };
+    try {
+      await sendWhatsAppText(
+        waNumber,
+        "Supported: WhatsApp Export Chat ZIP (Without media).",
+        { eventId }
+      );
+      return { action: "refused_non_zip", skip_reason: "non_document_media" };
+    } catch (e) {
+      return { action: "wa_send_failed", skip_reason: "non_document_media", error: truncateErr500(e) };
+    }
   }
 
-  if (!doc) {
-    await sendWhatsAppText(
-      waNumber,
-      "I can only process WhatsApp Export Chat ZIP files (Without media). Please send a .zip file."
-    );
-    return { action: "media_refused", skip_reason: "missing_document_meta" };
+  if (msgType !== "document" && !doc) {
+    return { action: "media_skipped", skip_reason: "not_document_event" };
   }
 
-  const mimeType = String(doc?.mime_type || "").toLowerCase();
+  const mimeType = String(doc?.mime_type || "").toLowerCase().trim();
+  const filename = String(doc?.filename || "");
+  const filenameLen = filename.length;
   const mediaId = String(doc?.media_id || "").trim();
+  const mediaIdLast6 = tailN(mediaId, 6) || "n/a";
   const shaHex = normalizeDocShaToHex(doc?.sha256);
   const sha8 = shaHex.slice(0, 8) || "unknown";
-  const msgId = row?.msg_id || "unknown";
-  let sizeBytes = 0;
+  console.log(
+    `[zip] id=${eventId} mime=${mimeType || "unknown"} filename_len=${filenameLen} media_id=${mediaIdLast6} sha8=${sha8}`
+  );
+
+  const isZip = isAcceptedZipDocument(doc);
+  if (!isZip) {
+    try {
+      await sendWhatsAppText(
+        waNumber,
+        "Supported: WhatsApp Export Chat ZIP (Without media).",
+        { eventId }
+      );
+      return { action: "refused_non_zip", skip_reason: "unsupported_document_type" };
+    } catch (e) {
+      return { action: "wa_send_failed", skip_reason: "unsupported_document_type", error: truncateErr500(e) };
+    }
+  }
+
+  if (DRY_RUN) {
+    return { action: "dry_run", skip_reason: "dry_run_no_send_no_download" };
+  }
+
+  let metaPatch = null;
+  let internalSkipReason = null;
+  try {
+    if (!mediaId) {
+      internalSkipReason = "missing_media_id";
+    } else {
+      const downloadUrl = await get360MediaDownloadUrl(mediaId);
+      const zipBytes = await downloadZipBytes(downloadUrl);
+      if (zipBytes.length >= 2 && zipBytes[0] === 0x50 && zipBytes[1] === 0x4b) {
+        const picked = await pickBestTxtFromZip(zipBytes);
+        if (picked && picked.buf && picked.buf.length > 0) {
+          const userPart = safeStorageUserPart(row?.user_id);
+          const storagePath = `${userPart}/${row?.id}/${shaHex}.txt`;
+          const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, picked.buf, {
+            upsert: true,
+            contentType: "text/plain; charset=utf-8",
+          });
+          if (!uploadErr) {
+            await upsertChatExportBestEffort(row, storagePath, shaHex, picked.buf.length);
+            metaPatch = { zip_txt_path: storagePath };
+          } else {
+            internalSkipReason = "zip_upload_failed";
+          }
+        } else {
+          internalSkipReason = "zip_no_txt";
+        }
+      } else {
+        internalSkipReason = "zip_magic_mismatch";
+      }
+    }
+  } catch (e) {
+    internalSkipReason = internalSkipReason || "zip_process_failed";
+    console.log(`[zip] id=${eventId} process_error=1 ts=${nowIso()}`);
+  }
 
   try {
-    if (!isAcceptedZipDocument(doc)) {
-      await sendWhatsAppText(
-        waNumber,
-        "I can only process WhatsApp Export Chat ZIP files (Export chat -> Without media). Please resend as .zip."
-      );
-      return { action: "media_refused", skip_reason: "unsupported_document_type" };
-    }
-
-    if (DRY_RUN) {
-      await sendWhatsAppText(waNumber, "ZIP detected (dry run)");
-      return { action: "zip_detected_dry_run", skip_reason: null };
-    }
-
-    if (!mediaId) {
-      await sendWhatsAppText(
-        waNumber,
-        "I couldn’t read that ZIP reference. Please export chat again as ZIP (Without media) and resend."
-      );
-      return { action: "media_skipped", skip_reason: "missing_media_id" };
-    }
-
-    const downloadUrl = await get360MediaDownloadUrl(mediaId);
-    const zipBytes = await downloadZipBytes(downloadUrl);
-    sizeBytes = zipBytes.length;
-
-    if (zipBytes.length < 2 || zipBytes[0] !== 0x50 || zipBytes[1] !== 0x4b) {
-      await sendWhatsAppText(
-        waNumber,
-        "That file does not look like a valid ZIP. Please send a WhatsApp Export Chat ZIP (Without media)."
-      );
-      return { action: "media_skipped", skip_reason: "zip_magic_mismatch" };
-    }
-
-    const picked = await pickBestTxtFromZip(zipBytes);
-    if (!picked || !picked.buf || picked.buf.length < 1) {
-      await sendWhatsAppText(
-        waNumber,
-        "I couldn’t find a chat .txt in that ZIP. Please export using WhatsApp 'Without media' and resend."
-      );
-      return { action: "media_skipped", skip_reason: "zip_no_txt" };
-    }
-
-    const userPart = safeStorageUserPart(row?.user_id);
-    const storagePath = `${userPart}/${row?.id}/${shaHex}.txt`;
-
-    const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, picked.buf, {
-      upsert: true,
-      contentType: "text/plain; charset=utf-8",
-    });
-    if (uploadErr) throw new Error(`storage_upload_${String(uploadErr.message || uploadErr).slice(0, 120)}`);
-
-    await upsertChatExportBestEffort(row, storagePath, shaHex, picked.buf.length);
-
     await sendWhatsAppText(
       waNumber,
-      "ZIP received. I extracted the chat text and saved it. Now you can ask: 'What did X say about Y?'"
+      "✅ ZIP received. I saved the chat text. Now ask: What did X say about Y?",
+      { eventId }
     );
-
-    return {
-      action: "zip_txt_stored",
-      skip_reason: null,
-      metaPatch: { zip_txt_path: storagePath },
-    };
-  } finally {
-    console.log(
-      `[zip] id=${row?.id} msg_id=${msgId} mime=${mimeType || "unknown"} size=${sizeBytes} sha256_8=${sha8}`
-    );
+  } catch (e) {
+    return { action: "wa_send_failed", skip_reason: internalSkipReason || null, error: truncateErr500(e) };
   }
+
+  return {
+    action: metaPatch ? "zip_txt_stored" : "zip_received",
+    skip_reason: internalSkipReason || null,
+    metaPatch,
+  };
 }
 
 // -------------------- Legal templates --------------------
@@ -780,6 +807,13 @@ async function mainLoop() {
     idleMs = 250;
 
     const { id, meta, received_at, user_msg_ts } = row;
+    const msgType = String(meta?.msg_type || meta?.type || meta?.message_type || "").toLowerCase();
+    const waMessageIdLast8 = tailN(row?.wa_message_id, 8) || "n/a";
+    const outcomeBefore = String(row?.outcome || "null");
+    const attempts = Number.isFinite(Number(row?.attempts)) ? Number(row.attempts) : 0;
+    console.log(
+      `[job] start id=${id} wa_message_id=${waMessageIdLast8} msg_type=${msgType || "unknown"} outcome_before=${outcomeBefore} attempts=${attempts}`
+    );
     const classified = classifyWhatsAppEvent(row);
 
     const eventTsIso =
@@ -825,6 +859,16 @@ async function mainLoop() {
       // Media
       if (classified.kind === "inbound_media") {
         const r = await handleInboundMedia(waNumber, classified, row);
+        if (r.action === "wa_send_failed") {
+          await markEvent(id, {
+            status: "error",
+            outcome: "wa_send_failed",
+            skip_reason: r.skip_reason || null,
+            last_error: truncateErr500(r.error || "wa_send_failed"),
+            meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
+          });
+          continue;
+        }
         await markEvent(id, {
           status: "processed",
           outcome: r.action || "media_processed",
