@@ -12,7 +12,7 @@
  * - Default: DO NOT store raw user message text in DB.
  * - Store only:
  *   - text_sha256 (proof/dedupe)
- *   - text_enc (AES-256-GCM encrypted) so worker can summarize async
+ *   - text_ref (Supabase Storage pointer) + text_len
  *   - minimal meta fields (no raw text)
  *
  * Phase 5 additions:
@@ -41,6 +41,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 const supabase = getSupabaseAdmin();
+const CHAT_EXPORTS_BUCKET = process.env.CHAT_EXPORTS_BUCKET || "chat-exports";
 
 /**
  * VERSION MARKER
@@ -143,10 +144,23 @@ function getWaValue(body) {
   try {
     const entry0 = Array.isArray(body?.entry) ? body.entry[0] : null;
     const change0 = Array.isArray(entry0?.changes) ? entry0.changes[0] : null;
-    return change0?.value || null;
+    const value = change0?.value || null;
+    if (value) return value;
+    if (Array.isArray(body?.messages)) return body; // normalized payloads
+    return null;
   } catch {
     return null;
   }
+}
+
+function safeLast8ForPath(id) {
+  const raw = String(id || "");
+  const last8 = raw.slice(-8) || "unknown";
+  return last8.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function inboundTextPathFromMsgId(msgId) {
+  return `inbound_text/${safeLast8ForPath(msgId)}.txt`;
 }
 
 /**
@@ -393,7 +407,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
         if (!msgId || !from || !msgType) continue;
 
-        // Text extraction (only for hashing/encryption; never stored raw)
+        // Text extraction (only for hashing/storage; never stored raw in DB)
         let rawText = "";
         if (msgType === "text" && msg?.text?.body) rawText = String(msg.text.body);
         if ((msgType === "interactive" || msgType === "button") && msg?.button?.text) rawText = String(msg.button.text);
@@ -444,7 +458,29 @@ app.post("/webhooks/whatsapp", (req, res) => {
         const payloadHash = sha256Hex(Buffer.from(JSON.stringify({ kind: "message", msg_type: msgType, id: msgId })));
 
         const textSha = hasText ? sha256Hex(Buffer.from(rawText, "utf8")) : null;
-        const textEnc = event_kind === "inbound_text" ? encryptTextOrNull(rawText) : null;
+        const textLen = hasText ? rawText.length : null;
+        let textRef = null;
+
+        if (event_kind === "inbound_text" && hasText) {
+          const storagePath = inboundTextPathFromMsgId(msgId);
+          textRef = { bucket: CHAT_EXPORTS_BUCKET, path: storagePath };
+          try {
+            const textBuf = Buffer.from(rawText, "utf8");
+            const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, textBuf, {
+              upsert: true,
+              contentType: "text/plain; charset=utf-8",
+            });
+            if (uploadErr) {
+              console.log(
+                `[whatsapp] text_store outcome=error msg_id=${safeLast8ForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
+              );
+            }
+          } catch {
+            console.log(
+              `[whatsapp] text_store outcome=error msg_id=${safeLast8ForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
+            );
+          }
+        }
 
         const safeMeta = {
           ...common,
@@ -454,7 +490,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
           ...(event_kind === "inbound_command" ? { command: upper } : {}),
           ...(textSha ? { text_sha256: textSha } : {}),
-          ...(textEnc ? { text_enc: textEnc } : {}),
+          ...(textRef ? { text_ref: textRef, text_len: textLen } : {}),
 
           ...(docMeta ? { document: docMeta } : {}),
           ...(otherMediaMeta ? { media: otherMediaMeta } : {}),
@@ -490,5 +526,5 @@ app.listen(port, host, () => {
   console.log(`[server] build=${SERVER_BUILD_TAG}`);
   console.log(`[server] listening on http://${host}:${port}`);
   console.log(`[server] supabase configured: ${Boolean(supabase)}`);
-  console.log(`[server] text_enc enabled: ${Boolean(getEncKey())}`);
+  console.log(`[server] inbound_text_bucket=${CHAT_EXPORTS_BUCKET}`);
 });

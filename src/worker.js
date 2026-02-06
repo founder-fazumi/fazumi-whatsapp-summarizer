@@ -12,7 +12,8 @@
  * - Implied TOS acceptance on next message after notice
  *
  * Data minimization:
- * - Worker decrypts meta.text_enc, uses it, then wipes it (best-effort)
+ * - Worker fetches inbound text from private storage via meta.text_ref
+ * - Legacy: decrypts meta.text_enc, uses it, then wipes it (best-effort)
  */
 
 "use strict";
@@ -54,7 +55,7 @@ const SUPABASE_SERVICE_ROLE_KEY = envTrim("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE
 // 360dialog base
 const D360_BASE_URL = envTrim("D360_BASE_URL") || "https://waba-v2.360dialog.io";
 const D360_API_KEY = envTrim("D360_API_KEY") || "";
-const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat_exports";
+const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat-exports";
 const MEDIA_MAX_BYTES = Number(envTrim("MEDIA_MAX_BYTES") || 20 * 1024 * 1024);
 const ZIP_MAX_BYTES = Number(envTrim("ZIP_MAX_BYTES") || MEDIA_MAX_BYTES);
 const ZIP_MAX_TEXT_CHARS = Number(envTrim("ZIP_MAX_TEXT_CHARS") || 1_200_000);
@@ -273,6 +274,34 @@ function decryptTextEncOrNull(textEnc) {
   }
 }
 
+async function downloadInboundTextFromStorage(textRef) {
+  try {
+    if (!textRef || typeof textRef !== "object") return { ok: false, reason: "missing_text_ref" };
+    const bucket = String(textRef.bucket || "").trim();
+    const path = String(textRef.path || "").trim();
+    if (!bucket || !path) return { ok: false, reason: "bad_text_ref" };
+
+    const { data, error } = await supabase.storage.from(bucket).download(path);
+    if (error || !data) return { ok: false, reason: "download_failed" };
+
+    let buf = null;
+    if (Buffer.isBuffer(data)) {
+      buf = data;
+    } else if (data instanceof Uint8Array) {
+      buf = Buffer.from(data);
+    } else if (typeof data.arrayBuffer === "function") {
+      const ab = await data.arrayBuffer();
+      buf = Buffer.from(ab);
+    } else {
+      return { ok: false, reason: "download_unexpected" };
+    }
+
+    return { ok: true, text: buf.toString("utf8"), bytes: buf.length };
+  } catch {
+    return { ok: false, reason: "download_exception" };
+  }
+}
+
 // -------------------- Supabase queue --------------------
 async function dequeueEventJson() {
   const { data, error } = await supabase.rpc("dequeue_inbound_event_json");
@@ -347,6 +376,8 @@ function classifyWhatsAppEvent(eventRow) {
     return {
       kind: "inbound_text",
       wa_number,
+      text_ref: meta.text_ref || null,
+      text_len: meta.text_len ?? null,
       text_enc: meta.text_enc || null,
       text_sha256: meta.text_sha256 || null,
     };
@@ -1153,13 +1184,52 @@ async function mainLoop() {
 
       // Text
       let textBody = null;
+      let hasTextRef = false;
+      let storageFetchStatus = null;
+      const metaTextLen = Number.isFinite(Number(meta?.text_len)) ? Number(meta.text_len) : null;
+
       if (classified.kind === "inbound_text") {
-        textBody = decryptTextEncOrNull(classified.text_enc);
+        hasTextRef = Boolean(classified.text_ref?.bucket && classified.text_ref?.path);
+        if (hasTextRef) {
+          const fetched = await downloadInboundTextFromStorage(classified.text_ref);
+          storageFetchStatus = fetched.ok ? "ok" : "error";
+          if (fetched.ok) textBody = fetched.text;
+        } else {
+          storageFetchStatus = "error";
+          if (classified.text_enc) {
+            textBody = decryptTextEncOrNull(classified.text_enc);
+          }
+        }
+
+        console.log(
+          `[text_diag] id=${id} msg_type=${msgType || "unknown"} text_len=${metaTextLen ?? "null"} has_text_ref=${hasTextRef} storage_fetch=${storageFetchStatus === "ok" ? "ok" : "error"}`
+        );
+
+        if (hasTextRef && storageFetchStatus !== "ok") {
+          try {
+            await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", { eventId: id });
+          } catch {
+            // best effort
+          }
+          await markEvent(id, { status: "error", outcome: "text_fetch_failed" });
+          continue;
+        }
       } else if (classified.kind === "inbound_text_legacy") {
         textBody = classified.text_body;
       }
 
       if (!textBody || !String(textBody).trim()) {
+        if (classified.kind === "inbound_text" || classified.kind === "inbound_text_legacy") {
+          try {
+            await sendWhatsAppText(
+              waNumber,
+              "I received your message but couldn't read the text. Please resend as plain text.",
+              { eventId: id }
+            );
+          } catch {
+            // best effort
+          }
+        }
         await markEvent(id, { status: "processed", outcome: "empty_text" });
         continue;
       }
