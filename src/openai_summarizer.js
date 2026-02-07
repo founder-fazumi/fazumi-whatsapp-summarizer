@@ -4,6 +4,7 @@
  * Adds MVP blockers:
  * - R1: No vague relative time in output. If user text includes relative terms, output must ground to absolute dates.
  * - R2: Batch summaries must ask for period when range > 7 days OR cannot determine range.
+ * - Language targeting: reply in the user's message language, with Arabic-script/Arabizi/mixed forcing Standard Arabic.
  *
  * Privacy: This module never logs message text or secrets.
  */
@@ -69,6 +70,72 @@ function getModelPricingUSDPer1M(_model) {
 function stripSummarizePrefix(s) {
   // Some users might type "summarize:" etc.
   return String(s || "").replace(/^summarize\s*:\s*/i, "");
+}
+
+// ---------- language targeting ----------
+function detectTargetLanguage(text) {
+  const s = String(text || "");
+
+  // Edge case #1 fixed: any Arabic script always forces Arabic output.
+  const hasArabicScript = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/u.test(s);
+  const hasLatin = /[A-Za-z]/.test(s);
+
+  if (hasArabicScript && hasLatin) {
+    return { target_lang: "ar", reason: "mixed" };
+  }
+  if (hasArabicScript) {
+    return { target_lang: "ar", reason: "arabic_script" };
+  }
+
+  const latinChars = (s.match(/[A-Za-z]/g) || []).length;
+  const hasArabiziDigits = /[2356789]/.test(s);
+
+  // Edge case #2 fixed: avoid false positives from plain dates/numbers by requiring letter+digit Arabizi token.
+  const hasDigitLatinToken =
+    /\b[a-zA-Z]+[2356789][a-zA-Z]*\b/.test(s) || /\b[a-zA-Z]*[2356789][a-zA-Z]+\b/.test(s);
+
+  const lower = s.toLowerCase();
+
+  // Strong explicit patterns requested by product rules.
+  const hasStrongPattern = /\b(?:7ab\w*|3a\w*|5ar\w*)\b/i.test(s);
+
+  // kh/sh/gh can collide with English; require companion signal.
+  const hasKhShGhPattern = /\b(?:kh\w*|sh\w*|gh\w*)\b/i.test(s);
+  const hasArabiziLexeme =
+    /\b(?:salam|slm|ya|ana|enta|enti|mesh|msh|bukra|habibi|7abibi|inshallah|inchallah|wallah)\b/i.test(s);
+
+  const mostlyLatin = latinChars >= 4;
+
+  // Edge case #3 fixed: short/noise input defaults to English unless Arabizi evidence is strong.
+  const arabiziByDigits = mostlyLatin && hasArabiziDigits && hasDigitLatinToken;
+  const arabiziByPattern =
+    hasStrongPattern || (hasKhShGhPattern && (hasArabiziDigits || hasArabiziLexeme || hasDigitLatinToken));
+
+  if (arabiziByDigits || arabiziByPattern) {
+    return { target_lang: "ar", reason: "arabizi" };
+  }
+
+  return { target_lang: "en", reason: "default" };
+}
+
+function labelsForTarget(target_lang) {
+  if (target_lang === "ar") {
+    return {
+      tldr: "الخلاصة",
+      deadlines: "المواعيد النهائية",
+      actions: "الإجراءات",
+      keyInfo: "معلومات مهمة",
+      fallback: "غير محدد",
+    };
+  }
+
+  return {
+    tldr: "TL;DR",
+    deadlines: "Deadlines",
+    actions: "Actions",
+    keyInfo: "Key info",
+    fallback: "Not specified",
+  };
 }
 
 // ---------- R1: time utilities (Asia/Qatar) ----------
@@ -298,15 +365,23 @@ function buildBatchPeriodQuestion(anchorIso, timeZone) {
 }
 
 // ---------- Fazumi system prompt ----------
-function buildFazumiSystemPrompt({ anchor_ts_iso, timezone }) {
+function buildFazumiSystemPrompt({ anchor_ts_iso, timezone, target_lang }) {
   const tz = timezone || DEFAULT_TZ;
   const anchor = anchor_ts_iso || new Date().toISOString();
+
+  const langLine = `Output ALL fields in ${target_lang}.`;
+  const arabicHardRule =
+    target_lang === "ar"
+      ? "Use Modern Standard Arabic and Arabic script only. Do NOT use Latin transliteration. Translate English/French fragments into Arabic."
+      : "Use clear, concise English for all fields.";
 
   return [
     "You are Fazumi, a WhatsApp summarizer.",
     "Return ONLY valid JSON matching the provided schema. No extra keys.",
     "Be a faithful extractor: do not invent facts.",
     "Keep it concise and WhatsApp-friendly.",
+    langLine,
+    arabicHardRule,
     "",
     "CRITICAL RULE (R1): Do NOT output vague relative time words (e.g., tomorrow, next week, later) unless you ALSO include an absolute date in parentheses.",
     "Example: 'tomorrow (Mon 2 Feb 2026)' or 'next week (Mon 2 Feb 2026 - Sun 8 Feb 2026)'.",
@@ -409,32 +484,42 @@ function oneLine(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-function normalizeSchema(obj) {
+function normalizeSchema(obj, target_lang) {
+  const safeTarget = target_lang === "ar" ? "ar" : "en";
+  const labels = labelsForTarget(safeTarget);
+
   const out = {
     tldr: "",
     key_points: [],
     action_items: [],
     dates_deadlines: [],
-    language: "en",
+    language: safeTarget,
   };
 
-  if (!obj || typeof obj !== "object") return out;
+  if (!obj || typeof obj !== "object") {
+    out.tldr = labels.fallback;
+    out.key_points = [labels.fallback];
+    out.action_items = [labels.fallback];
+    out.dates_deadlines = [labels.fallback];
+    return out;
+  }
 
   const tldr = typeof obj.tldr === "string" ? obj.tldr : "";
   const kp = Array.isArray(obj.key_points) ? obj.key_points : [];
   const ai = Array.isArray(obj.action_items) ? obj.action_items : [];
   const dd = Array.isArray(obj.dates_deadlines) ? obj.dates_deadlines : [];
-  const lang = typeof obj.language === "string" ? obj.language.trim().toLowerCase() : "en";
 
-  out.tldr = oneLine(tldr) || "Not specified";
+  out.tldr = oneLine(tldr) || labels.fallback;
   out.key_points = kp.map(oneLine).filter(Boolean).slice(0, 6);
   out.action_items = ai.map(oneLine).filter(Boolean).slice(0, 10);
   out.dates_deadlines = dd.map(oneLine).filter(Boolean).slice(0, 10);
-  out.language = lang || "en";
 
-  if (!out.key_points.length) out.key_points = ["Not specified"];
-  if (!out.action_items.length) out.action_items = ["Not specified"];
-  if (!out.dates_deadlines.length) out.dates_deadlines = ["Not specified"];
+  if (!out.key_points.length) out.key_points = [labels.fallback];
+  if (!out.action_items.length) out.action_items = [labels.fallback];
+  if (!out.dates_deadlines.length) out.dates_deadlines = [labels.fallback];
+
+  // Force schema language to detected target language for consistency.
+  out.language = safeTarget;
 
   return out;
 }
@@ -446,24 +531,26 @@ function truncateTextWithEllipsis(s, maxChars) {
   return text.slice(0, maxChars - 1).trimEnd() + "…";
 }
 
-function formatForWhatsApp(schemaObj, maxChars) {
-  const obj = normalizeSchema(schemaObj);
+function formatForWhatsApp(schemaObj, maxChars, target_lang) {
+  const safeTarget = target_lang === "ar" ? "ar" : "en";
+  const labels = labelsForTarget(safeTarget);
+  const obj = normalizeSchema(schemaObj, safeTarget);
 
-  // Fixed contract: always same sections, always present.
-  let tldr = oneLine(obj.tldr) || "Not specified";
-  const deadlines = obj.dates_deadlines.length ? obj.dates_deadlines.slice() : ["Not specified"];
-  const actions = obj.action_items.length ? obj.action_items.slice() : ["Not specified"];
-  const keyInfo = obj.key_points.length ? obj.key_points.slice() : ["Not specified"];
+  // Fixed contract: always same 4 sections, localized headers.
+  let tldr = oneLine(obj.tldr) || labels.fallback;
+  const deadlines = obj.dates_deadlines.length ? obj.dates_deadlines.slice() : [labels.fallback];
+  const actions = obj.action_items.length ? obj.action_items.slice() : [labels.fallback];
+  const keyInfo = obj.key_points.length ? obj.key_points.slice() : [labels.fallback];
 
   const render = () => {
     const lines = [];
-    lines.push(`TL;DR: ${tldr}`);
-    lines.push("Deadlines:");
-    for (const d of deadlines) lines.push(`- ${d}`);
-    lines.push("Actions:");
-    for (const a of actions) lines.push(`- [ ] ${a}`);
-    lines.push("Key info:");
-    for (const k of keyInfo) lines.push(`- ${k}`);
+    lines.push(`${labels.tldr}: ${tldr}`);
+    lines.push(`${labels.deadlines}:`);
+    for (const d of deadlines) lines.push(`- ${d || labels.fallback}`);
+    lines.push(`${labels.actions}:`);
+    for (const a of actions) lines.push(`- [ ] ${a || labels.fallback}`);
+    lines.push(`${labels.keyInfo}:`);
+    for (const k of keyInfo) lines.push(`- ${k || labels.fallback}`);
     return lines.join("\n");
   };
 
@@ -549,9 +636,12 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
   const trimmed = safeText.trim();
   const clipped = trimmed.length > maxInputChars ? trimmed.slice(0, maxInputChars) : trimmed;
 
+  const langTarget = detectTargetLanguage(clipped);
+  const target_lang = langTarget.target_lang;
+
   const request_fingerprint = crypto
     .createHash("sha256")
-    .update(`${model}::${tz}::${anchor_ts_iso || ""}::${clipped}`)
+    .update(`${model}::${tz}::${anchor_ts_iso || ""}::${target_lang}::${clipped}`)
     .digest("hex");
 
   // R2: detect batch and range early (best-effort)
@@ -560,21 +650,35 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
   const needsPeriodQuestion = isBatch && (!range.ok || (range.ok && range.days > 7));
 
   if (DRY_RUN) {
-    const fake = normalizeSchema({
-      tldr: "DRY_RUN preview.",
-      key_points: ["DRY_RUN mode is enabled."],
-      action_items: [],
-      dates_deadlines: [],
-      language: "en",
-    });
+    const labels = labelsForTarget(target_lang);
+    const fake = normalizeSchema(
+      {
+        tldr: target_lang === "ar" ? "معاينة وضع التشغيل التجريبي." : "DRY_RUN preview.",
+        key_points: [target_lang === "ar" ? "وضع التشغيل التجريبي مفعّل." : "DRY_RUN mode is enabled."],
+        action_items: [],
+        dates_deadlines: [],
+        language: target_lang,
+      },
+      target_lang
+    );
 
-    let out = formatForWhatsApp(fake, maxOutputChars);
+    let out = formatForWhatsApp(fake, maxOutputChars, target_lang);
     out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
 
     if (needsPeriodQuestion) {
       out += `\n\n${buildBatchPeriodQuestion(anchor_ts_iso, tz)}`;
       out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
-      if (out.length > maxOutputChars) out = out.slice(0, maxOutputChars - 1).trimEnd() + "…";
+      if (out.length > maxOutputChars) {
+        // Keep all section headers intact, trim only the appendage/tail.
+        const clippedOut = out.slice(0, maxOutputChars - 1).trimEnd() + "…";
+        out = clippedOut;
+      }
+    }
+
+    // Make sure empty placeholders remain aligned with required language.
+    if (!out.includes(`${labels.deadlines}:`)) {
+      out = formatForWhatsApp(fake, maxOutputChars, target_lang);
+      out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
     }
 
     return {
@@ -596,7 +700,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
       ...(projectId ? { project: projectId } : {}),
     });
 
-    const instructions = buildFazumiSystemPrompt({ anchor_ts_iso, timezone: tz });
+    const instructions = buildFazumiSystemPrompt({ anchor_ts_iso, timezone: tz, target_lang });
     const input = clipped;
 
     let lastErr = null;
@@ -614,7 +718,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
         });
 
         const parsedResult = parseResponseObject(resp);
-        const normalized = normalizeSchema(parsedResult.parsed);
+        const normalized = normalizeSchema(parsedResult.parsed, target_lang);
 
         const usage = resp.usage
           ? {
@@ -636,7 +740,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
         }
 
         // Always run formatter, then enforce R1.
-        let formatted = formatForWhatsApp(normalized, maxOutputChars);
+        let formatted = formatForWhatsApp(normalized, maxOutputChars, target_lang);
         formatted = enforceNoVagueRelativeTime(formatted, anchor_ts_iso, tz);
 
         // R2: If batch needs a period question, append it (explicit dates)
