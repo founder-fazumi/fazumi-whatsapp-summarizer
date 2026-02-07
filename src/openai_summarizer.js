@@ -88,6 +88,89 @@ function wrapWithDirectionMarks(text, dir) {
 }
 
 // ---------- language targeting ----------
+function extractRequestedLanguageOverride(text) {
+  const s = String(text || "");
+
+  const enPatterns = [
+    /\b(?:summari[sz]e|summary|reply|respond|write|output)\s+(?:in|en)\s+english\b/i,
+    /\b(?:in|en)\s+english\b/i,
+    /بال(?:ا|إ)?نجليزي/i,
+  ];
+  const arPatterns = [
+    /\b(?:summari[sz]e|summary|reply|respond|write|output)\s+(?:in|en)\s+arabic\b/i,
+    /\b(?:in|en)\s+arabic\b/i,
+    /بالعربي(?:ة)?/i,
+    /بالعربية/i,
+  ];
+  const esPatterns = [
+    /\b(?:summari[sz]e|summary|reply|respond|write|output)\s+(?:in|en)\s+spanish\b/i,
+    /\b(?:in|en)\s+spanish\b/i,
+    /\ben\s+espa(?:ñ|n)ol\b/i,
+    /بال(?:ا|إ)?سباني/i,
+  ];
+
+  const matches = [];
+
+  for (const re of enPatterns) {
+    const m = s.match(re);
+    if (m && typeof m.index === "number") matches.push({ lang: "en", idx: m.index });
+  }
+  for (const re of arPatterns) {
+    const m = s.match(re);
+    if (m && typeof m.index === "number") matches.push({ lang: "ar", idx: m.index });
+  }
+  for (const re of esPatterns) {
+    const m = s.match(re);
+    if (m && typeof m.index === "number") matches.push({ lang: "es", idx: m.index });
+  }
+
+  if (!matches.length) return null;
+  matches.sort((a, b) => a.idx - b.idx);
+  return matches[0].lang;
+}
+
+function detectLatinLanguage(text) {
+  const s = String(text || "").toLowerCase();
+  const tokens = s.match(/\b[\p{Script=Latin}']+\b/gu) || [];
+  if (!tokens.length) return "en";
+
+  const spanishStopwords = new Set([
+    "de",
+    "la",
+    "que",
+    "y",
+    "el",
+    "en",
+    "los",
+    "se",
+    "por",
+    "para",
+    "con",
+    "una",
+    "un",
+    "les",
+    "su",
+    "sus",
+    "estimados",
+    "fundacion",
+    "fundación",
+    "fechas",
+    "ubicacion",
+    "ubicación",
+  ]);
+
+  let hits = 0;
+  for (const t of tokens) {
+    if (spanishStopwords.has(t)) hits++;
+  }
+
+  const hasSpanishChars = /[ñáéíóúü]/i.test(s);
+  const ratio = hits / tokens.length;
+
+  if (hasSpanishChars || hits >= 4 || (hits >= 2 && ratio >= 0.18)) return "es";
+  return "en";
+}
+
 function detectTargetLanguage(text) {
   const s = String(text || "");
 
@@ -104,54 +187,43 @@ function detectTargetLanguage(text) {
 
   const lower = s.toLowerCase();
   const tokens = lower.match(/\b[a-z0-9']+\b/g) || [];
-  const lexemeSet = new Set([
+  const strongLexemeSet = new Set([
     "salam",
     "slm",
-    "salaam",
-    "ya",
-    "ana",
-    "enta",
-    "enti",
+    "habibi",
+    "7abibi",
     "mesh",
     "msh",
-    "eh",
-    "eih",
+    "mish",
     "emta",
-    "izaay",
-    "izzay",
-    "keda",
-    "kda",
-    "bardo",
-    "habibi",
-    "habiby",
-    "habibti",
     "bukra",
     "bokra",
     "inshallah",
     "inchallah",
     "wallah",
-    "yalla",
-    "mafi",
-    "mafesh",
-    "fahim",
-    "fahma",
-    "fahman",
+    "shnuwa",
+    "ghodwa",
+    "ba3at",
+    "3am",
+    "ywa93",
+    "5arban",
   ]);
 
   let lexemeHits = 0;
   for (const t of tokens) {
-    if (lexemeSet.has(t)) lexemeHits++;
+    if (strongLexemeSet.has(t)) lexemeHits++;
   }
 
   // Strong numeric Arabizi signal: digits inside Latin tokens and at least 2 such tokens.
   const numericArabiziTokens = tokens.filter((t) => /[a-z][2356789]|[2356789][a-z]/.test(t));
   const strongNumericArabizi = numericArabiziTokens.length >= 2;
+  const strongNumericPattern = /\b(?:7ab\w*|3am\w*|5arb\w*|7a\w*|ba3at\w*|ywa93\w*)\b/i.test(lower);
 
-  if (lexemeHits >= 2 || strongNumericArabizi) {
+  if (lexemeHits >= 2 || strongNumericArabizi || strongNumericPattern) {
     return { target_lang: "ar", reason: "arabizi" };
   }
 
-  return { target_lang: "en", reason: "default" };
+  return { target_lang: detectLatinLanguage(s), reason: "latin_detected" };
 }
 
 function labelsForTarget(target_lang) {
@@ -162,6 +234,15 @@ function labelsForTarget(target_lang) {
       actions: "الإجراءات",
       keyInfo: "معلومات مهمة",
       fallback: "غير محدد",
+    };
+  }
+  if (target_lang === "es") {
+    return {
+      tldr: "Resumen",
+      deadlines: "Fechas límite",
+      actions: "Acciones",
+      keyInfo: "Información clave",
+      fallback: "No especificado",
     };
   }
 
@@ -406,10 +487,12 @@ function buildFazumiSystemPrompt({ anchor_ts_iso, timezone, target_lang }) {
   const anchor = anchor_ts_iso || new Date().toISOString();
 
   const langLine = `Output ALL fields in ${target_lang}.`;
-  const arabicHardRule =
+  const languageRule =
     target_lang === "ar"
-      ? "Write ALL fields in Modern Standard Arabic using Arabic script only. Translate English/French fragments into Arabic. Do NOT output Arabizi."
-      : "Use clear, concise English for all fields.";
+      ? "Write ALL fields in Modern Standard Arabic using Arabic script only. Translate foreign (English/French/Spanish) fragments into Arabic. Do NOT output Arabizi."
+      : target_lang === "es"
+      ? "Write ALL fields in clear, concise Spanish."
+      : "Write ALL fields in clear, concise English.";
 
   return [
     "You are Fazumi, a WhatsApp summarizer.",
@@ -417,7 +500,7 @@ function buildFazumiSystemPrompt({ anchor_ts_iso, timezone, target_lang }) {
     "Be a faithful extractor: do not invent facts.",
     "Keep it concise and WhatsApp-friendly.",
     langLine,
-    arabicHardRule,
+    languageRule,
     "",
     "CRITICAL RULE (R1): Do NOT output vague relative time words (e.g., tomorrow, next week, later) unless you ALSO include an absolute date in parentheses.",
     "Example: 'tomorrow (Mon 2 Feb 2026)' or 'next week (Mon 2 Feb 2026 - Sun 8 Feb 2026)'.",
@@ -521,7 +604,7 @@ function oneLine(s) {
 }
 
 function normalizeSchema(obj, target_lang) {
-  const safeTarget = target_lang === "ar" ? "ar" : "en";
+  const safeTarget = target_lang === "ar" || target_lang === "es" ? target_lang : "en";
   const labels = labelsForTarget(safeTarget);
 
   const out = {
@@ -568,7 +651,7 @@ function truncateTextWithEllipsis(s, maxChars) {
 }
 
 function formatForWhatsApp(schemaObj, maxChars, target_lang) {
-  const safeTarget = target_lang === "ar" ? "ar" : "en";
+  const safeTarget = target_lang === "ar" || target_lang === "es" ? target_lang : "en";
   const labels = labelsForTarget(safeTarget);
   const obj = normalizeSchema(schemaObj, safeTarget);
 
@@ -672,7 +755,8 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
   const trimmed = safeText.trim();
   const clipped = trimmed.length > maxInputChars ? trimmed.slice(0, maxInputChars) : trimmed;
 
-  const langTarget = detectTargetLanguage(clipped);
+  const requestedOverride = extractRequestedLanguageOverride(clipped);
+  const langTarget = requestedOverride ? { target_lang: requestedOverride, reason: "explicit_override" } : detectTargetLanguage(clipped);
   const target_lang = langTarget.target_lang;
 
   const request_fingerprint = crypto
@@ -687,7 +771,11 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
 
   if (DRY_RUN) {
     const labels = labelsForTarget(target_lang);
-    const dryDeadlineSeed = /\btomorrow\b/i.test(clipped)
+    const explicitDateMatch =
+      clipped.match(/\b\d{1,2}\/\d{1,2}\/20\d{2}\b/) || clipped.match(/\b20\d{2}-\d{2}-\d{2}\b/);
+    const dryDeadlineSeed = explicitDateMatch
+      ? explicitDateMatch[0]
+      : /\btomorrow\b/i.test(clipped)
       ? "tomorrow"
       : /\bnext week\b/i.test(clipped)
       ? "next week"
@@ -696,8 +784,19 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
       : labels.fallback;
     const fake = normalizeSchema(
       {
-        tldr: target_lang === "ar" ? "معاينة وضع التشغيل التجريبي." : "DRY_RUN preview.",
-        key_points: [target_lang === "ar" ? "وضع التشغيل التجريبي مفعّل." : "DRY_RUN mode is enabled."],
+        tldr:
+          target_lang === "ar"
+            ? "معاينة وضع التشغيل التجريبي."
+            : target_lang === "es"
+            ? "Vista previa en modo DRY_RUN."
+            : "DRY_RUN preview.",
+        key_points: [
+          target_lang === "ar"
+            ? "وضع التشغيل التجريبي مفعّل."
+            : target_lang === "es"
+            ? "El modo DRY_RUN está habilitado."
+            : "DRY_RUN mode is enabled.",
+        ],
         action_items: [],
         dates_deadlines: [dryDeadlineSeed],
         language: target_lang,
