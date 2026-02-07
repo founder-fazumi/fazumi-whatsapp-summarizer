@@ -72,6 +72,21 @@ function stripSummarizePrefix(s) {
   return String(s || "").replace(/^summarize\s*:\s*/i, "");
 }
 
+function detectTextDirection(text) {
+  const s = String(text || "");
+  const rtlScriptRe =
+    /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
+  return rtlScriptRe.test(s) ? "rtl" : "ltr";
+}
+
+function wrapWithDirectionMarks(text, dir) {
+  const body = String(text || "");
+  const LRE = "\u202A";
+  const RLE = "\u202B";
+  const PDF = "\u202C";
+  return (dir === "rtl" ? RLE : LRE) + body + PDF;
+}
+
 // ---------- language targeting ----------
 function detectTargetLanguage(text) {
   const s = String(text || "");
@@ -87,31 +102,52 @@ function detectTargetLanguage(text) {
     return { target_lang: "ar", reason: "arabic_script" };
   }
 
-  const latinChars = (s.match(/[A-Za-z]/g) || []).length;
-  const hasArabiziDigits = /[2356789]/.test(s);
-
-  // Edge case #2 fixed: avoid false positives from plain dates/numbers by requiring letter+digit Arabizi token.
-  const hasDigitLatinToken =
-    /\b[a-zA-Z]+[2356789][a-zA-Z]*\b/.test(s) || /\b[a-zA-Z]*[2356789][a-zA-Z]+\b/.test(s);
-
   const lower = s.toLowerCase();
+  const tokens = lower.match(/\b[a-z0-9']+\b/g) || [];
+  const lexemeSet = new Set([
+    "salam",
+    "slm",
+    "salaam",
+    "ya",
+    "ana",
+    "enta",
+    "enti",
+    "mesh",
+    "msh",
+    "eh",
+    "eih",
+    "emta",
+    "izaay",
+    "izzay",
+    "keda",
+    "kda",
+    "bardo",
+    "habibi",
+    "habiby",
+    "habibti",
+    "bukra",
+    "bokra",
+    "inshallah",
+    "inchallah",
+    "wallah",
+    "yalla",
+    "mafi",
+    "mafesh",
+    "fahim",
+    "fahma",
+    "fahman",
+  ]);
 
-  // Strong explicit patterns requested by product rules.
-  const hasStrongPattern = /\b(?:7ab\w*|3a\w*|5ar\w*)\b/i.test(s);
+  let lexemeHits = 0;
+  for (const t of tokens) {
+    if (lexemeSet.has(t)) lexemeHits++;
+  }
 
-  // kh/sh/gh can collide with English; require companion signal.
-  const hasKhShGhPattern = /\b(?:kh\w*|sh\w*|gh\w*)\b/i.test(s);
-  const hasArabiziLexeme =
-    /\b(?:salam|slm|ya|ana|enta|enti|mesh|msh|bukra|habibi|7abibi|inshallah|inchallah|wallah)\b/i.test(s);
+  // Strong numeric Arabizi signal: digits inside Latin tokens and at least 2 such tokens.
+  const numericArabiziTokens = tokens.filter((t) => /[a-z][2356789]|[2356789][a-z]/.test(t));
+  const strongNumericArabizi = numericArabiziTokens.length >= 2;
 
-  const mostlyLatin = latinChars >= 4;
-
-  // Edge case #3 fixed: short/noise input defaults to English unless Arabizi evidence is strong.
-  const arabiziByDigits = mostlyLatin && hasArabiziDigits && hasDigitLatinToken;
-  const arabiziByPattern =
-    hasStrongPattern || (hasKhShGhPattern && (hasArabiziDigits || hasArabiziLexeme || hasDigitLatinToken));
-
-  if (arabiziByDigits || arabiziByPattern) {
+  if (lexemeHits >= 2 || strongNumericArabizi) {
     return { target_lang: "ar", reason: "arabizi" };
   }
 
@@ -372,7 +408,7 @@ function buildFazumiSystemPrompt({ anchor_ts_iso, timezone, target_lang }) {
   const langLine = `Output ALL fields in ${target_lang}.`;
   const arabicHardRule =
     target_lang === "ar"
-      ? "Use Modern Standard Arabic and Arabic script only. Do NOT use Latin transliteration. Translate English/French fragments into Arabic."
+      ? "Write ALL fields in Modern Standard Arabic using Arabic script only. Translate English/French fragments into Arabic. Do NOT output Arabizi."
       : "Use clear, concise English for all fields.";
 
   return [
@@ -651,12 +687,19 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
 
   if (DRY_RUN) {
     const labels = labelsForTarget(target_lang);
+    const dryDeadlineSeed = /\btomorrow\b/i.test(clipped)
+      ? "tomorrow"
+      : /\bnext week\b/i.test(clipped)
+      ? "next week"
+      : /\bthis week\b/i.test(clipped)
+      ? "this week"
+      : labels.fallback;
     const fake = normalizeSchema(
       {
         tldr: target_lang === "ar" ? "معاينة وضع التشغيل التجريبي." : "DRY_RUN preview.",
         key_points: [target_lang === "ar" ? "وضع التشغيل التجريبي مفعّل." : "DRY_RUN mode is enabled."],
         action_items: [],
-        dates_deadlines: [],
+        dates_deadlines: [dryDeadlineSeed],
         language: target_lang,
       },
       target_lang
@@ -680,6 +723,8 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
       out = formatForWhatsApp(fake, maxOutputChars, target_lang);
       out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
     }
+    const dir = detectTextDirection(clipped) === "rtl" || target_lang === "ar" ? "rtl" : "ltr";
+    out = wrapWithDirectionMarks(out, dir);
 
     return {
       summaryText: out,
@@ -749,6 +794,8 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
           formatted = enforceNoVagueRelativeTime(formatted, anchor_ts_iso, tz);
           if (formatted.length > maxOutputChars) formatted = formatted.slice(0, maxOutputChars - 1).trimEnd() + "…";
         }
+        const dir = detectTextDirection(clipped) === "rtl" || target_lang === "ar" ? "rtl" : "ltr";
+        formatted = wrapWithDirectionMarks(formatted, dir);
 
         return {
           summaryText: formatted,
