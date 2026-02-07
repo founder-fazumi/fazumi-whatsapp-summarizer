@@ -317,26 +317,32 @@ function buildFazumiSystemPrompt({ anchor_ts_iso, timezone }) {
 }
 
 // ---------- Structured output schema ----------
+function fazumiSchemaObject() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      tldr: { type: "string" },
+      key_points: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 6 },
+      action_items: { type: "array", items: { type: "string" } },
+      dates_deadlines: { type: "array", items: { type: "string" } },
+      language: { type: "string" },
+    },
+    required: ["tldr", "key_points", "action_items", "dates_deadlines", "language"],
+  };
+}
+
 function fazumiTextFormat() {
   return {
     type: "json_schema",
-    json_schema: {
-      name: "fazumi_summary",
-      strict: true,
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          tldr: { type: "string" },
-          key_points: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 6 },
-          action_items: { type: "array", items: { type: "string" } },
-          dates_deadlines: { type: "array", items: { type: "string" } },
-          language: { type: "string" },
-        },
-        required: ["tldr", "key_points", "action_items", "dates_deadlines", "language"],
-      },
-    },
+    name: "fazumi_summary",
+    strict: true,
+    schema: fazumiSchemaObject(),
   };
+}
+
+function fazumiTextOption() {
+  return { format: fazumiTextFormat() };
 }
 
 // ---------- JSON parsing + formatting ----------
@@ -525,7 +531,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
           max_output_tokens: maxOutputTokens,
           temperature,
           store: false,
-          text: { format: fazumiTextFormat() },
+          text: fazumiTextOption(),
         });
 
         const outText = String(resp.output_text || "").trim();
