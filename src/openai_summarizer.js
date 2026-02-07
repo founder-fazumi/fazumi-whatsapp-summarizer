@@ -88,6 +88,19 @@ function wrapWithDirectionMarks(text, dir) {
 }
 
 // ---------- language targeting ----------
+function stripUrlsAndNoise(text) {
+  let s = String(text || "");
+
+  // Remove URLs first so path/query fragments don't create false Arabizi signals.
+  s = s.replace(/\bhttps?:\/\/[^\s]+/gi, " ");
+  s = s.replace(/\bwww\.[^\s]+/gi, " ");
+
+  // Remove long mixed alphanumeric IDs/tracking tokens.
+  s = s.replace(/\b(?=[a-z0-9]{16,}\b)(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]+\b/gi, " ");
+
+  return s.replace(/\s+/g, " ").trim();
+}
+
 function extractRequestedLanguageOverride(text) {
   const s = String(text || "");
 
@@ -157,6 +170,12 @@ function detectLatinLanguage(text) {
     "fechas",
     "ubicacion",
     "ubicación",
+    "sesion",
+    "sesión",
+    "programa",
+    "recordamos",
+    "importancia",
+    "asistencia",
   ]);
 
   let hits = 0;
@@ -173,6 +192,7 @@ function detectLatinLanguage(text) {
 
 function detectTargetLanguage(text) {
   const s = String(text || "");
+  const cleaned = stripUrlsAndNoise(s);
 
   // Edge case #1 fixed: any Arabic script always forces Arabic output.
   const hasArabicScript = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/u.test(s);
@@ -185,11 +205,12 @@ function detectTargetLanguage(text) {
     return { target_lang: "ar", reason: "arabic_script" };
   }
 
-  const lower = s.toLowerCase();
+  const lower = cleaned.toLowerCase();
   const tokens = lower.match(/\b[a-z0-9']+\b/g) || [];
   const strongLexemeSet = new Set([
     "salam",
     "slm",
+    "ana",
     "habibi",
     "7abibi",
     "mesh",
@@ -214,16 +235,16 @@ function detectTargetLanguage(text) {
     if (strongLexemeSet.has(t)) lexemeHits++;
   }
 
-  // Strong numeric Arabizi signal: digits inside Latin tokens and at least 2 such tokens.
-  const numericArabiziTokens = tokens.filter((t) => /[a-z][2356789]|[2356789][a-z]/.test(t));
-  const strongNumericArabizi = numericArabiziTokens.length >= 2;
-  const strongNumericPattern = /\b(?:7ab\w*|3am\w*|5arb\w*|7a\w*|ba3at\w*|ywa93\w*)\b/i.test(lower);
+  // Strong numeric Arabizi signal: embedded arabizi digits in short tokens only, never plain dates/numbers.
+  const numericArabiziTokens = tokens.filter((t) => /^(?=.*[a-z])[a-z0-9]{2,12}$/.test(t) && /[2356789]/.test(t));
+  const strongNumericArabizi = numericArabiziTokens.length >= 2 && lexemeHits >= 1;
+  const strongNumericPattern = /\b(?:7ab[a-z0-9]*|3am[a-z0-9]*|5arb[a-z0-9]*|7a[a-z0-9]+|ba3at[a-z0-9]*|ywa93[a-z0-9]*)\b/i.test(lower);
 
-  if (lexemeHits >= 2 || strongNumericArabizi || strongNumericPattern) {
+  if (lexemeHits >= 2 || strongNumericArabizi || (strongNumericPattern && lexemeHits >= 1)) {
     return { target_lang: "ar", reason: "arabizi" };
   }
 
-  return { target_lang: detectLatinLanguage(s), reason: "latin_detected" };
+  return { target_lang: detectLatinLanguage(cleaned), reason: "latin_detected" };
 }
 
 function labelsForTarget(target_lang) {
@@ -384,7 +405,22 @@ function enforceNoVagueRelativeTime(text, anchorIso, timeZone) {
 function looksLikeBatchText(text) {
   const s = String(text || "");
   const lines = s.split(/\r?\n/).filter((x) => x.trim().length > 0);
-  return s.length >= 900 || lines.length >= 10;
+  if (lines.length < 12) return false;
+
+  const timestampPatterns = [
+    /^\[\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}/gm,
+    /^\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s+-\s+/gm,
+  ];
+  let timestampHits = 0;
+  for (const re of timestampPatterns) {
+    const m = s.match(re);
+    timestampHits += m ? m.length : 0;
+  }
+
+  const hasExportMarkers =
+    /Messages and calls are end-to-end encrypted/i.test(s) || /<Media omitted>/i.test(s);
+
+  return timestampHits >= 3 || hasExportMarkers;
 }
 
 function extractDateCandidates(text) {
@@ -422,6 +458,47 @@ function extractDateCandidates(text) {
   for (const m of mon) {
     const d = +m[1];
     const mo = map[String(m[2] || "").toLowerCase()] || null;
+    const y = m[3] ? +m[3] : null;
+    if (mo) out.push({ y, mo, d });
+  }
+
+  const esMonthMap = {
+    enero: 1,
+    febrero: 2,
+    marzo: 3,
+    abril: 4,
+    mayo: 5,
+    junio: 6,
+    julio: 7,
+    agosto: 8,
+    septiembre: 9,
+    setiembre: 9,
+    octubre: 10,
+    noviembre: 11,
+    diciembre: 12,
+  };
+  const esMonths = Object.keys(esMonthMap).join("|");
+
+  // "7 y 8 de enero de 2026"
+  const esDual = s.matchAll(
+    new RegExp(`\\b(\\d{1,2})\\s+y\\s+(\\d{1,2})\\s+de\\s+(${esMonths})(?:\\s+de\\s+(20\\d{2}))?\\b`, "gi")
+  );
+  for (const m of esDual) {
+    const d1 = +m[1];
+    const d2 = +m[2];
+    const mo = esMonthMap[String(m[3] || "").toLowerCase()] || null;
+    const y = m[4] ? +m[4] : null;
+    if (mo) {
+      out.push({ y, mo, d: d1 });
+      out.push({ y, mo, d: d2 });
+    }
+  }
+
+  // "7 de enero de 2026"
+  const esSingle = s.matchAll(new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${esMonths})(?:\\s+de\\s+(20\\d{2}))?\\b`, "gi"));
+  for (const m of esSingle) {
+    const d = +m[1];
+    const mo = esMonthMap[String(m[2] || "").toLowerCase()] || null;
     const y = m[3] ? +m[3] : null;
     if (mo) out.push({ y, mo, d });
   }
@@ -465,13 +542,31 @@ function detectDateRange(text, anchorIso, timeZone) {
   return { ok: true, min, max, days };
 }
 
-function buildBatchPeriodQuestion(anchorIso, timeZone) {
+function buildBatchPeriodQuestion(anchorIso, timeZone, target_lang) {
   const tz = timeZone || DEFAULT_TZ;
 
   const todayAbs = fmtTodayLabel(anchorIso, tz);
   const week = fmtThisWeekRange(anchorIso, tz);
   const month = fmtThisMonthLabel(anchorIso, tz);
 
+  if (target_lang === "ar") {
+    return (
+      `هل تريد ملخصًا لـ: ` +
+      `(A) اليوم (${todayAbs}), ` +
+      `(B) هذا الأسبوع (${week}), ` +
+      `(C) هذا الشهر (${month}), ` +
+      `(D) تواريخ مخصصة؟`
+    );
+  }
+  if (target_lang === "es") {
+    return (
+      `¿Quieres un resumen de: ` +
+      `(A) hoy (${todayAbs}), ` +
+      `(B) esta semana (${week}), ` +
+      `(C) este mes (${month}), ` +
+      `(D) fechas personalizadas?`
+    );
+  }
   return (
     `Do you want a summary for: ` +
     `(A) today (${todayAbs}), ` +
@@ -808,7 +903,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
     out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
 
     if (needsPeriodQuestion) {
-      out += `\n\n${buildBatchPeriodQuestion(anchor_ts_iso, tz)}`;
+      out += `\n\n${buildBatchPeriodQuestion(anchor_ts_iso, tz, target_lang)}`;
       out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
       if (out.length > maxOutputChars) {
         // Keep all section headers intact, trim only the appendage/tail.
@@ -889,7 +984,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
 
         // R2: If batch needs a period question, append it (explicit dates)
         if (needsPeriodQuestion) {
-          formatted += `\n\n${buildBatchPeriodQuestion(anchor_ts_iso, tz)}`;
+          formatted += `\n\n${buildBatchPeriodQuestion(anchor_ts_iso, tz, target_lang)}`;
           formatted = enforceNoVagueRelativeTime(formatted, anchor_ts_iso, tz);
           if (formatted.length > maxOutputChars) formatted = formatted.slice(0, maxOutputChars - 1).trimEnd() + "…";
         }
