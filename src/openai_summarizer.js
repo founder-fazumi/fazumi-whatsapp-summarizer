@@ -105,7 +105,7 @@ function addDaysQatar(anchorIso, days, timeZone) {
 }
 
 /**
- * ✅ Rewritten: outputs "Mon 2 Feb 2026" (NO commas), matching MVP requirement examples.
+ * Rewritten: outputs "Mon 2 Feb 2026" (NO commas), matching MVP requirement examples.
  */
 function fmtAbsolute(d, timeZone) {
   const dtf = new Intl.DateTimeFormat("en-GB", {
@@ -117,7 +117,7 @@ function fmtAbsolute(d, timeZone) {
   });
 
   // Intl sometimes inserts punctuation in some environments.
-  // We'll rebuild from parts to enforce "Mon 2 Feb 2026".
+  // Rebuild from parts to enforce "Mon 2 Feb 2026".
   const parts = dtf.formatToParts(d);
   const obj = {};
   for (const p of parts) obj[p.type] = p.value;
@@ -131,12 +131,12 @@ function fmtAbsolute(d, timeZone) {
 }
 
 /**
- * ✅ Rewritten: uses fmtAbsolute consistently, no commas.
+ * Rewritten: uses fmtAbsolute consistently, no commas.
  */
 function fmtRange(d1, d2, timeZone) {
   const a = fmtAbsolute(d1, timeZone);
   const b = fmtAbsolute(d2, timeZone);
-  return `${a} – ${b}`;
+  return `${a} - ${b}`;
 }
 
 function fmtTodayLabel(anchorIso, timeZone) {
@@ -212,9 +212,9 @@ function extractDateCandidates(text) {
 
   const dmy = s.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(20\d{2}))?\b/g);
   for (const m of dmy) {
-    const d = +m[1],
-      mo = +m[2],
-      y = m[3] ? +m[3] : null;
+    const d = +m[1];
+    const mo = +m[2];
+    const y = m[3] ? +m[3] : null;
     out.push({ y, mo, d });
   }
 
@@ -309,7 +309,7 @@ function buildFazumiSystemPrompt({ anchor_ts_iso, timezone }) {
     "Keep it concise and WhatsApp-friendly.",
     "",
     "CRITICAL RULE (R1): Do NOT output vague relative time words (e.g., tomorrow, next week, later) unless you ALSO include an absolute date in parentheses.",
-    "Example: 'tomorrow (Mon 2 Feb 2026)' or 'next week (Mon 2 Feb 2026 – Sun 8 Feb 2026)'.",
+    "Example: 'tomorrow (Mon 2 Feb 2026)' or 'next week (Mon 2 Feb 2026 - Sun 8 Feb 2026)'.",
     "",
     `Anchor timestamp: ${anchor}`,
     `Display timezone: ${tz}`,
@@ -347,6 +347,8 @@ function fazumiTextOption() {
 
 // ---------- JSON parsing + formatting ----------
 function safeParseJsonObject(s) {
+  if (s && typeof s === "object" && !Array.isArray(s)) return s;
+
   const raw = String(s || "").trim();
   if (!raw) return null;
 
@@ -367,6 +369,46 @@ function safeParseJsonObject(s) {
   return null;
 }
 
+function coerceJsonSchemaPayload(v) {
+  if (v && typeof v === "object" && !Array.isArray(v)) return v;
+  if (typeof v === "string") return safeParseJsonObject(v);
+  return null;
+}
+
+function extractJsonSchemaObject(resp) {
+  if (!resp || !Array.isArray(resp.output) || !resp.output.length) return null;
+
+  // Per docs primary location for structured json_schema output:
+  // resp.output[0].content[0].json
+  const primary = coerceJsonSchemaPayload(resp.output?.[0]?.content?.[0]?.json);
+  if (primary) return primary;
+
+  // Defensive scan in case content ordering differs.
+  for (const outputItem of resp.output) {
+    if (!outputItem || !Array.isArray(outputItem.content)) continue;
+    for (const contentItem of outputItem.content) {
+      const candidate = coerceJsonSchemaPayload(contentItem && contentItem.json);
+      if (candidate) return candidate;
+    }
+  }
+
+  return null;
+}
+
+function parseResponseObject(resp) {
+  const structured = extractJsonSchemaObject(resp);
+  if (structured) {
+    return { parsed: structured, outText: String(resp?.output_text || "").trim() };
+  }
+
+  const outText = String(resp?.output_text || "").trim();
+  return { parsed: safeParseJsonObject(outText), outText };
+}
+
+function oneLine(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
 function normalizeSchema(obj) {
   const out = {
     tldr: "",
@@ -378,66 +420,111 @@ function normalizeSchema(obj) {
 
   if (!obj || typeof obj !== "object") return out;
 
-  const tldr = typeof obj.tldr === "string" ? obj.tldr.trim() : "";
+  const tldr = typeof obj.tldr === "string" ? obj.tldr : "";
   const kp = Array.isArray(obj.key_points) ? obj.key_points : [];
   const ai = Array.isArray(obj.action_items) ? obj.action_items : [];
   const dd = Array.isArray(obj.dates_deadlines) ? obj.dates_deadlines : [];
   const lang = typeof obj.language === "string" ? obj.language.trim().toLowerCase() : "en";
 
-  out.tldr = tldr || "Message is very brief; intent is unclear.";
-  out.key_points = kp.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 6);
-  out.action_items = ai.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10);
-  out.dates_deadlines = dd.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 10);
+  out.tldr = oneLine(tldr) || "Not specified";
+  out.key_points = kp.map(oneLine).filter(Boolean).slice(0, 6);
+  out.action_items = ai.map(oneLine).filter(Boolean).slice(0, 10);
+  out.dates_deadlines = dd.map(oneLine).filter(Boolean).slice(0, 10);
   out.language = lang || "en";
 
-  if (out.key_points.length < 2) {
-    out.key_points = ["Message is very brief; intent is unclear.", "No additional details were provided."];
-  }
-  if (out.key_points.length > 6) out.key_points = out.key_points.slice(0, 6);
+  if (!out.key_points.length) out.key_points = ["Not specified"];
+  if (!out.action_items.length) out.action_items = ["Not specified"];
+  if (!out.dates_deadlines.length) out.dates_deadlines = ["Not specified"];
 
   return out;
 }
 
-function labelsForLanguage(lang) {
-  const L = {
-    ar: { tldr: "🧠 الخلاصة:", key: "📌 النقاط الرئيسية:", act: "✅ الإجراءات المطلوبة:", dat: "📅 التواريخ / المواعيد:" },
-    hi: { tldr: "🧠 सारांश:", key: "📌 मुख्य बिंदु:", act: "✅ कार्य / अगला कदम:", dat: "📅 तारीख़ें / समय-सीमा:" },
-    fil: { tldr: "🧠 Buod:", key: "📌 Mahahalagang punto:", act: "✅ Mga dapat gawin:", dat: "📅 Mga petsa / deadline:" },
-    es: { tldr: "🧠 Resumen:", key: "📌 Puntos clave:", act: "✅ Acciones:", dat: "📅 Fechas / plazos:" },
-    pt: { tldr: "🧠 Resumo:", key: "📌 Pontos principais:", act: "✅ Ações:", dat: "📅 Datas / prazos:" },
-    fr: { tldr: "🧠 Résumé:", key: "📌 Points clés:", act: "✅ Actions à faire:", dat: "📅 Dates / échéances:" },
-    de: { tldr: "🧠 Kurzfassung:", key: "📌 Wichtige Punkte:", act: "✅ Nächste Schritte:", dat: "📅 Termine / Fristen:" },
-    ko: { tldr: "🧠 요약:", key: "📌 핵심 포인트:", act: "✅ 해야 할 일:", dat: "📅 날짜 / 마감:" },
-    ja: { tldr: "🧠 要約:", key: "📌 重要ポイント:", act: "✅ 対応事項:", dat: "📅 日付 / 締切:" },
-    zh: { tldr: "🧠 摘要:", key: "📌 关键要点:", act: "✅ 待办事项:", dat: "📅 日期 / 截止:" },
-    en: { tldr: "🧠 TL;DR:", key: "📌 Key points:", act: "✅ Action items:", dat: "📅 Dates / Deadlines:" },
-  };
-  return L[lang] || L.en;
+function truncateTextWithEllipsis(s, maxChars) {
+  const text = String(s || "");
+  if (text.length <= maxChars) return text;
+  if (maxChars <= 1) return "…";
+  return text.slice(0, maxChars - 1).trimEnd() + "…";
 }
 
 function formatForWhatsApp(schemaObj, maxChars) {
   const obj = normalizeSchema(schemaObj);
-  const L = labelsForLanguage(obj.language);
 
-  const bullet = (arr) =>
-    arr
-      .map((x) => String(x || "").trim())
-      .filter(Boolean)
-      .map((x) => `• ${x}`)
-      .join("\n");
+  // Fixed contract: always same sections, always present.
+  let tldr = oneLine(obj.tldr) || "Not specified";
+  const deadlines = obj.dates_deadlines.length ? obj.dates_deadlines.slice() : ["Not specified"];
+  const actions = obj.action_items.length ? obj.action_items.slice() : ["Not specified"];
+  const keyInfo = obj.key_points.length ? obj.key_points.slice() : ["Not specified"];
 
-  let out = `${L.tldr} ${String(obj.tldr || "").trim()}`.trim();
+  const render = () => {
+    const lines = [];
+    lines.push(`TL;DR: ${tldr}`);
+    lines.push("Deadlines:");
+    for (const d of deadlines) lines.push(`- ${d}`);
+    lines.push("Actions:");
+    for (const a of actions) lines.push(`- [ ] ${a}`);
+    lines.push("Key info:");
+    for (const k of keyInfo) lines.push(`- ${k}`);
+    return lines.join("\n");
+  };
 
-  if (obj.key_points.length) out += `\n\n${L.key}\n${bullet(obj.key_points)}`;
-  if (obj.action_items.length) out += `\n\n${L.act}\n${bullet(obj.action_items)}`;
-  if (obj.dates_deadlines.length) out += `\n\n${L.dat}\n${bullet(obj.dates_deadlines)}`;
+  let out = render();
 
-  out = out.trim() || "⚠️ Unable to summarize this message. Please try again.";
-
-  if (typeof maxChars === "number" && maxChars > 50 && out.length > maxChars) {
-    out = out.slice(0, maxChars - 1).trimEnd() + "…";
+  if (typeof maxChars !== "number" || maxChars <= 50 || out.length <= maxChars) {
+    return out;
   }
-  return out;
+
+  // Keep headers intact. Trim tail content first.
+  while (out.length > maxChars && keyInfo.length > 1) {
+    keyInfo.pop();
+    out = render();
+  }
+  while (out.length > maxChars && actions.length > 1) {
+    actions.pop();
+    out = render();
+  }
+  while (out.length > maxChars && deadlines.length > 1) {
+    deadlines.pop();
+    out = render();
+  }
+
+  if (out.length <= maxChars) return out;
+
+  if (keyInfo.length) {
+    keyInfo[keyInfo.length - 1] = truncateTextWithEllipsis(
+      keyInfo[keyInfo.length - 1],
+      Math.max(1, keyInfo[keyInfo.length - 1].length - (out.length - maxChars))
+    );
+    out = render();
+  }
+
+  if (out.length <= maxChars) return out;
+
+  if (actions.length) {
+    actions[actions.length - 1] = truncateTextWithEllipsis(
+      actions[actions.length - 1],
+      Math.max(1, actions[actions.length - 1].length - (out.length - maxChars))
+    );
+    out = render();
+  }
+
+  if (out.length <= maxChars) return out;
+
+  if (deadlines.length) {
+    deadlines[deadlines.length - 1] = truncateTextWithEllipsis(
+      deadlines[deadlines.length - 1],
+      Math.max(1, deadlines[deadlines.length - 1].length - (out.length - maxChars))
+    );
+    out = render();
+  }
+
+  if (out.length <= maxChars) return out;
+
+  tldr = truncateTextWithEllipsis(tldr, Math.max(1, tldr.length - (out.length - maxChars)));
+  out = render();
+
+  if (out.length <= maxChars) return out;
+
+  return truncateTextWithEllipsis(out, maxChars);
 }
 
 // ---------- main summarizer ----------
@@ -473,17 +560,9 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
   const needsPeriodQuestion = isBatch && (!range.ok || (range.ok && range.days > 7));
 
   if (DRY_RUN) {
-    // ✅ IMPORTANT: include a *short, sanitized* snippet so we can PROVE R1 in DRY_RUN.
-    // This is not stored and not logged; it's only sent back to the same user.
-    const snippet = clipped.replace(/\s+/g, " ").slice(0, 120);
-
     const fake = normalizeSchema({
-      tldr: `DRY_RUN preview. Snippet: ${snippet}`,
-      key_points: [
-        "DRY_RUN mode is enabled.",
-        "No OpenAI call was made.",
-        "Relative time words must be grounded with absolute dates.",
-      ],
+      tldr: "DRY_RUN preview.",
+      key_points: ["DRY_RUN mode is enabled."],
       action_items: [],
       dates_deadlines: [],
       language: "en",
@@ -534,9 +613,8 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
           text: fazumiTextOption(),
         });
 
-        const outText = String(resp.output_text || "").trim();
-        const parsed = safeParseJsonObject(outText);
-        const normalized = normalizeSchema(parsed);
+        const parsedResult = parseResponseObject(resp);
+        const normalized = normalizeSchema(parsedResult.parsed);
 
         const usage = resp.usage
           ? {
@@ -551,13 +629,13 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
 
         if (pricing) {
           const inTok = usage?.input_tokens ?? roughTokenEstimateFromChars(instructions.length + input.length);
-          const outTok = usage?.output_tokens ?? roughTokenEstimateFromChars(outText.length);
+          const outTok = usage?.output_tokens ?? roughTokenEstimateFromChars(parsedResult.outText.length);
           costUsdEst = Number(
             ((inTok / 1_000_000) * pricing.input + (outTok / 1_000_000) * pricing.output).toFixed(6)
           );
         }
 
-        // Format + R1 enforcement
+        // Always run formatter, then enforce R1.
         let formatted = formatForWhatsApp(normalized, maxOutputChars);
         formatted = enforceNoVagueRelativeTime(formatted, anchor_ts_iso, tz);
 
