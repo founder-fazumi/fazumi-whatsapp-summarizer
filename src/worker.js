@@ -172,6 +172,15 @@ function tailN(v, n) {
   return s.length <= n ? s : s.slice(-n);
 }
 
+function parseIntEnv(rawValue, fallback, minValue = 0) {
+  if (rawValue == null) return fallback;
+  const n = Number(rawValue);
+  if (!Number.isFinite(n)) return fallback;
+  const v = Math.floor(n);
+  if (v < minValue) return fallback;
+  return v;
+}
+
 function startsLikeJson(buf) {
   if (!Buffer.isBuffer(buf) || buf.length < 1) return false;
   let i = 0;
@@ -229,10 +238,29 @@ function buildLemonCheckoutUrl(waNumber) {
 }
 
 // -------------------- Simple concurrency gate --------------------
-const MAX_CONCURRENCY = Math.max(1, Number(process.env.OPENAI_CONCURRENCY || 2));
+const MAX_CONCURRENCY = parseIntEnv(envTrim("OPENAI_CONCURRENCY"), 2, 1);
+const CONCURRENCY_WAIT_TIMEOUT_MS = parseIntEnv(
+  envTrim("OPENAI_CONCURRENCY_WAIT_TIMEOUT_MS"),
+  8000,
+  0
+);
+const CONCURRENCY_WAIT_POLL_MS = 50;
 let inFlight = 0;
-async function withConcurrency(fn) {
-  while (inFlight >= MAX_CONCURRENCY) await sleep(50);
+async function withConcurrency(fn, opts = {}) {
+  const timeoutMs = Number.isFinite(Number(opts?.timeoutMs)) ? Number(opts.timeoutMs) : null;
+  const start = Date.now();
+
+  while (inFlight >= MAX_CONCURRENCY) {
+    if (timeoutMs != null && Date.now() - start > timeoutMs) {
+      const err = new Error("concurrency_timeout");
+      err.code = "concurrency_timeout";
+      err.waited_ms = Date.now() - start;
+      err.inFlight = inFlight;
+      err.max = MAX_CONCURRENCY;
+      throw err;
+    }
+    await sleep(CONCURRENCY_WAIT_POLL_MS);
+  }
   inFlight++;
   try {
     return await fn();
@@ -979,32 +1007,50 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
     };
   }
 
-  return await withConcurrency(async () => {
-    try {
-      const r = await summarizeText({
-        text: capped,
-        anchor_ts_iso: eventTsIso || null,
-        timezone: FAZUMI_TZ,
-      });
-      return {
-        ok: true,
-        summary_text: r.summaryText,
-        openai_model: (process.env.OPENAI_MODEL || "unknown").trim(),
-        input_tokens: r.usage?.input_tokens ?? null,
-        output_tokens: r.usage?.output_tokens ?? null,
-        total_tokens: r.usage?.total_tokens ?? null,
-        cost_usd_est: r.cost_usd_est ?? null,
-        error_code: null,
-      };
-    } catch (e) {
-      const status = e?.status ?? e?.response?.status ?? null;
-      const model = (process.env.OPENAI_MODEL || "unknown").trim();
-      const errType = String(e?.name || e?.constructor?.name || "").slice(0, 40);
-      console.log("[openai] summary_failed", {
-        code: `openai_${status || "error"}`,
-        model: model || "unknown",
-        ...(errType ? { err_type: errType } : {}),
-      });
+  const model = (process.env.OPENAI_MODEL || "unknown").trim();
+  try {
+    return await withConcurrency(
+      async () => {
+        try {
+          const r = await summarizeText({
+            text: capped,
+            anchor_ts_iso: eventTsIso || null,
+            timezone: FAZUMI_TZ,
+          });
+          return {
+            ok: true,
+            summary_text: r.summaryText,
+            openai_model: model,
+            input_tokens: r.usage?.input_tokens ?? null,
+            output_tokens: r.usage?.output_tokens ?? null,
+            total_tokens: r.usage?.total_tokens ?? null,
+            cost_usd_est: r.cost_usd_est ?? null,
+            error_code: null,
+          };
+        } catch (e) {
+          const status = e?.status ?? e?.response?.status ?? null;
+          const errType = String(e?.name || e?.constructor?.name || "").slice(0, 40);
+          console.log("[openai] summary_failed", {
+            code: `openai_${status || "error"}`,
+            model: model || "unknown",
+            ...(errType ? { err_type: errType } : {}),
+          });
+          return {
+            ok: false,
+            summary_text: null,
+            openai_model: model,
+            input_tokens: null,
+            output_tokens: null,
+            total_tokens: null,
+            cost_usd_est: null,
+            error_code: `openai_${status || "error"}`,
+          };
+        }
+      },
+      { timeoutMs: CONCURRENCY_WAIT_TIMEOUT_MS }
+    );
+  } catch (e) {
+    if (e?.code === "concurrency_timeout") {
       return {
         ok: false,
         summary_text: null,
@@ -1013,10 +1059,31 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
         output_tokens: null,
         total_tokens: null,
         cost_usd_est: null,
-        error_code: `openai_${status || "error"}`,
+        error_code: "concurrency_timeout",
+        busy_reason: "concurrency_timeout",
+        busy_inflight: Number.isFinite(Number(e?.inFlight)) ? Number(e.inFlight) : inFlight,
+        busy_max: Number.isFinite(Number(e?.max)) ? Number(e.max) : MAX_CONCURRENCY,
+        wait_ms: Number.isFinite(Number(e?.waited_ms)) ? Number(e.waited_ms) : null,
       };
     }
-  });
+
+    const errType = String(e?.name || e?.constructor?.name || "").slice(0, 40);
+    console.log("[openai] summary_failed", {
+      code: "openai_error",
+      model: model || "unknown",
+      ...(errType ? { err_type: errType } : {}),
+    });
+    return {
+      ok: false,
+      summary_text: null,
+      openai_model: model,
+      input_tokens: null,
+      output_tokens: null,
+      total_tokens: null,
+      cost_usd_est: null,
+      error_code: "openai_error",
+    };
+  }
 }
 
 // ===================== Existing handlers (unchanged) =====================
@@ -1044,7 +1111,18 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
   const result = await generateSummaryOrDryRun(textBody, eventTsIso);
 
   if (!result.ok) {
-    await sendWhatsAppText(waNumber, "⚠️ Sorry—summarizer is temporarily busy. Try again.");
+    if (result.busy_reason) {
+      const busyReason = String(result.busy_reason || "busy");
+      const busyInFlight = Number.isFinite(Number(result.busy_inflight))
+        ? Number(result.busy_inflight)
+        : inFlight;
+      const busyMax = Number.isFinite(Number(result.busy_max)) ? Number(result.busy_max) : MAX_CONCURRENCY;
+      console.log(`[worker] busy_notice reason=${busyReason} inFlight=${busyInFlight} max=${busyMax}`);
+      await sendWhatsAppText(waNumber, "⚠️ Sorry—summarizer is temporarily busy. Try again.");
+      return { action: "summary_failed", error_code: result.error_code || null, busy_reason: busyReason };
+    }
+
+    await sendWhatsAppText(waNumber, "⚠️ Sorry—summarizer is temporarily unavailable. Try again.");
     return { action: "summary_failed", error_code: result.error_code || null };
   }
 
