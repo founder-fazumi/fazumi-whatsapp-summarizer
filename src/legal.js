@@ -40,23 +40,18 @@ function quotePostgrestValue(value) {
   return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
-function buildPhoneMatchOrClause(waNumber) {
+function buildPhoneMatch(waNumber) {
   const input = String(waNumber || '').trim();
   const raw = input.startsWith('+') ? input.slice(1) : input;
   const plusRaw = raw ? `+${raw}` : '+';
-  const values = [raw, plusRaw];
-
-  const clauses = [];
-  for (const value of values) {
-    const quoted = quotePostgrestValue(value);
-    clauses.push(`phone_e164.eq.${quoted}`);
-    clauses.push(`phone.eq.${quoted}`);
-  }
-  return clauses.join(',');
+  const rawQuoted = quotePostgrestValue(raw);
+  const plusRawQuoted = quotePostgrestValue(plusRaw);
+  const orClause = `phone_e164.eq.${rawQuoted},phone_e164.eq.${plusRawQuoted}`;
+  return { raw, plusRaw, orClause };
 }
 
 async function setPrivacyNoticeSentIfNull(supabase, waNumber, stampIso) {
-  const phoneMatchOr = buildPhoneMatchOrClause(waNumber);
+  const phoneMatch = buildPhoneMatch(waNumber);
   const { data, error } = await supabase
     .from('users')
     .update({
@@ -64,17 +59,18 @@ async function setPrivacyNoticeSentIfNull(supabase, waNumber, stampIso) {
       pending_notice: null,
       updated_at: stampIso,
     })
-    .or(phoneMatchOr)
+    .or(phoneMatch.orClause)
     .is('privacy_notice_sent_at', null)
     .select('phone_e164')
     .limit(1);
 
   if (error) throw error;
-  return Array.isArray(data) && data.length > 0;
+  const claimed = Array.isArray(data) && data.length > 0;
+  return { claimed, match: `${phoneMatch.raw}|${phoneMatch.plusRaw}` };
 }
 
 async function setTosAcceptedIfNull(supabase, waNumber, stampIso, tosVersion) {
-  const phoneMatchOr = buildPhoneMatchOrClause(waNumber);
+  const phoneMatch = buildPhoneMatch(waNumber);
   const { data, error } = await supabase
     .from('users')
     .update({
@@ -83,14 +79,14 @@ async function setTosAcceptedIfNull(supabase, waNumber, stampIso, tosVersion) {
       pending_notice: null,
       updated_at: stampIso,
     })
-    .or(phoneMatchOr)
+    .or(phoneMatch.orClause)
     .is('tos_accepted_at', null)
-    .is('tos_version', null)
     .select('phone_e164')
     .limit(1);
 
   if (error) throw error;
-  return Array.isArray(data) && data.length > 0;
+  const claimed = Array.isArray(data) && data.length > 0;
+  return { claimed, match: `${phoneMatch.raw}|${phoneMatch.plusRaw}` };
 }
 
 /**
@@ -152,11 +148,17 @@ async function ensureFirstTimeNoticeAndTos(waNumber, user, opts = {}) {
     }
 
     let claimed = false;
+    let match = '';
     try {
-      claimed = await setPrivacyNoticeSentIfNull(supabase, waNumber, now);
+      const claimResult = await setPrivacyNoticeSentIfNull(supabase, waNumber, now);
+      claimed = claimResult.claimed;
+      match = claimResult.match;
       console.log(
-        `[legal] privacy_notice_claim to=${toLast4} claimed=${claimed ? 'true' : 'false'} strategy=or(phone_e164|phone raw+plus)`
+        `[legal] privacy_notice_claim to=${toLast4} claimed=${claimed ? 'true' : 'false'} strategy=or(phone_e164 raw|plus)`
       );
+      if (!claimed) {
+        console.log(`[legal] privacy_notice_claim to=${toLast4} claimed=false match=${match}`);
+      }
     } catch (e) {
       console.log(`[legal] privacy_notice_update_failed to=${toLast4}`);
       return { stop: true, outcome: 'privacy_notice_update_failed' };
@@ -191,10 +193,15 @@ async function ensureFirstTimeNoticeAndTos(waNumber, user, opts = {}) {
     if (!supabase) return { stop: false, outcome: 'tos_accept_implied' };
 
     try {
-      const updated = await setTosAcceptedIfNull(supabase, waNumber, now, tosVersion);
+      const claimResult = await setTosAcceptedIfNull(supabase, waNumber, now, tosVersion);
+      const updated = claimResult.claimed;
+      const match = claimResult.match;
       console.log(
-        `[legal] tos_accept_processed to=${toLast4} accepted_now=${updated ? 'true' : 'false'} version=${tosVersion} strategy=or(phone_e164|phone raw+plus)`
+        `[legal] tos_accept_processed to=${toLast4} accepted_now=${updated ? 'true' : 'false'} version=${tosVersion} strategy=or(phone_e164 raw|plus)`
       );
+      if (!updated) {
+        console.log(`[legal] tos_accept_claim to=${toLast4} claimed=false match=${match}`);
+      }
       return { stop: false, outcome: updated ? 'tos_accepted_now' : 'tos_already_accepted' };
     } catch (e) {
       console.log(`[legal] tos_accept_update_failed to=${toLast4}`);

@@ -1517,10 +1517,17 @@ async function mainLoop() {
 
       // Ensure user exists
       let user = await resolveUser(waNumber);
+      const legalInboundText =
+        classified.kind === "inbound_command"
+          ? classified.command
+          : classified.kind === "inbound_text_legacy"
+            ? classified.text_body
+            : "";
 
       // Legal: first-time notice and implied TOS acceptance
       const legal = await ensureFirstTimeNoticeAndTos(waNumber, user, {
         supabase,
+        inbound_text: legalInboundText,
         nowIso: () => nowIso(),
         noticeText: firstTimeNoticeV1(),
         tosVersion: CURRENT_TOS_VERSION,
