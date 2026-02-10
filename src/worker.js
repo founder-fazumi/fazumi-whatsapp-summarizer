@@ -1257,6 +1257,8 @@ async function handleInboundMedia(waNumber, classified, row) {
 }
 
 // -------------------- Legal templates --------------------
+const CURRENT_TOS_VERSION = "v1";
+
 function firstTimeNoticeV1() {
   return (
     "👋 Welcome to Fazumi.\n" +
@@ -1515,7 +1517,15 @@ async function mainLoop() {
       let user = await resolveUser(waNumber);
 
       // Legal: first-time notice and implied TOS acceptance
-      const legal = await ensureFirstTimeNoticeAndTos(waNumber, user);
+      const legal = await ensureFirstTimeNoticeAndTos(waNumber, user, {
+        supabase,
+        nowIso,
+        noticeText: firstTimeNoticeV1(),
+        tosVersion: CURRENT_TOS_VERSION,
+        sendNoticeText: async (message) => {
+          await sendWhatsAppText(waNumber, message, { eventId: id });
+        },
+      });
       if (legal.stop) {
         await markEvent(id, { status: "processed", outcome: legal.outcome || "privacy_notice_sent" });
         continue;
