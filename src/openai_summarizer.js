@@ -595,6 +595,8 @@ function buildFazumiSystemPrompt({ anchor_ts_iso, timezone, target_lang }) {
     "Be a faithful extractor: do not invent facts.",
     "Keep it concise and WhatsApp-friendly.",
     "Use short, direct phrasing.",
+    "Keep sentences brief and concrete.",
+    "Avoid filler words and avoid repeating the same idea with different wording.",
     "Avoid repetition between fields: key_points must add new details, not restate tldr.",
     "Use compact bullet wording suitable for WhatsApp.",
     "Prefer direct voice; avoid relative-clause phrasing like 'which ...'.",
@@ -703,6 +705,13 @@ function oneLine(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
 
+function stripCheckboxPrefix(s) {
+  return String(s || "")
+    .replace(/^\s*[-*]?\s*\[\s*[xX]?\s*\]\s*/u, "")
+    .replace(/^\s*[☐☑✅]\s*/u, "")
+    .trim();
+}
+
 function normalizeSchema(obj, target_lang) {
   const safeTarget = target_lang === "ar" || target_lang === "es" ? target_lang : "en";
   const labels = labelsForTarget(safeTarget);
@@ -729,9 +738,9 @@ function normalizeSchema(obj, target_lang) {
   const dd = Array.isArray(obj.dates_deadlines) ? obj.dates_deadlines : [];
 
   out.tldr = oneLine(tldr) || labels.fallback;
-  out.key_points = kp.map(oneLine).filter(Boolean).slice(0, 6);
-  out.action_items = ai.map(oneLine).filter(Boolean).slice(0, 10);
-  out.dates_deadlines = dd.map(oneLine).filter(Boolean).slice(0, 10);
+  out.key_points = kp.map((x) => stripCheckboxPrefix(oneLine(x))).filter(Boolean).slice(0, 6);
+  out.action_items = ai.map((x) => stripCheckboxPrefix(oneLine(x))).filter(Boolean).slice(0, 10);
+  out.dates_deadlines = dd.map((x) => stripCheckboxPrefix(oneLine(x))).filter(Boolean).slice(0, 10);
 
   if (!out.key_points.length) out.key_points = [labels.fallback];
   if (!out.action_items.length) out.action_items = [labels.fallback];
@@ -750,26 +759,40 @@ function truncateTextWithEllipsis(s, maxChars) {
   return text.slice(0, maxChars - 1).trimEnd() + "…";
 }
 
-function formatForWhatsApp(schemaObj, maxChars, target_lang) {
+function estimateSavedMinutesFromInput(text) {
+  const s = String(text || "").trim();
+  const words = s ? s.split(/\s+/).filter(Boolean).length : 0;
+  const rawMinutes = words / 220;
+  const estimated = Math.ceil(rawMinutes);
+  return Math.max(1, Math.min(30, estimated));
+}
+
+function formatForWhatsApp(schemaObj, maxChars, target_lang, savedMinutes) {
   const safeTarget = target_lang === "ar" || target_lang === "es" ? target_lang : "en";
   const labels = labelsForTarget(safeTarget);
   const obj = normalizeSchema(schemaObj, safeTarget);
 
-  // Fixed contract: always same 4 sections, localized headers.
   let tldr = oneLine(obj.tldr) || labels.fallback;
   const deadlines = obj.dates_deadlines.length ? obj.dates_deadlines.slice() : [labels.fallback];
   const actions = obj.action_items.length ? obj.action_items.slice() : [labels.fallback];
   const keyInfo = obj.key_points.length ? obj.key_points.slice() : [labels.fallback];
+  const minutes = Number.isFinite(savedMinutes) ? savedMinutes : 1;
 
   const render = () => {
     const lines = [];
-    lines.push(`${labels.tldr}: ${tldr}`);
-    lines.push(`${labels.deadlines}:`);
-    for (const d of deadlines) lines.push(`- ${d || labels.fallback}`);
-    lines.push(`${labels.actions}:`);
-    for (const a of actions) lines.push(`- [ ] ${a || labels.fallback}`);
-    lines.push(`${labels.keyInfo}:`);
-    for (const k of keyInfo) lines.push(`- ${k || labels.fallback}`);
+    lines.push("🧠 TL;DR");
+    lines.push(tldr);
+    lines.push("");
+    lines.push(`⏱️ Saved you about ${minutes} minutes of reading`);
+    lines.push("");
+    lines.push("📅 Deadlines");
+    for (const d of deadlines) lines.push(`• ${d || labels.fallback}`);
+    lines.push("");
+    lines.push("👉 Actions");
+    for (const a of actions) lines.push(`• ${a || labels.fallback}`);
+    lines.push("");
+    lines.push("🔑 Key info");
+    for (const k of keyInfo) lines.push(`• ${k || labels.fallback}`);
     return lines.join("\n");
   };
 
@@ -854,6 +877,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
   const safeText = stripSummarizePrefix(String(text || ""));
   const trimmed = safeText.trim();
   const clipped = trimmed.length > maxInputChars ? trimmed.slice(0, maxInputChars) : trimmed;
+  const savedMinutes = estimateSavedMinutesFromInput(trimmed);
 
   const requestedOverride = extractRequestedLanguageOverride(clipped);
   const langTarget = requestedOverride ? { target_lang: requestedOverride, reason: "explicit_override" } : detectTargetLanguage(clipped);
@@ -904,7 +928,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
       target_lang
     );
 
-    let out = formatForWhatsApp(fake, maxOutputChars, target_lang);
+    let out = formatForWhatsApp(fake, maxOutputChars, target_lang, savedMinutes);
     out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
 
     if (needsPeriodQuestion) {
@@ -918,8 +942,8 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
     }
 
     // Make sure empty placeholders remain aligned with required language.
-    if (!out.includes(`${labels.deadlines}:`)) {
-      out = formatForWhatsApp(fake, maxOutputChars, target_lang);
+    if (!out.includes("📅 Deadlines")) {
+      out = formatForWhatsApp(fake, maxOutputChars, target_lang, savedMinutes);
       out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
     }
     const dir = detectTextDirection(clipped) === "rtl" || target_lang === "ar" ? "rtl" : "ltr";
@@ -984,7 +1008,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
         }
 
         // Always run formatter, then enforce R1.
-        let formatted = formatForWhatsApp(normalized, maxOutputChars, target_lang);
+        let formatted = formatForWhatsApp(normalized, maxOutputChars, target_lang, savedMinutes);
         formatted = enforceNoVagueRelativeTime(formatted, anchor_ts_iso, tz);
 
         // R2: If batch needs a period question, append it (explicit dates)
