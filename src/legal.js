@@ -41,9 +41,10 @@ function quotePostgrestValue(value) {
 }
 
 function buildPhoneMatchOrClause(waNumber) {
-  const raw = String(waNumber || '').trim();
-  const plus = raw.startsWith('+') ? raw : `+${raw}`;
-  const values = [raw, plus];
+  const input = String(waNumber || '').trim();
+  const raw = input.startsWith('+') ? input.slice(1) : input;
+  const plusRaw = raw ? `+${raw}` : '+';
+  const values = [raw, plusRaw];
 
   const clauses = [];
   for (const value of values) {
@@ -84,6 +85,7 @@ async function setTosAcceptedIfNull(supabase, waNumber, stampIso, tosVersion) {
     })
     .or(phoneMatchOr)
     .is('tos_accepted_at', null)
+    .is('tos_version', null)
     .select('phone_e164')
     .limit(1);
 

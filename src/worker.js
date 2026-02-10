@@ -1488,6 +1488,8 @@ async function mainLoop() {
     const waMessageIdLast8 = tailN(row?.wa_message_id, 8) || "n/a";
     const outcomeBefore = String(row?.outcome || "null");
     const attempts = Number.isFinite(Number(row?.attempts)) ? Number(row.attempts) : 0;
+    const fromLast4 = tailN(row?.from_phone || meta?.from || meta?.wa_number || "n/a", 4) || "n/a";
+    console.log(`[job] start id=${id} msg_type=${msgType || "unknown"} from=${fromLast4}`);
     console.log(
       `[job] start id=${id} wa_message_id=${waMessageIdLast8} msg_type=${msgType || "unknown"} outcome_before=${outcomeBefore} attempts=${attempts}`
     );
@@ -1519,7 +1521,7 @@ async function mainLoop() {
       // Legal: first-time notice and implied TOS acceptance
       const legal = await ensureFirstTimeNoticeAndTos(waNumber, user, {
         supabase,
-        nowIso,
+        nowIso: () => nowIso(),
         noticeText: firstTimeNoticeV1(),
         tosVersion: CURRENT_TOS_VERSION,
         sendNoticeText: async (message) => {
