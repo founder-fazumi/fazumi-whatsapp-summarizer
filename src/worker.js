@@ -73,6 +73,10 @@ const FAZUMI_TZ = envTrim("FAZUMI_TZ") || "Asia/Qatar";
 
 // Runtime controls
 const DRY_RUN = String(process.env.DRY_RUN || "true").toLowerCase() !== "false";
+const BATCH_INITIAL_WAIT_MS = parseIntEnv(envTrim("BATCH_INITIAL_WAIT_MS"), 1800, 0);
+const BATCH_MAX_WINDOW_MS = parseIntEnv(envTrim("BATCH_MAX_WINDOW_MS"), 12000, 0);
+const BATCH_QUIET_MS = parseIntEnv(envTrim("BATCH_QUIET_MS"), 2000, 0);
+const BATCH_POLL_MS = 400;
 
 // Legal links (don’t invent links)
 const TERMS_LINK = envTrim("TERMS_LINK") || "Terms/Privacy pages coming soon.";
@@ -442,6 +446,193 @@ async function downloadInboundTextFromStorage(textRef) {
     return { ok: true, text: buf.toString("utf8"), bytes: buf.length };
   } catch {
     return { ok: false, reason: "download_exception" };
+  }
+}
+
+function isBurstBatchEligibleKind(kind) {
+  return kind === "inbound_text" || kind === "inbound_text_legacy";
+}
+
+function isoToMsOrNull(isoValue) {
+  const iso = safeIso(isoValue);
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+async function fetchPendingBurstRows(waNumber, primaryId, windowStartIso, windowEndIso) {
+  if (!waNumber || !windowStartIso || !windowEndIso) return [];
+
+  const { data, error } = await supabase
+    .from("inbound_events")
+    .select("id, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
+    .eq("provider", "whatsapp")
+    .eq("status", "pending")
+    .eq("from_phone", waNumber)
+    .neq("id", primaryId)
+    .gte("received_at", windowStartIso)
+    .lte("received_at", windowEndIso)
+    .order("received_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(80);
+
+  if (error) {
+    console.log(`[batch] fetch_error primary_id_last4=${tailN(primaryId, 4)} msg=${truncateErr500(error)}`);
+    return [];
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+async function collectBurstExtraRows(primaryRow, primaryClassified) {
+  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return [];
+
+  const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
+  if (!waNumber) return [];
+
+  const primaryReceivedIso = safeIso(primaryRow?.received_at) || nowIso();
+  const primaryReceivedMs = isoToMsOrNull(primaryReceivedIso) ?? Date.now();
+  const maxWindowEndMs = primaryReceivedMs + BATCH_MAX_WINDOW_MS;
+
+  if (BATCH_INITIAL_WAIT_MS > 0) {
+    const waitMs = Math.max(0, Math.min(BATCH_INITIAL_WAIT_MS, maxWindowEndMs - Date.now()));
+    if (waitMs > 0) await sleep(waitMs);
+  }
+
+  const seen = new Set();
+  const extras = [];
+  let lastNewAtMs = null;
+  let firstPoll = true;
+
+  while (!shouldStop) {
+    const nowMs = Date.now();
+    const upperBoundMs = Math.min(nowMs, maxWindowEndMs);
+    const upperBoundIso = new Date(upperBoundMs).toISOString();
+
+    const rows = await fetchPendingBurstRows(waNumber, primaryRow.id, primaryReceivedIso, upperBoundIso);
+    let newCount = 0;
+    for (const row of rows) {
+      const idKey = String(row?.id ?? "");
+      if (!idKey || seen.has(idKey)) continue;
+
+      const classified = classifyWhatsAppEvent(row);
+      if (!isBurstBatchEligibleKind(classified.kind)) continue;
+
+      seen.add(idKey);
+      extras.push(row);
+      newCount++;
+    }
+
+    if (newCount > 0) lastNewAtMs = Date.now();
+
+    if (firstPoll) {
+      firstPoll = false;
+      if (newCount === 0) break;
+    }
+
+    const reachedMaxWindow = Date.now() >= maxWindowEndMs;
+    const quietElapsed =
+      lastNewAtMs != null && BATCH_QUIET_MS >= 0 ? Date.now() - lastNewAtMs >= BATCH_QUIET_MS : false;
+    if (reachedMaxWindow || quietElapsed) break;
+
+    await sleep(BATCH_POLL_MS);
+  }
+
+  extras.sort((a, b) => {
+    const aMs = isoToMsOrNull(a?.received_at) ?? 0;
+    const bMs = isoToMsOrNull(b?.received_at) ?? 0;
+    if (aMs !== bMs) return aMs - bMs;
+    return Number(a?.id || 0) - Number(b?.id || 0);
+  });
+  return extras;
+}
+
+function combineBurstMessagesForSummary(messageTexts) {
+  return messageTexts
+    .map((t, idx) => `--- MESSAGE ${idx + 1} ---\n${String(t || "").trim()}`)
+    .filter((x) => x.trim())
+    .join("\n\n");
+}
+
+async function loadTextForClassifiedEvent(row, classified) {
+  if (classified.kind === "inbound_text_legacy") {
+    return {
+      ok: true,
+      textBody: classified.text_body || "",
+      hasTextRef: false,
+      storageFetchStatus: null,
+      metaTextLen: Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null,
+      fetchFailed: false,
+      empty: !String(classified.text_body || "").trim(),
+    };
+  }
+
+  if (classified.kind !== "inbound_text") {
+    return {
+      ok: false,
+      textBody: "",
+      hasTextRef: false,
+      storageFetchStatus: null,
+      metaTextLen: null,
+      fetchFailed: false,
+      empty: true,
+    };
+  }
+
+  let textBody = null;
+  const hasTextRef = Boolean(classified.text_ref?.bucket && classified.text_ref?.path);
+  let storageFetchStatus = null;
+  const metaTextLen = Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null;
+
+  if (hasTextRef) {
+    const fetched = await downloadInboundTextFromStorage(classified.text_ref);
+    storageFetchStatus = fetched.ok ? "ok" : "error";
+    if (fetched.ok) textBody = fetched.text;
+  } else {
+    storageFetchStatus = "error";
+    if (classified.text_enc) textBody = decryptTextEncOrNull(classified.text_enc);
+  }
+
+  const empty = !textBody || !String(textBody).trim();
+  const fetchFailed = hasTextRef && storageFetchStatus !== "ok";
+
+  return {
+    ok: !fetchFailed,
+    textBody: textBody || "",
+    hasTextRef,
+    storageFetchStatus,
+    metaTextLen,
+    fetchFailed,
+    empty,
+  };
+}
+
+async function markBatchedChildrenProcessed(extraRows, parentId) {
+  for (const child of extraRows) {
+    const childId = child?.id;
+    if (childId == null) continue;
+    try {
+      const { error } = await supabase
+        .from("inbound_events")
+        .update({
+          processed_at: nowIso(),
+          status: "processed",
+          outcome: "batched_child",
+          skip_reason: `batched_to_${parentId}`,
+        })
+        .eq("id", childId)
+        .eq("status", "pending");
+      if (error) {
+        console.log(
+          `[batch] child_mark_error parent_id_last4=${tailN(parentId, 4)} child_id_last4=${tailN(childId, 4)}`
+        );
+      }
+    } catch {
+      console.log(
+        `[batch] child_mark_error parent_id_last4=${tailN(parentId, 4)} child_id_last4=${tailN(childId, 4)}`
+      );
+    }
+
+    await wipeInboundEventTextEnc(childId);
   }
 }
 
@@ -1384,52 +1575,35 @@ async function mainLoop() {
       }
 
       // Text
-      let textBody = null;
-      let hasTextRef = false;
-      let storageFetchStatus = null;
-      const metaTextLen = Number.isFinite(Number(meta?.text_len)) ? Number(meta.text_len) : null;
+      const isTextLikeInbound = isBurstBatchEligibleKind(classified.kind);
+      const primaryTextLoaded = await loadTextForClassifiedEvent(row, classified);
+      let textBody = primaryTextLoaded.textBody || "";
 
       if (classified.kind === "inbound_text") {
-        hasTextRef = Boolean(classified.text_ref?.bucket && classified.text_ref?.path);
-        if (hasTextRef) {
-          const fetched = await downloadInboundTextFromStorage(classified.text_ref);
-          storageFetchStatus = fetched.ok ? "ok" : "error";
-          if (fetched.ok) textBody = fetched.text;
-        } else {
-          storageFetchStatus = "error";
-          if (classified.text_enc) {
-            textBody = decryptTextEncOrNull(classified.text_enc);
-          }
-        }
-
         console.log(
-          `[text_diag] id=${id} msg_type=${msgType || "unknown"} text_len=${metaTextLen ?? "null"} has_text_ref=${hasTextRef} storage_fetch=${storageFetchStatus === "ok" ? "ok" : "error"}`
+          `[text_diag] id=${id} msg_type=${msgType || "unknown"} text_len=${primaryTextLoaded.metaTextLen ?? "null"} has_text_ref=${primaryTextLoaded.hasTextRef} storage_fetch=${primaryTextLoaded.storageFetchStatus === "ok" ? "ok" : "error"}`
         );
-
-        if (hasTextRef && storageFetchStatus !== "ok") {
-          try {
-            await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", { eventId: id });
-          } catch {
-            // best effort
-          }
-          await markEvent(id, { status: "error", outcome: "text_fetch_failed" });
-          continue;
-        }
-      } else if (classified.kind === "inbound_text_legacy") {
-        textBody = classified.text_body;
       }
 
-      if (!textBody || !String(textBody).trim()) {
-        if (classified.kind === "inbound_text" || classified.kind === "inbound_text_legacy") {
-          try {
-            await sendWhatsAppText(
-              waNumber,
-              "I received your message but couldn't read the text. Please resend as plain text.",
-              { eventId: id }
-            );
-          } catch {
-            // best effort
-          }
+      if (isTextLikeInbound && primaryTextLoaded.fetchFailed) {
+        try {
+          await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", { eventId: id });
+        } catch {
+          // best effort
+        }
+        await markEvent(id, { status: "error", outcome: "text_fetch_failed" });
+        continue;
+      }
+
+      if (isTextLikeInbound && (!textBody || !String(textBody).trim())) {
+        try {
+          await sendWhatsAppText(
+            waNumber,
+            "I received your message but couldn't read the text. Please resend as plain text.",
+            { eventId: id }
+          );
+        } catch {
+          // best effort
         }
         await markEvent(id, { status: "processed", outcome: "empty_text" });
         continue;
@@ -1442,7 +1616,35 @@ async function mainLoop() {
         continue;
       }
 
+      let collectedExtras = [];
+      let extraRowsToFinalize = [];
+      if (isTextLikeInbound) {
+        collectedExtras = await collectBurstExtraRows(row, classified);
+
+        const burstTexts = [String(textBody)];
+        for (const extraRow of collectedExtras) {
+          const extraClassified = classifyWhatsAppEvent(extraRow);
+          const loaded = await loadTextForClassifiedEvent(extraRow, extraClassified);
+          if (!loaded.ok || loaded.empty) continue;
+          burstTexts.push(String(loaded.textBody));
+          extraRowsToFinalize.push(extraRow);
+        }
+
+        if (burstTexts.length > 1) {
+          textBody = combineBurstMessagesForSummary(burstTexts);
+        }
+
+        const extraIdsLast4 = extraRowsToFinalize.map((x) => tailN(x?.id, 4)).join(",");
+        console.log(
+          `[batch] primary_id_last4=${tailN(id, 4)} extra_count=${extraRowsToFinalize.length} total_chars=${String(textBody || "").length}${extraIdsLast4 ? ` extra_ids_last4=${extraIdsLast4}` : ""}`
+        );
+      }
+
       const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso);
+
+      if (r.action === "summary_sent" && extraRowsToFinalize.length > 0) {
+        await markBatchedChildrenProcessed(extraRowsToFinalize, id);
+      }
 
       await markEvent(id, {
         status: "processed",
