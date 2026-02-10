@@ -78,6 +78,7 @@ const BATCH_MAX_WINDOW_MS = parseIntEnv(envTrim("BATCH_MAX_WINDOW_MS"), 12000, 0
 const BATCH_QUIET_MS = parseIntEnv(envTrim("BATCH_QUIET_MS"), 2000, 0);
 const BATCH_POLL_MS = 400;
 
+// TODO: replace Terms/Privacy placeholders with real Notion links.
 // Legal links (don’t invent links)
 const TERMS_LINK = envTrim("TERMS_LINK") || "Terms/Privacy pages coming soon.";
 const PRIVACY_LINK = envTrim("PRIVACY_LINK") || "Terms/Privacy pages coming soon.";
@@ -232,6 +233,14 @@ function normalizeInboundText(text) {
   const collapsed = raw.trim().replace(/\s+/g, " ");
   const upper = collapsed.toUpperCase();
   return upper.replace(/[.!?]+$/g, "");
+}
+
+function extractCommandText(text) {
+  const normalized = normalizeInboundText(text);
+  if (!normalized) return null;
+  if (/^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(normalized)) return normalized;
+  if (KNOWN_COMMANDS.has(normalized)) return normalized;
+  return null;
 }
 
 function splitByTimestampHeuristic(lines) {
@@ -1259,17 +1268,166 @@ async function handleInboundMedia(waNumber, classified, row) {
 // -------------------- Legal templates --------------------
 const CURRENT_TOS_VERSION = "v1";
 
-function firstTimeNoticeV1() {
-  return (
-    "👋 Welcome to Fazumi.\n" +
-    "I can summarize messages you send here.\n" +
-    "By continuing, you allow message processing to provide this service.\n" +
-    "Please don’t send sensitive or confidential information.\n" +
-    "Supported: text + WhatsApp chat ZIP (.txt, “Export chat → Without media”).\n" +
-    "Reply HELP for commands. STOP to opt out. DELETE to erase stored data.\n" +
-    `Terms: ${TERMS_LINK}\n` +
-    `Privacy: ${PRIVACY_LINK}`
-  );
+const DIR_RTL_ISOLATE = "\u2067"; // RLI
+const DIR_LTR_ISOLATE = "\u2066"; // LRI
+const DIR_POP_ISOLATE = "\u2069"; // PDI
+const DIR_RLM = "\u200F";
+const DIR_LRM = "\u200E";
+const GCC_COUNTRIES = new Set(["BH", "KW", "OM", "QA", "SA", "AE"]);
+const PREFIX_TO_COUNTRY = [
+  ["974", "QA"],
+  ["971", "AE"],
+  ["966", "SA"],
+  ["965", "KW"],
+  ["973", "BH"],
+  ["968", "OM"],
+  ["20", "EG"],
+  ["34", "ES"],
+  ["52", "MX"],
+  ["54", "AR"],
+  ["56", "CL"],
+  ["57", "CO"],
+  ["58", "VE"],
+  ["591", "BO"],
+  ["593", "EC"],
+  ["595", "PY"],
+  ["598", "UY"],
+  ["51", "PE"],
+  ["1", "US"],
+];
+const COUNTRY_LANG = {
+  ES: "es",
+  MX: "es",
+  AR: "es",
+  CL: "es",
+  CO: "es",
+  VE: "es",
+  BO: "es",
+  EC: "es",
+  PY: "es",
+  UY: "es",
+  PE: "es",
+};
+
+function wrapWithDirectionMarks(text, dir) {
+  const body = String(text || "");
+  const isRtl = dir === "rtl";
+  const isolateOpen = isRtl ? DIR_RTL_ISOLATE : DIR_LTR_ISOLATE;
+  const mark = isRtl ? DIR_RLM : DIR_LRM;
+  const lines = body.split("\n").map((line) => mark + line);
+  return `${isolateOpen}${lines.join("\n")}${DIR_POP_ISOLATE}`;
+}
+
+function detectCountryFromWaNumber(waNumber) {
+  const digits = String(waNumber || "").replace(/\D/g, "");
+  for (const [prefix, country] of PREFIX_TO_COUNTRY) {
+    if (digits.startsWith(prefix)) return country;
+  }
+  return null;
+}
+
+function getUserLangPref(user) {
+  const lang = String(user?.prefs_json?.lang || "auto").toLowerCase();
+  if (lang === "auto" || lang === "en" || lang === "ar" || lang === "es") return lang;
+  return "auto";
+}
+
+function inferNoticeLanguages(waNumber, user) {
+  const pref = getUserLangPref(user);
+  if (pref !== "auto") return [pref];
+
+  const country = detectCountryFromWaNumber(waNumber);
+  if (country && GCC_COUNTRIES.has(country)) return ["ar", "en"];
+
+  const lang = country ? COUNTRY_LANG[country] : null;
+  if (lang && lang !== "en") return ["en", lang];
+  return ["en"];
+}
+
+function normalizePlanLabel(user) {
+  const planRaw = String(user?.plan || "").trim().toLowerCase();
+  if (planRaw === "basic") return "Basic";
+  if (planRaw === "pro") return "Pro";
+  if (planRaw && planRaw !== "free") return planRaw.toUpperCase();
+  return "FREE";
+}
+
+function buildAccountStatusLabel(user) {
+  if (user?.is_blocked) {
+    const reason = String(user?.blocked_reason || "").trim();
+    return reason ? `BLOCKED (${reason})` : "BLOCKED";
+  }
+  if (user?.is_paid || String(user?.plan || "").toLowerCase() !== "free") {
+    const planLabel = normalizePlanLabel(user);
+    if (planLabel === "Basic" || planLabel === "Pro") return `PAID (${planLabel})`;
+    return "PAID";
+  }
+  return "FREE";
+}
+
+function buildWelcomeEn(user) {
+  const freeLeft = Number.isFinite(Number(user?.free_remaining)) ? Number(user.free_remaining) : 0;
+  return [
+    "👋 Welcome to Fazumi",
+    "✨ Your WhatsApp summarizer is ready.",
+    "",
+    `🧾 Account status: ${buildAccountStatusLabel(user)}`,
+    `🎁 Free summaries left: ${freeLeft}`,
+    "",
+    "🔒 By continuing you allow message processing for this service.",
+    "⚠️ Please don't send sensitive/confidential info.",
+    "⚙️ Commands: HELP, STATUS, PAY, STOP, DELETE, START, LANG EN|AR|ES|AUTO",
+    // TODO: replace placeholder Terms/Privacy links with real Notion pages.
+    `Terms: ${TERMS_LINK}`,
+    `Privacy: ${PRIVACY_LINK}`,
+  ].join("\n");
+}
+
+function buildWelcomeAr(user) {
+  const freeLeft = Number.isFinite(Number(user?.free_remaining)) ? Number(user.free_remaining) : 0;
+  const status = buildAccountStatusLabel(user);
+  return [
+    "👋 أهلا بك في فازومي",
+    "✨ ملخّص واتساب الخاص بك جاهز.",
+    "",
+    `🧾 حالة الحساب: ${status}`,
+    `🎁 الملخصات المجانية المتبقية: ${freeLeft}`,
+    "",
+    "🔒 بالمتابعة، أنت توافق على معالجة الرسائل لتقديم الخدمة.",
+    "⚠️ رجاءً لا ترسل معلومات حساسة أو سرية.",
+    "⚙️ الأوامر: HELP، STATUS، PAY، STOP، DELETE، START، LANG EN|AR|ES|AUTO",
+    `الشروط: ${TERMS_LINK}`,
+    `الخصوصية: ${PRIVACY_LINK}`,
+  ].join("\n");
+}
+
+function buildWelcomeEs(user) {
+  const freeLeft = Number.isFinite(Number(user?.free_remaining)) ? Number(user.free_remaining) : 0;
+  return [
+    "👋 Bienvenido a Fazumi",
+    "✨ Tu resumidor de WhatsApp esta listo.",
+    "",
+    `🧾 Estado de cuenta: ${buildAccountStatusLabel(user)}`,
+    `🎁 Resumenes gratis restantes: ${freeLeft}`,
+    "",
+    "🔒 Si continuas, aceptas el procesamiento de mensajes para este servicio.",
+    "⚠️ Evita enviar informacion sensible o confidencial.",
+    "⚙️ Comandos: HELP, STATUS, PAY, STOP, DELETE, START, LANG EN|AR|ES|AUTO",
+    `Terminos: ${TERMS_LINK}`,
+    `Privacidad: ${PRIVACY_LINK}`,
+  ].join("\n");
+}
+
+function firstTimeNoticeV1({ waNumber, user }) {
+  const langs = inferNoticeLanguages(waNumber, user);
+  const sections = [];
+  for (const lang of langs) {
+    if (lang === "ar") sections.push(buildWelcomeAr(user));
+    else if (lang === "es") sections.push(buildWelcomeEs(user));
+    else sections.push(buildWelcomeEn(user));
+  }
+  const body = sections.join("\n\n--------------------\n\n");
+  return langs.includes("ar") ? wrapWithDirectionMarks(body, "rtl") : wrapWithDirectionMarks(body, "ltr");
 }
 
 // -------------------- Commands --------------------
@@ -1288,13 +1446,22 @@ const KNOWN_COMMANDS = new Set([
 ]);
 
 function buildStatusMessage(user) {
+  const freeLeft = Number.isFinite(Number(user?.free_remaining)) ? Number(user.free_remaining) : 0;
+  const lang = getUserLangPref(user);
   return [
-    "Fazumi STATUS",
-    `Plan: ${user.plan}`,
-    `Paid: ${user.is_paid ? "YES" : "NO"}`,
-    `Blocked: ${user.is_blocked ? "YES" : "NO"}`,
-    user.plan === "free" ? `Free remaining: ${user.free_remaining}` : "Free remaining: N/A",
+    `🧾 Account status: ${buildAccountStatusLabel(user)}`,
+    `🎁 Free summaries left: ${freeLeft}`,
+    `🌐 Language: ${lang.toUpperCase()}`,
   ].join("\n");
+}
+
+function buildPayMessage(waNumber) {
+  try {
+    const checkoutUrl = buildLemonCheckoutUrl(waNumber);
+    return `💳 Upgrade here:\n${checkoutUrl}`;
+  } catch {
+    return "💳 Upgrade to a paid plan for more summaries. Reply HELP for commands.";
+  }
 }
 
 // -------------------- OpenAI summary wrapper --------------------
@@ -1517,19 +1684,31 @@ async function mainLoop() {
 
       // Ensure user exists
       let user = await resolveUser(waNumber);
-      const legalInboundText =
+      let preloadedPrimaryText = null;
+      let legalInboundText =
         classified.kind === "inbound_command"
           ? classified.command
           : classified.kind === "inbound_text_legacy"
             ? classified.text_body
             : "";
 
+      if (classified.kind === "inbound_text_legacy") {
+        const maybeLegacyCommand = extractCommandText(classified.text_body || "");
+        if (maybeLegacyCommand) legalInboundText = maybeLegacyCommand;
+      }
+
+      if (classified.kind === "inbound_text") {
+        preloadedPrimaryText = await loadTextForClassifiedEvent(row, classified);
+        const maybeCommand = extractCommandText(preloadedPrimaryText.textBody || "");
+        if (maybeCommand) legalInboundText = maybeCommand;
+      }
+
       // Legal: first-time notice and implied TOS acceptance
       const legal = await ensureFirstTimeNoticeAndTos(waNumber, user, {
         supabase,
         inbound_text: legalInboundText,
         nowIso: () => nowIso(),
-        noticeText: firstTimeNoticeV1(),
+        noticeText: firstTimeNoticeV1({ waNumber, user }),
         tosVersion: CURRENT_TOS_VERSION,
         sendNoticeText: async (message) => {
           await sendWhatsAppText(waNumber, message, { eventId: id });
@@ -1544,10 +1723,24 @@ async function mainLoop() {
       user = await resolveUser(waNumber);
 
       // Commands
+      let commandFallbackText = null;
       if (classified.kind === "inbound_command") {
-        const r = await processCommand(waNumber, user, classified.command, eventTsIso);
-        await markEvent(id, { status: "processed", outcome: r.action || "command_processed" });
-        continue;
+        const r = await processCommand({
+          waNumber,
+          user,
+          textBody: classified.command,
+          eventTsIso,
+          supabase,
+          nowIso,
+          sendText: async (message) => sendWhatsAppText(waNumber, message, { eventId: id }),
+          buildStatusMessage,
+          buildPayMessage,
+        });
+        if (r.handled === true) {
+          await markEvent(id, { status: "processed", outcome: r.action || "command_processed" });
+          continue;
+        }
+        commandFallbackText = String(classified.command || "").trim();
       }
 
       // Media
@@ -1595,8 +1788,18 @@ async function mainLoop() {
 
       // Text
       const isTextLikeInbound = isBurstBatchEligibleKind(classified.kind);
-      const primaryTextLoaded = await loadTextForClassifiedEvent(row, classified);
-      let textBody = primaryTextLoaded.textBody || "";
+      const primaryTextLoaded = isTextLikeInbound
+        ? preloadedPrimaryText || (await loadTextForClassifiedEvent(row, classified))
+        : {
+            ok: false,
+            textBody: "",
+            hasTextRef: false,
+            storageFetchStatus: null,
+            metaTextLen: null,
+            fetchFailed: false,
+            empty: true,
+          };
+      let textBody = commandFallbackText || primaryTextLoaded.textBody || "";
 
       if (classified.kind === "inbound_text") {
         console.log(
@@ -1628,11 +1831,23 @@ async function mainLoop() {
         continue;
       }
 
-      const normalized = normalizeInboundText(textBody);
-      if (KNOWN_COMMANDS.has(normalized)) {
-        const r = await processCommand(waNumber, user, normalized, eventTsIso);
-        await markEvent(id, { status: "processed", outcome: r.action || "command_processed" });
-        continue;
+      const extractedCommand = isTextLikeInbound ? extractCommandText(textBody) : null;
+      if (extractedCommand) {
+        const r = await processCommand({
+          waNumber,
+          user,
+          textBody: extractedCommand,
+          eventTsIso,
+          supabase,
+          nowIso,
+          sendText: async (message) => sendWhatsAppText(waNumber, message, { eventId: id }),
+          buildStatusMessage,
+          buildPayMessage,
+        });
+        if (r.handled === true) {
+          await markEvent(id, { status: "processed", outcome: r.action || "command_processed" });
+          continue;
+        }
       }
 
       let collectedExtras = [];

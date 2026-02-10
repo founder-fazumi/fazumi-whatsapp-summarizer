@@ -117,6 +117,11 @@ function parseTimestampToIsoOrNull(ts) {
   }
 }
 
+function normalizeInboundCommandText(text) {
+  const collapsed = String(text || "").trim().replace(/\s+/g, " ");
+  return collapsed.toUpperCase().replace(/[.!?]+$/g, "");
+}
+
 /**
  * AES-256-GCM encryption for message text.
  * Env required:
@@ -468,7 +473,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
         if ((msgType === "interactive" || msgType === "button") && msg?.button?.text) rawText = String(msg.button.text);
         // Note: interactive payloads vary; worker can handle details if needed.
 
-        const upper = rawText ? rawText.trim().toUpperCase() : "";
+        const upper = rawText ? normalizeInboundCommandText(rawText) : "";
 
         const COMMANDS = new Set([
           "HELP",
@@ -483,10 +488,11 @@ app.post("/webhooks/whatsapp", (req, res) => {
           "IMPROVE OFF",
           "CONFIRM MEDIA",
         ]);
+        const isLangCommand = /^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(upper);
 
         const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
         const hasText = rawText && rawText.trim().length > 0;
-        const isCommand = isTextLike && hasText && COMMANDS.has(upper);
+        const isCommand = isTextLike && hasText && (COMMANDS.has(upper) || isLangCommand);
 
         const docMeta = extractDocumentMeta(msg);
         const reactionMeta = extractReactionMeta(msg);

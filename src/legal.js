@@ -29,6 +29,9 @@ function normalizeText(s) {
 function isCommand(text, cmd) {
   return normalizeText(text).toUpperCase() === cmd;
 }
+function isLangCommand(text) {
+  return /^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(normalizeText(text).toUpperCase());
+}
 
 function tailN(v, n) {
   const s = String(v || '');
@@ -118,21 +121,24 @@ async function ensureFirstTimeNoticeAndTos(waNumber, user, opts = {}) {
   const tosNull = !(user && user.tos_accepted_at);
   console.log(`[legal] gate_start to=${toLast4} privacy_notice_null=${privacyNull} tos_accepted_null=${tosNull}`);
 
+  // Allow START to resume even when blocked.
+  if (isCommand(inboundText, 'START')) return { stop: false, outcome: 'cmd_start' };
+
+  // Handle high-priority commands first (MVP-safe)
+  // NOTE: actual command side-effects (DB updates/deletion) should happen in worker.js
+  if (isCommand(inboundText, 'STOP')) return { stop: false, outcome: 'cmd_stop' };
+  if (isCommand(inboundText, 'DELETE')) return { stop: false, outcome: 'cmd_delete' };
+  if (isCommand(inboundText, 'HELP')) return { stop: false, outcome: 'cmd_help' };
+  if (isCommand(inboundText, 'STATUS')) return { stop: false, outcome: 'cmd_status' };
+  if (isCommand(inboundText, 'PAY')) return { stop: false, outcome: 'cmd_pay' };
+  if (isCommand(inboundText, 'IMPROVE ON')) return { stop: false, outcome: 'cmd_improve_on' };
+  if (isCommand(inboundText, 'IMPROVE OFF')) return { stop: false, outcome: 'cmd_improve_off' };
+  if (isLangCommand(inboundText)) return { stop: false, outcome: 'cmd_lang' };
+
   // Hard block conditions (if your schema has these flags)
   if (user && (user.is_blocked === true || user.is_opted_out === true)) {
     return { stop: true, outcome: 'user_blocked_or_opted_out' };
   }
-
-  // Handle high-priority commands first (MVP-safe)
-  // NOTE: actual command side-effects (DB updates/deletion) should happen in worker.js
-  if (isCommand(inboundText, 'STOP')) return { stop: true, outcome: 'cmd_stop' };
-  if (isCommand(inboundText, 'START')) return { stop: false, outcome: 'cmd_start' };
-  if (isCommand(inboundText, 'DELETE')) return { stop: true, outcome: 'cmd_delete' };
-  if (isCommand(inboundText, 'HELP')) return { stop: true, outcome: 'cmd_help' };
-  if (isCommand(inboundText, 'STATUS')) return { stop: true, outcome: 'cmd_status' };
-  if (isCommand(inboundText, 'PAY')) return { stop: true, outcome: 'cmd_pay' };
-  if (isCommand(inboundText, 'IMPROVE ON')) return { stop: true, outcome: 'cmd_improve_on' };
-  if (isCommand(inboundText, 'IMPROVE OFF')) return { stop: true, outcome: 'cmd_improve_off' };
 
   // First-time notice gate (per spec: first inbound message sends notice; do not summarize)
   const privacySent = !!(user && user.privacy_notice_sent_at);
