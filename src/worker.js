@@ -230,6 +230,121 @@ function normalizeInboundText(text) {
   return upper.replace(/[.!?]+$/g, "");
 }
 
+function splitByTimestampHeuristic(lines) {
+  const tsStartRe =
+    /^\s*(?:\[\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?\]?|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?\s+-)/;
+
+  const groups = [];
+  let current = [];
+  let timestampHits = 0;
+
+  for (const line of lines) {
+    const trimmed = String(line || "").trim();
+    if (!trimmed) continue;
+
+    if (tsStartRe.test(trimmed)) {
+      timestampHits++;
+      if (current.length) groups.push(current.join("\n").trim());
+      current = [trimmed];
+      continue;
+    }
+
+    if (!current.length) {
+      current = [trimmed];
+    } else {
+      current.push(trimmed);
+    }
+  }
+
+  if (current.length) groups.push(current.join("\n").trim());
+
+  const units = groups.filter(Boolean);
+  if (timestampHits >= 2 && units.length >= 2) return units;
+  return null;
+}
+
+function splitByBulletHeuristic(lines) {
+  const bulletStartRe = /^\s*(?:[-*•▪◦]\s+|\d{1,2}[.)]\s+)/;
+  const groups = [];
+  let current = [];
+  let bulletHits = 0;
+
+  for (const line of lines) {
+    const trimmed = String(line || "").trim();
+    if (!trimmed) continue;
+
+    if (bulletStartRe.test(trimmed)) {
+      bulletHits++;
+      if (current.length) groups.push(current.join("\n").trim());
+      current = [trimmed];
+      continue;
+    }
+
+    if (!current.length) continue;
+    current.push(trimmed);
+  }
+
+  if (current.length) groups.push(current.join("\n").trim());
+
+  const units = groups.filter(Boolean);
+  if (bulletHits >= 3 && units.length >= 3) return units;
+  return null;
+}
+
+function splitByParagraphHeuristic(text) {
+  const blocks = String(text || "")
+    .split(/\n{2,}/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  if (blocks.length < 2 || blocks.length > 12) return null;
+  const substantive = blocks.filter((x) => x.length >= 20);
+  if (substantive.length < 2) return null;
+  return blocks;
+}
+
+function splitIntoLogicalMessages(text) {
+  const raw = String(text || "").replace(/\r\n?/g, "\n").trim();
+  if (!raw) return [];
+
+  const lines = raw.split("\n");
+  if (lines.length < 2) return [raw];
+
+  const byTimestamp = splitByTimestampHeuristic(lines);
+  if (byTimestamp) return byTimestamp.slice(0, 60);
+
+  const byBullets = splitByBulletHeuristic(lines);
+  if (byBullets) return byBullets.slice(0, 60);
+
+  const byParagraph = splitByParagraphHeuristic(raw);
+  if (byParagraph) return byParagraph.slice(0, 60);
+
+  return [raw];
+}
+
+function buildSummarizerInputText(inputText, maxChars) {
+  const text = String(inputText || "");
+  const logicalMessages = splitIntoLogicalMessages(text);
+
+  if (logicalMessages.length <= 1) {
+    return {
+      text: text.slice(0, maxChars),
+      logicalMessageCount: 1,
+    };
+  }
+
+  const header =
+    `MULTI_MESSAGE_INPUT (${logicalMessages.length} messages)\n` +
+    "Treat each MESSAGE block as a separate message in chronological order.\n\n";
+  const body = logicalMessages.map((msg, idx) => `--- MESSAGE ${idx + 1} ---\n${msg}`).join("\n\n");
+  const combined = `${header}${body}`;
+
+  return {
+    text: combined.length > maxChars ? combined.slice(0, maxChars) : combined,
+    logicalMessageCount: logicalMessages.length,
+  };
+}
+
 function buildLemonCheckoutUrl(waNumber) {
   if (!LEMON_CHECKOUT_URL) throw new Error("Missing LEMON_CHECKOUT_URL");
   const u = new URL(LEMON_CHECKOUT_URL);
@@ -955,8 +1070,8 @@ function firstTimeNoticeV1() {
   return (
     "👋 Welcome to Fazumi.\n" +
     "I can summarize messages you send here.\n" +
-    "By continuing, you allow processing to provide the service.\n" +
-    "Please don’t send sensitive/confidential info.\n" +
+    "By continuing, you allow message processing to provide this service.\n" +
+    "Please don’t send sensitive or confidential information.\n" +
     "Supported: text + WhatsApp chat ZIP (.txt, “Export chat → Without media”).\n" +
     "Reply HELP for commands. STOP to opt out. DELETE to erase stored data.\n" +
     `Terms: ${TERMS_LINK}\n` +
@@ -992,7 +1107,8 @@ function buildStatusMessage(user) {
 // -------------------- OpenAI summary wrapper --------------------
 async function generateSummaryOrDryRun(inputText, eventTsIso) {
   const maxChars = Number(process.env.OPENAI_MAX_INPUT_CHARS || 6000);
-  const capped = String(inputText || "").slice(0, maxChars);
+  const prepared = buildSummarizerInputText(inputText, maxChars);
+  const capped = prepared.text;
 
   if (DRY_RUN) {
     return {
