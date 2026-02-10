@@ -65,9 +65,6 @@ const D360_TEMPLATE_LANG = envTrim("D360_TEMPLATE_LANG") || "en";
 const HELLO_TEMPLATE_NAME = envTrim("HELLO_TEMPLATE_NAME") || "hello_fazumi";
 const WHATSAPP_WINDOW_HOURS = Number(envTrim("WHATSAPP_WINDOW_HOURS") || 24);
 
-// Payments
-const LEMON_CHECKOUT_URL = envTrim("LEMON_CHECKOUT_URL") || "";
-
 // Timezone
 const FAZUMI_TZ = envTrim("FAZUMI_TZ") || "Asia/Qatar";
 
@@ -356,13 +353,6 @@ function buildSummarizerInputText(inputText, maxChars) {
     text: combined.length > maxChars ? combined.slice(0, maxChars) : combined,
     logicalMessageCount: logicalMessages.length,
   };
-}
-
-function buildLemonCheckoutUrl(waNumber) {
-  if (!LEMON_CHECKOUT_URL) throw new Error("Missing LEMON_CHECKOUT_URL");
-  const u = new URL(LEMON_CHECKOUT_URL);
-  u.searchParams.set("checkout[custom][wa_number]", String(waNumber));
-  return u.toString();
 }
 
 // -------------------- Simple concurrency gate --------------------
@@ -1455,13 +1445,16 @@ function buildStatusMessage(user) {
   ].join("\n");
 }
 
-function buildPayMessage(waNumber) {
-  try {
-    const checkoutUrl = buildLemonCheckoutUrl(waNumber);
-    return `💳 Upgrade here:\n${checkoutUrl}`;
-  } catch {
-    return "💳 Upgrade to a paid plan for more summaries. Reply HELP for commands.";
+function buildPayMessage() {
+  const checkoutUrl = getLemonCheckoutUrl();
+  if (!checkoutUrl) {
+    return [
+      "💳 Upgrade your plan",
+      "Choose Basic or Pro here:",
+      "Checkout link is not configured yet. Admin: set LEMON_TEST_MODE and checkout URLs.",
+    ].join("\n");
   }
+  return ["💳 Upgrade your plan", "Choose Basic or Pro here:", checkoutUrl].join("\n");
 }
 
 // -------------------- OpenAI summary wrapper --------------------
@@ -1564,7 +1557,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
 
 // ===================== Existing handlers (unchanged) =====================
 const { ensureFirstTimeNoticeAndTos } = require("./legal");
-const { processCommand } = require("./commands");
+const { processCommand, getLemonCheckoutUrl } = require("./commands");
 
 // ===================== Main WhatsApp processing =====================
 async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {

@@ -22,7 +22,7 @@ function buildHelpMessage(user) {
     '🆘 Fazumi HELP',
     'HELP - Show this menu',
     'STATUS - Account status and free summaries',
-    'PAY - Upgrade',
+    'PAY - Open secure checkout link (Basic/Pro)',
     'STOP - Opt out',
     'START - Resume summaries',
     'DELETE - Erase stored data',
@@ -67,7 +67,51 @@ function buildDefaultStatusMessage(user) {
 }
 
 function buildDefaultPayMessage() {
-  return '💳 Upgrade to a paid plan for more summaries. Reply HELP for commands.';
+  const checkoutUrl = getLemonCheckoutUrl();
+  if (!checkoutUrl) {
+    return [
+      '💳 Upgrade your plan',
+      'Choose Basic or Pro here:',
+      'Checkout link is not configured yet. Admin: set LEMON_TEST_MODE and checkout URLs.',
+    ].join('\n');
+  }
+
+  return [
+    '💳 Upgrade your plan',
+    'Choose Basic or Pro here:',
+    checkoutUrl,
+  ].join('\n');
+}
+
+function parseBoolEnv(value, defaultValue) {
+  if (value == null) return defaultValue;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return defaultValue;
+}
+
+function normalizeEnvString(value) {
+  if (value == null) return '';
+  const trimmed = String(value).trim();
+  return trimmed.length ? trimmed : '';
+}
+
+function getLemonCheckoutUrl() {
+  const testMode = parseBoolEnv(process.env.LEMON_TEST_MODE, true);
+  const selectedRaw = testMode
+    ? process.env.LEMON_CHECKOUT_URL_TEST
+    : process.env.LEMON_CHECKOUT_URL_LIVE;
+  const selected = normalizeEnvString(selectedRaw);
+  if (!selected) return '';
+
+  try {
+    const parsed = new URL(selected);
+    if (!parsed.protocol || !parsed.hostname) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
 }
 
 // Supports both signatures:
@@ -172,4 +216,4 @@ async function processCommand(input, legacyUser, legacyTextBody) {
   return { handled: false };
 }
 
-module.exports = { processCommand };
+module.exports = { processCommand, getLemonCheckoutUrl };
