@@ -81,10 +81,12 @@ function detectTextDirection(text) {
 
 function wrapWithDirectionMarks(text, dir) {
   const body = String(text || "");
-  const LRE = "\u202A";
-  const RLE = "\u202B";
-  const PDF = "\u202C";
-  return (dir === "rtl" ? RLE : LRE) + body + PDF;
+  const isRtl = dir === "rtl";
+  const isolateOpen = isRtl ? "\u2067" : "\u2066"; // RLI / LRI
+  const isolateClose = "\u2069"; // PDI
+  const mark = isRtl ? "\u200F" : "\u200E"; // RLM / LRM
+  const lines = body.split("\n").map((line) => mark + line);
+  return isolateOpen + lines.join("\n") + isolateClose;
 }
 
 // ---------- language targeting ----------
@@ -774,8 +776,10 @@ function formatSavedTimeLine(minutes, target_lang, labels) {
   const n = Number.isFinite(minutes) ? Math.max(1, Math.round(minutes)) : 1;
   if (target_lang === "ar") {
     let unit = "دقيقة";
-    if (n === 2) unit = "دقيقتين";
+    if (n === 1) unit = "دقيقة";
+    else if (n === 2) unit = "دقيقتين";
     else if (n >= 3 && n <= 10) unit = "دقائق";
+    else unit = "دقيقة";
     return `⏱️ وفّرنا عليك حوالي ${n} ${unit} من القراءة`;
   }
   return String(labels.savedTimeTemplate || "⏱️ Saved you about {n} minutes of reading").replace("{n}", String(n));
