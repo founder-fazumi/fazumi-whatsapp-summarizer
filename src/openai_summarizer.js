@@ -255,6 +255,7 @@ function labelsForTarget(target_lang) {
       actions: "الإجراءات",
       keyInfo: "معلومات مهمة",
       fallback: "غير محدد",
+      savedTimeTemplate: "⏱️ وفّرنا عليك حوالي {n} دقيقة من القراءة",
     };
   }
   if (target_lang === "es") {
@@ -264,6 +265,7 @@ function labelsForTarget(target_lang) {
       actions: "Acciones",
       keyInfo: "Información clave",
       fallback: "No especificado",
+      savedTimeTemplate: "⏱️ Te ahorramos unos {n} minutos de lectura",
     };
   }
 
@@ -273,6 +275,7 @@ function labelsForTarget(target_lang) {
     actions: "Actions",
     keyInfo: "Key info",
     fallback: "Not specified",
+    savedTimeTemplate: "⏱️ Saved you about {n} minutes of reading",
   };
 }
 
@@ -767,6 +770,17 @@ function estimateSavedMinutesFromInput(text) {
   return Math.max(1, Math.min(30, estimated));
 }
 
+function formatSavedTimeLine(minutes, target_lang, labels) {
+  const n = Number.isFinite(minutes) ? Math.max(1, Math.round(minutes)) : 1;
+  if (target_lang === "ar") {
+    let unit = "دقيقة";
+    if (n === 2) unit = "دقيقتين";
+    else if (n >= 3 && n <= 10) unit = "دقائق";
+    return `⏱️ وفّرنا عليك حوالي ${n} ${unit} من القراءة`;
+  }
+  return String(labels.savedTimeTemplate || "⏱️ Saved you about {n} minutes of reading").replace("{n}", String(n));
+}
+
 function formatForWhatsApp(schemaObj, maxChars, target_lang, savedMinutes) {
   const safeTarget = target_lang === "ar" || target_lang === "es" ? target_lang : "en";
   const labels = labelsForTarget(safeTarget);
@@ -776,22 +790,22 @@ function formatForWhatsApp(schemaObj, maxChars, target_lang, savedMinutes) {
   const deadlines = obj.dates_deadlines.length ? obj.dates_deadlines.slice() : [labels.fallback];
   const actions = obj.action_items.length ? obj.action_items.slice() : [labels.fallback];
   const keyInfo = obj.key_points.length ? obj.key_points.slice() : [labels.fallback];
-  const minutes = Number.isFinite(savedMinutes) ? savedMinutes : 1;
+  const savedTimeLine = formatSavedTimeLine(savedMinutes, safeTarget, labels);
 
   const render = () => {
     const lines = [];
-    lines.push("🧠 TL;DR");
+    lines.push(`🧠 ${labels.tldr}`);
     lines.push(tldr);
     lines.push("");
-    lines.push(`⏱️ Saved you about ${minutes} minutes of reading`);
+    lines.push(savedTimeLine);
     lines.push("");
-    lines.push("📅 Deadlines");
+    lines.push(`📅 ${labels.deadlines}`);
     for (const d of deadlines) lines.push(`• ${d || labels.fallback}`);
     lines.push("");
-    lines.push("👉 Actions");
+    lines.push(`👉 ${labels.actions}`);
     for (const a of actions) lines.push(`• ${a || labels.fallback}`);
     lines.push("");
-    lines.push("🔑 Key info");
+    lines.push(`🔑 ${labels.keyInfo}`);
     for (const k of keyInfo) lines.push(`• ${k || labels.fallback}`);
     return lines.join("\n");
   };
@@ -942,7 +956,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
     }
 
     // Make sure empty placeholders remain aligned with required language.
-    if (!out.includes("📅 Deadlines")) {
+    if (!out.includes(`📅 ${labels.deadlines}`)) {
       out = formatForWhatsApp(fake, maxOutputChars, target_lang, savedMinutes);
       out = enforceNoVagueRelativeTime(out, anchor_ts_iso, tz);
     }
