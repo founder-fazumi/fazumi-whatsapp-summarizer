@@ -131,8 +131,6 @@ async function ensureFirstTimeNoticeAndTos(waNumber, user, opts = {}) {
   if (isCommand(inboundText, 'HELP')) return { stop: false, outcome: 'cmd_help' };
   if (isCommand(inboundText, 'STATUS')) return { stop: false, outcome: 'cmd_status' };
   if (isCommand(inboundText, 'PAY')) return { stop: false, outcome: 'cmd_pay' };
-  if (isCommand(inboundText, 'IMPROVE ON')) return { stop: false, outcome: 'cmd_improve_on' };
-  if (isCommand(inboundText, 'IMPROVE OFF')) return { stop: false, outcome: 'cmd_improve_off' };
   if (isLangCommand(inboundText)) return { stop: false, outcome: 'cmd_lang' };
 
   // Hard block conditions (if your schema has these flags)

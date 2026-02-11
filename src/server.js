@@ -12,13 +12,13 @@
  * - Default: DO NOT store raw user message text in DB.
  * - Store only:
  *   - text_sha256 (proof/dedupe)
- *   - text_ref (Supabase Storage pointer) + text_len
+ *   - text_enc (AES-GCM encrypted payload) + text_len
  *   - minimal meta fields (no raw text)
  *
  * Phase 5 additions:
  * - Bind to 0.0.0.0 + PORT for cloud hosting (Render/Cloud Run).
  * - Handle multi-message payloads deterministically.
- * - Handle Reaction messages (for perceived learning in worker).
+ * - Ignore non-text message types for MVP text-only launch.
  *
  * IMPORTANT:
  * - Paywall decision MUST happen BEFORE any OpenAI call (worker enforces).
@@ -41,7 +41,6 @@ const app = express();
 app.set("trust proxy", 1);
 
 const supabase = getSupabaseAdmin();
-const CHAT_EXPORTS_BUCKET = process.env.CHAT_EXPORTS_BUCKET || "chat-exports";
 
 /**
  * VERSION MARKER
@@ -119,7 +118,19 @@ function parseTimestampToIsoOrNull(ts) {
 
 function normalizeInboundCommandText(text) {
   const collapsed = String(text || "").trim().replace(/\s+/g, " ");
-  return collapsed.toUpperCase().replace(/[.!?]+$/g, "");
+  const normalized = collapsed.toUpperCase().replace(/^\/+/, "").replace(/[.!?]+$/g, "");
+  return normalized.trim();
+}
+
+function extractInboundTextBody(msg) {
+  const type = String(msg?.type || "").toLowerCase();
+  if (type === "text") return String(msg?.text?.body || "");
+  if (type === "button") return String(msg?.button?.text || "");
+  if (type === "interactive") {
+    const title = msg?.interactive?.button_reply?.title || msg?.interactive?.list_reply?.title || "";
+    return String(title);
+  }
+  return "";
 }
 
 /**
@@ -190,8 +201,10 @@ function safeIdSuffixForPath(id) {
   return suffix.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-function inboundTextPathFromMsgId(msgId) {
-  return `inbound_text/${safeIdSuffixForPath(msgId)}.txt`;
+const HAS_TEXT_ENC_KEY = Boolean(getEncKey());
+if (!HAS_TEXT_ENC_KEY) {
+  console.error("[server] Missing or invalid FAZUMI_TEXT_ENC_KEY_B64 (must be base64 of 32 bytes).");
+  process.exit(1);
 }
 
 /**
@@ -207,33 +220,6 @@ function getCommonWaMeta(value) {
     display_phone_number: metadata?.display_phone_number || null,
     from_phone: waId || null,
   };
-}
-
-/**
- * Extract DOCUMENT info safely.
- * NOTE: Worker will still refuse processing except WhatsApp Export ZIP (.txt without media).
- * We do NOT download binary in server.
- */
-function extractDocumentMeta(msg) {
-  try {
-    if (!msg || typeof msg !== "object") return null;
-
-    const msgType = String(msg.type || "").toLowerCase();
-    if (msgType !== "document") return null;
-
-    const doc = msg.document;
-    if (!doc || typeof doc !== "object") return null;
-
-    return {
-      media_id: doc.id || null,
-      mime_type: doc.mime_type || null,
-      filename: doc.filename || null,
-      sha256: doc.sha256 || null,
-      caption: doc.caption || msg.caption || null,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -270,7 +256,7 @@ function extractOtherMediaMeta(msg) {
     const msgType = String(msg.type || "").toLowerCase();
     if (!msgType) return null;
 
-    const ignored = new Set(["text", "interactive", "button", "status", "document", "reaction"]);
+    const ignored = new Set(["text", "interactive", "button", "status", "reaction"]);
     if (ignored.has(msgType)) return null;
 
     const carrier = msg[msgType];
@@ -468,53 +454,33 @@ app.post("/webhooks/whatsapp", (req, res) => {
         if (!msgId || !from || !msgType) continue;
 
         // Text extraction (only for hashing/storage; never stored raw in DB)
-        let rawText = "";
-        if (msgType === "text" && msg?.text?.body) rawText = String(msg.text.body);
-        if ((msgType === "interactive" || msgType === "button") && msg?.button?.text) rawText = String(msg.button.text);
+        const rawText = extractInboundTextBody(msg);
         // Note: interactive payloads vary; worker can handle details if needed.
 
         const upper = rawText ? normalizeInboundCommandText(rawText) : "";
 
-        const COMMANDS = new Set([
-          "HELP",
-          "STATUS",
-          "PAY",
-          "STOP",
-          "START",
-          "DELETE",
-          "REPORT",
-          "BLOCKME",
-          "IMPROVE ON",
-          "IMPROVE OFF",
-          "CONFIRM MEDIA",
-        ]);
+        const COMMANDS = new Set(["HELP", "STATUS", "PAY", "STOP", "START", "DELETE"]);
         const isLangCommand = /^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(upper);
 
         const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
         const hasText = rawText && rawText.trim().length > 0;
         const isCommand = isTextLike && hasText && (COMMANDS.has(upper) || isLangCommand);
 
-        const docMeta = extractDocumentMeta(msg);
         const reactionMeta = extractReactionMeta(msg);
         const otherMediaMeta = extractOtherMediaMeta(msg);
 
-        const isDocument = Boolean(docMeta);
         const isReaction = Boolean(reactionMeta);
         const isOtherMedia = Boolean(otherMediaMeta);
 
         // Decide event_kind for worker routing
-        const event_kind = isReaction
-          ? "inbound_reaction"
-          : isDocument || isOtherMedia
-          ? "inbound_media"
-          : isCommand
+        const event_kind = isCommand
           ? "inbound_command"
           : isTextLike && hasText
           ? "inbound_text"
           : "unknown";
 
         // Ignore unknowns to avoid noise
-        if (event_kind === "unknown") continue;
+        if (event_kind === "unknown" || isReaction || isOtherMedia) continue;
 
         const shouldEnqueue = shouldEnqueueInboundEvent(event_kind, workerPoolHealthy);
         const skipReason = shouldEnqueue ? null : "worker_pool_unhealthy";
@@ -523,7 +489,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
         const textSha = hasText ? sha256Hex(Buffer.from(rawText, "utf8")) : null;
         const textLen = hasText ? rawText.length : null;
-        let textRef = null;
+        let textEnc = null;
 
         const shouldPersistText = shouldPersistInboundText({
           eventKind: event_kind,
@@ -532,24 +498,8 @@ app.post("/webhooks/whatsapp", (req, res) => {
         });
 
         if (shouldPersistText) {
-          const storagePath = inboundTextPathFromMsgId(msgId);
-          textRef = { bucket: CHAT_EXPORTS_BUCKET, path: storagePath };
-          try {
-            const textBuf = Buffer.from(rawText, "utf8");
-            const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, textBuf, {
-              upsert: true,
-              contentType: "text/plain; charset=utf-8",
-            });
-            if (uploadErr) {
-              console.log(
-                `[whatsapp] text_store outcome=error msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
-              );
-            }
-          } catch {
-            console.log(
-              `[whatsapp] text_store outcome=error msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
-            );
-          }
+          const encrypted = encryptTextOrNull(rawText);
+          if (encrypted) textEnc = encrypted;
         }
 
         const safeMeta = {
@@ -560,9 +510,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
           ...(event_kind === "inbound_command" ? { command: upper } : {}),
           ...(textSha ? { text_sha256: textSha } : {}),
-          ...(textRef ? { text_ref: textRef, text_len: textLen } : {}),
-
-          ...(docMeta ? { document: docMeta } : {}),
+          ...(textEnc ? { text_enc: textEnc, text_len: textLen } : {}),
           ...(otherMediaMeta ? { media: otherMediaMeta } : {}),
           ...(reactionMeta ? { reaction: reactionMeta } : {}),
           ...(skipReason ? { skip_reason: skipReason } : {}),
@@ -603,6 +551,5 @@ app.listen(port, host, () => {
   console.log(`[server] build=${SERVER_BUILD_TAG}`);
   console.log(`[server] listening on http://${host}:${port}`);
   console.log(`[server] supabase configured: ${Boolean(supabase)}`);
-  console.log(`[server] inbound_text_bucket=${CHAT_EXPORTS_BUCKET}`);
   console.log(`[server] worker_pool_healthy=${WORKER_POOL_HEALTHY}`);
 });

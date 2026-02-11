@@ -22,10 +22,9 @@ require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
-const JSZip = require("jszip");
 
 // ---- WORKER VERSION FINGERPRINT ----
-const WORKER_VERSION = "p5-workerpool-zip-ingest-mvp-2026-02-06a";
+const WORKER_VERSION = "p5-workerpool-text-only-mvp-2026-02-11";
 
 // ---- OpenAI summarizer (CommonJS) ----
 let summarizeText = null;
@@ -55,10 +54,6 @@ const SUPABASE_SERVICE_ROLE_KEY = envTrim("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE
 // 360dialog base
 const D360_BASE_URL = envTrim("D360_BASE_URL") || "https://waba-v2.360dialog.io";
 const D360_API_KEY = envTrim("D360_API_KEY") || "";
-const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat-exports";
-const MEDIA_MAX_BYTES = Number(envTrim("MEDIA_MAX_BYTES") || 20 * 1024 * 1024);
-const ZIP_MAX_BYTES = Number(envTrim("ZIP_MAX_BYTES") || MEDIA_MAX_BYTES);
-const ZIP_MAX_TEXT_CHARS = Number(envTrim("ZIP_MAX_TEXT_CHARS") || 1_200_000);
 
 // Templates (kept for future proactive messaging; not used for inbound-triggered replies)
 const D360_TEMPLATE_LANG = envTrim("D360_TEMPLATE_LANG") || "en";
@@ -79,7 +74,6 @@ const BATCH_POLL_MS = 400;
 // Legal links (don’t invent links)
 const TERMS_LINK = envTrim("TERMS_LINK") || "Terms/Privacy pages coming soon.";
 const PRIVACY_LINK = envTrim("PRIVACY_LINK") || "Terms/Privacy pages coming soon.";
-const ZIP_ACCEPT_MIME_TYPES = new Set(["application/zip", "application/x-zip-compressed"]);
 
 console.log(
   `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS}`
@@ -183,36 +177,6 @@ function parseIntEnv(rawValue, fallback, minValue = 0) {
   return v;
 }
 
-function startsLikeJson(buf) {
-  if (!Buffer.isBuffer(buf) || buf.length < 1) return false;
-  let i = 0;
-  while (i < buf.length && (buf[i] === 0x20 || buf[i] === 0x09 || buf[i] === 0x0a || buf[i] === 0x0d)) i++;
-  if (i >= buf.length) return false;
-  return buf[i] === 0x7b || buf[i] === 0x5b; // { or [
-}
-
-function safeUrlForLog(rawUrl) {
-  try {
-    const u = new URL(String(rawUrl || ""));
-    return {
-      host: u.host || "n/a",
-      path: u.pathname || "/",
-    };
-  } catch {
-    return { host: "n/a", path: "n/a" };
-  }
-}
-
-function get360MediaMetaEndpoint(mediaId) {
-  return `${D360_BASE_URL.replace(/\/$/, "")}/${encodeURIComponent(String(mediaId || ""))}`;
-}
-
-function rewriteMediaDownloadUrlToD360(downloadUrl) {
-  const source = new URL(String(downloadUrl || ""));
-  const d360 = new URL(D360_BASE_URL);
-  return `${d360.origin}${source.pathname}${source.search}`;
-}
-
 // -------------------- PII-safe helpers --------------------
 function hashPhone(phoneE164) {
   return crypto.createHash("sha256").update(String(phoneE164), "utf8").digest("hex");
@@ -235,8 +199,13 @@ function normalizeInboundText(text) {
 function extractCommandText(text) {
   const normalized = normalizeInboundText(text);
   if (!normalized) return null;
-  if (/^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(normalized)) return normalized;
-  if (KNOWN_COMMANDS.has(normalized)) return normalized;
+
+  // Accept leading slash and trailing punctuation from mobile keyboards.
+  const cleaned = normalized.replace(/^\/+/, "").replace(/[:;,.!?]+$/g, "").trim();
+  if (!cleaned) return null;
+
+  if (/^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(cleaned)) return cleaned;
+  if (KNOWN_COMMANDS.has(cleaned)) return cleaned;
   return null;
 }
 
@@ -581,18 +550,25 @@ async function loadTextForClassifiedEvent(row, classified) {
   const hasTextRef = Boolean(classified.text_ref?.bucket && classified.text_ref?.path);
   let storageFetchStatus = null;
   const metaTextLen = Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null;
+  const hasEnc = Boolean(classified.text_enc && typeof classified.text_enc === "object");
 
   if (hasTextRef) {
     const fetched = await downloadInboundTextFromStorage(classified.text_ref);
     storageFetchStatus = fetched.ok ? "ok" : "error";
-    if (fetched.ok) textBody = fetched.text;
+    if (fetched.ok && String(fetched.text || "").trim()) {
+      textBody = fetched.text;
+    } else if (hasEnc) {
+      textBody = decryptTextEncOrNull(classified.text_enc);
+    }
+  } else if (hasEnc) {
+    storageFetchStatus = "n/a";
+    textBody = decryptTextEncOrNull(classified.text_enc);
   } else {
-    storageFetchStatus = "error";
-    if (classified.text_enc) textBody = decryptTextEncOrNull(classified.text_enc);
+    storageFetchStatus = "missing";
   }
 
   const empty = !textBody || !String(textBody).trim();
-  const fetchFailed = hasTextRef && storageFetchStatus !== "ok";
+  const fetchFailed = hasTextRef && !hasEnc && storageFetchStatus !== "ok";
 
   return {
     ok: !fetchFailed,
@@ -698,12 +674,7 @@ function classifyWhatsAppEvent(eventRow) {
     const command = String(meta.command || "").trim().toUpperCase();
     return { kind: "inbound_command", wa_number, command };
   }
-
-  if (kind === "inbound_media") {
-    const doc = meta.document || null;
-    const media = meta.media || null;
-    return { kind: "inbound_media", wa_number, document: doc, media };
-  }
+  if (kind === "ignored_non_text" || kind === "inbound_reaction") return { kind: "not_actionable", wa_number };
 
   if (kind === "inbound_text") {
     return {
@@ -720,8 +691,9 @@ function classifyWhatsAppEvent(eventRow) {
   const msgType = String(meta.msg_type || meta.type || meta.message_type || "").toLowerCase();
   if (msgType === "status" || meta.status) return { kind: "status_event", wa_number };
 
-  if (msgType === "document" && meta.document)
-    return { kind: "inbound_media", wa_number, document: meta.document, media: null };
+  if (msgType === "document" || msgType === "image" || msgType === "audio" || msgType === "video") {
+    return { kind: "not_actionable", wa_number };
+  }
 
   const text_body = (meta.text_body || meta.text?.body || meta.body || "").trim();
   const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
@@ -822,437 +794,6 @@ async function sendWhatsAppText(toNumber, bodyText, diag = {}) {
     error.code = "wa_send_failed";
     throw error;
   }
-}
-
-// -------------------- ZIP media handling (MVP) --------------------
-function normalizeDocShaToHex(v) {
-  const raw = String(v || "").trim();
-  if (!raw) return crypto.createHash("sha256").update("missing", "utf8").digest("hex");
-  if (/^[a-fA-F0-9]{64}$/.test(raw)) return raw.toLowerCase();
-
-  try {
-    const b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
-    const padLen = b64.length % 4 === 0 ? 0 : 4 - (b64.length % 4);
-    const padded = b64 + "=".repeat(padLen);
-    const decoded = Buffer.from(padded, "base64");
-    if (decoded.length === 32) return decoded.toString("hex");
-  } catch {
-    // ignore
-  }
-
-  return crypto.createHash("sha256").update(raw, "utf8").digest("hex");
-}
-
-function isAcceptedZipDocument(doc) {
-  const mime = String(doc?.mime_type || "").toLowerCase().trim();
-  const filename = String(doc?.filename || "").toLowerCase().trim();
-  if (filename.endsWith(".zip")) return true;
-  if (ZIP_ACCEPT_MIME_TYPES.has(mime)) return true;
-  return mime.includes("zip");
-}
-
-function safeStorageUserPart(userId) {
-  const raw = userId == null ? "unknown" : String(userId);
-  const safe = raw.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
-  return safe || "unknown";
-}
-
-async function get360MediaDownloadUrl(mediaId) {
-  const endpoint = get360MediaMetaEndpoint(mediaId);
-  const resp = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      "D360-API-KEY": D360_API_KEY,
-    },
-  });
-
-  const payload = await resp.json().catch(() => null);
-  const url = payload?.url || payload?.data?.url || null;
-  const mime = String(payload?.mime_type || payload?.data?.mime_type || "").toLowerCase() || "n/a";
-  const sizeRaw = payload?.file_size ?? payload?.data?.file_size ?? null;
-  const size = Number.isFinite(Number(sizeRaw)) ? Number(sizeRaw) : null;
-  const sha = String(payload?.sha256 || payload?.data?.sha256 || "");
-  const sha8 = sha ? sha.slice(0, 8) : "n/a";
-
-  return {
-    status: resp.status,
-    ok: resp.ok,
-    url: url ? String(url) : null,
-    mime,
-    size,
-    sha8,
-  };
-}
-
-async function downloadMediaBytes(downloadUrl) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
-
-  try {
-    const resp = await fetch(downloadUrl, {
-      method: "GET",
-      headers: {
-        "D360-API-KEY": D360_API_KEY,
-      },
-      signal: controller.signal,
-      redirect: "follow",
-    });
-    const ct = String(resp.headers.get("content-type") || "").toLowerCase();
-    const buf = resp.ok ? Buffer.from(await resp.arrayBuffer()) : Buffer.alloc(0);
-    return { status: resp.status, ok: resp.ok, bytes: buf, contentType: ct || "n/a" };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function pickBestTxtFromZip(zipBytes) {
-  const zip = await JSZip.loadAsync(zipBytes);
-  const allFiles = Object.values(zip.files).filter((f) => !f.dir);
-  const txtFiles = allFiles.filter((f) => /\.txt$/i.test(f.name || ""));
-  if (!txtFiles.length) {
-    const e = new Error("zip_no_txt");
-    e.entries = allFiles.length;
-    throw e;
-  }
-
-  let best = null;
-  for (const f of txtFiles) {
-    const name = String(f.name || "");
-    const preferred = /_chat\.txt$/i.test(name) || /whatsapp chat/i.test(name) ? 1 : 0;
-    const buf = Buffer.from(await f.async("uint8array"));
-    if (
-      !best ||
-      preferred > best.preferred ||
-      (preferred === best.preferred && buf.length > best.buf.length)
-    ) {
-      best = { name, buf, preferred };
-    }
-  }
-
-  if (!best || !best.buf) {
-    const e = new Error("zip_txt_select_failed");
-    e.entries = allFiles.length;
-    throw e;
-  }
-
-  let text = best.buf.toString("utf8");
-  const replacementCount = (text.match(/\uFFFD/g) || []).length;
-  if (replacementCount > Math.max(8, Math.floor(text.length * 0.005))) {
-    text = best.buf.toString("latin1");
-  }
-  if (text.length > ZIP_MAX_TEXT_CHARS) {
-    text = text.slice(0, ZIP_MAX_TEXT_CHARS);
-  }
-
-  return {
-    entries: allFiles.length,
-    text,
-    textChars: text.length,
-  };
-}
-
-async function upsertChatExportBestEffort(row, storagePath, shaHex, txtBytes) {
-  try {
-    const payload = {
-      inbound_event_id: row?.id ?? null,
-      user_id: row?.user_id ?? null,
-      wa_message_id: row?.msg_id ?? null,
-      storage_path: storagePath,
-      document_sha256: shaHex,
-      txt_bytes: Number(txtBytes || 0),
-      updated_at: nowIso(),
-    };
-    const { error } = await supabase.from("chat_exports").upsert(payload, { onConflict: "inbound_event_id" });
-    if (error) {
-      const code = String(error.code || "");
-      const msg = String(error.message || error);
-      if (code === "42P01" || /relation .*chat_exports.* does not exist/i.test(msg)) return false;
-      if (code === "42703" || /column .* does not exist/i.test(msg)) return false;
-      console.log("[zip] chat_exports upsert skipped:", msg.slice(0, 120));
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.log("[zip] chat_exports upsert error:", String(e?.message || e).slice(0, 120));
-    return false;
-  }
-}
-
-async function handleInboundMedia(waNumber, classified, row) {
-  const doc = classified?.document || null;
-  const media = classified?.media || null;
-  const eventId = row?.id;
-  const msgType = String(row?.meta?.msg_type || "").toLowerCase();
-
-  // Non-document media: explicit refusal path.
-  if (!doc && media) {
-    try {
-      await sendWhatsAppText(
-        waNumber,
-        "Supported: WhatsApp Export Chat ZIP (Without media).",
-        { eventId }
-      );
-      return { action: "refused_non_zip", skip_reason: "non_document_media" };
-    } catch (e) {
-      return { action: "wa_send_failed", skip_reason: "non_document_media", error: truncateErr500(e) };
-    }
-  }
-
-  if (msgType !== "document" && !doc) {
-    return { action: "media_skipped", skip_reason: "not_document_event" };
-  }
-
-  const mimeType = String(doc?.mime_type || "").toLowerCase().trim();
-  const filename = String(doc?.filename || "");
-  const filenameLen = filename.length;
-  const mediaId = String(doc?.media_id || "").trim();
-  const mediaIdLast6 = tailN(mediaId, 6) || "n/a";
-  const shaHex = normalizeDocShaToHex(doc?.sha256);
-  const sha8 = shaHex.slice(0, 8) || "unknown";
-  const d360ApiKeyPresent = !!D360_API_KEY;
-  console.log(
-    `[zip] id=${eventId} mime=${mimeType || "unknown"} filename_len=${filenameLen} media_id=${mediaIdLast6} sha8=${sha8}`
-  );
-
-  const isZip = isAcceptedZipDocument(doc);
-  if (!isZip) {
-    try {
-      await sendWhatsAppText(
-        waNumber,
-        "Supported: WhatsApp Export Chat ZIP (Without media).",
-        { eventId }
-      );
-      return { action: "refused_non_zip", skip_reason: "unsupported_document_type" };
-    } catch (e) {
-      return { action: "wa_send_failed", skip_reason: "unsupported_document_type", error: truncateErr500(e) };
-    }
-  }
-
-  if (DRY_RUN) {
-    return { action: "dry_run", skip_reason: "dry_run_no_send_no_download" };
-  }
-
-  const DOWNLOAD_FAIL_MSG =
-    "⚠️ ZIP received, but I couldn't download it (auth error). Please retry in a few minutes.";
-  const ZIP_TOO_LARGE_MSG = "⚠️ ZIP too large to process. Please export without media and try again.";
-
-  const sendZipFailureReply = async (code) => {
-    try {
-      await sendWhatsAppText(waNumber, DOWNLOAD_FAIL_MSG, { eventId });
-      if (code) console.log(`[zip] id=${eventId} failure_code=${String(code).slice(0, 32)}`);
-    } catch {
-      // Best effort; primary failure outcome still returned.
-    }
-  };
-
-  const sendZipTooLargeReply = async () => {
-    try {
-      await sendWhatsAppText(waNumber, ZIP_TOO_LARGE_MSG, { eventId });
-    } catch {
-      // Best effort; primary failure outcome still returned.
-    }
-  };
-
-  if (!mediaId) {
-    await sendZipFailureReply("missing_media_id");
-    return { action: "media_not_found", skip_reason: "missing_media_id", error: "missing_media_id" };
-  }
-
-  const fetchMediaMetaLogged = async () => {
-    const endpoint = get360MediaMetaEndpoint(mediaId);
-    const endpointSafe = safeUrlForLog(endpoint);
-    console.log(
-      `[media] step=meta_fetch outcome=attempt id=${eventId} status=n/a url_host=${endpointSafe.host} url_path=${endpointSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-    );
-    try {
-      const mediaMeta = await get360MediaDownloadUrl(mediaId);
-      const metaSafe = mediaMeta?.url ? safeUrlForLog(mediaMeta.url) : endpointSafe;
-      const outcome = mediaMeta.ok && mediaMeta.url ? "ok" : "error";
-      console.log(
-        `[media] step=meta_fetch outcome=${outcome} id=${eventId} status=${mediaMeta.status} url_host=${metaSafe.host} url_path=${metaSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return mediaMeta;
-    } catch (e) {
-      console.log(
-        `[media] step=meta_fetch outcome=error id=${eventId} status=n/a url_host=${endpointSafe.host} url_path=${endpointSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      throw e;
-    }
-  };
-
-  const tryDownloadFromMeta = async (mediaMeta) => {
-    if (!mediaMeta.ok || !mediaMeta.url) return { ok: false, failCode: mediaMeta.status, reason: "meta_unusable" };
-    if (Number.isFinite(mediaMeta.size) && mediaMeta.size > MEDIA_MAX_BYTES) {
-      return { ok: false, failCode: "too_large", reason: "media_too_large_meta" };
-    }
-    if (Number.isFinite(mediaMeta.size) && mediaMeta.size > ZIP_MAX_BYTES) {
-      return { ok: false, failCode: "too_large", reason: "zip_too_large_meta" };
-    }
-    let downloadUrl = null;
-    try {
-      downloadUrl = rewriteMediaDownloadUrlToD360(mediaMeta.url);
-    } catch {
-      return { ok: false, failCode: "bad_url", reason: "meta_download_url_invalid" };
-    }
-    const downloadSafe = safeUrlForLog(downloadUrl);
-    console.log(
-      `[media] step=file_download outcome=attempt id=${eventId} status=n/a bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-    );
-    let dl;
-    try {
-      dl = await downloadMediaBytes(downloadUrl);
-    } catch (e) {
-      const msg = String(e?.message || e);
-      const m = msg.match(/(\d{3})/);
-      const status = m ? m[1] : "n/a";
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${status} bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: "n/a", reason: "download_exception" };
-    }
-    if (!dl.ok) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: dl.status, reason: "dl_not_ok" };
-    }
-    if (dl.bytes.length > MEDIA_MAX_BYTES) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: "too_large", reason: "media_too_large_bytes" };
-    }
-    if (dl.bytes.length > ZIP_MAX_BYTES) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: "too_large", reason: "zip_too_large_bytes" };
-    }
-    if (dl.contentType.includes("json") || startsLikeJson(dl.bytes)) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: dl.status, reason: "downloaded_json" };
-    }
-    console.log(
-      `[media] step=file_download outcome=ok id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-    );
-    return { ok: true, bytes: dl.bytes };
-  };
-
-  let zipBytes = null;
-  let failCode = "n/a";
-  try {
-    let mediaMeta = await fetchMediaMetaLogged();
-    let downloadAttempt = await tryDownloadFromMeta(mediaMeta);
-
-    if (!downloadAttempt.ok && (downloadAttempt.failCode === 401 || downloadAttempt.failCode === 404)) {
-      mediaMeta = await fetchMediaMetaLogged();
-      downloadAttempt = await tryDownloadFromMeta(mediaMeta);
-    }
-
-    if (!downloadAttempt.ok) {
-      failCode = String(downloadAttempt.failCode ?? "n/a");
-      if (failCode === "too_large") {
-        await sendZipTooLargeReply();
-        return {
-          action: "media_too_large",
-          skip_reason: downloadAttempt.reason || "media_too_large",
-          error: "zip_too_large",
-        };
-      }
-      if (failCode === "401") {
-        await sendZipFailureReply(failCode);
-        return {
-          action: "media_download_401",
-          skip_reason: downloadAttempt.reason || "media_download_401",
-          error: "media_download_401",
-        };
-      }
-      await sendZipFailureReply(failCode);
-      return {
-        action: "media_download_failed",
-        skip_reason: downloadAttempt.reason || "media_download_failed",
-        error: `media_download_failed_${failCode}`,
-      };
-    }
-
-    zipBytes = downloadAttempt.bytes;
-  } catch (e) {
-    const m = String(e?.message || e);
-    const statusMatch = m.match(/(\d{3})/);
-    failCode = statusMatch ? statusMatch[1] : "n/a";
-    await sendZipFailureReply(failCode);
-    return {
-      action: "media_download_failed",
-      skip_reason: "media_download_exception",
-      error: truncateErr500(e),
-    };
-  }
-
-  if (zipBytes.length < 2 || zipBytes[0] !== 0x50 || zipBytes[1] !== 0x4b) {
-    await sendZipFailureReply("zip_magic_mismatch");
-    return { action: "zip_bad", skip_reason: "zip_magic_mismatch", error: "zip_signature_invalid" };
-  }
-
-  let parsed = null;
-  console.log(
-    `[zip] step=unzip outcome=attempt id=${eventId} file_count=null extracted_text_len=null`
-  );
-  try {
-    parsed = await pickBestTxtFromZip(zipBytes);
-    const entryCount = Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "?";
-    const textChars = Number.isFinite(Number(parsed?.textChars)) ? Number(parsed.textChars) : 0;
-    console.log(
-      `[zip] step=unzip outcome=ok id=${eventId} file_count=${entryCount} extracted_text_len=${textChars}`
-    );
-  } catch (e) {
-    const fileCount = Number.isFinite(Number(e?.entries)) ? Number(e.entries) : "null";
-    console.log(
-      `[zip] step=unzip outcome=error id=${eventId} file_count=${fileCount} extracted_text_len=null`
-    );
-    await sendZipFailureReply("unzip_failed");
-    return { action: "zip_parse_failed", skip_reason: "unzip_failed", error: truncateErr500(e) };
-  }
-
-  if (!parsed || !parsed.text || parsed.text.length < 1) {
-    console.log(
-      `[zip] step=unzip outcome=error id=${eventId} file_count=${Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "null"} extracted_text_len=null`
-    );
-    await sendZipFailureReply("zip_no_txt");
-    return { action: "zip_parse_failed", skip_reason: "zip_no_txt", error: "zip_no_txt" };
-  }
-
-  const storagePath = `chat_exports/${row?.id}.txt`;
-  const textBuf = Buffer.from(parsed.text, "utf8");
-  const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, textBuf, {
-    upsert: true,
-    contentType: "text/plain; charset=utf-8",
-  });
-  if (uploadErr) {
-    return {
-      action: "zip_parse_failed",
-      skip_reason: "zip_upload_failed",
-      error: truncateErr500(uploadErr?.message || uploadErr),
-    };
-  }
-  await upsertChatExportBestEffort(row, storagePath, shaHex, textBuf.length);
-
-  try {
-    await sendWhatsAppText(
-      waNumber,
-      "✅ ZIP received. I saved the chat text. Now ask: What did X say about Y?",
-      { eventId }
-    );
-  } catch (e) {
-    return { action: "wa_send_failed", skip_reason: null, error: truncateErr500(e) };
-  }
-
-  return {
-    action: "zip_parsed",
-    skip_reason: null,
-    metaPatch: { zip_txt_path: storagePath },
-  };
 }
 
 // -------------------- Legal templates --------------------
@@ -1428,11 +969,6 @@ const KNOWN_COMMANDS = new Set([
   "STOP",
   "START",
   "DELETE",
-  "REPORT",
-  "BLOCKME",
-  "IMPROVE ON",
-  "IMPROVE OFF",
-  "CONFIRM MEDIA",
 ]);
 
 function buildStatusMessage(user) {
@@ -1734,49 +1270,6 @@ async function mainLoop() {
           continue;
         }
         commandFallbackText = String(classified.command || "").trim();
-      }
-
-      // Media
-      if (classified.kind === "inbound_media") {
-        const r = await handleInboundMedia(waNumber, classified, row);
-        if (
-          r.action === "media_download_401" ||
-          r.action === "media_download_invalid" ||
-          r.action === "media_not_found" ||
-          r.action === "media_meta_failed" ||
-          r.action === "media_download_failed" ||
-          r.action === "media_download_bad_content" ||
-          r.action === "media_too_large" ||
-          r.action === "zip_bad" ||
-          r.action === "zip_store_failed" ||
-          r.action === "zip_parse_failed"
-        ) {
-          await markEvent(id, {
-            status: "error",
-            outcome: r.action,
-            skip_reason: r.skip_reason || null,
-            last_error: truncateErr500(r.error || r.action),
-            meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
-          });
-          continue;
-        }
-        if (r.action === "wa_send_failed") {
-          await markEvent(id, {
-            status: "error",
-            outcome: "wa_send_failed",
-            skip_reason: r.skip_reason || null,
-            last_error: truncateErr500(r.error || "wa_send_failed"),
-            meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
-          });
-          continue;
-        }
-        await markEvent(id, {
-          status: "processed",
-          outcome: r.action || "media_processed",
-          skip_reason: r.skip_reason || null,
-          meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
-        });
-        continue;
       }
 
       // Text
