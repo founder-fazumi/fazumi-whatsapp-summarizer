@@ -380,34 +380,63 @@ async function withConcurrency(fn, opts = {}) {
 
 // -------------------- Text decryption (AES-256-GCM) --------------------
 function getEncKey() {
-  const b64 = process.env.FAZUMI_TEXT_ENC_KEY_B64;
-  if (!b64) return null;
+  const b64Raw = envTrim("FAZUMI_TEXT_ENC_KEY_B64");
+  if (!b64Raw) {
+    return { ok: false, key: null, error_code: "missing_enc_key" };
+  }
+
   try {
-    const key = Buffer.from(b64, "base64");
-    return key.length === 32 ? key : null;
+    const key = Buffer.from(b64Raw, "base64");
+    if (key.length !== 32) {
+      return { ok: false, key: null, error_code: "bad_enc_key_len" };
+    }
+    return { ok: true, key, error_code: null };
   } catch {
-    return null;
+    return { ok: false, key: null, error_code: "bad_enc_key_b64" };
   }
 }
 
 function decryptTextEncOrNull(textEnc) {
+  if (!textEnc || typeof textEnc !== "object") {
+    return { ok: false, text: null, error_code: "missing_text_enc", version: null };
+  }
+
+  const keyResult = getEncKey();
+  if (!keyResult.ok || !keyResult.key) {
+    return {
+      ok: false,
+      text: null,
+      error_code: keyResult.error_code || "missing_enc_key",
+      version: textEnc.v ?? null,
+    };
+  }
+
+  const version = textEnc.v ?? null;
+  if (version !== 1 && version !== "1") {
+    return { ok: false, text: null, error_code: "unsupported_enc_version", version };
+  }
+
+  let iv;
+  let tag;
+  let ct;
   try {
-    const key = getEncKey();
-    if (!key) return null;
-    if (!textEnc || typeof textEnc !== "object") return null;
-
-    const iv = Buffer.from(String(textEnc.iv_b64 || ""), "base64");
-    const tag = Buffer.from(String(textEnc.tag_b64 || ""), "base64");
-    const ct = Buffer.from(String(textEnc.ct_b64 || ""), "base64");
-    if (iv.length !== 12 || tag.length < 12 || ct.length < 1) return null;
-
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-
-    const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
-    return pt.toString("utf8");
+    iv = Buffer.from(String(textEnc.iv_b64 || ""), "base64");
+    tag = Buffer.from(String(textEnc.tag_b64 || ""), "base64");
+    ct = Buffer.from(String(textEnc.ct_b64 || ""), "base64");
   } catch {
-    return null;
+    return { ok: false, text: null, error_code: "decrypt_failed", version };
+  }
+  if (iv.length !== 12 || tag.length !== 16 || ct.length < 1) {
+    return { ok: false, text: null, error_code: "decrypt_failed", version };
+  }
+
+  try {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", keyResult.key, iv);
+    decipher.setAuthTag(tag);
+    const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
+    return { ok: true, text: pt.toString("utf8"), error_code: null, version };
+  } catch {
+    return { ok: false, text: null, error_code: "decrypt_failed", version };
   }
 }
 
@@ -824,6 +853,10 @@ async function loadTextForClassifiedEvent(row, classified) {
       hasTextRef: false,
       storageFetchStatus: null,
       metaTextLen: Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null,
+      hasTextEnc: false,
+      decryptStatus: "n/a",
+      decryptReason: null,
+      lastErrorCode: null,
       fetchFailed: false,
       empty: !String(classified.text_body || "").trim(),
     };
@@ -836,6 +869,10 @@ async function loadTextForClassifiedEvent(row, classified) {
       hasTextRef: false,
       storageFetchStatus: null,
       metaTextLen: null,
+      hasTextEnc: false,
+      decryptStatus: "n/a",
+      decryptReason: null,
+      lastErrorCode: null,
       fetchFailed: false,
       empty: true,
     };
@@ -846,27 +883,36 @@ async function loadTextForClassifiedEvent(row, classified) {
   let storageFetchStatus = null;
   const metaTextLen = Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null;
   const hasEnc = Boolean(classified.text_enc && typeof classified.text_enc === "object");
-  let decryptedFromEnc = false;
+  let decryptStatus = "n/a";
+  let decryptReason = null;
+  let lastErrorCode = null;
 
-  if (hasTextRef) {
+  if (hasEnc) {
+    const dec = decryptTextEncOrNull(classified.text_enc);
+    decryptStatus = dec.ok ? "ok" : "failed";
+    decryptReason = dec.ok ? null : dec.error_code || "decrypt_failed";
+    if (dec.ok && String(dec.text || "").trim()) {
+      textBody = dec.text;
+    } else if (!dec.ok) {
+      lastErrorCode = dec.error_code || "decrypt_failed";
+    }
+    storageFetchStatus = hasTextRef ? "skipped_by_text_enc" : "n/a";
+  } else if (hasTextRef) {
     const fetched = await downloadInboundTextFromStorage(classified.text_ref);
     storageFetchStatus = fetched.ok ? "ok" : "error";
     if (fetched.ok && String(fetched.text || "").trim()) {
       textBody = fetched.text;
-    } else if (hasEnc) {
-      textBody = decryptTextEncOrNull(classified.text_enc);
-      decryptedFromEnc = Boolean(String(textBody || "").trim());
+    } else if (!fetched.ok) {
+      lastErrorCode = "text_fetch_failed";
     }
-  } else if (hasEnc) {
-    storageFetchStatus = "n/a";
-    textBody = decryptTextEncOrNull(classified.text_enc);
-    decryptedFromEnc = Boolean(String(textBody || "").trim());
   } else {
     storageFetchStatus = "missing";
+    lastErrorCode = "missing_text_payload";
   }
 
   const empty = !textBody || !String(textBody).trim();
-  const fetchFailed = hasTextRef && storageFetchStatus !== "ok" && !decryptedFromEnc;
+  const fetchFailed =
+    !hasEnc && hasTextRef && storageFetchStatus !== "ok" && !String(textBody || "").trim();
 
   return {
     ok: !fetchFailed,
@@ -874,6 +920,10 @@ async function loadTextForClassifiedEvent(row, classified) {
     hasTextRef,
     storageFetchStatus,
     metaTextLen,
+    hasTextEnc: hasEnc,
+    decryptStatus,
+    decryptReason,
+    lastErrorCode,
     fetchFailed,
     empty,
   };
@@ -1684,6 +1734,10 @@ async function mainLoop() {
             hasTextRef: false,
             storageFetchStatus: null,
             metaTextLen: null,
+            hasTextEnc: false,
+            decryptStatus: "n/a",
+            decryptReason: null,
+            lastErrorCode: null,
             fetchFailed: false,
             empty: true,
           };
@@ -1691,7 +1745,7 @@ async function mainLoop() {
 
       if (classified.kind === "inbound_text") {
         console.log(
-          `[text_diag] id=${id} msg_type=${msgType || "unknown"} text_len=${primaryTextLoaded.metaTextLen ?? "null"} has_text_ref=${primaryTextLoaded.hasTextRef} storage_fetch=${primaryTextLoaded.storageFetchStatus === "ok" ? "ok" : "error"}`
+          `[text_diag] id=${id} msg_type=${msgType || "unknown"} has_text_enc=${primaryTextLoaded.hasTextEnc} decrypt=${primaryTextLoaded.decryptStatus}${primaryTextLoaded.decryptReason ? ` reason=${primaryTextLoaded.decryptReason}` : ""} has_text_ref=${primaryTextLoaded.hasTextRef} storage_fetch=${primaryTextLoaded.storageFetchStatus || "n/a"} text_len=${String(textBody || "").trim().length}`
         );
       }
 
@@ -1701,7 +1755,11 @@ async function mainLoop() {
         } catch {
           // best effort
         }
-        await markEvent(id, { status: "error", outcome: "text_fetch_failed" });
+        await markEvent(id, {
+          status: "error",
+          outcome: "text_fetch_failed",
+          last_error: primaryTextLoaded.lastErrorCode || "text_fetch_failed",
+        });
         continue;
       }
 
@@ -1715,7 +1773,11 @@ async function mainLoop() {
         } catch {
           // best effort
         }
-        await markEvent(id, { status: "processed", outcome: "empty_text" });
+        await markEvent(id, {
+          status: "processed",
+          outcome: "empty_text",
+          last_error: primaryTextLoaded.lastErrorCode || null,
+        });
         continue;
       }
 
