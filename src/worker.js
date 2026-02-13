@@ -31,7 +31,7 @@ let summarizeText = null;
 try {
   ({ summarizeText } = require("./openai_summarizer"));
 } catch (e) {
-  summarizeText = null; // ok if DRY_RUN=true
+  summarizeText = null;
 }
 
 // -------------------- ENV --------------------
@@ -64,11 +64,9 @@ const WHATSAPP_WINDOW_HOURS = Number(envTrim("WHATSAPP_WINDOW_HOURS") || 24);
 const FAZUMI_TZ = envTrim("FAZUMI_TZ") || "Asia/Qatar";
 
 // Runtime controls
-const DRY_RUN = String(process.env.DRY_RUN || "true").toLowerCase() !== "false";
-const BATCH_INITIAL_WAIT_MS = parseIntEnv(envTrim("BATCH_INITIAL_WAIT_MS"), 1800, 0);
-const BATCH_MAX_WINDOW_MS = parseIntEnv(envTrim("BATCH_MAX_WINDOW_MS"), 12000, 0);
-const BATCH_QUIET_MS = parseIntEnv(envTrim("BATCH_QUIET_MS"), 2000, 0);
-const BATCH_POLL_MS = 400;
+const DRY_RUN = String(process.env.DRY_RUN || "false").toLowerCase() === "true";
+const BURST_SECONDS = parseIntEnv(envTrim("BURST_SECONDS"), 30, 1);
+const BURST_WINDOW_MS = BURST_SECONDS * 1000;
 
 // TODO: replace Terms/Privacy placeholders with real Notion links.
 // Legal links (don’t invent links)
@@ -98,8 +96,8 @@ if (!D360_API_KEY) {
   console.error("[worker] Missing D360_API_KEY");
   process.exit(1);
 }
-if (!DRY_RUN && typeof summarizeText !== "function") {
-  console.error("[worker] DRY_RUN=false but openai_summarizer not loadable.");
+if (typeof summarizeText !== "function") {
+  console.error("[worker] openai_summarizer not loadable.");
   process.exit(1);
 }
 
@@ -428,19 +426,23 @@ function isoToMsOrNull(isoValue) {
   return Number.isFinite(ms) ? ms : null;
 }
 
+function getBurstAnchorIso(row) {
+  return safeIso(row?.created_at) || safeIso(row?.received_at) || safeIso(row?.user_msg_ts) || nowIso();
+}
+
 async function fetchPendingBurstRows(waNumber, primaryId, windowStartIso, windowEndIso) {
   if (!waNumber || !windowStartIso || !windowEndIso) return [];
 
   const { data, error } = await supabase
     .from("inbound_events")
-    .select("id, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
+    .select("id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
     .eq("provider", "whatsapp")
     .eq("status", "pending")
     .eq("from_phone", waNumber)
     .neq("id", primaryId)
-    .gte("received_at", windowStartIso)
-    .lte("received_at", windowEndIso)
-    .order("received_at", { ascending: true })
+    .gte("created_at", windowStartIso)
+    .lte("created_at", windowEndIso)
+    .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(80);
 
@@ -451,63 +453,97 @@ async function fetchPendingBurstRows(waNumber, primaryId, windowStartIso, window
   return Array.isArray(data) ? data : [];
 }
 
+async function fetchBurstWindowRows(waNumber, windowStartIso, windowEndIso) {
+  if (!waNumber || !windowStartIso || !windowEndIso) return [];
+
+  const { data, error } = await supabase
+    .from("inbound_events")
+    .select("id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
+    .eq("provider", "whatsapp")
+    .eq("from_phone", waNumber)
+    .in("status", ["pending", "processing"])
+    .gte("created_at", windowStartIso)
+    .lte("created_at", windowEndIso)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(120);
+
+  if (error) return [];
+  return Array.isArray(data) ? data : [];
+}
+
+async function deferToBurstPrimary(currentId, primaryId) {
+  const { error } = await supabase
+    .from("inbound_events")
+    .update({
+      status: "pending",
+      outcome: "burst_deferred",
+      skip_reason: `burst_waiting_for_${primaryId}`,
+      processed_at: null,
+    })
+    .eq("id", currentId)
+    .eq("status", "processing");
+  if (error) {
+    console.log(
+      `[batch] defer_failed id_last4=${tailN(currentId, 4)} primary_last4=${tailN(primaryId, 4)}`
+    );
+  }
+}
+
+async function shouldCurrentRowLeadBurst(primaryRow, primaryClassified) {
+  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return { shouldLead: true, primaryId: primaryRow?.id };
+
+  const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
+  if (!waNumber) return { shouldLead: true, primaryId: primaryRow?.id };
+
+  const anchorIso = getBurstAnchorIso(primaryRow);
+  const anchorMs = isoToMsOrNull(anchorIso) ?? Date.now();
+  const windowStartIso = new Date(anchorMs - BURST_WINDOW_MS).toISOString();
+  const windowEndIso = anchorIso;
+  const rows = await fetchBurstWindowRows(waNumber, windowStartIso, windowEndIso);
+
+  const candidates = [];
+  for (const row of rows) {
+    const classified = classifyWhatsAppEvent(row);
+    if (!isBurstBatchEligibleKind(classified.kind)) continue;
+    // Commands must never be batched.
+    if (classified.kind === "inbound_command") continue;
+    candidates.push(row);
+  }
+  if (!candidates.length) return { shouldLead: true, primaryId: primaryRow?.id };
+
+  candidates.sort((a, b) => {
+    const aMs = isoToMsOrNull(getBurstAnchorIso(a)) ?? 0;
+    const bMs = isoToMsOrNull(getBurstAnchorIso(b)) ?? 0;
+    if (aMs !== bMs) return aMs - bMs;
+    return Number(a?.id || 0) - Number(b?.id || 0);
+  });
+
+  const leader = candidates[0];
+  return {
+    shouldLead: Number(leader?.id) === Number(primaryRow?.id),
+    primaryId: leader?.id ?? primaryRow?.id,
+  };
+}
+
 async function collectBurstExtraRows(primaryRow, primaryClassified) {
   if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return [];
 
   const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
   if (!waNumber) return [];
 
-  const primaryReceivedIso = safeIso(primaryRow?.received_at) || nowIso();
-  const primaryReceivedMs = isoToMsOrNull(primaryReceivedIso) ?? Date.now();
-  const maxWindowEndMs = primaryReceivedMs + BATCH_MAX_WINDOW_MS;
+  const primaryAnchorIso = getBurstAnchorIso(primaryRow);
+  const primaryAnchorMs = isoToMsOrNull(primaryAnchorIso) ?? Date.now();
+  const burstEndMs = primaryAnchorMs + BURST_WINDOW_MS;
+  const waitUntilWindowCloseMs = Math.max(0, burstEndMs - Date.now());
+  if (waitUntilWindowCloseMs > 0) await sleep(waitUntilWindowCloseMs);
 
-  if (BATCH_INITIAL_WAIT_MS > 0) {
-    const waitMs = Math.max(0, Math.min(BATCH_INITIAL_WAIT_MS, maxWindowEndMs - Date.now()));
-    if (waitMs > 0) await sleep(waitMs);
-  }
-
-  const seen = new Set();
-  const extras = [];
-  let lastNewAtMs = null;
-  let firstPoll = true;
-
-  while (!shouldStop) {
-    const nowMs = Date.now();
-    const upperBoundMs = Math.min(nowMs, maxWindowEndMs);
-    const upperBoundIso = new Date(upperBoundMs).toISOString();
-
-    const rows = await fetchPendingBurstRows(waNumber, primaryRow.id, primaryReceivedIso, upperBoundIso);
-    let newCount = 0;
-    for (const row of rows) {
-      const idKey = String(row?.id ?? "");
-      if (!idKey || seen.has(idKey)) continue;
-
-      const classified = classifyWhatsAppEvent(row);
-      if (!isBurstBatchEligibleKind(classified.kind)) continue;
-
-      seen.add(idKey);
-      extras.push(row);
-      newCount++;
-    }
-
-    if (newCount > 0) lastNewAtMs = Date.now();
-
-    if (firstPoll) {
-      firstPoll = false;
-      if (newCount === 0) break;
-    }
-
-    const reachedMaxWindow = Date.now() >= maxWindowEndMs;
-    const quietElapsed =
-      lastNewAtMs != null && BATCH_QUIET_MS >= 0 ? Date.now() - lastNewAtMs >= BATCH_QUIET_MS : false;
-    if (reachedMaxWindow || quietElapsed) break;
-
-    await sleep(BATCH_POLL_MS);
-  }
+  const burstEndIso = new Date(burstEndMs).toISOString();
+  const extras = await fetchPendingBurstRows(waNumber, primaryRow.id, primaryAnchorIso, burstEndIso);
 
   extras.sort((a, b) => {
-    const aMs = isoToMsOrNull(a?.received_at) ?? 0;
-    const bMs = isoToMsOrNull(b?.received_at) ?? 0;
+    const aMs = isoToMsOrNull(getBurstAnchorIso(a)) ?? 0;
+    const bMs = isoToMsOrNull(getBurstAnchorIso(b)) ?? 0;
     if (aMs !== bMs) return aMs - bMs;
     return Number(a?.id || 0) - Number(b?.id || 0);
   });
@@ -674,6 +710,7 @@ function classifyWhatsAppEvent(eventRow) {
     const command = String(meta.command || "").trim().toUpperCase();
     return { kind: "inbound_command", wa_number, command };
   }
+  if (kind === "inbound_unsupported_media") return { kind: "unsupported_media", wa_number };
   if (kind === "ignored_non_text" || kind === "inbound_reaction") return { kind: "not_actionable", wa_number };
 
   if (kind === "inbound_text") {
@@ -691,8 +728,8 @@ function classifyWhatsAppEvent(eventRow) {
   const msgType = String(meta.msg_type || meta.type || meta.message_type || "").toLowerCase();
   if (msgType === "status" || meta.status) return { kind: "status_event", wa_number };
 
-  if (msgType === "document" || msgType === "image" || msgType === "audio" || msgType === "video") {
-    return { kind: "not_actionable", wa_number };
+  if (msgType === "document" || msgType === "image" || msgType === "audio" || msgType === "video" || msgType === "sticker") {
+    return { kind: "unsupported_media", wa_number };
   }
 
   const text_body = (meta.text_body || meta.text?.body || meta.body || "").trim();
@@ -907,7 +944,7 @@ function buildWelcomeEn(user) {
     "",
     "🔒 By continuing you allow message processing for this service.",
     "⚠️ Please don't send sensitive/confidential info.",
-    "⚙️ Commands: HELP, STATUS, PAY, STOP, DELETE, START, LANG EN|AR|ES|AUTO",
+    "⚙️ Commands: HELP, STATUS, PAY, STOP, DELETE, START, FEEDBACK, LANG EN|AR|ES|AUTO",
     // TODO: replace placeholder Terms/Privacy links with real Notion pages.
     `Terms: ${TERMS_LINK}`,
     `Privacy: ${PRIVACY_LINK}`,
@@ -926,7 +963,7 @@ function buildWelcomeAr(user) {
     "",
     "🔒 بالمتابعة، أنت توافق على معالجة الرسائل لتقديم الخدمة.",
     "⚠️ رجاءً لا ترسل معلومات حساسة أو سرية.",
-    "⚙️ الأوامر: HELP، STATUS، PAY، STOP، DELETE، START، LANG EN|AR|ES|AUTO",
+    "⚙️ الأوامر: HELP، STATUS، PAY، STOP، DELETE، START، FEEDBACK، LANG EN|AR|ES|AUTO",
     `الشروط: ${TERMS_LINK}`,
     `الخصوصية: ${PRIVACY_LINK}`,
   ].join("\n");
@@ -943,7 +980,7 @@ function buildWelcomeEs(user) {
     "",
     "🔒 Si continuas, aceptas el procesamiento de mensajes para este servicio.",
     "⚠️ Evita enviar informacion sensible o confidencial.",
-    "⚙️ Comandos: HELP, STATUS, PAY, STOP, DELETE, START, LANG EN|AR|ES|AUTO",
+    "⚙️ Comandos: HELP, STATUS, PAY, STOP, DELETE, START, FEEDBACK, LANG EN|AR|ES|AUTO",
     `Terminos: ${TERMS_LINK}`,
     `Privacidad: ${PRIVACY_LINK}`,
   ].join("\n");
@@ -969,6 +1006,7 @@ const KNOWN_COMMANDS = new Set([
   "STOP",
   "START",
   "DELETE",
+  "FEEDBACK",
 ]);
 
 function buildStatusMessage(user) {
@@ -999,18 +1037,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
   const prepared = buildSummarizerInputText(inputText, maxChars);
   const capped = prepared.text;
 
-  if (DRY_RUN) {
-    return {
-      ok: true,
-      summary_text: `(DRY RUN) Summary would be generated for:\n${capped.slice(0, 240)}`,
-      openai_model: null,
-      input_tokens: null,
-      output_tokens: null,
-      total_tokens: null,
-      cost_usd_est: null,
-      error_code: null,
-    };
-  }
+  if (DRY_RUN) return { ok: false, error_code: "dry_run_disabled" };
 
   const model = (process.env.OPENAI_MODEL || "unknown").trim();
   try {
@@ -1132,7 +1159,12 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
   }
 
   // Send FIRST
-  await sendWhatsAppText(waNumber, result.summary_text);
+  let outboundText = result.summary_text;
+  if (user.plan === "free" && meaningful) {
+    const freeLeftAfterSend = Math.max(0, Number(user.free_remaining || 0) - 1);
+    outboundText = `${outboundText}\n\nFree left: ${freeLeftAfterSend}`;
+  }
+  await sendWhatsAppText(waNumber, outboundText);
 
   // Decrement after successful send
   try {
@@ -1199,8 +1231,16 @@ async function mainLoop() {
       nowIso();
 
     try {
+      const waNumber = classified.wa_number;
+
       if (classified.kind === "status_event") {
         await markEvent(id, { status: "processed", outcome: "status_ignored" });
+        continue;
+      }
+
+      if (classified.kind === "unsupported_media") {
+        await sendWhatsAppText(waNumber, "Text only supported in MVP.", { eventId: id });
+        await markEvent(id, { status: "processed", outcome: "unsupported_media" });
         continue;
       }
 
@@ -1208,8 +1248,6 @@ async function mainLoop() {
         await markEvent(id, { status: "processed", outcome: "not_actionable" });
         continue;
       }
-
-      const waNumber = classified.wa_number;
 
       // Ensure user exists
       let user = await resolveUser(waNumber);
@@ -1339,6 +1377,13 @@ async function mainLoop() {
       let collectedExtras = [];
       let extraRowsToFinalize = [];
       if (isTextLikeInbound) {
+        const leadCheck = await shouldCurrentRowLeadBurst(row, classified);
+        if (!leadCheck.shouldLead) {
+          // Race-safe burst ownership: non-primary rows go back to pending for the primary worker.
+          await deferToBurstPrimary(id, leadCheck.primaryId);
+          continue;
+        }
+
         collectedExtras = await collectBurstExtraRows(row, classified);
 
         const burstTexts = [String(textBody)];
@@ -1362,7 +1407,7 @@ async function mainLoop() {
 
       const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso);
 
-      if (r.action === "summary_sent" && extraRowsToFinalize.length > 0) {
+      if (extraRowsToFinalize.length > 0) {
         await markBatchedChildrenProcessed(extraRowsToFinalize, id);
       }
 

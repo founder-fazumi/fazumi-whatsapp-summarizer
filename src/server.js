@@ -267,7 +267,6 @@ function extractOtherMediaMeta(msg) {
       media_id: carrier.id || null,
       mime_type: carrier.mime_type || null,
       sha256: carrier.sha256 || null,
-      caption: carrier.caption || msg.caption || null,
     };
   } catch {
     return null;
@@ -459,7 +458,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
         const upper = rawText ? normalizeInboundCommandText(rawText) : "";
 
-        const COMMANDS = new Set(["HELP", "STATUS", "PAY", "STOP", "START", "DELETE"]);
+        const COMMANDS = new Set(["HELP", "STATUS", "PAY", "STOP", "START", "DELETE", "FEEDBACK"]);
         const isLangCommand = /^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(upper);
 
         const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
@@ -477,10 +476,12 @@ app.post("/webhooks/whatsapp", (req, res) => {
           ? "inbound_command"
           : isTextLike && hasText
           ? "inbound_text"
+          : isOtherMedia
+          ? "inbound_unsupported_media"
           : "unknown";
 
         // Ignore unknowns to avoid noise
-        if (event_kind === "unknown" || isReaction || isOtherMedia) continue;
+        if (event_kind === "unknown" || isReaction) continue;
 
         const shouldEnqueue = shouldEnqueueInboundEvent(event_kind, workerPoolHealthy);
         const skipReason = shouldEnqueue ? null : "worker_pool_unhealthy";

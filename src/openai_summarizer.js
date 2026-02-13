@@ -876,7 +876,7 @@ function formatForWhatsApp(schemaObj, maxChars, target_lang, savedMinutes) {
 
 // ---------- main summarizer ----------
 async function summarizeText({ text, anchor_ts_iso, timezone }) {
-  const DRY_RUN = getBoolEnv("DRY_RUN", true);
+  const DRY_RUN = getBoolEnv("DRY_RUN", false);
 
   const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
   const projectId = (process.env.OPENAI_PROJECT_ID || "").trim();

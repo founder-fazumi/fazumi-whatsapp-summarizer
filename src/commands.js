@@ -26,6 +26,7 @@ function buildHelpMessage(user) {
     'STOP - Opt out',
     'START - Resume summaries',
     'DELETE - Erase stored data',
+    'FEEDBACK - Send feedback instructions',
     'LANG EN|AR|ES|AUTO - Set language',
     '',
     `🌐 Language: ${currentLang.toUpperCase()}`,
@@ -192,6 +193,11 @@ async function processCommand(input, legacyUser, legacyTextBody) {
     }
     await reply('🗑️ Stored profile data erased. STOP to opt out fully.');
     return { handled: true, action: 'delete' };
+  }
+
+  if (t === 'FEEDBACK') {
+    await reply('✍️ Send your feedback in your next message prefixed with: FEEDBACK:');
+    return { handled: true, action: 'feedback' };
   }
 
   const langCode = parseLangCode(t);
