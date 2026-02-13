@@ -50,13 +50,18 @@ async function safeInsertInboundEvent(supabase, row) {
   if (row.wa_number !== undefined) insertRow.wa_number = row.wa_number;
   if (row.payload_sha256 !== undefined) insertRow.payload_sha256 = row.payload_sha256;
   if (row.provider_event_id !== undefined) insertRow.provider_event_id = row.provider_event_id;
+  if (row.next_attempt_at !== undefined) insertRow.next_attempt_at = row.next_attempt_at;
 
   try {
     // Prefer idempotency on wa_message_id when available (WhatsApp), else provider_event_id (Lemon)
     // We do a plain insert and accept unique violations as OK.
-    const { error } = await supabase.from("inbound_events").insert(insertRow);
+    const { data, error } = await supabase
+      .from("inbound_events")
+      .insert(insertRow)
+      .select("id, received_at, from_phone, wa_number, next_attempt_at")
+      .single();
 
-    if (!error) return { ok: true, inserted: true };
+    if (!error) return { ok: true, inserted: true, row: data || null };
 
     // Postgres unique violation
     if (error.code === "23505") {

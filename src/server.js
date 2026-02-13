@@ -84,7 +84,17 @@ function readEnvFlag(name, defaultValue) {
   return defaultValue;
 }
 
+function parseIntEnv(rawValue, fallback, minValue = 0) {
+  if (rawValue == null) return fallback;
+  const n = Number(rawValue);
+  if (!Number.isFinite(n)) return fallback;
+  const v = Math.floor(n);
+  if (v < minValue) return fallback;
+  return v;
+}
+
 const WORKER_POOL_HEALTHY = readEnvFlag("WORKER_POOL_HEALTHY", true);
+const BURST_SECONDS = parseIntEnv(process.env.BURST_SECONDS, 30, 1);
 
 /**
  * Parse timestamp robustly.
@@ -293,6 +303,80 @@ function shouldPersistInboundText({ eventKind, hasText, shouldEnqueue }) {
   if (!hasText) return false;
   if (eventKind !== "inbound_text") return false;
   return Boolean(shouldEnqueue);
+}
+
+async function scheduleInboundTextBurst({
+  supabaseClient,
+  insertedRow,
+  waNumber,
+  burstSeconds,
+}) {
+  const phone = String(waNumber || insertedRow?.from_phone || insertedRow?.wa_number || "").trim();
+  if (!phone) return null;
+
+  const receivedAtIso = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
+  const { data: burstData, error: burstError } = await supabaseClient.rpc("ensure_phone_burst", {
+    p_phone_e164: phone,
+    p_received_at: receivedAtIso,
+    p_burst_seconds: burstSeconds,
+  });
+  if (burstError) {
+    console.log(`[burst] schedule_failed phone=${safeIdSuffixForPath(phone)} reason=${String(burstError.message || burstError).slice(0, 140)}`);
+    return null;
+  }
+
+  const burst = Array.isArray(burstData) ? burstData[0] : burstData;
+  const anchor = parseTimestampToIsoOrNull(burst?.anchor_received_at);
+  const deadline = parseTimestampToIsoOrNull(burst?.deadline_at);
+  if (!anchor || !deadline) return null;
+
+  const { data: candidateRows, error: candidateError } = await supabaseClient
+    .from("inbound_events")
+    .select("id, meta")
+    .eq("provider", "whatsapp")
+    .or(`from_phone.eq.${phone},wa_number.eq.${phone}`)
+    .is("processed_at", null)
+    .in("status", ["pending", "processing"])
+    .gte("received_at", anchor)
+    .order("received_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(800);
+
+  if (candidateError) {
+    console.log(`[burst] candidate_fetch_failed phone=${safeIdSuffixForPath(phone)} reason=${String(candidateError.message || candidateError).slice(0, 140)}`);
+    return { anchor, deadline };
+  }
+
+  const ids = [];
+  for (const row of candidateRows || []) {
+    const eventKind = String(row?.meta?.event_kind || "").toLowerCase();
+    if (eventKind === "inbound_text" && Number.isFinite(Number(row?.id))) {
+      ids.push(Number(row.id));
+    }
+  }
+
+  const insertedId = Number(insertedRow?.id);
+  if (Number.isFinite(insertedId) && !ids.includes(insertedId)) ids.push(insertedId);
+
+  if (ids.length > 0) {
+    const { error: updateError } = await supabaseClient
+      .from("inbound_events")
+      .update({
+        next_attempt_at: deadline,
+        status: "pending",
+        processed_at: null,
+        skip_reason: "burst_scheduled",
+      })
+      .in("id", ids)
+      .is("processed_at", null);
+
+    if (updateError) {
+      console.log(`[burst] assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(updateError.message || updateError).slice(0, 140)}`);
+      return { anchor, deadline };
+    }
+  }
+
+  return { anchor, deadline };
 }
 
 /**
@@ -539,6 +623,10 @@ app.post("/webhooks/whatsapp", (req, res) => {
           meta: safeMeta,
         };
 
+        if (event_kind === "inbound_command") {
+          row.next_attempt_at = new Date().toISOString();
+        }
+
         if (!shouldEnqueue) {
           console.log(
             `[whatsapp] enqueue_skipped reason=${skipReason} msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType}`
@@ -553,6 +641,20 @@ app.post("/webhooks/whatsapp", (req, res) => {
         if (inserted?.deduped || inserted?.inserted === false) {
           console.log(`[whatsapp] deduped msg_id=${safeIdSuffixForPath(msgId)}`);
           continue;
+        }
+
+        if (event_kind === "inbound_text" && shouldEnqueue && inserted?.row) {
+          const burst = await scheduleInboundTextBurst({
+            supabaseClient: supabase,
+            insertedRow: inserted.row,
+            waNumber: from,
+            burstSeconds: BURST_SECONDS,
+          });
+          if (burst?.deadline) {
+            console.log(
+              `[burst] schedule phone=${safeIdSuffixForPath(from)} anchor=${burst.anchor} deadline=${burst.deadline} assigned_next_attempt_at=${burst.deadline}`
+            );
+          }
         }
       }
     } catch (e) {
