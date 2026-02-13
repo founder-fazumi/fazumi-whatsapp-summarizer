@@ -433,7 +433,7 @@ function isoToMsOrNull(isoValue) {
 }
 
 function getBurstAnchorIso(row) {
-  return safeIso(row?.created_at) || safeIso(row?.received_at) || safeIso(row?.user_msg_ts) || nowIso();
+  return safeIso(row?.created_at) || safeIso(row?.received_at) || nowIso();
 }
 
 async function deferToBurstPrimary(currentId, primaryId) {
@@ -465,9 +465,12 @@ async function fetchUnprocessedTextRowsForPhone(waNumber, maxRows = 400) {
   if (!waNumber) return [];
   const { data, error } = await supabase
     .from("inbound_events")
-    .select("id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
+    .select(
+      "id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider, processed_at"
+    )
     .eq("provider", "whatsapp")
     .eq("from_phone", waNumber)
+    .is("processed_at", null)
     .in("status", ["pending", "processing"])
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
@@ -514,6 +517,24 @@ async function claimPendingRowForBurst(rowId, parentId) {
     return Array.isArray(data) && data.length > 0;
   } catch {
     return false;
+  }
+}
+
+async function rescheduleLeaderForBurstDeadline(eventId, deadlineIso) {
+  const reason = `burst_wait_until_${String(deadlineIso || "").slice(0, 19)}`;
+  const { error } = await supabase
+    .from("inbound_events")
+    .update({
+      status: "pending",
+      outcome: "burst_waiting",
+      skip_reason: reason,
+      processed_at: null,
+    })
+    .eq("id", eventId)
+    .eq("status", "processing");
+
+  if (error) {
+    console.log(`[batch] reschedule_failed id_last4=${tailN(eventId, 4)}`);
   }
 }
 
@@ -573,13 +594,10 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
   const leaderAnchorIso = getBurstAnchorIso(earliest);
   const leaderAnchorMs = isoToMsOrNull(leaderAnchorIso) ?? Date.now();
   const deadlineIso = new Date(leaderAnchorMs + BURST_WINDOW_MS).toISOString();
-  const waitMs = Math.max(0, leaderAnchorMs + BURST_WINDOW_MS - Date.now());
-  if (waitMs > 0) await sleep(waitMs);
-
-  const earliestAfterWait = (await fetchUnprocessedTextRowsForPhone(waNumber, 200))[0] || null;
-  if (!earliestAfterWait) return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
-  if (Number(earliestAfterWait.id) !== Number(primaryRow.id)) {
-    return { ok: false, deferToPrimaryId: earliestAfterWait.id };
+  const deadlineMs = leaderAnchorMs + BURST_WINDOW_MS;
+  const waitMs = Math.max(0, deadlineMs - Date.now());
+  if (waitMs > 0) {
+    return { ok: false, waitUntilIso: deadlineIso, waitMs };
   }
 
   const sendToken = await claimBurstSendToken(waNumber, leaderAnchorIso);
@@ -589,11 +607,16 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
 
   const burstRows = await fetchBurstRowsUpToDeadline(waNumber, deadlineIso);
   const extras = [];
-  const texts = [String(primaryTextBody || "")];
+  const texts = [];
   const seenExtraIds = new Set();
+  let includedPrimary = false;
 
   for (const row of burstRows) {
-    if (Number(row.id) === Number(primaryRow.id)) continue;
+    if (Number(row.id) === Number(primaryRow.id)) {
+      texts.push(String(primaryTextBody || ""));
+      includedPrimary = true;
+      continue;
+    }
     if (seenExtraIds.has(Number(row.id))) continue;
 
     const rowStatus = String(row.status || "").toLowerCase();
@@ -614,6 +637,10 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
     if (loaded.ok && !loaded.empty) {
       texts.push(String(loaded.textBody || ""));
     }
+  }
+
+  if (!includedPrimary) {
+    texts.unshift(String(primaryTextBody || ""));
   }
 
   const combinedText = texts.length > 1 ? combineBurstMessagesForSummary(texts) : texts[0];
@@ -1500,8 +1527,16 @@ async function mainLoop() {
           await deferToBurstPrimary(id, burst.deferToPrimaryId);
           continue;
         }
+        if (!burst.ok && burst.waitUntilIso) {
+          await rescheduleLeaderForBurstDeadline(id, burst.waitUntilIso);
+          continue;
+        }
         if (!burst.ok && burst.alreadySent) {
-          await markEvent(id, { status: "processed", outcome: "burst_already_finalized", skip_reason: burst.burstKey || null });
+          await markEvent(id, {
+            status: "processed",
+            outcome: "burst_already_finalized",
+            skip_reason: burst.burstKey || null,
+          });
           continue;
         }
         activeBurstKey = String(burst.burstKey || "").trim() || null;
