@@ -94,7 +94,10 @@ function parseIntEnv(rawValue, fallback, minValue = 0) {
 }
 
 const WORKER_POOL_HEALTHY = readEnvFlag("WORKER_POOL_HEALTHY", true);
-const BURST_SECONDS = parseIntEnv(process.env.BURST_SECONDS, 30, 1);
+const BURST_WINDOW_MS = parseIntEnv(process.env.BURST_WINDOW_MS, null, 1000);
+const BURST_SECONDS = parseIntEnv(process.env.BURST_SECONDS, 6, 1);
+const EFFECTIVE_BURST_WINDOW_MS = BURST_WINDOW_MS || BURST_SECONDS * 1000 || 6000;
+const BURST_MIN_MESSAGES = parseIntEnv(process.env.BURST_MIN_MESSAGES, 2, 1);
 
 /**
  * Parse timestamp robustly.
@@ -215,6 +218,14 @@ function safeIdSuffixForPath(id) {
   return suffix.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+function normalizePhoneE164(rawPhone) {
+  const raw = String(rawPhone || "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  return `+${digits}`;
+}
+
 const HAS_TEXT_ENC_KEY = Boolean(getEncKey());
 if (!HAS_TEXT_ENC_KEY) {
   console.error("[server] Missing or invalid FAZUMI_TEXT_ENC_KEY_B64 (must be base64 of 32 bytes).");
@@ -227,7 +238,7 @@ if (!HAS_TEXT_ENC_KEY) {
 function getCommonWaMeta(value) {
   const metadata = value?.metadata || {};
   const contacts0 = Array.isArray(value?.contacts) ? value.contacts[0] : null;
-  const waId = contacts0?.wa_id || null;
+  const waId = normalizePhoneE164(contacts0?.wa_id || null);
 
   return {
     phone_number_id: metadata?.phone_number_id || null,
@@ -308,13 +319,15 @@ function shouldPersistInboundText({ eventKind, hasText, shouldEnqueue }) {
 async function scheduleInboundTextBurst({
   supabaseClient,
   insertedRow,
-  waNumber,
-  burstSeconds,
+  phoneE164,
+  burstWindowMs,
+  burstMinMessages,
 }) {
-  const phone = String(waNumber || insertedRow?.from_phone || insertedRow?.wa_number || "").trim();
+  const phone = normalizePhoneE164(phoneE164 || insertedRow?.from_phone || insertedRow?.wa_number || "");
   if (!phone) return null;
 
   const receivedAtIso = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
+  const burstSeconds = Math.max(1, Math.ceil(Number(burstWindowMs || 6000) / 1000));
   const { data: burstData, error: burstError } = await supabaseClient.rpc("ensure_phone_burst", {
     p_phone_e164: phone,
     p_received_at: receivedAtIso,
@@ -338,6 +351,7 @@ async function scheduleInboundTextBurst({
     .is("processed_at", null)
     .in("status", ["pending", "processing"])
     .gte("received_at", anchor)
+    .lte("received_at", deadline)
     .order("received_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(800);
@@ -358,6 +372,24 @@ async function scheduleInboundTextBurst({
   const insertedId = Number(insertedRow?.id);
   if (Number.isFinite(insertedId) && !ids.includes(insertedId)) ids.push(insertedId);
 
+  if (Number.isFinite(insertedId)) {
+    const { error: eventUpdateError } = await supabaseClient
+      .from("inbound_events")
+      .update({
+        next_attempt_at: deadline,
+        status: "pending",
+        processed_at: null,
+        skip_reason: "burst_scheduled",
+      })
+      .eq("id", insertedId)
+      .is("processed_at", null);
+    if (eventUpdateError) {
+      console.log(
+        `[burst] leader_assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(eventUpdateError.message || eventUpdateError).slice(0, 140)}`
+      );
+    }
+  }
+
   if (ids.length > 0) {
     const { error: updateError } = await supabaseClient
       .from("inbound_events")
@@ -365,7 +397,7 @@ async function scheduleInboundTextBurst({
         next_attempt_at: deadline,
         status: "pending",
         processed_at: null,
-        skip_reason: "burst_scheduled",
+        skip_reason: ids.length >= Number(burstMinMessages || 2) ? "burst_scheduled" : "burst_single_wait",
       })
       .in("id", ids)
       .is("processed_at", null);
@@ -503,7 +535,8 @@ app.post("/webhooks/whatsapp", (req, res) => {
       for (const st of statuses) {
         const statusMsgId = st?.id || null;
         const statusName = st?.status ? String(st.status).toLowerCase() : "status";
-        if (!statusMsgId || !common.from_phone) continue;
+        const statusPhone = normalizePhoneE164(st?.recipient_id || common.from_phone || null);
+        if (!statusMsgId || !statusPhone) continue;
 
         const providerEventId = `${statusMsgId}:${statusName}`;
         const payloadHash = sha256Hex(Buffer.from(JSON.stringify({ kind: "status", st })));
@@ -514,8 +547,8 @@ app.post("/webhooks/whatsapp", (req, res) => {
           attempts: 0,
           provider_event_id: providerEventId,
           payload_sha256: payloadHash,
-          wa_number: common.from_phone,
-          from_phone: common.from_phone,
+          wa_number: statusPhone,
+          from_phone: statusPhone,
           wa_message_id: statusMsgId,
           user_msg_ts: parseTimestampToIsoOrNull(st?.timestamp) || receivedAtIso,
           meta: {
@@ -537,7 +570,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
       const messages = Array.isArray(value.messages) ? value.messages : [];
       for (const msg of messages) {
         const msgId = msg?.id || null;
-        const from = msg?.from || common.from_phone || null;
+        const from = normalizePhoneE164(msg?.from || common.from_phone || null);
         const msgType = String(msg?.type || "").toLowerCase().trim();
         const msgTsIso = parseTimestampToIsoOrNull(msg?.timestamp) || receivedAtIso;
 
@@ -626,6 +659,9 @@ app.post("/webhooks/whatsapp", (req, res) => {
         if (event_kind === "inbound_command") {
           row.next_attempt_at = new Date().toISOString();
         }
+        if (event_kind === "inbound_text" && shouldEnqueue) {
+          row.next_attempt_at = new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString();
+        }
 
         if (!shouldEnqueue) {
           console.log(
@@ -647,8 +683,9 @@ app.post("/webhooks/whatsapp", (req, res) => {
           const burst = await scheduleInboundTextBurst({
             supabaseClient: supabase,
             insertedRow: inserted.row,
-            waNumber: from,
-            burstSeconds: BURST_SECONDS,
+            phoneE164: from,
+            burstWindowMs: EFFECTIVE_BURST_WINDOW_MS,
+            burstMinMessages: BURST_MIN_MESSAGES,
           });
           if (burst?.deadline) {
             console.log(

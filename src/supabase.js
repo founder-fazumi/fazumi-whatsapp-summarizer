@@ -53,17 +53,30 @@ async function safeInsertInboundEvent(supabase, row) {
   if (row.next_attempt_at !== undefined) insertRow.next_attempt_at = row.next_attempt_at;
 
   try {
-    // Prefer idempotency on wa_message_id when available (WhatsApp), else provider_event_id (Lemon)
-    // We do a plain insert and accept unique violations as OK.
-    const { data, error } = await supabase
-      .from("inbound_events")
-      .insert(insertRow)
+    const isWhatsApp = String(insertRow.provider || "").toLowerCase() === "whatsapp";
+    const hasWaMessageId = typeof insertRow.wa_message_id === "string" && insertRow.wa_message_id.trim().length > 0;
+    const hasProviderEventId =
+      typeof insertRow.provider_event_id === "string" && insertRow.provider_event_id.trim().length > 0;
+
+    let query = supabase.from("inbound_events");
+    if (isWhatsApp && hasWaMessageId) {
+      query = query.upsert(insertRow, { onConflict: "wa_message_id", ignoreDuplicates: true });
+    } else if (hasProviderEventId) {
+      query = query.upsert(insertRow, { onConflict: "provider_event_id", ignoreDuplicates: true });
+    } else {
+      query = query.insert(insertRow);
+    }
+
+    const { data, error } = await query
       .select("id, received_at, from_phone, wa_number, next_attempt_at")
-      .single();
+      .maybeSingle();
 
-    if (!error) return { ok: true, inserted: true, row: data || null };
+    if (!error) {
+      if (!data?.id) return { ok: true, inserted: false, deduped: true, row: null };
+      return { ok: true, inserted: true, row: data || null };
+    }
 
-    // Postgres unique violation
+    // Postgres unique violation fallback
     if (error.code === "23505") {
       return { ok: true, inserted: false, deduped: true };
     }
