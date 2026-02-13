@@ -13,7 +13,7 @@
  *
  * Data minimization:
  * - Worker fetches inbound text from private storage via meta.text_ref
- * - Legacy: decrypts meta.text_enc, uses it, then wipes it (best-effort)
+ * - Legacy/compat: decrypts inbound_events.meta.text_enc when present
  */
 
 "use strict";
@@ -846,6 +846,7 @@ async function loadTextForClassifiedEvent(row, classified) {
   let storageFetchStatus = null;
   const metaTextLen = Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null;
   const hasEnc = Boolean(classified.text_enc && typeof classified.text_enc === "object");
+  let decryptedFromEnc = false;
 
   if (hasTextRef) {
     const fetched = await downloadInboundTextFromStorage(classified.text_ref);
@@ -854,16 +855,18 @@ async function loadTextForClassifiedEvent(row, classified) {
       textBody = fetched.text;
     } else if (hasEnc) {
       textBody = decryptTextEncOrNull(classified.text_enc);
+      decryptedFromEnc = Boolean(String(textBody || "").trim());
     }
   } else if (hasEnc) {
     storageFetchStatus = "n/a";
     textBody = decryptTextEncOrNull(classified.text_enc);
+    decryptedFromEnc = Boolean(String(textBody || "").trim());
   } else {
     storageFetchStatus = "missing";
   }
 
   const empty = !textBody || !String(textBody).trim();
-  const fetchFailed = hasTextRef && !hasEnc && storageFetchStatus !== "ok";
+  const fetchFailed = hasTextRef && storageFetchStatus !== "ok" && !decryptedFromEnc;
 
   return {
     ok: !fetchFailed,
@@ -906,11 +909,6 @@ async function markBurstRowsProcessed(rowIds, parentId, outcome) {
 
   if (error) {
     console.log(`[batch] mark_rows_failed parent_id_last4=${tailN(parentId, 4)} rows=${uniqueIds.length}`);
-    return;
-  }
-
-  for (const rowId of uniqueIds) {
-    await wipeInboundEventTextEnc(rowId);
   }
 }
 
@@ -977,30 +975,24 @@ async function dequeueEventJson() {
 }
 
 async function markEvent(id, patch) {
-  const update = { processed_at: nowIso(), ...patch };
+  const allowed = [
+    "status",
+    "processed_at",
+    "locked_at",
+    "attempts",
+    "next_attempt_at",
+    "outcome",
+    "skip_reason",
+    "last_error",
+  ];
+  const update = { processed_at: nowIso() };
+  for (const key of allowed) {
+    if (Object.prototype.hasOwnProperty.call(patch || {}, key)) {
+      update[key] = patch[key];
+    }
+  }
   const { error } = await supabase.from("inbound_events").update(update).eq("id", id);
   if (error) console.log("[worker] markEvent error:", String(error.message || error).slice(0, 140));
-}
-
-async function wipeInboundEventTextEnc(id) {
-  // Best-effort: remove encrypted text after use
-  try {
-    const { data: row } = await supabase
-      .from("inbound_events")
-      .select("meta")
-      .eq("id", id)
-      .maybeSingle();
-
-    const meta = row?.meta || null;
-    if (!meta || typeof meta !== "object") return;
-
-    if (meta.text_enc) {
-      delete meta.text_enc;
-      await supabase.from("inbound_events").update({ meta }).eq("id", id);
-    }
-  } catch {
-    // ignore
-  }
 }
 
 /**
@@ -1009,6 +1001,9 @@ async function wipeInboundEventTextEnc(id) {
 function classifyWhatsAppEvent(eventRow) {
   const meta = eventRow.meta || {};
   const kind = String(meta.event_kind || "").toLowerCase();
+  const msgType = String(meta.msg_type || meta.type || meta.message_type || "").toLowerCase();
+  const textEnc = meta.text_enc && typeof meta.text_enc === "object" ? meta.text_enc : null;
+  const textRef = meta.text_ref && typeof meta.text_ref === "object" ? meta.text_ref : null;
 
   const wa_number = normalizePhoneE164(
     eventRow.from_phone || eventRow.wa_number || meta.from_phone || meta.from || null
@@ -1028,15 +1023,14 @@ function classifyWhatsAppEvent(eventRow) {
     return {
       kind: "inbound_text",
       wa_number,
-      text_ref: meta.text_ref || null,
+      text_ref: textRef,
       text_len: meta.text_len ?? null,
-      text_enc: meta.text_enc || null,
+      text_enc: textEnc,
       text_sha256: meta.text_sha256 || null,
     };
   }
 
   // fallback legacy
-  const msgType = String(meta.msg_type || meta.type || meta.message_type || "").toLowerCase();
   if (msgType === "status" || meta.status) return { kind: "status_event", wa_number };
 
   if (msgType === "document" || msgType === "image" || msgType === "audio" || msgType === "video" || msgType === "sticker") {
@@ -1045,6 +1039,16 @@ function classifyWhatsAppEvent(eventRow) {
 
   const text_body = (meta.text_body || meta.text?.body || meta.body || "").trim();
   const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
+  if (isTextLike && (textRef || textEnc)) {
+    return {
+      kind: "inbound_text",
+      wa_number,
+      text_ref: textRef,
+      text_len: meta.text_len ?? null,
+      text_enc: textEnc,
+      text_sha256: meta.text_sha256 || null,
+    };
+  }
   if (isTextLike && text_body) return { kind: "inbound_text_legacy", wa_number, text_body };
 
   return { kind: "not_actionable" };
@@ -1798,7 +1802,6 @@ async function mainLoop() {
         status: "processed",
         outcome: r.action || "processed",
         skip_reason: r.skip_reason || null,
-        meta: { ...(meta || {}), outcome: r.action || "processed", skip_reason: r.skip_reason || null },
       });
     } catch (e) {
       if (typeof activeBurstKey === "string" && activeBurstKey) {
@@ -1814,7 +1817,6 @@ async function mainLoop() {
       if (activePhoneLock?.waNumber && activePhoneLock?.lockOwner) {
         await releasePhoneBurstLock(activePhoneLock.waNumber, activePhoneLock.lockOwner);
       }
-      await wipeInboundEventTextEnc(id);
     }
   }
 
