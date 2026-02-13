@@ -443,7 +443,10 @@ app.post("/webhooks/whatsapp", (req, res) => {
           },
         };
 
-        await safeInsertInboundEvent(supabase, row);
+        const inserted = await safeInsertInboundEvent(supabase, row);
+        if (!inserted?.ok) {
+          console.log(`[whatsapp] status_enqueue_failed msg_id=${safeIdSuffixForPath(statusMsgId)}`);
+        }
       }
 
       // Incoming messages can come in value.messages[]
@@ -542,7 +545,15 @@ app.post("/webhooks/whatsapp", (req, res) => {
           );
         }
 
-        await safeInsertInboundEvent(supabase, row);
+        const inserted = await safeInsertInboundEvent(supabase, row);
+        if (!inserted?.ok) {
+          console.log(`[whatsapp] enqueue_failed msg_id=${safeIdSuffixForPath(msgId)}`);
+          continue;
+        }
+        if (inserted?.deduped || inserted?.inserted === false) {
+          console.log(`[whatsapp] deduped msg_id=${safeIdSuffixForPath(msgId)}`);
+          continue;
+        }
       }
     } catch (e) {
       console.log("[whatsapp] async enqueue failed:", String(e?.message || e).slice(0, 300));

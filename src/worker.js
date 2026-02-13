@@ -24,7 +24,7 @@ const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 
 // ---- WORKER VERSION FINGERPRINT ----
-const WORKER_VERSION = "p5-workerpool-text-only-mvp-2026-02-11";
+const WORKER_VERSION = "p5-workerpool-text-only-mvp-2026-02-13";
 
 // ---- OpenAI summarizer (CommonJS) ----
 let summarizeText = null;
@@ -436,29 +436,6 @@ function getBurstAnchorIso(row) {
   return safeIso(row?.created_at) || safeIso(row?.received_at) || safeIso(row?.user_msg_ts) || nowIso();
 }
 
-async function fetchPendingBurstRows(waNumber, primaryId, windowStartIso, windowEndIso) {
-  if (!waNumber || !windowEndIso) return [];
-
-  const query = supabase
-    .from("inbound_events")
-    .select("id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
-    .eq("provider", "whatsapp")
-    .eq("from_phone", waNumber)
-    .in("status", ["pending", "processing"])
-    .lte("created_at", windowEndIso);
-
-  if (windowStartIso) query.gte("created_at", windowStartIso);
-  if (primaryId != null) query.neq("id", primaryId);
-
-  const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(200);
-  if (error) return [];
-  return Array.isArray(data) ? data : [];
-}
-
-async function fetchBurstWindowRows(waNumber, windowStartIso, windowEndIso) {
-  return fetchPendingBurstRows(waNumber, null, windowStartIso, windowEndIso);
-}
-
 async function deferToBurstPrimary(currentId, primaryId) {
   const { error } = await supabase
     .from("inbound_events")
@@ -477,39 +454,50 @@ async function deferToBurstPrimary(currentId, primaryId) {
   }
 }
 
-async function shouldCurrentRowLeadBurst(primaryRow, primaryClassified) {
-  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return { shouldLead: true, primaryId: primaryRow?.id };
-
-  const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
-  if (!waNumber) return { shouldLead: true, primaryId: primaryRow?.id };
-
-  const rows = await fetchBurstWindowRows(waNumber, null, nowIso());
-
-  const candidates = [];
-  for (const row of rows) {
-    const classified = classifyWhatsAppEvent(row);
-    if (!isBurstBatchEligibleKind(classified.kind)) continue;
-    candidates.push(row);
-  }
-  if (!candidates.length) return { shouldLead: true, primaryId: primaryRow?.id };
-
-  candidates.sort((a, b) => {
-    const aMs = isoToMsOrNull(getBurstAnchorIso(a)) ?? 0;
-    const bMs = isoToMsOrNull(getBurstAnchorIso(b)) ?? 0;
-    if (aMs !== bMs) return aMs - bMs;
-    return Number(a?.id || 0) - Number(b?.id || 0);
-  });
-
-  const leader = candidates[0];
-  const firstCreatedAtIso = getBurstAnchorIso(leader);
-  return {
-    shouldLead: Number(leader?.id) === Number(primaryRow?.id),
-    primaryId: leader?.id ?? primaryRow?.id,
-    firstCreatedAtIso,
-  };
+function compareRowsByAnchor(a, b) {
+  const aMs = isoToMsOrNull(getBurstAnchorIso(a)) ?? 0;
+  const bMs = isoToMsOrNull(getBurstAnchorIso(b)) ?? 0;
+  if (aMs !== bMs) return aMs - bMs;
+  return Number(a?.id || 0) - Number(b?.id || 0);
 }
 
-async function claimBurstChildRow(row, parentId) {
+async function fetchUnprocessedTextRowsForPhone(waNumber, maxRows = 400) {
+  if (!waNumber) return [];
+  const { data, error } = await supabase
+    .from("inbound_events")
+    .select("id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
+    .eq("provider", "whatsapp")
+    .eq("from_phone", waNumber)
+    .in("status", ["pending", "processing"])
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(maxRows);
+  if (error || !Array.isArray(data)) return [];
+
+  const textRows = [];
+  for (const row of data) {
+    const classified = classifyWhatsAppEvent(row);
+    if (isBurstBatchEligibleKind(classified.kind)) textRows.push(row);
+  }
+  textRows.sort(compareRowsByAnchor);
+  return textRows;
+}
+
+async function fetchBurstRowsUpToDeadline(waNumber, deadlineIso) {
+  if (!waNumber || !deadlineIso) return [];
+  const all = await fetchUnprocessedTextRowsForPhone(waNumber, 600);
+  const deadlineMs = isoToMsOrNull(deadlineIso);
+  if (deadlineMs == null) return [];
+
+  const inWindow = all.filter((row) => {
+    const anchorMs = isoToMsOrNull(getBurstAnchorIso(row));
+    return anchorMs != null && anchorMs <= deadlineMs;
+  });
+  inWindow.sort(compareRowsByAnchor);
+  return inWindow;
+}
+
+async function claimPendingRowForBurst(rowId, parentId) {
   try {
     const { data, error } = await supabase
       .from("inbound_events")
@@ -519,7 +507,7 @@ async function claimBurstChildRow(row, parentId) {
         skip_reason: `burst_claimed_by_${parentId}`,
         processed_at: null,
       })
-      .eq("id", row.id)
+      .eq("id", rowId)
       .eq("status", "pending")
       .select("id");
     if (error) return false;
@@ -529,54 +517,104 @@ async function claimBurstChildRow(row, parentId) {
   }
 }
 
-async function collectBurstExtraRows(primaryRow, primaryClassified, firstCreatedAtIso) {
-  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return { rows: [] };
+function buildBurstSendKey(waNumber, leaderAnchorIso) {
+  const ms = isoToMsOrNull(leaderAnchorIso) ?? 0;
+  const phoneKey = hashPhone(waNumber).slice(0, 20);
+  return `burst_send:${phoneKey}:${String(ms)}`;
+}
+
+async function claimBurstSendToken(waNumber, leaderAnchorIso) {
+  const burstKey = buildBurstSendKey(waNumber, leaderAnchorIso);
+  const row = {
+    provider: "system",
+    status: "done",
+    attempts: 0,
+    provider_event_id: burstKey,
+    payload_sha256: crypto.createHash("sha256").update(burstKey, "utf8").digest("hex"),
+    wa_number: waNumber,
+    from_phone: waNumber,
+    user_msg_ts: safeIso(leaderAnchorIso) || nowIso(),
+    meta: {
+      event_kind: "burst_send_token",
+      burst_key: burstKey,
+    },
+  };
+
+  const { error } = await supabase.from("inbound_events").insert(row);
+  if (!error) return { claimed: true, burstKey };
+  if (error.code === "23505") return { claimed: false, burstKey };
+  throw error;
+}
+
+async function releaseBurstSendToken(burstKey) {
+  const key = String(burstKey || "").trim();
+  if (!key) return;
+  try {
+    await supabase.from("inbound_events").delete().eq("provider", "system").eq("provider_event_id", key);
+  } catch {
+    // best effort
+  }
+}
+
+async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
+  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) {
+    return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
+  }
 
   const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
-  if (!waNumber) return { rows: [] };
+  if (!waNumber) return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
 
-  const firstAnchorIso = safeIso(firstCreatedAtIso) || getBurstAnchorIso(primaryRow);
-  const firstAnchorMs = isoToMsOrNull(firstAnchorIso) ?? Date.now();
-  const mustWaitUntilMs = firstAnchorMs + BURST_WINDOW_MS;
-  const waitUntilWindowCloseMs = Math.max(0, mustWaitUntilMs - Date.now());
-  if (waitUntilWindowCloseMs > 0) await sleep(waitUntilWindowCloseMs);
-
-  const burstEndMs = Math.max(mustWaitUntilMs, Date.now());
-  const burstEndIso = new Date(burstEndMs).toISOString();
-  const rows = await fetchPendingBurstRows(waNumber, null, null, burstEndIso);
-  const candidates = [];
-  for (const row of rows) {
-    const classified = classifyWhatsAppEvent(row);
-    if (!isBurstBatchEligibleKind(classified?.kind)) continue;
-    candidates.push(row);
+  const earliest = (await fetchUnprocessedTextRowsForPhone(waNumber, 200))[0] || null;
+  if (!earliest) return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
+  if (Number(earliest.id) !== Number(primaryRow.id)) {
+    return { ok: false, deferToPrimaryId: earliest.id };
   }
 
-  if (!candidates.length) return { rows: [] };
+  const leaderAnchorIso = getBurstAnchorIso(earliest);
+  const leaderAnchorMs = isoToMsOrNull(leaderAnchorIso) ?? Date.now();
+  const deadlineIso = new Date(leaderAnchorMs + BURST_WINDOW_MS).toISOString();
+  const waitMs = Math.max(0, leaderAnchorMs + BURST_WINDOW_MS - Date.now());
+  if (waitMs > 0) await sleep(waitMs);
 
-  candidates.sort((a, b) => {
-    const aMs = isoToMsOrNull(getBurstAnchorIso(a)) ?? 0;
-    const bMs = isoToMsOrNull(getBurstAnchorIso(b)) ?? 0;
-    if (aMs !== bMs) return aMs - bMs;
-    return Number(a?.id || 0) - Number(b?.id || 0);
-  });
-
-  const leader = candidates[0];
-  if (Number(leader?.id) !== Number(primaryRow?.id)) {
-    return { rows: [], deferToPrimaryId: leader?.id ?? null };
+  const earliestAfterWait = (await fetchUnprocessedTextRowsForPhone(waNumber, 200))[0] || null;
+  if (!earliestAfterWait) return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
+  if (Number(earliestAfterWait.id) !== Number(primaryRow.id)) {
+    return { ok: false, deferToPrimaryId: earliestAfterWait.id };
   }
 
-  const claimedExtras = [];
-  for (const row of candidates) {
-    if (Number(row?.id) === Number(primaryRow?.id)) continue;
-    if (row?.status === "processing") continue;
+  const sendToken = await claimBurstSendToken(waNumber, leaderAnchorIso);
+  if (!sendToken.claimed) {
+    return { ok: false, alreadySent: true, burstKey: sendToken.burstKey };
+  }
 
-    const claimed = await claimBurstChildRow(row, primaryRow?.id);
-    if (claimed) {
-      claimedExtras.push({ ...row, status: "processing" });
+  const burstRows = await fetchBurstRowsUpToDeadline(waNumber, deadlineIso);
+  const extras = [];
+  const texts = [String(primaryTextBody || "")];
+
+  for (const row of burstRows) {
+    if (Number(row.id) === Number(primaryRow.id)) continue;
+
+    const rowStatus = String(row.status || "").toLowerCase();
+    if (rowStatus === "processing") continue;
+
+    const claimed = await claimPendingRowForBurst(row.id, primaryRow.id);
+    if (!claimed) continue;
+    extras.push({ ...row, status: "processing" });
+
+    const extraClassified = classifyWhatsAppEvent(row);
+    const loaded = await loadTextForClassifiedEvent(row, extraClassified);
+    if (loaded.ok && !loaded.empty) {
+      texts.push(String(loaded.textBody || ""));
     }
   }
 
-  return { rows: claimedExtras, burstEndIso };
+  const combinedText = texts.length > 1 ? combineBurstMessagesForSummary(texts) : texts[0];
+  return {
+    ok: true,
+    textBody: combinedText,
+    extraRows: extras,
+    burstKey: sendToken.burstKey,
+  };
 }
 
 function combineBurstMessagesForSummary(messageTexts) {
@@ -1060,6 +1098,36 @@ function buildPayMessage() {
   return ["💳 Upgrade your plan", "Choose Basic or Pro here:", checkoutUrl].join("\n");
 }
 
+const SUMMARY_UI_I18N = {
+  en: {
+    freeLeft: "Free left: {n}",
+  },
+  es: {
+    freeLeft: "Gratis restantes: {n}",
+  },
+  ar: {
+    freeLeft: "المتبقي مجانا: {n}",
+  },
+};
+
+function resolveSummaryUiLang(user, summaryLang) {
+  const pref = getUserLangPref(user);
+  if (pref === "en" || pref === "es" || pref === "ar") return pref;
+  const detected = String(summaryLang || "").toLowerCase();
+  if (detected === "en" || detected === "es" || detected === "ar") return detected;
+  return "en";
+}
+
+function buildFreeLeftLine(lang, count) {
+  const safeLang = lang === "ar" || lang === "es" ? lang : "en";
+  const tpl = SUMMARY_UI_I18N[safeLang].freeLeft;
+  const rendered = tpl.replace("{n}", String(count));
+  if (safeLang === "ar") {
+    return wrapWithDirectionMarks(rendered, "rtl");
+  }
+  return rendered;
+}
+
 // -------------------- OpenAI summary wrapper --------------------
 async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) {
   const maxChars = Number(process.env.OPENAI_MAX_INPUT_CHARS || 6000);
@@ -1078,10 +1146,12 @@ async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) 
             anchor_ts_iso: eventTsIso || null,
             timezone: FAZUMI_TZ,
             forced_lang: languageOverride || null,
+            ui_lang: languageOverride || null,
           });
           return {
             ok: true,
             summary_text: r.summaryText,
+            summary_lang: String(r.target_lang || r.raw_json?.language || "en").toLowerCase(),
             openai_model: model,
             input_tokens: r.usage?.input_tokens ?? null,
             output_tokens: r.usage?.output_tokens ?? null,
@@ -1100,6 +1170,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) 
           return {
             ok: false,
             summary_text: null,
+            summary_lang: null,
             openai_model: model,
             input_tokens: null,
             output_tokens: null,
@@ -1116,6 +1187,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) 
       return {
         ok: false,
         summary_text: null,
+        summary_lang: null,
         openai_model: model,
         input_tokens: null,
         output_tokens: null,
@@ -1138,6 +1210,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) 
     return {
       ok: false,
       summary_text: null,
+      summary_lang: null,
       openai_model: model,
       input_tokens: null,
       output_tokens: null,
@@ -1195,7 +1268,9 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
   let outboundText = result.summary_text;
   if (user.plan === "free" && meaningful) {
     const freeLeftAfterSend = Math.max(0, Number(user.free_remaining || 0) - 1);
-    outboundText = `${outboundText}\n\nFree left: ${freeLeftAfterSend}`;
+    const uiLang = resolveSummaryUiLang(user, result.summary_lang);
+    const freeLeftLine = buildFreeLeftLine(uiLang, freeLeftAfterSend);
+    outboundText = `${outboundText}\n\n${freeLeftLine}`;
   }
   await sendWhatsAppText(waNumber, outboundText);
 
@@ -1262,6 +1337,7 @@ async function mainLoop() {
       safeIso(meta?.timestamp) ||
       safeIso(received_at) ||
       nowIso();
+    let activeBurstKey = null;
 
     try {
       const waNumber = classified.wa_number;
@@ -1409,35 +1485,20 @@ async function mainLoop() {
         }
       }
 
-      let collectedExtras = [];
       let extraRowsToFinalize = [];
       if (isTextLikeInbound) {
-        const leadCheck = await shouldCurrentRowLeadBurst(row, classified);
-        if (!leadCheck.shouldLead) {
-          // Race-safe burst ownership: non-primary rows go back to pending for the primary worker.
-          await deferToBurstPrimary(id, leadCheck.primaryId);
+        const burst = await buildBurstBatch(row, classified, textBody);
+        if (!burst.ok && burst.deferToPrimaryId) {
+          await deferToBurstPrimary(id, burst.deferToPrimaryId);
           continue;
         }
-
-        const burstRows = await collectBurstExtraRows(row, classified, leadCheck.firstCreatedAtIso);
-        if (burstRows.deferToPrimaryId) {
-          await deferToBurstPrimary(id, burstRows.deferToPrimaryId);
+        if (!burst.ok && burst.alreadySent) {
+          await markEvent(id, { status: "processed", outcome: "burst_already_finalized", skip_reason: burst.burstKey || null });
           continue;
         }
-        collectedExtras = burstRows.rows || [];
-
-        const burstTexts = [String(textBody)];
-        for (const extraRow of collectedExtras) {
-          const extraClassified = classifyWhatsAppEvent(extraRow);
-          const loaded = await loadTextForClassifiedEvent(extraRow, extraClassified);
-          if (!loaded.ok || loaded.empty) continue;
-          burstTexts.push(String(loaded.textBody));
-          extraRowsToFinalize.push(extraRow);
-        }
-
-        if (burstTexts.length > 1) {
-          textBody = combineBurstMessagesForSummary(burstTexts);
-        }
+        activeBurstKey = String(burst.burstKey || "").trim() || null;
+        textBody = String(burst.textBody || textBody || "");
+        extraRowsToFinalize = Array.isArray(burst.extraRows) ? burst.extraRows : [];
 
         const extraIdsLast4 = extraRowsToFinalize.map((x) => tailN(x?.id, 4)).join(",");
         console.log(
@@ -1446,6 +1507,9 @@ async function mainLoop() {
       }
 
       const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso);
+      if (activeBurstKey && r.action !== "summary_sent") {
+        await releaseBurstSendToken(activeBurstKey);
+      }
 
       if (extraRowsToFinalize.length > 0) {
         await markBatchedChildrenProcessed(extraRowsToFinalize, id);
@@ -1458,6 +1522,9 @@ async function mainLoop() {
         meta: { ...(meta || {}), outcome: r.action || "processed", skip_reason: r.skip_reason || null },
       });
     } catch (e) {
+      if (typeof activeBurstKey === "string" && activeBurstKey) {
+        await releaseBurstSendToken(activeBurstKey);
+      }
       await markEvent(id, {
         status: "error",
         outcome: "worker_error",
