@@ -67,6 +67,11 @@ const FAZUMI_TZ = envTrim("FAZUMI_TZ") || "Asia/Qatar";
 const DRY_RUN = String(process.env.DRY_RUN || "false").toLowerCase() === "true";
 const BURST_SECONDS = parseIntEnv(envTrim("BURST_SECONDS"), 30, 1);
 const BURST_WINDOW_MS = BURST_SECONDS * 1000;
+const PHONE_BURST_LOCK_SECONDS = parseIntEnv(
+  envTrim("PHONE_BURST_LOCK_SECONDS"),
+  Math.max(BURST_SECONDS + 30, 45),
+  5
+);
 
 // TODO: replace Terms/Privacy placeholders with real Notion links.
 // Legal links (don’t invent links)
@@ -436,6 +441,52 @@ function getBurstAnchorIso(row) {
   return safeIso(row?.created_at) || safeIso(row?.received_at) || nowIso();
 }
 
+async function tryClaimPhoneBurstLock(phoneE164, ownerId) {
+  if (!phoneE164 || !ownerId) return { claimed: false };
+  try {
+    const { data, error } = await supabase.rpc("try_claim_worker_phone_lock", {
+      p_phone_e164: String(phoneE164),
+      p_lock_owner: String(ownerId),
+      p_lock_seconds: PHONE_BURST_LOCK_SECONDS,
+    });
+    if (error) {
+      console.log(`[batch] lock_error phone=${tailN(phoneE164, 4)} owner=${tailN(ownerId, 8)}`);
+      return { claimed: false };
+    }
+    return { claimed: data === true };
+  } catch {
+    return { claimed: false };
+  }
+}
+
+async function releasePhoneBurstLock(phoneE164, ownerId) {
+  if (!phoneE164 || !ownerId) return;
+  try {
+    await supabase.rpc("release_worker_phone_lock", {
+      p_phone_e164: String(phoneE164),
+      p_lock_owner: String(ownerId),
+    });
+  } catch {
+    // best effort
+  }
+}
+
+async function deferDueToPhoneLock(eventId) {
+  const { error } = await supabase
+    .from("inbound_events")
+    .update({
+      status: "pending",
+      outcome: "burst_lock_deferred",
+      skip_reason: "phone_lock_busy",
+      processed_at: null,
+    })
+    .eq("id", eventId)
+    .eq("status", "processing");
+  if (error) {
+    console.log(`[batch] lock_defer_failed id_last4=${tailN(eventId, 4)}`);
+  }
+}
+
 async function deferToBurstPrimary(currentId, primaryId) {
   const { error } = await supabase
     .from("inbound_events")
@@ -469,7 +520,7 @@ async function fetchUnprocessedTextRowsForPhone(waNumber, maxRows = 400) {
       "id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider, processed_at"
     )
     .eq("provider", "whatsapp")
-    .eq("from_phone", waNumber)
+    .or(`from_phone.eq.${waNumber},wa_number.eq.${waNumber}`)
     .is("processed_at", null)
     .in("status", ["pending", "processing"])
     .order("created_at", { ascending: true })
@@ -500,7 +551,10 @@ async function fetchBurstRowsUpToDeadline(waNumber, deadlineIso) {
   return inWindow;
 }
 
-async function claimPendingRowForBurst(rowId, parentId) {
+async function claimPendingRowsForBurst(rowIds, parentId) {
+  if (!Array.isArray(rowIds) || rowIds.length === 0) return new Set();
+  const uniqueIds = Array.from(new Set(rowIds.map((x) => Number(x)).filter((x) => Number.isFinite(x))));
+  if (uniqueIds.length === 0) return new Set();
   try {
     const { data, error } = await supabase
       .from("inbound_events")
@@ -510,13 +564,13 @@ async function claimPendingRowForBurst(rowId, parentId) {
         skip_reason: `burst_claimed_by_${parentId}`,
         processed_at: null,
       })
-      .eq("id", rowId)
+      .in("id", uniqueIds)
       .eq("status", "pending")
       .select("id");
-    if (error) return false;
-    return Array.isArray(data) && data.length > 0;
+    if (error || !Array.isArray(data)) return new Set();
+    return new Set(data.map((x) => Number(x.id)).filter((x) => Number.isFinite(x)));
   } catch {
-    return false;
+    return new Set();
   }
 }
 
@@ -579,16 +633,20 @@ async function releaseBurstSendToken(burstKey) {
 
 async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
   if (!isBurstBatchEligibleKind(primaryClassified?.kind)) {
-    return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
+    return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [], leaderId: primaryRow?.id || null };
   }
 
   const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
-  if (!waNumber) return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
+  if (!waNumber) {
+    return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [], leaderId: primaryRow?.id || null };
+  }
 
   const earliest = (await fetchUnprocessedTextRowsForPhone(waNumber, 200))[0] || null;
-  if (!earliest) return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [] };
+  if (!earliest) {
+    return { ok: true, textBody: String(primaryTextBody || ""), extraRows: [], leaderId: primaryRow?.id || null };
+  }
   if (Number(earliest.id) !== Number(primaryRow.id)) {
-    return { ok: false, deferToPrimaryId: earliest.id };
+    return { ok: false, deferToPrimaryId: earliest.id, waNumber, leaderId: earliest.id };
   }
 
   const leaderAnchorIso = getBurstAnchorIso(earliest);
@@ -597,15 +655,22 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
   const deadlineMs = leaderAnchorMs + BURST_WINDOW_MS;
   const waitMs = Math.max(0, deadlineMs - Date.now());
   if (waitMs > 0) {
-    return { ok: false, waitUntilIso: deadlineIso, waitMs };
+    return { ok: false, waitUntilIso: deadlineIso, waitMs, waNumber, leaderId: earliest.id };
   }
 
   const sendToken = await claimBurstSendToken(waNumber, leaderAnchorIso);
   if (!sendToken.claimed) {
-    return { ok: false, alreadySent: true, burstKey: sendToken.burstKey };
+    return { ok: false, alreadySent: true, burstKey: sendToken.burstKey, waNumber, leaderId: earliest.id };
   }
 
   const burstRows = await fetchBurstRowsUpToDeadline(waNumber, deadlineIso);
+  const pendingIds = burstRows
+    .filter(
+      (row) =>
+        Number(row.id) !== Number(primaryRow.id) && String(row.status || "").toLowerCase() === "pending"
+    )
+    .map((row) => Number(row.id));
+  const claimedPendingIds = await claimPendingRowsForBurst(pendingIds, primaryRow.id);
   const extras = [];
   const texts = [];
   const seenExtraIds = new Set();
@@ -621,8 +686,7 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
 
     const rowStatus = String(row.status || "").toLowerCase();
     if (rowStatus === "pending") {
-      const claimed = await claimPendingRowForBurst(row.id, primaryRow.id);
-      if (!claimed) continue;
+      if (!claimedPendingIds.has(Number(row.id))) continue;
       extras.push({ ...row, status: "processing" });
       seenExtraIds.add(Number(row.id));
     } else if (rowStatus === "processing") {
@@ -649,6 +713,8 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
     textBody: combinedText,
     extraRows: extras,
     burstKey: sendToken.burstKey,
+    waNumber,
+    leaderId: earliest.id,
   };
 }
 
@@ -1373,6 +1439,7 @@ async function mainLoop() {
       safeIso(received_at) ||
       nowIso();
     let activeBurstKey = null;
+    let activePhoneLock = null;
 
     try {
       const waNumber = classified.wa_number;
@@ -1522,12 +1589,23 @@ async function mainLoop() {
 
       let extraRowsToFinalize = [];
       if (isTextLikeInbound) {
+        const lockOwner = `job_${id}`;
+        const lock = await tryClaimPhoneBurstLock(waNumber, lockOwner);
+        if (!lock.claimed) {
+          await deferDueToPhoneLock(id);
+          continue;
+        }
+        activePhoneLock = { waNumber, lockOwner };
+
         const burst = await buildBurstBatch(row, classified, textBody);
         if (!burst.ok && burst.deferToPrimaryId) {
           await deferToBurstPrimary(id, burst.deferToPrimaryId);
           continue;
         }
         if (!burst.ok && burst.waitUntilIso) {
+          console.log(
+            `[batch] wait phone=${tailN(burst.waNumber || waNumber, 4)} leader_id=${burst.leaderId || id} deadline_in_ms=${Math.max(0, Number(burst.waitMs || 0))}`
+          );
           await rescheduleLeaderForBurstDeadline(id, burst.waitUntilIso);
           continue;
         }
@@ -1543,9 +1621,8 @@ async function mainLoop() {
         textBody = String(burst.textBody || textBody || "");
         extraRowsToFinalize = Array.isArray(burst.extraRows) ? burst.extraRows : [];
 
-        const extraIdsLast4 = extraRowsToFinalize.map((x) => tailN(x?.id, 4)).join(",");
         console.log(
-          `[batch] primary_id_last4=${tailN(id, 4)} extra_count=${extraRowsToFinalize.length} total_chars=${String(textBody || "").length}${extraIdsLast4 ? ` extra_ids_last4=${extraIdsLast4}` : ""}`
+          `[batch] finalize phone=${tailN(burst.waNumber || waNumber, 4)} leader_id=${burst.leaderId || id} extra_count=${extraRowsToFinalize.length} total_chars=${String(textBody || "").length}`
         );
       }
 
@@ -1575,6 +1652,9 @@ async function mainLoop() {
       });
       console.log("[worker] non-fatal loop error:", String(e?.message || e).slice(0, 200));
     } finally {
+      if (activePhoneLock?.waNumber && activePhoneLock?.lockOwner) {
+        await releasePhoneBurstLock(activePhoneLock.waNumber, activePhoneLock.lockOwner);
+      }
       await wipeInboundEventTextEnc(id);
     }
   }
