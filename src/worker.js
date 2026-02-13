@@ -590,16 +590,24 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
   const burstRows = await fetchBurstRowsUpToDeadline(waNumber, deadlineIso);
   const extras = [];
   const texts = [String(primaryTextBody || "")];
+  const seenExtraIds = new Set();
 
   for (const row of burstRows) {
     if (Number(row.id) === Number(primaryRow.id)) continue;
+    if (seenExtraIds.has(Number(row.id))) continue;
 
     const rowStatus = String(row.status || "").toLowerCase();
-    if (rowStatus === "processing") continue;
-
-    const claimed = await claimPendingRowForBurst(row.id, primaryRow.id);
-    if (!claimed) continue;
-    extras.push({ ...row, status: "processing" });
+    if (rowStatus === "pending") {
+      const claimed = await claimPendingRowForBurst(row.id, primaryRow.id);
+      if (!claimed) continue;
+      extras.push({ ...row, status: "processing" });
+      seenExtraIds.add(Number(row.id));
+    } else if (rowStatus === "processing") {
+      extras.push({ ...row, status: "processing" });
+      seenExtraIds.add(Number(row.id));
+    } else {
+      continue;
+    }
 
     const extraClassified = classifyWhatsAppEvent(row);
     const loaded = await loadTextForClassifiedEvent(row, extraClassified);
