@@ -281,6 +281,12 @@ function labelsForTarget(target_lang) {
   };
 }
 
+function normalizeForcedLanguage(code) {
+  const v = String(code || "").trim().toLowerCase();
+  if (v === "en" || v === "ar" || v === "es" || v === "auto") return v;
+  return null;
+}
+
 // ---------- R1: time utilities (Asia/Qatar) ----------
 const DEFAULT_TZ = "Asia/Qatar";
 
@@ -875,7 +881,7 @@ function formatForWhatsApp(schemaObj, maxChars, target_lang, savedMinutes) {
 }
 
 // ---------- main summarizer ----------
-async function summarizeText({ text, anchor_ts_iso, timezone }) {
+async function summarizeText({ text, anchor_ts_iso, timezone, forced_lang }) {
   const DRY_RUN = getBoolEnv("DRY_RUN", false);
 
   const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
@@ -897,8 +903,16 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
   const clipped = trimmed.length > maxInputChars ? trimmed.slice(0, maxInputChars) : trimmed;
   const savedMinutes = estimateSavedMinutesFromInput(trimmed);
 
-  const requestedOverride = extractRequestedLanguageOverride(clipped);
-  const langTarget = requestedOverride ? { target_lang: requestedOverride, reason: "explicit_override" } : detectTargetLanguage(clipped);
+  const normalizedForcedLang = normalizeForcedLanguage(forced_lang);
+  let langTarget = null;
+  if (normalizedForcedLang && normalizedForcedLang !== "auto") {
+    langTarget = { target_lang: normalizedForcedLang, reason: "forced_user_pref" };
+  } else {
+    const requestedOverride = extractRequestedLanguageOverride(clipped);
+    langTarget = requestedOverride
+      ? { target_lang: requestedOverride, reason: "explicit_override" }
+      : detectTargetLanguage(clipped);
+  }
   const target_lang = langTarget.target_lang;
 
   const request_fingerprint = crypto

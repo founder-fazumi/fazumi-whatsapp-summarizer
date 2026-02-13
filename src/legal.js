@@ -27,10 +27,14 @@ function normalizeText(s) {
 }
 
 function isCommand(text, cmd) {
-  return normalizeText(text).toUpperCase() === cmd;
+  const normalized = normalizeText(text).toUpperCase().replace(/^\/+/, '');
+  return normalized === cmd;
 }
 function isLangCommand(text) {
-  return /^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(normalizeText(text).toUpperCase());
+  return /^\/?LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(normalizeText(text).toUpperCase());
+}
+function isFeedbackCommand(text) {
+  return /^\/?FEEDBACK(?:\s*:.*)?$/.test(normalizeText(text).toUpperCase());
 }
 
 function tailN(v, n) {
@@ -131,7 +135,7 @@ async function ensureFirstTimeNoticeAndTos(waNumber, user, opts = {}) {
   if (isCommand(inboundText, 'HELP')) return { stop: false, outcome: 'cmd_help' };
   if (isCommand(inboundText, 'STATUS')) return { stop: false, outcome: 'cmd_status' };
   if (isCommand(inboundText, 'PAY')) return { stop: false, outcome: 'cmd_pay' };
-  if (isCommand(inboundText, 'FEEDBACK')) return { stop: false, outcome: 'cmd_feedback' };
+  if (isFeedbackCommand(inboundText)) return { stop: false, outcome: 'cmd_feedback' };
   if (isLangCommand(inboundText)) return { stop: false, outcome: 'cmd_lang' };
 
   // Hard block conditions (if your schema has these flags)

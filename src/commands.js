@@ -1,5 +1,12 @@
 'use strict';
 
+function parseFeedbackPayload(text) {
+  const raw = String(text || '').trim();
+  const match = /^\/?FEEDBACK\s*:(.*)$/i.exec(raw);
+  if (!match) return null;
+  return String(match[1] || '').trim();
+}
+
 function normalize(text) {
   return String(text || '').trim().replace(/\s+/g, ' ').toUpperCase().replace(/[.!?]+$/g, '');
 }
@@ -42,6 +49,19 @@ function buildLangUpdatedMessage(code) {
 
 async function updateUser(supabase, waNumber, patch) {
   const { error } = await supabase.from('users').update(patch).eq('phone_e164', waNumber);
+  if (error) throw error;
+}
+
+async function storeUserFeedback(supabase, waNumber, message, waMessageId) {
+  const meta = {};
+  if (waMessageId) meta.wa_message_id = String(waMessageId);
+  const insertRow = {
+    phone_e164: waNumber,
+    message: String(message || '').trim(),
+    ...(Object.keys(meta).length ? { meta_json: meta } : {}),
+  };
+
+  const { error } = await supabase.from('user_feedback').insert(insertRow);
   if (error) throw error;
 }
 
@@ -136,6 +156,7 @@ async function processCommand(input, legacyUser, legacyTextBody) {
   const supabase = ctx.supabase || null;
   const sendText = typeof ctx.sendText === 'function' ? ctx.sendText : null;
   const nowIso = typeof ctx.nowIso === 'function' ? ctx.nowIso : () => new Date().toISOString();
+  const waMessageId = String(ctx.waMessageId || '').trim();
   const buildStatusMessage =
     typeof ctx.buildStatusMessage === 'function'
       ? ctx.buildStatusMessage
@@ -149,6 +170,19 @@ async function processCommand(input, legacyUser, legacyTextBody) {
   }
 
   if (!t) return { handled: false };
+
+  const feedbackPayload = parseFeedbackPayload(ctx.textBody);
+  if (feedbackPayload != null) {
+    if (!feedbackPayload) {
+      await reply('✍️ Please send FEEDBACK: <your message>');
+      return { handled: true, action: 'feedback_empty' };
+    }
+
+    if (!supabase || !waNumber) throw new Error('feedback_store_missing_context');
+    await storeUserFeedback(supabase, waNumber, feedbackPayload, waMessageId);
+    await reply('✅ Thanks — feedback received.');
+    return { handled: true, action: 'feedback_received' };
+  }
 
   if (t === 'HELP') {
     await reply(buildHelpMessage(user));

@@ -195,8 +195,14 @@ function normalizeInboundText(text) {
 }
 
 function extractCommandText(text) {
-  const normalized = normalizeInboundText(text);
-  if (!normalized) return null;
+  const raw = String(text || "").trim().replace(/\s+/g, " ");
+  if (!raw) return null;
+
+  if (/^\/?FEEDBACK\s*:.*$/i.test(raw)) {
+    return raw.replace(/^\/+/, "");
+  }
+
+  const normalized = normalizeInboundText(raw);
 
   // Accept leading slash and trailing punctuation from mobile keyboards.
   const cleaned = normalized.replace(/^\/+/, "").replace(/[:;,.!?]+$/g, "").trim();
@@ -431,45 +437,26 @@ function getBurstAnchorIso(row) {
 }
 
 async function fetchPendingBurstRows(waNumber, primaryId, windowStartIso, windowEndIso) {
-  if (!waNumber || !windowStartIso || !windowEndIso) return [];
+  if (!waNumber || !windowEndIso) return [];
 
-  const { data, error } = await supabase
-    .from("inbound_events")
-    .select("id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
-    .eq("provider", "whatsapp")
-    .eq("status", "pending")
-    .eq("from_phone", waNumber)
-    .neq("id", primaryId)
-    .gte("created_at", windowStartIso)
-    .lte("created_at", windowEndIso)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(80);
-
-  if (error) {
-    console.log(`[batch] fetch_error primary_id_last4=${tailN(primaryId, 4)} msg=${truncateErr500(error)}`);
-    return [];
-  }
-  return Array.isArray(data) ? data : [];
-}
-
-async function fetchBurstWindowRows(waNumber, windowStartIso, windowEndIso) {
-  if (!waNumber || !windowStartIso || !windowEndIso) return [];
-
-  const { data, error } = await supabase
+  const query = supabase
     .from("inbound_events")
     .select("id, meta, created_at, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
     .eq("provider", "whatsapp")
     .eq("from_phone", waNumber)
     .in("status", ["pending", "processing"])
-    .gte("created_at", windowStartIso)
-    .lte("created_at", windowEndIso)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(120);
+    .lte("created_at", windowEndIso);
 
+  if (windowStartIso) query.gte("created_at", windowStartIso);
+  if (primaryId != null) query.neq("id", primaryId);
+
+  const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(200);
   if (error) return [];
   return Array.isArray(data) ? data : [];
+}
+
+async function fetchBurstWindowRows(waNumber, windowStartIso, windowEndIso) {
+  return fetchPendingBurstRows(waNumber, null, windowStartIso, windowEndIso);
 }
 
 async function deferToBurstPrimary(currentId, primaryId) {
@@ -496,18 +483,12 @@ async function shouldCurrentRowLeadBurst(primaryRow, primaryClassified) {
   const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
   if (!waNumber) return { shouldLead: true, primaryId: primaryRow?.id };
 
-  const anchorIso = getBurstAnchorIso(primaryRow);
-  const anchorMs = isoToMsOrNull(anchorIso) ?? Date.now();
-  const windowStartIso = new Date(anchorMs - BURST_WINDOW_MS).toISOString();
-  const windowEndIso = anchorIso;
-  const rows = await fetchBurstWindowRows(waNumber, windowStartIso, windowEndIso);
+  const rows = await fetchBurstWindowRows(waNumber, null, nowIso());
 
   const candidates = [];
   for (const row of rows) {
     const classified = classifyWhatsAppEvent(row);
     if (!isBurstBatchEligibleKind(classified.kind)) continue;
-    // Commands must never be batched.
-    if (classified.kind === "inbound_command") continue;
     candidates.push(row);
   }
   if (!candidates.length) return { shouldLead: true, primaryId: primaryRow?.id };
@@ -520,34 +501,82 @@ async function shouldCurrentRowLeadBurst(primaryRow, primaryClassified) {
   });
 
   const leader = candidates[0];
+  const firstCreatedAtIso = getBurstAnchorIso(leader);
   return {
     shouldLead: Number(leader?.id) === Number(primaryRow?.id),
     primaryId: leader?.id ?? primaryRow?.id,
+    firstCreatedAtIso,
   };
 }
 
-async function collectBurstExtraRows(primaryRow, primaryClassified) {
-  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return [];
+async function claimBurstChildRow(row, parentId) {
+  try {
+    const { data, error } = await supabase
+      .from("inbound_events")
+      .update({
+        status: "processing",
+        outcome: "burst_claimed",
+        skip_reason: `burst_claimed_by_${parentId}`,
+        processed_at: null,
+      })
+      .eq("id", row.id)
+      .eq("status", "pending")
+      .select("id");
+    if (error) return false;
+    return Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function collectBurstExtraRows(primaryRow, primaryClassified, firstCreatedAtIso) {
+  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return { rows: [] };
 
   const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
-  if (!waNumber) return [];
+  if (!waNumber) return { rows: [] };
 
-  const primaryAnchorIso = getBurstAnchorIso(primaryRow);
-  const primaryAnchorMs = isoToMsOrNull(primaryAnchorIso) ?? Date.now();
-  const burstEndMs = primaryAnchorMs + BURST_WINDOW_MS;
-  const waitUntilWindowCloseMs = Math.max(0, burstEndMs - Date.now());
+  const firstAnchorIso = safeIso(firstCreatedAtIso) || getBurstAnchorIso(primaryRow);
+  const firstAnchorMs = isoToMsOrNull(firstAnchorIso) ?? Date.now();
+  const mustWaitUntilMs = firstAnchorMs + BURST_WINDOW_MS;
+  const waitUntilWindowCloseMs = Math.max(0, mustWaitUntilMs - Date.now());
   if (waitUntilWindowCloseMs > 0) await sleep(waitUntilWindowCloseMs);
 
+  const burstEndMs = Math.max(mustWaitUntilMs, Date.now());
   const burstEndIso = new Date(burstEndMs).toISOString();
-  const extras = await fetchPendingBurstRows(waNumber, primaryRow.id, primaryAnchorIso, burstEndIso);
+  const rows = await fetchPendingBurstRows(waNumber, null, null, burstEndIso);
+  const candidates = [];
+  for (const row of rows) {
+    const classified = classifyWhatsAppEvent(row);
+    if (!isBurstBatchEligibleKind(classified?.kind)) continue;
+    candidates.push(row);
+  }
 
-  extras.sort((a, b) => {
+  if (!candidates.length) return { rows: [] };
+
+  candidates.sort((a, b) => {
     const aMs = isoToMsOrNull(getBurstAnchorIso(a)) ?? 0;
     const bMs = isoToMsOrNull(getBurstAnchorIso(b)) ?? 0;
     if (aMs !== bMs) return aMs - bMs;
     return Number(a?.id || 0) - Number(b?.id || 0);
   });
-  return extras;
+
+  const leader = candidates[0];
+  if (Number(leader?.id) !== Number(primaryRow?.id)) {
+    return { rows: [], deferToPrimaryId: leader?.id ?? null };
+  }
+
+  const claimedExtras = [];
+  for (const row of candidates) {
+    if (Number(row?.id) === Number(primaryRow?.id)) continue;
+    if (row?.status === "processing") continue;
+
+    const claimed = await claimBurstChildRow(row, primaryRow?.id);
+    if (claimed) {
+      claimedExtras.push({ ...row, status: "processing" });
+    }
+  }
+
+  return { rows: claimedExtras, burstEndIso };
 }
 
 function combineBurstMessagesForSummary(messageTexts) {
@@ -631,7 +660,7 @@ async function markBatchedChildrenProcessed(extraRows, parentId) {
           skip_reason: `batched_to_${parentId}`,
         })
         .eq("id", childId)
-        .eq("status", "pending");
+        .eq("status", "processing");
       if (error) {
         console.log(
           `[batch] child_mark_error parent_id_last4=${tailN(parentId, 4)} child_id_last4=${tailN(childId, 4)}`
@@ -707,7 +736,7 @@ function classifyWhatsAppEvent(eventRow) {
   if (kind === "status_event") return { kind: "status_event", wa_number };
 
   if (kind === "inbound_command") {
-    const command = String(meta.command || "").trim().toUpperCase();
+    const command = String(meta.command || "").trim();
     return { kind: "inbound_command", wa_number, command };
   }
   if (kind === "inbound_unsupported_media") return { kind: "unsupported_media", wa_number };
@@ -1032,7 +1061,7 @@ function buildPayMessage() {
 }
 
 // -------------------- OpenAI summary wrapper --------------------
-async function generateSummaryOrDryRun(inputText, eventTsIso) {
+async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) {
   const maxChars = Number(process.env.OPENAI_MAX_INPUT_CHARS || 6000);
   const prepared = buildSummarizerInputText(inputText, maxChars);
   const capped = prepared.text;
@@ -1048,6 +1077,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
             text: capped,
             anchor_ts_iso: eventTsIso || null,
             timezone: FAZUMI_TZ,
+            forced_lang: languageOverride || null,
           });
           return {
             ok: true,
@@ -1140,7 +1170,10 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
     return { action: "paywall" };
   }
 
-  const result = await generateSummaryOrDryRun(textBody, eventTsIso);
+  const langPref = getUserLangPref(user);
+  const forcedLang = langPref === "auto" ? null : langPref;
+
+  const result = await generateSummaryOrDryRun(textBody, eventTsIso, forcedLang);
 
   if (!result.ok) {
     if (result.busy_reason) {
@@ -1296,6 +1329,7 @@ async function mainLoop() {
           waNumber,
           user,
           textBody: classified.command,
+          waMessageId: row?.wa_message_id || null,
           eventTsIso,
           supabase,
           nowIso,
@@ -1361,6 +1395,7 @@ async function mainLoop() {
           waNumber,
           user,
           textBody: extractedCommand,
+          waMessageId: row?.wa_message_id || null,
           eventTsIso,
           supabase,
           nowIso,
@@ -1384,7 +1419,12 @@ async function mainLoop() {
           continue;
         }
 
-        collectedExtras = await collectBurstExtraRows(row, classified);
+        const burstRows = await collectBurstExtraRows(row, classified, leadCheck.firstCreatedAtIso);
+        if (burstRows.deferToPrimaryId) {
+          await deferToBurstPrimary(id, burstRows.deferToPrimaryId);
+          continue;
+        }
+        collectedExtras = burstRows.rows || [];
 
         const burstTexts = [String(textBody)];
         for (const extraRow of collectedExtras) {

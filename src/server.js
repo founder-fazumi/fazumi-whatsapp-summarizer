@@ -122,6 +122,10 @@ function normalizeInboundCommandText(text) {
   return normalized.trim();
 }
 
+function normalizeRawCommandText(text) {
+  return String(text || "").trim().replace(/\s+/g, " ").replace(/^\/+/, "").trim();
+}
+
 function extractInboundTextBody(msg) {
   const type = String(msg?.type || "").toLowerCase();
   if (type === "text") return String(msg?.text?.body || "");
@@ -457,13 +461,15 @@ app.post("/webhooks/whatsapp", (req, res) => {
         // Note: interactive payloads vary; worker can handle details if needed.
 
         const upper = rawText ? normalizeInboundCommandText(rawText) : "";
+        const rawCommand = rawText ? normalizeRawCommandText(rawText) : "";
 
         const COMMANDS = new Set(["HELP", "STATUS", "PAY", "STOP", "START", "DELETE", "FEEDBACK"]);
         const isLangCommand = /^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(upper);
+        const isFeedbackCommand = /^FEEDBACK$/i.test(rawCommand);
 
         const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
         const hasText = rawText && rawText.trim().length > 0;
-        const isCommand = isTextLike && hasText && (COMMANDS.has(upper) || isLangCommand);
+        const isCommand = isTextLike && hasText && (COMMANDS.has(upper) || isLangCommand || isFeedbackCommand);
 
         const reactionMeta = extractReactionMeta(msg);
         const otherMediaMeta = extractOtherMediaMeta(msg);
@@ -509,7 +515,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
           msg_type: msgType,
           event_kind,
 
-          ...(event_kind === "inbound_command" ? { command: upper } : {}),
+          ...(event_kind === "inbound_command" ? { command: isFeedbackCommand ? rawCommand : upper } : {}),
           ...(textSha ? { text_sha256: textSha } : {}),
           ...(textEnc ? { text_enc: textEnc, text_len: textLen } : {}),
           ...(otherMediaMeta ? { media: otherMediaMeta } : {}),
