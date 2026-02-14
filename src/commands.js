@@ -48,7 +48,11 @@ function buildLangUpdatedMessage(code) {
 }
 
 async function updateUser(supabase, waNumber, patch) {
-  const { error } = await supabase.from('users').update(patch).eq('phone_e164', waNumber);
+  const safePatch = { ...(patch && typeof patch === 'object' ? patch : {}) };
+  if (Object.prototype.hasOwnProperty.call(safePatch, 'provider')) {
+    delete safePatch.provider;
+  }
+  const { error } = await supabase.from('users').update(safePatch).eq('phone_e164', waNumber);
   if (error) throw error;
 }
 
