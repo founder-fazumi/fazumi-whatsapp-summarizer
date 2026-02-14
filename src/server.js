@@ -326,6 +326,84 @@ async function scheduleInboundTextBurst({
   const phone = normalizePhoneE164(phoneE164 || insertedRow?.from_phone || insertedRow?.wa_number || "");
   if (!phone) return null;
 
+  const fallbackSchedule = async (reason) => {
+    const anchor = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
+    const deadline = new Date(Date.parse(anchor) + Number(burstWindowMs || 6000)).toISOString();
+    console.log(`[burst] fallback_used phone=${safeIdSuffixForPath(phone)} reason=${String(reason || "rpc_unavailable").slice(0, 80)}`);
+
+    const { data: fallbackCandidates, error: fallbackCandidateError } = await supabaseClient
+      .from("inbound_events")
+      .select("id, meta")
+      .eq("provider", "whatsapp")
+      .or(`from_phone.eq.${phone},wa_number.eq.${phone}`)
+      .is("processed_at", null)
+      .in("status", ["pending", "processing"])
+      .gte("received_at", anchor)
+      .lte("received_at", deadline)
+      .order("received_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(800);
+
+    if (fallbackCandidateError) {
+      console.log(
+        `[burst] candidate_fetch_failed phone=${safeIdSuffixForPath(phone)} reason=${String(fallbackCandidateError.message || fallbackCandidateError).slice(0, 140)}`
+      );
+      return { anchor, deadline };
+    }
+
+    const ids = [];
+    for (const row of fallbackCandidates || []) {
+      const eventKind = String(row?.meta?.event_kind || "").toLowerCase();
+      if (eventKind === "inbound_text" && Number.isFinite(Number(row?.id))) {
+        ids.push(Number(row.id));
+      }
+    }
+
+    const insertedId = Number(insertedRow?.id);
+    if (Number.isFinite(insertedId) && !ids.includes(insertedId)) ids.push(insertedId);
+
+    const skipReason = ids.length >= Number(burstMinMessages || 2) ? "burst_scheduled_fallback" : "burst_single_wait_fallback";
+
+    if (ids.length > 0) {
+      const { error: fallbackUpdateError } = await supabaseClient
+        .from("inbound_events")
+        .update({
+          next_attempt_at: deadline,
+          status: "pending",
+          processed_at: null,
+          skip_reason: skipReason,
+        })
+        .in("id", ids)
+        .is("processed_at", null);
+
+      if (fallbackUpdateError) {
+        console.log(
+          `[burst] assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(fallbackUpdateError.message || fallbackUpdateError).slice(0, 140)}`
+        );
+      }
+    }
+
+    if (Number.isFinite(insertedId)) {
+      const { error: fallbackLeaderError } = await supabaseClient
+        .from("inbound_events")
+        .update({
+          next_attempt_at: deadline,
+          status: "pending",
+          processed_at: null,
+          skip_reason: skipReason,
+        })
+        .eq("id", insertedId)
+        .is("processed_at", null);
+      if (fallbackLeaderError) {
+        console.log(
+          `[burst] leader_assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(fallbackLeaderError.message || fallbackLeaderError).slice(0, 140)}`
+        );
+      }
+    }
+
+    return { anchor, deadline };
+  };
+
   const receivedAtIso = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
   const burstSeconds = Math.max(1, Math.ceil(Number(burstWindowMs || 6000) / 1000));
   const { data: burstData, error: burstError } = await supabaseClient.rpc("ensure_phone_burst", {
@@ -334,14 +412,15 @@ async function scheduleInboundTextBurst({
     p_burst_seconds: burstSeconds,
   });
   if (burstError) {
-    console.log(`[burst] schedule_failed phone=${safeIdSuffixForPath(phone)} reason=${String(burstError.message || burstError).slice(0, 140)}`);
-    return null;
+    return fallbackSchedule(`rpc_error:${String(burstError.message || burstError).slice(0, 60)}`);
   }
 
   const burst = Array.isArray(burstData) ? burstData[0] : burstData;
   const anchor = parseTimestampToIsoOrNull(burst?.anchor_received_at);
   const deadline = parseTimestampToIsoOrNull(burst?.deadline_at);
-  if (!anchor || !deadline) return null;
+  if (!anchor || !deadline) {
+    return fallbackSchedule("rpc_missing_data");
+  }
 
   const { data: candidateRows, error: candidateError } = await supabaseClient
     .from("inbound_events")
