@@ -22,7 +22,6 @@ require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
-const { normalizeProvider, safeInsertInboundEvent } = require("./supabase");
 
 // ---- WORKER VERSION FINGERPRINT ----
 const WORKER_VERSION = "p5-workerpool-burst-scheduled-only-2026-02-14";
@@ -680,48 +679,11 @@ async function rescheduleLeaderForBurstDeadline(eventId, deadlineIso) {
   }
 }
 
-function buildBurstSendKey(waNumber, burstAnchorIso, burstDeadlineIso) {
-  const anchorMs = isoToMsOrNull(burstAnchorIso) ?? 0;
-  const deadlineMs = isoToMsOrNull(burstDeadlineIso) ?? 0;
-  const phoneKey = hashPhone(waNumber).slice(0, 20);
-  return `burst_send:${phoneKey}:${String(anchorMs)}:${String(deadlineMs)}`;
-}
-
-async function claimBurstSendToken(waNumber, burstAnchorIso, burstDeadlineIso) {
-  const burstKey = buildBurstSendKey(waNumber, burstAnchorIso, burstDeadlineIso);
-  const row = {
-    provider: normalizeProvider("waba", "whatsapp"),
-    status: "done",
-    attempts: 0,
-    provider_event_id: String(burstKey || "").trim(),
-    payload_sha256: crypto.createHash("sha256").update(burstKey, "utf8").digest("hex"),
-    wa_number: waNumber,
-    from_phone: waNumber,
-    user_msg_ts: safeIso(burstAnchorIso) || nowIso(),
-    meta: {
-      event_kind: "burst_send_token",
-      burst_key: burstKey,
-    },
-  };
-
-  const inserted = await safeInsertInboundEvent(supabase, row);
-  if (inserted?.ok && inserted?.inserted === false) return { claimed: false, burstKey };
-  if (inserted?.ok) return { claimed: true, burstKey };
-  throw inserted?.error || new Error("burst_send_token_insert_failed");
-}
-
-async function releaseBurstSendToken(burstKey) {
-  const key = String(burstKey || "").trim();
-  if (!key) return;
-  try {
-    await supabase
-      .from("inbound_events")
-      .delete()
-      .in("provider", [normalizeProvider("whatsapp", "whatsapp"), "system"])
-      .eq("provider_event_id", key);
-  } catch {
-    // best effort
-  }
+function chooseBurstLeaderId(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const sorted = [...rows].sort(compareRowsByAnchor);
+  const leader = sorted[0];
+  return Number.isFinite(Number(leader?.id)) ? Number(leader.id) : null;
 }
 
 async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
@@ -792,19 +754,6 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
     };
   }
 
-  const sendToken = await claimBurstSendToken(waNumber, refreshedAnchorIso, refreshedDeadlineIso);
-  if (!sendToken.claimed) {
-    return {
-      ok: false,
-      alreadySent: true,
-      burstKey: sendToken.burstKey,
-      waNumber,
-      leaderId: primaryRow?.id || null,
-      anchorIso: refreshedAnchorIso,
-      deadlineIso: refreshedDeadlineIso,
-    };
-  }
-
   const burstRows = await fetchBurstRowsForFinalize(waNumber, refreshedAnchorIso, refreshedDeadlineIso, 800);
   if (!burstRows.find((row) => Number(row.id) === Number(primaryRow.id))) {
     burstRows.push(primaryRow);
@@ -818,7 +767,6 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
     return {
       ok: false,
       alreadySent: true,
-      burstKey: sendToken.burstKey,
       waNumber,
       leaderId: primaryRow?.id || null,
       anchorIso: refreshedAnchorIso,
@@ -829,6 +777,27 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
   const claimedRows = burstRows.filter((row) => claimedIds.has(Number(row.id)));
   if (!claimedRows.find((row) => Number(row.id) === Number(primaryRow.id)) && claimedIds.has(Number(primaryRow.id))) {
     claimedRows.unshift(primaryRow);
+  }
+  const leaderId = chooseBurstLeaderId(claimedRows);
+  if (!Number.isFinite(Number(leaderId))) {
+    return {
+      ok: false,
+      alreadySent: true,
+      waNumber,
+      leaderId: primaryRow?.id || null,
+      anchorIso: refreshedAnchorIso,
+      deadlineIso: refreshedDeadlineIso,
+    };
+  }
+  if (Number(primaryRow?.id) !== Number(leaderId)) {
+    return {
+      ok: false,
+      deferredToPrimary: true,
+      leaderId,
+      waNumber,
+      anchorIso: refreshedAnchorIso,
+      deadlineIso: refreshedDeadlineIso,
+    };
   }
 
   const texts = [];
@@ -853,9 +822,8 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
     burstRows: claimedRows,
     burstRowIds,
     burstMessageCount: texts.length,
-    burstKey: sendToken.burstKey,
     waNumber,
-    leaderId: primaryRow?.id || null,
+    leaderId,
     anchorIso: refreshedAnchorIso,
     deadlineIso: refreshedDeadlineIso,
   };
@@ -967,21 +935,44 @@ async function markBurstRowsProcessed(rowIds, parentId, outcome) {
   if (!Array.isArray(rowIds) || rowIds.length === 0) return;
   const uniqueIds = Array.from(new Set(rowIds.map((x) => Number(x)).filter((x) => Number.isFinite(x))));
   if (uniqueIds.length === 0) return;
+  const parentNumeric = Number(parentId);
+  const childIds = uniqueIds.filter((id) => id !== parentNumeric);
 
-  const outcomeValue = String(outcome || "processed");
-  const { error } = await supabase
+  const parentOutcome = String(outcome || "processed");
+  const parentUpdate = {
+    processed_at: nowIso(),
+    status: "processed",
+    outcome: parentOutcome,
+    skip_reason: `burst_finalized_by_${parentId}`,
+    next_attempt_at: null,
+  };
+
+  const { error: parentError } = await supabase
     .from("inbound_events")
-    .update({
-      processed_at: nowIso(),
-      status: "processed",
-      outcome: outcomeValue,
-      skip_reason: `burst_finalized_by_${parentId}`,
-    })
-    .in("id", uniqueIds)
+    .update(parentUpdate)
+    .eq("id", parentNumeric)
     .is("processed_at", null);
 
-  if (error) {
-    console.log(`[batch] mark_rows_failed parent_id_last4=${tailN(parentId, 4)} rows=${uniqueIds.length}`);
+  if (parentError) {
+    console.log(`[batch] mark_parent_failed parent_id_last4=${tailN(parentId, 4)}`);
+  }
+
+  if (childIds.length > 0) {
+    const { error: childError } = await supabase
+      .from("inbound_events")
+      .update({
+        processed_at: nowIso(),
+        status: "processed",
+        outcome: "batched_child",
+        skip_reason: `burst_child_of_${parentId}`,
+        next_attempt_at: null,
+      })
+      .in("id", childIds)
+      .is("processed_at", null);
+
+    if (childError) {
+      console.log(`[batch] mark_children_failed parent_id_last4=${tailN(parentId, 4)} rows=${childIds.length}`);
+    }
   }
 }
 
@@ -1050,7 +1041,22 @@ async function markEvent(id, patch) {
       update[key] = patch[key];
     }
   }
-  const { error } = await supabase.from("inbound_events").update(update).eq("id", id);
+  if (!Object.prototype.hasOwnProperty.call(update, "status")) {
+    update.status = "processed";
+  }
+  if (update.status === "processed" && !Object.prototype.hasOwnProperty.call(update, "next_attempt_at")) {
+    update.next_attempt_at = null;
+  }
+
+  let query = supabase
+    .from("inbound_events")
+    .update(update)
+    .eq("id", id)
+    .in("status", ["pending", "processing"]);
+  if (update.status === "processed" || update.status === "error") {
+    query = query.is("processed_at", null);
+  }
+  const { error } = await query;
   if (error) console.log("[worker] markEvent error:", String(error.message || error).slice(0, 140));
 }
 
@@ -1753,7 +1759,6 @@ async function mainLoop() {
       safeIso(meta?.timestamp) ||
       safeIso(received_at) ||
       nowIso();
-    let activeBurstKey = null;
     let activePhoneLock = null;
 
     try {
@@ -1938,11 +1943,27 @@ async function mainLoop() {
           await markEvent(id, {
             status: "processed",
             outcome: "burst_already_finalized",
-            skip_reason: burst.burstKey || null,
+            skip_reason: "burst_already_finalized",
           });
           continue;
         }
-        activeBurstKey = String(burst.burstKey || "").trim() || null;
+        if (!burst.ok && burst.deferredToPrimary && Number.isFinite(Number(burst.leaderId))) {
+          await deferToBurstPrimary(id, burst.leaderId);
+          console.log(
+            `[batch] defer phone=${tailN(burst.waNumber || waNumber, 4)} id=${id} leader_id=${burst.leaderId}`
+          );
+          continue;
+        }
+        if (!burst.ok) {
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            next_attempt_at: nowIso(),
+            outcome: "burst_retry",
+            skip_reason: "burst_retry",
+          });
+          continue;
+        }
         burstDeadlineIso = safeIso(burst.deadlineIso) || null;
         textBody = String(burst.textBody || textBody || "");
         burstRowIdsToFinalize = Array.isArray(burst.burstRowIds)
@@ -1958,9 +1979,6 @@ async function mainLoop() {
       }
 
       const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso);
-      if (activeBurstKey && r.action !== "summary_sent") {
-        await releaseBurstSendToken(activeBurstKey);
-      }
 
       if (isTextLikeInbound && burstRowIdsToFinalize.length > 0) {
         await markBurstRowsProcessed(burstRowIdsToFinalize, id, r.action || "processed");
@@ -1979,9 +1997,6 @@ async function mainLoop() {
         skip_reason: r.skip_reason || null,
       });
     } catch (e) {
-      if (typeof activeBurstKey === "string" && activeBurstKey) {
-        await releaseBurstSendToken(activeBurstKey);
-      }
       await markEvent(id, {
         status: "error",
         outcome: "worker_error",
