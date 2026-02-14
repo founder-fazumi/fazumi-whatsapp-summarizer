@@ -43,6 +43,49 @@ function normalizeOptionalId(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function safeInboundRow(row) {
+  if (row && typeof row === "object") return row;
+  return {};
+}
+
+function normalizeAttempts(value) {
+  if (Number.isFinite(value)) return Math.max(0, Math.trunc(value));
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, parsed);
+}
+
+function safeMeta(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  return {};
+}
+
+function idSuffix(value, size = 8) {
+  const normalized = normalizeOptionalId(value);
+  if (!normalized) return null;
+  return normalized.slice(-size);
+}
+
+function chooseInboundConflictTarget(insertRow) {
+  const isWhatsApp = insertRow.provider === "whatsapp";
+  const hasWaMessageId = typeof insertRow.wa_message_id === "string" && insertRow.wa_message_id.trim().length > 0;
+  const hasProviderEventId =
+    typeof insertRow.provider_event_id === "string" && insertRow.provider_event_id.trim().length > 0;
+
+  if (isWhatsApp && hasWaMessageId) return "wa_message_id";
+  if (hasProviderEventId) return "provider,provider_event_id";
+  return null;
+}
+
+function logInboundConflictDiagnostics(insertRow, onConflict) {
+  console.log("[inbound_conflict_target]", {
+    provider: insertRow.provider || null,
+    provider_event_id_suffix: idSuffix(insertRow.provider_event_id),
+    wa_message_id_suffix: idSuffix(insertRow.wa_message_id),
+    on_conflict: onConflict,
+  });
+}
+
 /**
  * Insert inbound event safely with DB-first idempotency.
  *
@@ -57,59 +100,53 @@ function normalizeOptionalId(value) {
  * We insert best-effort; if your table lacks some columns, remove them here.
  */
 async function safeInsertInboundEvent(supabase, row) {
-  const providerRaw = row?.provider;
+  const safeRow = safeInboundRow(row);
+  const providerRaw = safeRow.provider;
   const providerNormalized = normalizeProvider(providerRaw, "whatsapp");
-  const providerEventIdNormalized = normalizeOptionalId(row?.provider_event_id);
+  const providerEventIdNormalized = normalizeOptionalId(safeRow.provider_event_id);
 
   if (providerRaw == null || String(providerRaw).trim() !== providerNormalized) {
     console.log("[inbound_provider_normalized]", {
       provider_raw: providerRaw == null ? null : String(providerRaw),
       provider_normalized: providerNormalized,
-      provider_event_id: providerEventIdNormalized,
+      provider_event_id_suffix: idSuffix(providerEventIdNormalized),
     });
   }
 
   // Minimal required columns
   const insertRow = {
     provider: providerNormalized,
-    status: row.status || "pending",
-    attempts: Number.isFinite(row.attempts) ? row.attempts : 0,
-    meta: row.meta || {},
+    status: safeRow.status || "pending",
+    attempts: normalizeAttempts(safeRow.attempts),
+    meta: safeMeta(safeRow.meta),
   };
 
   // Optional columns (only include if present in your schema)
   // If your schema doesn't have a column, Supabase will error.
   // Based on your earlier successful selects, these exist:
-  if (row.from_phone !== undefined) insertRow.from_phone = row.from_phone;
-  const waMessageIdNormalized = normalizeOptionalId(row?.wa_message_id);
+  if (safeRow.from_phone !== undefined) insertRow.from_phone = safeRow.from_phone;
+  const waMessageIdNormalized = normalizeOptionalId(safeRow.wa_message_id);
   if (waMessageIdNormalized !== null) {
     insertRow.wa_message_id = waMessageIdNormalized;
-  } else if (row.wa_message_id !== undefined) {
-    insertRow.wa_message_id = row.wa_message_id;
   }
-  if (row.user_msg_ts !== undefined) insertRow.user_msg_ts = row.user_msg_ts;
+  if (safeRow.user_msg_ts !== undefined) insertRow.user_msg_ts = safeRow.user_msg_ts;
 
   // These may exist in your schema; keep if you already created them.
-  if (row.wa_number !== undefined) insertRow.wa_number = row.wa_number;
-  if (row.payload_sha256 !== undefined) insertRow.payload_sha256 = row.payload_sha256;
+  if (safeRow.wa_number !== undefined) insertRow.wa_number = safeRow.wa_number;
+  if (safeRow.payload_sha256 !== undefined) insertRow.payload_sha256 = safeRow.payload_sha256;
   if (providerEventIdNormalized !== null) {
     insertRow.provider_event_id = providerEventIdNormalized;
-  } else if (row.provider_event_id !== undefined) {
-    insertRow.provider_event_id = row.provider_event_id;
   }
-  if (row.next_attempt_at !== undefined) insertRow.next_attempt_at = row.next_attempt_at;
+  if (safeRow.next_attempt_at !== undefined) insertRow.next_attempt_at = safeRow.next_attempt_at;
 
   try {
-    const isWhatsApp = insertRow.provider === "whatsapp";
-    const hasWaMessageId = typeof insertRow.wa_message_id === "string" && insertRow.wa_message_id.trim().length > 0;
-    const hasProviderEventId =
-      typeof insertRow.provider_event_id === "string" && insertRow.provider_event_id.trim().length > 0;
-
+    const onConflict = chooseInboundConflictTarget(insertRow);
+    logInboundConflictDiagnostics(insertRow, onConflict);
     let query = supabase.from("inbound_events");
-    if (isWhatsApp && hasWaMessageId) {
-      query = query.upsert(insertRow, { onConflict: "wa_message_id", ignoreDuplicates: true });
-    } else if (hasProviderEventId) {
-      query = query.upsert(insertRow, { onConflict: "provider_event_id", ignoreDuplicates: true });
+    if (onConflict === "wa_message_id") {
+      query = query.upsert(insertRow, { onConflict, ignoreDuplicates: true });
+    } else if (onConflict === "provider,provider_event_id") {
+      query = query.upsert(insertRow, { onConflict, ignoreDuplicates: true });
     } else {
       query = query.insert(insertRow);
     }
