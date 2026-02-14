@@ -22,6 +22,7 @@ require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
+const { normalizeProvider, safeInsertInboundEvent } = require("./supabase");
 
 // ---- WORKER VERSION FINGERPRINT ----
 const WORKER_VERSION = "p5-workerpool-text-only-mvp-2026-02-13";
@@ -689,10 +690,10 @@ function buildBurstSendKey(waNumber, burstDeadlineIso) {
 async function claimBurstSendToken(waNumber, burstAnchorIso) {
   const burstKey = buildBurstSendKey(waNumber, burstAnchorIso);
   const row = {
-    provider: "system",
+    provider: normalizeProvider("waba", "whatsapp"),
     status: "done",
     attempts: 0,
-    provider_event_id: burstKey,
+    provider_event_id: String(burstKey || "").trim(),
     payload_sha256: crypto.createHash("sha256").update(burstKey, "utf8").digest("hex"),
     wa_number: waNumber,
     from_phone: waNumber,
@@ -703,17 +704,21 @@ async function claimBurstSendToken(waNumber, burstAnchorIso) {
     },
   };
 
-  const { error } = await supabase.from("inbound_events").insert(row);
-  if (!error) return { claimed: true, burstKey };
-  if (error.code === "23505") return { claimed: false, burstKey };
-  throw error;
+  const inserted = await safeInsertInboundEvent(supabase, row);
+  if (inserted?.ok && inserted?.inserted === false) return { claimed: false, burstKey };
+  if (inserted?.ok) return { claimed: true, burstKey };
+  throw inserted?.error || new Error("burst_send_token_insert_failed");
 }
 
 async function releaseBurstSendToken(burstKey) {
   const key = String(burstKey || "").trim();
   if (!key) return;
   try {
-    await supabase.from("inbound_events").delete().eq("provider", "system").eq("provider_event_id", key);
+    await supabase
+      .from("inbound_events")
+      .delete()
+      .in("provider", [normalizeProvider("whatsapp", "whatsapp"), "system"])
+      .eq("provider_event_id", key);
   } catch {
     // best effort
   }

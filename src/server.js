@@ -34,7 +34,7 @@ const morgan = require("morgan");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 
-const { getSupabaseAdmin, safeInsertInboundEvent } = require("./supabase");
+const { getSupabaseAdmin, normalizeProvider, safeInsertInboundEvent } = require("./supabase");
 const { redact, verifyLemonSignature, sha256Hex } = require("./util");
 
 const app = express();
@@ -462,7 +462,7 @@ app.post("/webhooks/lemonsqueezy", express.raw({ type: "application/json", limit
   const customerId = attrs?.customer_id || attrs?.customerId || null;
 
   const row = {
-    provider: "lemonsqueezy",
+    provider: normalizeProvider("lemonsqueezy", "whatsapp"),
     status: "pending",
     attempts: 0,
     provider_event_id: providerEventId,
@@ -542,7 +542,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
         const payloadHash = sha256Hex(Buffer.from(JSON.stringify({ kind: "status", st })));
 
         const row = {
-          provider: "whatsapp",
+          provider: normalizeProvider("whatsapp", "whatsapp"),
           status: "done",
           attempts: 0,
           provider_event_id: providerEventId,
@@ -644,7 +644,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
         };
 
         const row = {
-          provider: "whatsapp",
+          provider: normalizeProvider("whatsapp", "whatsapp"),
           status: shouldEnqueue ? "pending" : "done",
           attempts: 0,
           provider_event_id: msgId, // dedupe key (DB must enforce)

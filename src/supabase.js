@@ -17,6 +17,32 @@ function getSupabaseAdmin() {
   return createClient(url, key);
 }
 
+function normalizeProvider(input, fallback = "whatsapp") {
+  const normalizeKnown = (value) => {
+    if (value == null) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    const lower = raw.toLowerCase();
+
+    if (lower === "whatsapp" || lower === "360dialog" || lower === "meta" || lower === "waba") {
+      return "whatsapp";
+    }
+    if (lower === "lemonsqueezy" || lower === "lemon_squeezy" || lower === "lemon-squeezy") {
+      return "lemonsqueezy";
+    }
+    return null;
+  };
+
+  const fallbackNormalized = normalizeKnown(fallback) || "whatsapp";
+  return normalizeKnown(input) || fallbackNormalized;
+}
+
+function normalizeOptionalId(value) {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /**
  * Insert inbound event safely with DB-first idempotency.
  *
@@ -31,9 +57,21 @@ function getSupabaseAdmin() {
  * We insert best-effort; if your table lacks some columns, remove them here.
  */
 async function safeInsertInboundEvent(supabase, row) {
+  const providerRaw = row?.provider;
+  const providerNormalized = normalizeProvider(providerRaw, "whatsapp");
+  const providerEventIdNormalized = normalizeOptionalId(row?.provider_event_id);
+
+  if (providerRaw == null || String(providerRaw).trim() !== providerNormalized) {
+    console.log("[inbound_provider_normalized]", {
+      provider_raw: providerRaw == null ? null : String(providerRaw),
+      provider_normalized: providerNormalized,
+      provider_event_id: providerEventIdNormalized,
+    });
+  }
+
   // Minimal required columns
   const insertRow = {
-    provider: row.provider,
+    provider: providerNormalized,
     status: row.status || "pending",
     attempts: Number.isFinite(row.attempts) ? row.attempts : 0,
     meta: row.meta || {},
@@ -43,17 +81,26 @@ async function safeInsertInboundEvent(supabase, row) {
   // If your schema doesn't have a column, Supabase will error.
   // Based on your earlier successful selects, these exist:
   if (row.from_phone !== undefined) insertRow.from_phone = row.from_phone;
-  if (row.wa_message_id !== undefined) insertRow.wa_message_id = row.wa_message_id;
+  const waMessageIdNormalized = normalizeOptionalId(row?.wa_message_id);
+  if (waMessageIdNormalized !== null) {
+    insertRow.wa_message_id = waMessageIdNormalized;
+  } else if (row.wa_message_id !== undefined) {
+    insertRow.wa_message_id = row.wa_message_id;
+  }
   if (row.user_msg_ts !== undefined) insertRow.user_msg_ts = row.user_msg_ts;
 
   // These may exist in your schema; keep if you already created them.
   if (row.wa_number !== undefined) insertRow.wa_number = row.wa_number;
   if (row.payload_sha256 !== undefined) insertRow.payload_sha256 = row.payload_sha256;
-  if (row.provider_event_id !== undefined) insertRow.provider_event_id = row.provider_event_id;
+  if (providerEventIdNormalized !== null) {
+    insertRow.provider_event_id = providerEventIdNormalized;
+  } else if (row.provider_event_id !== undefined) {
+    insertRow.provider_event_id = row.provider_event_id;
+  }
   if (row.next_attempt_at !== undefined) insertRow.next_attempt_at = row.next_attempt_at;
 
   try {
-    const isWhatsApp = String(insertRow.provider || "").toLowerCase() === "whatsapp";
+    const isWhatsApp = insertRow.provider === "whatsapp";
     const hasWaMessageId = typeof insertRow.wa_message_id === "string" && insertRow.wa_message_id.trim().length > 0;
     const hasProviderEventId =
       typeof insertRow.provider_event_id === "string" && insertRow.provider_event_id.trim().length > 0;
@@ -91,5 +138,6 @@ async function safeInsertInboundEvent(supabase, row) {
 
 module.exports = {
   getSupabaseAdmin,
+  normalizeProvider,
   safeInsertInboundEvent,
 };
