@@ -94,9 +94,9 @@ function parseIntEnv(rawValue, fallback, minValue = 0) {
 }
 
 const WORKER_POOL_HEALTHY = readEnvFlag("WORKER_POOL_HEALTHY", true);
-const BURST_WINDOW_MS = parseIntEnv(process.env.BURST_WINDOW_MS, null, 1000);
-const BURST_SECONDS = parseIntEnv(process.env.BURST_SECONDS, 60, 1);
-const EFFECTIVE_BURST_WINDOW_MS = BURST_WINDOW_MS || BURST_SECONDS * 1000 || 60000;
+const BURST_WINDOW_SECONDS = parseIntEnv(process.env.BURST_WINDOW_SECONDS, 20, 1);
+const EFFECTIVE_BURST_WINDOW_MS = BURST_WINDOW_SECONDS * 1000;
+// Manual verify: send a WhatsApp webhook and confirm inserted inbound_events rows have provider='whatsapp', status='queued', and non-null next_attempt_at ~= now()+BURST_WINDOW_SECONDS.
 
 /**
  * Parse timestamp robustly.
@@ -640,14 +640,15 @@ app.post("/webhooks/whatsapp", (req, res) => {
         const payloadHash = sha256Hex(Buffer.from(JSON.stringify({ kind: "status", st })));
 
         const row = {
-          provider: normalizeProvider("whatsapp", "whatsapp"),
-          status: "done",
+          provider: "whatsapp",
+          status: "queued",
           attempts: 0,
           provider_event_id: providerEventId,
           payload_sha256: payloadHash,
           wa_number: statusPhone,
           from_phone: statusPhone,
           wa_message_id: statusMsgId,
+          next_attempt_at: new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString(),
           user_msg_ts: parseTimestampToIsoOrNull(st?.timestamp) || receivedAtIso,
           meta: {
             ...common,
@@ -742,8 +743,8 @@ app.post("/webhooks/whatsapp", (req, res) => {
         };
 
         const row = {
-          provider: normalizeProvider("whatsapp", "whatsapp"),
-          status: shouldEnqueue ? "pending" : "done",
+          provider: "whatsapp",
+          status: "queued",
           attempts: 0,
           provider_event_id: msgId, // dedupe key (DB must enforce)
           payload_sha256: payloadHash,
@@ -751,18 +752,11 @@ app.post("/webhooks/whatsapp", (req, res) => {
           from_phone: from,
           wa_message_id: msgId,
           user_msg_ts: msgTsIso,
+          next_attempt_at: new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString(),
           meta: safeMeta,
         };
 
-        if (event_kind === "inbound_command") {
-          row.next_attempt_at = new Date().toISOString();
-        }
-        if (event_kind === "inbound_text" && shouldEnqueue) {
-          row.next_attempt_at = new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString();
-        }
-        if (shouldEnqueue && !row.next_attempt_at) {
-          row.next_attempt_at = new Date().toISOString();
-        }
+
 
         if (!shouldEnqueue) {
           console.log(
