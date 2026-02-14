@@ -93,8 +93,12 @@ function parseIntEnv(rawValue, fallback, minValue = 0) {
   return v;
 }
 
+function resolveBurstWindowSeconds(rawValue) {
+  return parseIntEnv(rawValue, 20, 1);
+}
+
 const WORKER_POOL_HEALTHY = readEnvFlag("WORKER_POOL_HEALTHY", true);
-const BURST_WINDOW_SECONDS = parseIntEnv(process.env.BURST_WINDOW_SECONDS, 20, 1);
+const BURST_WINDOW_SECONDS = resolveBurstWindowSeconds(process.env.BURST_WINDOW_SECONDS);
 const EFFECTIVE_BURST_WINDOW_MS = BURST_WINDOW_SECONDS * 1000;
 // Manual verify: send a WhatsApp webhook and confirm inserted inbound_events rows have provider='whatsapp', status='queued', and non-null next_attempt_at ~= now()+BURST_WINDOW_SECONDS.
 
@@ -315,197 +319,52 @@ function shouldPersistInboundText({ eventKind, hasText, shouldEnqueue }) {
   return Boolean(shouldEnqueue);
 }
 
-async function scheduleInboundTextBurst({
+const BURST_PENDING_STATUSES = ["pending", "queued"];
+
+function resolveBurstPhone(insertedRow, phoneE164) {
+  return normalizePhoneE164(phoneE164 || insertedRow?.from_phone || insertedRow?.wa_number || "");
+}
+
+function computeBurstDeadlineIso(windowSeconds) {
+  const safeSeconds = parseIntEnv(windowSeconds, 20, 1);
+  return new Date(Date.now() + safeSeconds * 1000).toISOString();
+}
+
+async function bumpPendingBurstDeadlinesForPhone({
   supabaseClient,
-  insertedRow,
   phoneE164,
-  burstWindowMs,
+  insertedRow,
+  newDeadlineIso,
 }) {
-  const phone = normalizePhoneE164(phoneE164 || insertedRow?.from_phone || insertedRow?.wa_number || "");
-  if (!phone) return null;
-
-  const fallbackSchedule = async (reason) => {
-    const anchor = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
-    const deadline = new Date(Date.parse(anchor) + Number(burstWindowMs || 60000)).toISOString();
-    const burstSeconds = Math.max(1, Math.ceil(Number(burstWindowMs || 60000) / 1000));
-    console.log(`[burst] fallback_used phone=${safeIdSuffixForPath(phone)} reason=${String(reason || "rpc_unavailable").slice(0, 80)}`);
-
-    const { data: fallbackCandidates, error: fallbackCandidateError } = await supabaseClient
-      .from("inbound_events")
-      .select("id, meta")
-      .eq("provider", "whatsapp")
-      .or(`from_phone.eq.${phone},wa_number.eq.${phone}`)
-      .is("processed_at", null)
-      .in("status", ["pending", "processing"])
-      .gte("received_at", anchor)
-      .lte("received_at", deadline)
-      .order("received_at", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(800);
-
-    if (fallbackCandidateError) {
-      console.log(
-        `[burst] candidate_fetch_failed phone=${safeIdSuffixForPath(phone)} reason=${String(fallbackCandidateError.message || fallbackCandidateError).slice(0, 140)}`
-      );
-      return { anchor, deadline };
-    }
-
-    const ids = [];
-    for (const row of fallbackCandidates || []) {
-      const eventKind = String(row?.meta?.event_kind || "").toLowerCase();
-      if (eventKind === "inbound_text" && Number.isFinite(Number(row?.id))) {
-        ids.push(Number(row.id));
-      }
-    }
-
-    const insertedId = Number(insertedRow?.id);
-    if (Number.isFinite(insertedId) && !ids.includes(insertedId)) ids.push(insertedId);
-
-    const skipReason = "burst_scheduled";
-
-    if (ids.length > 0) {
-      const { error: fallbackUpdateError } = await supabaseClient
-        .from("inbound_events")
-        .update({
-          next_attempt_at: deadline,
-          status: "pending",
-          processed_at: null,
-          skip_reason: skipReason,
-        })
-        .in("id", ids)
-        .is("processed_at", null);
-
-      if (fallbackUpdateError) {
-        console.log(
-          `[burst] assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(fallbackUpdateError.message || fallbackUpdateError).slice(0, 140)}`
-        );
-      }
-    }
-
-    if (Number.isFinite(insertedId)) {
-      const { error: fallbackLeaderError } = await supabaseClient
-        .from("inbound_events")
-        .update({
-          next_attempt_at: deadline,
-          status: "pending",
-          processed_at: null,
-          skip_reason: skipReason,
-        })
-        .eq("id", insertedId)
-        .is("processed_at", null);
-      if (fallbackLeaderError) {
-        console.log(
-          `[burst] leader_assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(fallbackLeaderError.message || fallbackLeaderError).slice(0, 140)}`
-        );
-      }
-    }
-
-    console.log(
-      `[burst] scheduled phone=${safeIdSuffixForPath(phone)} burst_seconds=${burstSeconds} message_count=${ids.length} anchor=${anchor} deadline=${deadline}`
-    );
-
-    return { anchor, deadline };
-  };
-
-  const receivedAtIso = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
-  const burstSeconds = Math.max(1, Math.ceil(Number(burstWindowMs || 60000) / 1000));
-  const { data: priorBurstData } = await supabaseClient
-    .from("phone_bursts")
-    .select("deadline_at")
-    .eq("phone_e164", phone)
-    .maybeSingle();
-  const priorDeadline = parseTimestampToIsoOrNull(priorBurstData?.deadline_at);
-  const { data: burstData, error: burstError } = await supabaseClient.rpc("ensure_phone_burst", {
-    p_phone_e164: phone,
-    p_received_at: receivedAtIso,
-    p_burst_seconds: burstSeconds,
-  });
-  if (burstError) {
-    return fallbackSchedule(`rpc_error:${String(burstError.message || burstError).slice(0, 60)}`);
+  const phone = resolveBurstPhone(insertedRow, phoneE164);
+  if (!phone) {
+    return { ok: false, skipped: true, reason: "missing_phone" };
   }
 
-  const burst = Array.isArray(burstData) ? burstData[0] : burstData;
-  const anchor = parseTimestampToIsoOrNull(burst?.anchor_received_at);
-  const deadline = parseTimestampToIsoOrNull(burst?.deadline_at);
-  if (!anchor || !deadline) {
-    return fallbackSchedule("rpc_missing_data");
-  }
-  if (priorDeadline && Date.parse(deadline) > Date.parse(priorDeadline)) {
-    console.log(
-      `[burst] deadline_extended phone=${safeIdSuffixForPath(phone)} burst_seconds=${burstSeconds} prev_deadline=${priorDeadline} new_deadline=${deadline}`
-    );
+  const safeDeadlineIso = parseTimestampToIsoOrNull(newDeadlineIso);
+  if (!safeDeadlineIso) {
+    return { ok: false, skipped: true, reason: "invalid_deadline" };
   }
 
-  const { data: candidateRows, error: candidateError } = await supabaseClient
+  const deadlineOrFilter = [
+    `and(from_phone.eq.${phone},next_attempt_at.is.null)`,
+    `and(from_phone.eq.${phone},next_attempt_at.lt.${safeDeadlineIso})`,
+    `and(wa_number.eq.${phone},next_attempt_at.is.null)`,
+    `and(wa_number.eq.${phone},next_attempt_at.lt.${safeDeadlineIso})`,
+  ].join(",");
+
+  const { error } = await supabaseClient
     .from("inbound_events")
-    .select("id, meta")
-    .eq("provider", "whatsapp")
-    .or(`from_phone.eq.${phone},wa_number.eq.${phone}`)
-    .is("processed_at", null)
-    .in("status", ["pending", "processing"])
-    .gte("received_at", anchor)
-    .lte("received_at", deadline)
-    .order("received_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(800);
+    .update({ next_attempt_at: safeDeadlineIso })
+    .or(deadlineOrFilter)
+    .in("status", BURST_PENDING_STATUSES)
+    .is("processed_at", null);
 
-  if (candidateError) {
-    console.log(`[burst] candidate_fetch_failed phone=${safeIdSuffixForPath(phone)} reason=${String(candidateError.message || candidateError).slice(0, 140)}`);
-    return { anchor, deadline };
+  if (error) {
+    return { ok: false, skipped: false, reason: String(error.message || error).slice(0, 140) };
   }
 
-  const ids = [];
-  for (const row of candidateRows || []) {
-    const eventKind = String(row?.meta?.event_kind || "").toLowerCase();
-    if (eventKind === "inbound_text" && Number.isFinite(Number(row?.id))) {
-      ids.push(Number(row.id));
-    }
-  }
-
-  const insertedId = Number(insertedRow?.id);
-  if (Number.isFinite(insertedId) && !ids.includes(insertedId)) ids.push(insertedId);
-
-  if (Number.isFinite(insertedId)) {
-    const { error: eventUpdateError } = await supabaseClient
-      .from("inbound_events")
-      .update({
-        next_attempt_at: deadline,
-        status: "pending",
-        processed_at: null,
-        skip_reason: "burst_scheduled",
-      })
-      .eq("id", insertedId)
-      .is("processed_at", null);
-    if (eventUpdateError) {
-      console.log(
-        `[burst] leader_assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(eventUpdateError.message || eventUpdateError).slice(0, 140)}`
-      );
-    }
-  }
-
-  if (ids.length > 0) {
-    const { error: updateError } = await supabaseClient
-      .from("inbound_events")
-      .update({
-        next_attempt_at: deadline,
-        status: "pending",
-        processed_at: null,
-        skip_reason: "burst_scheduled",
-      })
-      .in("id", ids)
-      .is("processed_at", null);
-
-    if (updateError) {
-      console.log(`[burst] assign_failed phone=${safeIdSuffixForPath(phone)} reason=${String(updateError.message || updateError).slice(0, 140)}`);
-      return { anchor, deadline };
-    }
-  }
-
-  console.log(
-    `[burst] scheduled phone=${safeIdSuffixForPath(phone)} burst_seconds=${burstSeconds} message_count=${ids.length} anchor=${anchor} deadline=${deadline}`
-  );
-
-  return { anchor, deadline };
+  return { ok: true, skipped: false, phone, deadline: safeDeadlineIso };
 }
 
 /**
@@ -775,15 +634,20 @@ app.post("/webhooks/whatsapp", (req, res) => {
         }
 
         if (event_kind === "inbound_text" && shouldEnqueue && inserted?.row) {
-          const burst = await scheduleInboundTextBurst({
+          const burstDeadline = computeBurstDeadlineIso(BURST_WINDOW_SECONDS);
+          const burst = await bumpPendingBurstDeadlinesForPhone({
             supabaseClient: supabase,
-            insertedRow: inserted.row,
             phoneE164: from,
-            burstWindowMs: EFFECTIVE_BURST_WINDOW_MS,
+            insertedRow: inserted.row,
+            newDeadlineIso: burstDeadline,
           });
-          if (burst?.deadline) {
+          if (burst?.ok && burst?.deadline) {
             console.log(
-              `[burst] schedule phone=${safeIdSuffixForPath(from)} anchor=${burst.anchor} deadline=${burst.deadline} assigned_next_attempt_at=${burst.deadline}`
+              `[burst] schedule phone=${safeIdSuffixForPath(from)} deadline=${burst.deadline} statuses=${BURST_PENDING_STATUSES.join(",")}`
+            );
+          } else if (!burst?.skipped) {
+            console.log(
+              `[burst] schedule_failed phone=${safeIdSuffixForPath(from)} reason=${String(burst?.reason || "unknown").slice(0, 120)}`
             );
           }
         }
