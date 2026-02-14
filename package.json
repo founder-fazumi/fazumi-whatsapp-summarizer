@@ -1,6 +1,6 @@
 {
   "name": "fazumi-whatsapp-summarizer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "WhatsApp (360dialog) + Lemon Squeezy webhooks into Supabase (Phase 5)",
   "main": "src/server.js",
   "type": "commonjs",

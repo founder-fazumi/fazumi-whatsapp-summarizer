@@ -46,7 +46,7 @@ const supabase = getSupabaseAdmin();
  * VERSION MARKER
  * Bump this string whenever you deploy changes so logs prove what's running.
  */
-const SERVER_BUILD_TAG = "SG6-webhook-skip-busy-2026-02-06";
+const SERVER_BUILD_TAG = "SG7-webhook-scheduled-queue-2026-02-14";
 
 app.use(helmet());
 app.use(morgan("tiny"));
@@ -562,6 +562,7 @@ app.post("/webhooks/lemonsqueezy", express.raw({ type: "application/json", limit
     provider: normalizeProvider("lemonsqueezy", "whatsapp"),
     status: "pending",
     attempts: 0,
+    next_attempt_at: new Date().toISOString(),
     provider_event_id: providerEventId,
     payload_sha256: payloadHash,
     wa_number: waNumber,
@@ -758,6 +759,9 @@ app.post("/webhooks/whatsapp", (req, res) => {
         }
         if (event_kind === "inbound_text" && shouldEnqueue) {
           row.next_attempt_at = new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString();
+        }
+        if (shouldEnqueue && !row.next_attempt_at) {
+          row.next_attempt_at = new Date().toISOString();
         }
 
         if (!shouldEnqueue) {

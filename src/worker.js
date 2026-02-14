@@ -25,7 +25,7 @@ const crypto = require("crypto");
 const { normalizeProvider, safeInsertInboundEvent } = require("./supabase");
 
 // ---- WORKER VERSION FINGERPRINT ----
-const WORKER_VERSION = "p5-workerpool-text-only-mvp-2026-02-13";
+const WORKER_VERSION = "p5-workerpool-burst-scheduled-only-2026-02-14";
 
 // ---- OpenAI summarizer (CommonJS) ----
 let summarizeText = null;
@@ -989,60 +989,46 @@ async function markBurstRowsProcessed(rowIds, parentId, outcome) {
 async function dequeueEventJson() {
   const now = nowIso();
   const baseSelect = "id, provider, status, attempts, processed_at, outcome, skip_reason, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, next_attempt_at";
-  const dueQueries = [
-    supabase
+  const { data, error } = await supabase
+    .from("inbound_events")
+    .select(baseSelect)
+    .eq("status", "pending")
+    .is("processed_at", null)
+    .lte("next_attempt_at", now)
+    .order("next_attempt_at", { ascending: true })
+    .order("received_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(20);
+
+  if (error) {
+    const msg = String(error.message || error);
+    console.error("[worker] dequeue error:", {
+      message: msg.slice(0, 160),
+      hint: msg.toLowerCase().includes("invalid api key")
+        ? "Supabase rejected the key. Check Secret value, rotation, whitespace, and Cloud Run env var name."
+        : null,
+    });
+    return null;
+  }
+
+  const candidates = Array.isArray(data) ? data : [];
+  for (const candidate of candidates) {
+    const currentAttempts = Number.isFinite(Number(candidate?.attempts)) ? Number(candidate.attempts) : 0;
+    const { data: claimed, error: claimError } = await supabase
       .from("inbound_events")
-      .select(baseSelect)
+      .update({
+        status: "processing",
+        attempts: currentAttempts + 1,
+        processed_at: null,
+      })
+      .eq("id", candidate.id)
       .eq("status", "pending")
       .is("processed_at", null)
-      .is("next_attempt_at", null)
-      .order("received_at", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(20),
-    supabase
-      .from("inbound_events")
       .select(baseSelect)
-      .eq("status", "pending")
-      .is("processed_at", null)
-      .lte("next_attempt_at", now)
-      .order("next_attempt_at", { ascending: true })
-      .order("received_at", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(20),
-  ];
+      .maybeSingle();
 
-  for (const q of dueQueries) {
-    const { data, error } = await q;
-    if (error) {
-      const msg = String(error.message || error);
-      console.error("[worker] dequeue error:", {
-        message: msg.slice(0, 160),
-        hint: msg.toLowerCase().includes("invalid api key")
-          ? "Supabase rejected the key. Check Secret value, rotation, whitespace, and Cloud Run env var name."
-          : null,
-      });
-      continue;
-    }
-
-    const candidates = Array.isArray(data) ? data : [];
-    for (const candidate of candidates) {
-      const currentAttempts = Number.isFinite(Number(candidate?.attempts)) ? Number(candidate.attempts) : 0;
-      const { data: claimed, error: claimError } = await supabase
-        .from("inbound_events")
-        .update({
-          status: "processing",
-          attempts: currentAttempts + 1,
-          processed_at: null,
-        })
-        .eq("id", candidate.id)
-        .eq("status", "pending")
-        .is("processed_at", null)
-        .select(baseSelect)
-        .maybeSingle();
-
-      if (claimError) continue;
-      if (claimed && claimed.id != null) return claimed;
-    }
+    if (claimError) continue;
+    if (claimed && claimed.id != null) return claimed;
   }
   return null;
 }
@@ -1943,7 +1929,7 @@ async function mainLoop() {
         const burst = await buildBurstBatch(row, classified, textBody);
         if (!burst.ok && burst.waitUntilIso) {
           console.log(
-            `[batch] wait phone=${tailN(burst.waNumber || waNumber, 4)} leader_id=${burst.leaderId || id} now=${burst.nowIso || nowIso()} deadline=${burst.deadlineIso || burst.waitUntilIso}`
+            `[batch] wait phone=${tailN(burst.waNumber || waNumber, 4)} leader_id=${burst.leaderId || id} burst_seconds=${BURST_SECONDS} anchor=${burst.anchorIso || "n/a"} deadline=${burst.deadlineIso || burst.waitUntilIso} wait_ms=${Number.isFinite(Number(burst.waitMs)) ? Number(burst.waitMs) : 0}`
           );
           await rescheduleLeaderForBurstDeadline(id, burst.waitUntilIso);
           continue;
