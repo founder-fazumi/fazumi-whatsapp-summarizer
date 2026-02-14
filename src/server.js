@@ -95,9 +95,8 @@ function parseIntEnv(rawValue, fallback, minValue = 0) {
 
 const WORKER_POOL_HEALTHY = readEnvFlag("WORKER_POOL_HEALTHY", true);
 const BURST_WINDOW_MS = parseIntEnv(process.env.BURST_WINDOW_MS, null, 1000);
-const BURST_SECONDS = parseIntEnv(process.env.BURST_SECONDS, 6, 1);
-const EFFECTIVE_BURST_WINDOW_MS = BURST_WINDOW_MS || BURST_SECONDS * 1000 || 6000;
-const BURST_MIN_MESSAGES = parseIntEnv(process.env.BURST_MIN_MESSAGES, 2, 1);
+const BURST_SECONDS = parseIntEnv(process.env.BURST_SECONDS, 60, 1);
+const EFFECTIVE_BURST_WINDOW_MS = BURST_WINDOW_MS || BURST_SECONDS * 1000 || 60000;
 
 /**
  * Parse timestamp robustly.
@@ -321,14 +320,14 @@ async function scheduleInboundTextBurst({
   insertedRow,
   phoneE164,
   burstWindowMs,
-  burstMinMessages,
 }) {
   const phone = normalizePhoneE164(phoneE164 || insertedRow?.from_phone || insertedRow?.wa_number || "");
   if (!phone) return null;
 
   const fallbackSchedule = async (reason) => {
     const anchor = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
-    const deadline = new Date(Date.parse(anchor) + Number(burstWindowMs || 6000)).toISOString();
+    const deadline = new Date(Date.parse(anchor) + Number(burstWindowMs || 60000)).toISOString();
+    const burstSeconds = Math.max(1, Math.ceil(Number(burstWindowMs || 60000) / 1000));
     console.log(`[burst] fallback_used phone=${safeIdSuffixForPath(phone)} reason=${String(reason || "rpc_unavailable").slice(0, 80)}`);
 
     const { data: fallbackCandidates, error: fallbackCandidateError } = await supabaseClient
@@ -362,7 +361,7 @@ async function scheduleInboundTextBurst({
     const insertedId = Number(insertedRow?.id);
     if (Number.isFinite(insertedId) && !ids.includes(insertedId)) ids.push(insertedId);
 
-    const skipReason = ids.length >= Number(burstMinMessages || 2) ? "burst_scheduled_fallback" : "burst_single_wait_fallback";
+    const skipReason = "burst_scheduled";
 
     if (ids.length > 0) {
       const { error: fallbackUpdateError } = await supabaseClient
@@ -401,11 +400,21 @@ async function scheduleInboundTextBurst({
       }
     }
 
+    console.log(
+      `[burst] scheduled phone=${safeIdSuffixForPath(phone)} burst_seconds=${burstSeconds} message_count=${ids.length} anchor=${anchor} deadline=${deadline}`
+    );
+
     return { anchor, deadline };
   };
 
   const receivedAtIso = parseTimestampToIsoOrNull(insertedRow?.received_at) || new Date().toISOString();
-  const burstSeconds = Math.max(1, Math.ceil(Number(burstWindowMs || 6000) / 1000));
+  const burstSeconds = Math.max(1, Math.ceil(Number(burstWindowMs || 60000) / 1000));
+  const { data: priorBurstData } = await supabaseClient
+    .from("phone_bursts")
+    .select("deadline_at")
+    .eq("phone_e164", phone)
+    .maybeSingle();
+  const priorDeadline = parseTimestampToIsoOrNull(priorBurstData?.deadline_at);
   const { data: burstData, error: burstError } = await supabaseClient.rpc("ensure_phone_burst", {
     p_phone_e164: phone,
     p_received_at: receivedAtIso,
@@ -420,6 +429,11 @@ async function scheduleInboundTextBurst({
   const deadline = parseTimestampToIsoOrNull(burst?.deadline_at);
   if (!anchor || !deadline) {
     return fallbackSchedule("rpc_missing_data");
+  }
+  if (priorDeadline && Date.parse(deadline) > Date.parse(priorDeadline)) {
+    console.log(
+      `[burst] deadline_extended phone=${safeIdSuffixForPath(phone)} burst_seconds=${burstSeconds} prev_deadline=${priorDeadline} new_deadline=${deadline}`
+    );
   }
 
   const { data: candidateRows, error: candidateError } = await supabaseClient
@@ -476,7 +490,7 @@ async function scheduleInboundTextBurst({
         next_attempt_at: deadline,
         status: "pending",
         processed_at: null,
-        skip_reason: ids.length >= Number(burstMinMessages || 2) ? "burst_scheduled" : "burst_single_wait",
+        skip_reason: "burst_scheduled",
       })
       .in("id", ids)
       .is("processed_at", null);
@@ -486,6 +500,10 @@ async function scheduleInboundTextBurst({
       return { anchor, deadline };
     }
   }
+
+  console.log(
+    `[burst] scheduled phone=${safeIdSuffixForPath(phone)} burst_seconds=${burstSeconds} message_count=${ids.length} anchor=${anchor} deadline=${deadline}`
+  );
 
   return { anchor, deadline };
 }
@@ -764,7 +782,6 @@ app.post("/webhooks/whatsapp", (req, res) => {
             insertedRow: inserted.row,
             phoneE164: from,
             burstWindowMs: EFFECTIVE_BURST_WINDOW_MS,
-            burstMinMessages: BURST_MIN_MESSAGES,
           });
           if (burst?.deadline) {
             console.log(

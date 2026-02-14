@@ -68,10 +68,9 @@ const FAZUMI_TZ = envTrim("FAZUMI_TZ") || "Asia/Qatar";
 const DRY_RUN = String(process.env.DRY_RUN || "false").toLowerCase() === "true";
 const BURST_WINDOW_MS =
   parseIntEnv(envTrim("BURST_WINDOW_MS"), null, 1000) ||
-  parseIntEnv(envTrim("BURST_SECONDS"), 6, 1) * 1000 ||
-  6000;
+  parseIntEnv(envTrim("BURST_SECONDS"), 60, 1) * 1000 ||
+  60000;
 const BURST_SECONDS = Math.max(1, Math.ceil(BURST_WINDOW_MS / 1000));
-const BURST_MIN_MESSAGES = parseIntEnv(envTrim("BURST_MIN_MESSAGES"), 2, 1);
 const PHONE_BURST_LOCK_SECONDS = parseIntEnv(
   envTrim("PHONE_BURST_LOCK_SECONDS"),
   30,
@@ -85,7 +84,7 @@ const TERMS_LINK = envTrim("TERMS_LINK") || "Terms/Privacy pages coming soon.";
 const PRIVACY_LINK = envTrim("PRIVACY_LINK") || "Terms/Privacy pages coming soon.";
 
 console.log(
-  `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS}`
+  `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS} burst_seconds=${BURST_SECONDS}`
 );
 
 // ---- HARD startup checks (log only lengths / booleans, no secrets) ----
@@ -681,14 +680,15 @@ async function rescheduleLeaderForBurstDeadline(eventId, deadlineIso) {
   }
 }
 
-function buildBurstSendKey(waNumber, burstDeadlineIso) {
-  const anchorMs = isoToMsOrNull(burstDeadlineIso) ?? 0;
+function buildBurstSendKey(waNumber, burstAnchorIso, burstDeadlineIso) {
+  const anchorMs = isoToMsOrNull(burstAnchorIso) ?? 0;
+  const deadlineMs = isoToMsOrNull(burstDeadlineIso) ?? 0;
   const phoneKey = hashPhone(waNumber).slice(0, 20);
-  return `burst_send:${phoneKey}:${String(anchorMs)}`;
+  return `burst_send:${phoneKey}:${String(anchorMs)}:${String(deadlineMs)}`;
 }
 
-async function claimBurstSendToken(waNumber, burstAnchorIso) {
-  const burstKey = buildBurstSendKey(waNumber, burstAnchorIso);
+async function claimBurstSendToken(waNumber, burstAnchorIso, burstDeadlineIso) {
+  const burstKey = buildBurstSendKey(waNumber, burstAnchorIso, burstDeadlineIso);
   const row = {
     provider: normalizeProvider("waba", "whatsapp"),
     status: "done",
@@ -774,7 +774,25 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
     };
   }
 
-  const sendToken = await claimBurstSendToken(waNumber, burstAnchorIso);
+  const refreshedBurstState = await getPhoneBurstState(waNumber);
+  const refreshedAnchorIso = safeIso(refreshedBurstState?.anchor_received_at) || burstAnchorIso;
+  const refreshedDeadlineIso = safeIso(refreshedBurstState?.deadline_at) || burstDeadlineIso;
+  const refreshedDeadlineMs = isoToMsOrNull(refreshedDeadlineIso) ?? Date.now();
+  const refreshedNowMs = Date.now();
+  if (refreshedDeadlineMs > refreshedNowMs) {
+    return {
+      ok: false,
+      waitUntilIso: refreshedDeadlineIso,
+      waitMs: Math.max(0, refreshedDeadlineMs - refreshedNowMs),
+      waNumber,
+      leaderId: primaryRow?.id || null,
+      nowIso: new Date(refreshedNowMs).toISOString(),
+      anchorIso: refreshedAnchorIso,
+      deadlineIso: refreshedDeadlineIso,
+    };
+  }
+
+  const sendToken = await claimBurstSendToken(waNumber, refreshedAnchorIso, refreshedDeadlineIso);
   if (!sendToken.claimed) {
     return {
       ok: false,
@@ -782,12 +800,12 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
       burstKey: sendToken.burstKey,
       waNumber,
       leaderId: primaryRow?.id || null,
-      anchorIso: burstAnchorIso,
-      deadlineIso: burstDeadlineIso,
+      anchorIso: refreshedAnchorIso,
+      deadlineIso: refreshedDeadlineIso,
     };
   }
 
-  const burstRows = await fetchBurstRowsForFinalize(waNumber, burstAnchorIso, burstDeadlineIso, 800);
+  const burstRows = await fetchBurstRowsForFinalize(waNumber, refreshedAnchorIso, refreshedDeadlineIso, 800);
   if (!burstRows.find((row) => Number(row.id) === Number(primaryRow.id))) {
     burstRows.push(primaryRow);
     burstRows.sort(compareRowsByAnchor);
@@ -803,8 +821,8 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
       burstKey: sendToken.burstKey,
       waNumber,
       leaderId: primaryRow?.id || null,
-      anchorIso: burstAnchorIso,
-      deadlineIso: burstDeadlineIso,
+      anchorIso: refreshedAnchorIso,
+      deadlineIso: refreshedDeadlineIso,
     };
   }
 
@@ -838,8 +856,8 @@ async function buildBurstBatch(primaryRow, primaryClassified, primaryTextBody) {
     burstKey: sendToken.burstKey,
     waNumber,
     leaderId: primaryRow?.id || null,
-    anchorIso: burstAnchorIso,
-    deadlineIso: burstDeadlineIso,
+    anchorIso: refreshedAnchorIso,
+    deadlineIso: refreshedDeadlineIso,
   };
 }
 
@@ -1439,18 +1457,16 @@ function buildFreeLeftLine(lang, count) {
 // -------------------- OpenAI summary wrapper --------------------
 async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) {
   const maxChars = Number(process.env.OPENAI_MAX_INPUT_CHARS || 6000);
-  const prepared = buildSummarizerInputText(inputText, maxChars);
-  const capped = prepared.text;
 
   if (DRY_RUN) return { ok: false, error_code: "dry_run_disabled" };
 
   const model = (process.env.OPENAI_MODEL || "unknown").trim();
-  try {
-    return await withConcurrency(
+  const summarizePreparedText = async (preparedText) => {
+    return withConcurrency(
       async () => {
         try {
           const r = await summarizeText({
-            text: capped,
+            text: preparedText,
             anchor_ts_iso: eventTsIso || null,
             timezone: FAZUMI_TZ,
             forced_lang: languageOverride || null,
@@ -1490,6 +1506,112 @@ async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) 
       },
       { timeoutMs: CONCURRENCY_WAIT_TIMEOUT_MS }
     );
+  };
+
+  const splitForIterativeSummary = (text) => {
+    const normalized = String(text || "").trim();
+    if (!normalized) return [""];
+    if (normalized.length <= maxChars) return [normalized];
+
+    const parts = splitIntoLogicalMessages(normalized);
+    const units = parts.length > 1 ? parts : [normalized];
+    const chunks = [];
+    let current = "";
+
+    for (const unit of units) {
+      const segment = String(unit || "").trim();
+      if (!segment) continue;
+      const next = current ? `${current}\n\n${segment}` : segment;
+      if (next.length <= maxChars) {
+        current = next;
+        continue;
+      }
+      if (current) {
+        chunks.push(current);
+        current = "";
+      }
+      if (segment.length <= maxChars) {
+        current = segment;
+        continue;
+      }
+      for (let i = 0; i < segment.length; i += maxChars) {
+        chunks.push(segment.slice(i, i + maxChars));
+      }
+    }
+
+    if (current) chunks.push(current);
+    return chunks.length > 0 ? chunks : [normalized.slice(0, maxChars)];
+  };
+
+  try {
+    const chunks = splitForIterativeSummary(inputText);
+    if (chunks.length <= 1) {
+      const prepared = buildSummarizerInputText(chunks[0] || "", maxChars);
+      return await summarizePreparedText(prepared.text);
+    }
+
+    console.log(`[openai] chunking_enabled chunks=${chunks.length} max_chars=${maxChars}`);
+    const chunkSummaries = [];
+    let aggInputTokens = 0;
+    let aggOutputTokens = 0;
+    let aggTotalTokens = 0;
+    let aggCostUsd = 0;
+    let hasInputTokens = false;
+    let hasOutputTokens = false;
+    let hasTotalTokens = false;
+    let hasCost = false;
+
+    for (const chunk of chunks) {
+      const preparedChunk = buildSummarizerInputText(chunk, maxChars);
+      const chunkResult = await summarizePreparedText(preparedChunk.text);
+      if (!chunkResult.ok) return chunkResult;
+
+      chunkSummaries.push(String(chunkResult.summary_text || "").trim());
+      if (Number.isFinite(Number(chunkResult.input_tokens))) {
+        aggInputTokens += Number(chunkResult.input_tokens);
+        hasInputTokens = true;
+      }
+      if (Number.isFinite(Number(chunkResult.output_tokens))) {
+        aggOutputTokens += Number(chunkResult.output_tokens);
+        hasOutputTokens = true;
+      }
+      if (Number.isFinite(Number(chunkResult.total_tokens))) {
+        aggTotalTokens += Number(chunkResult.total_tokens);
+        hasTotalTokens = true;
+      }
+      if (Number.isFinite(Number(chunkResult.cost_usd_est))) {
+        aggCostUsd += Number(chunkResult.cost_usd_est);
+        hasCost = true;
+      }
+    }
+
+    const stitchedSummaries = chunkSummaries
+      .map((summary, idx) => `--- CHUNK SUMMARY ${idx + 1} ---\n${summary}`)
+      .join("\n\n");
+    const finalPrepared = buildSummarizerInputText(stitchedSummaries, maxChars);
+    const finalResult = await summarizePreparedText(finalPrepared.text);
+    if (!finalResult.ok) return finalResult;
+
+    const finalInputTokens = Number.isFinite(Number(finalResult.input_tokens))
+      ? Number(finalResult.input_tokens)
+      : 0;
+    const finalOutputTokens = Number.isFinite(Number(finalResult.output_tokens))
+      ? Number(finalResult.output_tokens)
+      : 0;
+    const finalTotalTokens = Number.isFinite(Number(finalResult.total_tokens))
+      ? Number(finalResult.total_tokens)
+      : 0;
+    const finalCostUsd = Number.isFinite(Number(finalResult.cost_usd_est))
+      ? Number(finalResult.cost_usd_est)
+      : 0;
+
+    return {
+      ...finalResult,
+      input_tokens: hasInputTokens || Number.isFinite(Number(finalResult.input_tokens)) ? aggInputTokens + finalInputTokens : null,
+      output_tokens: hasOutputTokens || Number.isFinite(Number(finalResult.output_tokens)) ? aggOutputTokens + finalOutputTokens : null,
+      total_tokens: hasTotalTokens || Number.isFinite(Number(finalResult.total_tokens)) ? aggTotalTokens + finalTotalTokens : null,
+      cost_usd_est: hasCost || Number.isFinite(Number(finalResult.cost_usd_est)) ? aggCostUsd + finalCostUsd : null,
+    };
   } catch (e) {
     if (e?.code === "concurrency_timeout") {
       return {
@@ -1845,7 +1967,7 @@ async function mainLoop() {
           : 0;
 
         console.log(
-          `[batch] finalize phone=${tailN(burst.waNumber || waNumber, 4)} leader_id=${burst.leaderId || id} row_count=${burstRowIdsToFinalize.length} message_count=${burstSummaryMessageCount} total_chars=${String(textBody || "").length}`
+          `[batch] finalize phone=${tailN(burst.waNumber || waNumber, 4)} leader_id=${burst.leaderId || id} burst_seconds=${BURST_SECONDS} row_count=${burstRowIdsToFinalize.length} message_count=${burstSummaryMessageCount} total_chars=${String(textBody || "").length}`
         );
       }
 
