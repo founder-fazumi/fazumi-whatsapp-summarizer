@@ -951,7 +951,7 @@ async function dequeueEventJson() {
     .from("inbound_events")
     .select(baseSelect)
     .eq("provider", "whatsapp")
-    .in("status", ["pending", "leader"])
+    .in("status", ["pending", "queued", "leader"])
     .is("processed_at", null)
     .order("next_attempt_at", { ascending: true })
     .order("received_at", { ascending: true })
