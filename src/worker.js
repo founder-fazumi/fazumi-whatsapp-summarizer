@@ -71,6 +71,9 @@ const BURST_WINDOW_MS =
   parseIntEnv(envTrim("BURST_SECONDS"), 60, 1) * 1000 ||
   60000;
 const BURST_SECONDS = Math.max(1, Math.ceil(BURST_WINDOW_MS / 1000));
+const OPENAI_RETRY_MAX_ATTEMPTS = parseIntEnv(envTrim("OPENAI_RETRY_MAX_ATTEMPTS"), 6, 1);
+const OPENAI_RETRY_BASE_SECONDS = parseIntEnv(envTrim("OPENAI_RETRY_BASE_SECONDS"), 15, 1);
+const OPENAI_RETRY_MAX_SECONDS = parseIntEnv(envTrim("OPENAI_RETRY_MAX_SECONDS"), 300, 1);
 
 // TODO: replace Terms/Privacy placeholders with real Notion links.
 // Legal links (don’t invent links)
@@ -519,66 +522,181 @@ async function markRowAsBatchedChild(rowId, leaderEventId, reason = null) {
   }
 }
 
-async function claimBurstLeaderForPhone(phoneE164) {
-  const phone = normalizePhoneE164(phoneE164);
-  if (!phone) return { ok: false, claimed: false, leaderEventId: null, errorCode: "invalid_phone" };
+async function parkFollowerForBurst(rowId, leaderEventId, nextAttemptAtIso, reason = null) {
+  const rowKey = String(rowId || "").trim();
+  if (!rowKey) return;
 
-  try {
-    const { data, error } = await supabase.rpc("claim_burst_leader", {
-      p_phone: phone,
-      p_window_seconds: BURST_SECONDS,
-    });
+  const leaderId = String(leaderEventId || "").trim();
+  const nextAttempt = safeIso(nextAttemptAtIso) || nowIso();
+  const leaderTail = leaderId ? tailN(leaderId, 4) : "none";
+  const skip = reason || `burst_non_leader_wait_${leaderTail}`;
+  const patch = stripProvider({
+    status: "pending",
+    processed_at: null,
+    next_attempt_at: nextAttempt,
+    outcome: "burst_non_leader_wait",
+    skip_reason: skip,
+  });
 
-    if (error) {
-      console.log("[leader-claim]", {
-        phoneLast4: tailN(phone, 4),
-        claimed: false,
-        leader_event_id_last4: null,
-        error: "rpc_error",
-      });
-      return { ok: false, claimed: false, leaderEventId: null, errorCode: "rpc_error" };
-    }
+  const { error } = await supabase
+    .from("inbound_events")
+    .update(patch)
+    .eq("id", rowKey)
+    .in("status", ["pending", "queued", "processing", "leader"]);
 
-    const rows = Array.isArray(data) ? data : [];
-    if (rows.length !== 1 || !rows[0]?.id) {
-      console.log("[leader-claim]", { phoneLast4: tailN(phone, 4), claimed: false, leader_event_id_last4: null });
-      return { ok: true, claimed: false, leaderEventId: null, errorCode: null };
-    }
-
-    const leaderEventId = String(rows[0].id);
-    console.log("[leader-claim]", {
-      phoneLast4: tailN(phone, 4),
-      claimed: true,
-      leader_event_id_last4: tailN(leaderEventId, 4),
-    });
-    return { ok: true, claimed: true, leaderEventId, errorCode: null };
-  } catch {
-    console.log("[leader-claim]", {
-      phoneLast4: tailN(phone, 4),
-      claimed: false,
-      leader_event_id_last4: null,
-      error: "rpc_exception",
-    });
-    return { ok: false, claimed: false, leaderEventId: null, errorCode: "rpc_exception" };
+  if (error) {
+    console.log(`[batch] follower_park_failed id_last4=${tailN(rowKey, 4)} leader_id_last4=${leaderTail}`);
   }
 }
 
-async function fetchBurstRowsForLeader(phoneE164, windowSeconds, maxRows = 800) {
+function deriveEventAnchorIso(row) {
+  return safeIso(row?.user_msg_ts) || safeIso(row?.received_at) || nowIso();
+}
+
+function floorToBurstBucketTsIso(anchorTsIso) {
+  const anchorMs = Date.parse(safeIso(anchorTsIso) || nowIso());
+  const windowMs = Math.max(1000, BURST_SECONDS * 1000);
+  const bucketMs = Math.floor(anchorMs / windowMs) * windowMs;
+  return new Date(bucketMs).toISOString();
+}
+
+function computeOpenAiNextAttemptIso(attempts) {
+  const n = Math.max(1, Number(attempts || 1));
+  const delaySeconds = Math.min(OPENAI_RETRY_MAX_SECONDS, OPENAI_RETRY_BASE_SECONDS * Math.pow(2, Math.max(0, n - 1)));
+  return new Date(Date.now() + delaySeconds * 1000).toISOString();
+}
+
+async function scheduleOpenAiRetry(rowId, attempts, errorCode = "openai_error") {
+  const tryCount = Math.max(0, Number(attempts || 0));
+  if (tryCount >= OPENAI_RETRY_MAX_ATTEMPTS) {
+    await markEvent(rowId, {
+      status: "error",
+      outcome: "openai_failed_max_retries",
+      last_error: errorCode,
+      next_attempt_at: null,
+    });
+    return;
+  }
+
+  await markEvent(rowId, {
+    status: "pending",
+    processed_at: null,
+    outcome: "openai_retry",
+    skip_reason: "openai_retry",
+    last_error: errorCode,
+    next_attempt_at: computeOpenAiNextAttemptIso(tryCount),
+  });
+}
+
+async function ensureDurableBucketTs(row) {
+  const rowId = String(row?.id || "").trim();
+  if (!rowId) return { ok: false, bucketTs: null, errorCode: "missing_row_id" };
+
+  const existingBucket = safeIso(row?.bucket_ts);
+  if (existingBucket) {
+    console.log("[lifecycle] bucket_set", { idLast4: tailN(rowId, 4), bucket_ts: existingBucket, persisted: true });
+    return { ok: true, bucketTs: existingBucket, errorCode: null };
+  }
+
+  const bucketTs = floorToBurstBucketTsIso(deriveEventAnchorIso(row));
+  const { data, error } = await supabase
+    .from("inbound_events")
+    .update({ bucket_ts: bucketTs })
+    .eq("id", rowId)
+    .is("bucket_ts", null)
+    .select("bucket_ts")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, bucketTs: null, errorCode: "bucket_update_error" };
+  }
+
+  const updatedBucket = safeIso(data?.bucket_ts);
+  if (updatedBucket) {
+    console.log("[lifecycle] bucket_set", { idLast4: tailN(rowId, 4), bucket_ts: updatedBucket, persisted: true });
+    return { ok: true, bucketTs: updatedBucket, errorCode: null };
+  }
+
+  const { data: fallbackRead, error: fallbackError } = await supabase
+    .from("inbound_events")
+    .select("bucket_ts")
+    .eq("id", rowId)
+    .maybeSingle();
+  const fallbackBucket = safeIso(fallbackRead?.bucket_ts);
+  if (fallbackError || !fallbackBucket) {
+    return { ok: false, bucketTs: null, errorCode: "bucket_readback_error" };
+  }
+
+  console.log("[lifecycle] bucket_set", { idLast4: tailN(rowId, 4), bucket_ts: fallbackBucket, persisted: true });
+  return { ok: true, bucketTs: fallbackBucket, errorCode: null };
+}
+
+async function claimBurstLeaderForPhone(phoneE164, bucketTsIso, eventId) {
   const phone = normalizePhoneE164(phoneE164);
-  if (!phone) return [];
-  const windowMs = Math.max(1000, Number(windowSeconds || 0) * 1000);
-  const lowerBoundIso = new Date(Date.now() - windowMs).toISOString();
+  const bucketTs = safeIso(bucketTsIso);
+  const eventIdStr = String(eventId || "").trim();
+  if (!phone || !bucketTs || !eventIdStr) {
+    return { ok: false, isLeader: false, leaderEventId: null, errorCode: "invalid_claim_input" };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("claim_burst_leader", {
+      p_phone_e164: phone,
+      p_bucket_ts: bucketTs,
+      p_event_id: eventIdStr,
+    });
+
+    if (error) {
+      console.log("[lifecycle] leader_claim", {
+        phoneLast4: tailN(phone, 4),
+        bucket_ts: bucketTs,
+        is_leader: false,
+        leader_event_id_last4: null,
+        error: "rpc_error",
+      });
+      return { ok: false, isLeader: false, leaderEventId: null, errorCode: "rpc_error" };
+    }
+
+    const row = Array.isArray(data) && data.length ? data[0] : null;
+    const leaderEventId = row?.leader_event_id != null ? String(row.leader_event_id) : null;
+    const isLeader = Boolean(row?.is_leader) && leaderEventId != null;
+
+    console.log("[lifecycle] leader_claim", {
+      phoneLast4: tailN(phone, 4),
+      bucket_ts: bucketTs,
+      is_leader: isLeader,
+      leader_event_id_last4: leaderEventId ? tailN(leaderEventId, 4) : null,
+    });
+
+    return { ok: true, isLeader, leaderEventId, errorCode: null };
+  } catch {
+    console.log("[lifecycle] leader_claim", {
+      phoneLast4: tailN(phone, 4),
+      bucket_ts: bucketTs,
+      is_leader: false,
+      leader_event_id_last4: null,
+      error: "rpc_exception",
+    });
+    return { ok: false, isLeader: false, leaderEventId: null, errorCode: "rpc_exception" };
+  }
+}
+
+async function fetchBurstRowsForLeader(phoneE164, bucketTsIso, maxRows = 800) {
+  const phone = normalizePhoneE164(phoneE164);
+  const bucketTs = safeIso(bucketTsIso);
+  if (!phone || !bucketTs) return [];
 
   const { data, error } = await supabase
     .from("inbound_events")
     .select(
-      "id, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, processed_at, next_attempt_at"
+      "id, provider, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, processed_at, next_attempt_at, outcome, bucket_ts"
     )
     .eq("provider", "whatsapp")
     .eq("from_phone", phone)
-    .gte("received_at", lowerBoundIso)
+    .eq("bucket_ts", bucketTs)
     .is("processed_at", null)
     .in("status", ["pending", "leader", "queued", "processing"])
+    .order("user_msg_ts", { ascending: true, nullsFirst: false })
     .order("received_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(maxRows);
@@ -586,27 +704,28 @@ async function fetchBurstRowsForLeader(phoneE164, windowSeconds, maxRows = 800) 
   if (error || !Array.isArray(data)) return [];
 
   return data.filter((row) => {
+    const outcome = String(row?.outcome || "").toLowerCase();
+    if (outcome === "summary_sent" || outcome === "batched_child") return false;
     const classified = classifyWhatsAppEvent(row);
     return isBurstBatchEligibleKind(classified.kind);
   });
 }
 
-async function buildBurstBatchFromLeader(primaryRow, primaryClassified, primaryTextBody, leaderEventId) {
+async function buildBurstBatchFromLeader(primaryRow, primaryClassified, primaryTextBody, leaderEventId, bucketTsIso) {
   const phone = normalizePhoneE164(primaryClassified?.wa_number || primaryRow?.from_phone || null);
+  const bucketTs = safeIso(bucketTsIso);
   const primaryId = String(primaryRow?.id || "");
   const leaderId = String(leaderEventId || "");
 
-  if (!phone || !primaryId || !leaderId) {
+  if (!phone || !primaryId || !leaderId || !bucketTs) {
     return { ok: false, reason: "bad_burst_input" };
   }
 
-  const burstRows = await fetchBurstRowsForLeader(phone, BURST_SECONDS, 800);
+  const burstRows = await fetchBurstRowsForLeader(phone, bucketTs, 800);
   const dedupMap = new Map();
 
-  for (const row of burstRows) {
-    dedupMap.set(String(row.id), row);
-  }
-  dedupMap.set(primaryId, primaryRow);
+  for (const row of burstRows) dedupMap.set(String(row.id), row);
+  dedupMap.set(primaryId, { ...primaryRow, bucket_ts: bucketTs });
 
   const normalizedRows = Array.from(dedupMap.values()).sort(compareRowsByAnchor);
   const textRows = [];
@@ -621,32 +740,23 @@ async function buildBurstBatchFromLeader(primaryRow, primaryClassified, primaryT
   for (const item of textRows) {
     const rowId = String(item.row?.id || "");
     includedRowIds.push(rowId);
+
     if (rowId === primaryId && String(primaryTextBody || "").trim()) {
       texts.push(String(primaryTextBody || ""));
       continue;
     }
 
     const loaded = await loadTextForClassifiedEvent(item.row, item.classified);
+    if (loaded.fetchFailed) {
+      return { ok: false, reason: "text_fetch_failed", failedRowId: rowId, failedCode: loaded.lastErrorCode || null };
+    }
     if (loaded.ok && !loaded.empty && String(loaded.textBody || "").trim()) {
       texts.push(String(loaded.textBody || ""));
     }
   }
 
   const uniqueIncludedIds = Array.from(new Set(includedRowIds.filter(Boolean)));
-  const followerIds = uniqueIncludedIds.filter((id) => id !== leaderId);
-  for (const followerId of followerIds) {
-    await markRowAsBatchedChild(followerId, leaderId);
-  }
-
   const combinedText = texts.length > 1 ? combineBurstMessagesForSummary(texts) : String(texts[0] || "");
-  const totalChars = combinedText.length;
-
-  console.log("[burst]", {
-    phoneLast4: tailN(phone, 4),
-    burstCount: texts.length,
-    leader_event_id_last4: tailN(leaderId, 4),
-    total_chars: totalChars,
-  });
 
   return {
     ok: true,
@@ -655,7 +765,90 @@ async function buildBurstBatchFromLeader(primaryRow, primaryClassified, primaryT
     burstRowIds: uniqueIncludedIds,
     leaderEventId: leaderId,
     waNumber: phone,
+    bucketTs,
   };
+}
+
+async function isIdleWindowSatisfied(phoneE164, bucketTsIso) {
+  const phone = normalizePhoneE164(phoneE164);
+  const bucketTs = safeIso(bucketTsIso);
+  if (!phone || !bucketTs) {
+    return {
+      ok: false,
+      satisfied: false,
+      latestTs: null,
+      nextAttemptAt: null,
+      idleMs: null,
+      errorCode: "invalid_idle_inputs",
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("inbound_events")
+      .select("user_msg_ts, received_at")
+      .eq("provider", "whatsapp")
+      .eq("from_phone", phone)
+      .eq("bucket_ts", bucketTs)
+      .is("processed_at", null)
+      .limit(2000);
+
+    if (error) {
+      return {
+        ok: false,
+        satisfied: false,
+        latestTs: null,
+        nextAttemptAt: null,
+        idleMs: null,
+        errorCode: "idle_query_error",
+      };
+    }
+
+    let latestMs = null;
+    const rows = Array.isArray(data) ? data : [];
+    for (const row of rows) {
+      const anchorIso = safeIso(row?.user_msg_ts) || safeIso(row?.received_at);
+      if (!anchorIso) continue;
+      const anchorMs = Date.parse(anchorIso);
+      if (!Number.isFinite(anchorMs)) continue;
+      if (latestMs == null || anchorMs > latestMs) latestMs = anchorMs;
+    }
+
+    if (latestMs == null) {
+      return {
+        ok: true,
+        satisfied: true,
+        latestTs: null,
+        nextAttemptAt: null,
+        idleMs: null,
+        errorCode: null,
+      };
+    }
+
+    const nowMs = Date.now();
+    const idleMs = nowMs - latestMs;
+    const waitMs = BURST_SECONDS * 1000;
+    const nextAttemptAt = new Date(latestMs + waitMs).toISOString();
+    const satisfied = idleMs >= waitMs;
+
+    return {
+      ok: true,
+      satisfied,
+      latestTs: new Date(latestMs).toISOString(),
+      nextAttemptAt,
+      idleMs,
+      errorCode: null,
+    };
+  } catch {
+    return {
+      ok: false,
+      satisfied: false,
+      latestTs: null,
+      nextAttemptAt: null,
+      idleMs: null,
+      errorCode: "idle_query_exception",
+    };
+  }
 }
 
 function combineBurstMessagesForSummary(messageTexts) {
@@ -752,13 +945,14 @@ async function loadTextForClassifiedEvent(row, classified) {
 // -------------------- Supabase queue --------------------
 async function dequeueEventJson() {
   const now = nowIso();
-  const baseSelect = "id, provider, status, attempts, processed_at, outcome, skip_reason, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, next_attempt_at";
+  const baseSelect =
+    "id, provider, status, attempts, processed_at, outcome, skip_reason, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, next_attempt_at, bucket_ts";
   const { data, error } = await supabase
     .from("inbound_events")
     .select(baseSelect)
+    .eq("provider", "whatsapp")
     .in("status", ["pending", "leader"])
     .is("processed_at", null)
-    .lte("next_attempt_at", now)
     .order("next_attempt_at", { ascending: true })
     .order("received_at", { ascending: true })
     .order("id", { ascending: true })
@@ -777,6 +971,9 @@ async function dequeueEventJson() {
 
   const candidates = Array.isArray(data) ? data : [];
   for (const candidate of candidates) {
+    const dueMs = isoToMsOrNull(candidate?.next_attempt_at);
+    if (dueMs != null && dueMs > Date.now()) continue;
+
     const currentAttempts = Number.isFinite(Number(candidate?.attempts)) ? Number(candidate.attempts) : 0;
     const expectedStatus = String(candidate?.status || "pending");
     const { data: claimed, error: claimError } = await supabase
@@ -793,7 +990,13 @@ async function dequeueEventJson() {
       .maybeSingle();
 
     if (claimError) continue;
-    if (claimed && claimed.id != null) return claimed;
+    if (claimed && claimed.id != null) {
+      console.log("[lifecycle] dequeue", {
+        idLast4: tailN(claimed.id, 4),
+        phoneLast4: tailN(claimed.from_phone || claimed.wa_number || claimed.meta?.from || "", 4) || "n/a",
+      });
+      return claimed;
+    }
   }
   return null;
 }
@@ -1437,15 +1640,18 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso, opts = 
   // Paywall BEFORE OpenAI
   if (user.plan === "free" && meaningful && Number(user.free_remaining || 0) <= 0) {
     console.log("[paywall]", { phoneLast4, allowed: false });
+    console.log("[lifecycle] paywall_check", { phoneLast4, allowed: false });
     await sendWhatsAppText(waNumber, "You’ve used your free summaries.\nReply PAY to upgrade.");
     console.log("[send]", { phoneLast4, ok: true });
     return { action: "paywall" };
   }
   console.log("[paywall]", { phoneLast4, allowed: true });
+  console.log("[lifecycle] paywall_check", { phoneLast4, allowed: true });
 
   const langPref = getUserLangPref(user);
   const forcedLang = langPref === "auto" ? null : langPref;
 
+  console.log("[lifecycle] openai_call", { phoneLast4, allowed: true });
   const result = await generateSummaryOrDryRun(textBody, eventTsIso, forcedLang);
 
   if (!result.ok) {
@@ -1475,6 +1681,7 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso, opts = 
     outboundText = `${outboundText}\n\n${freeLeftLine}`;
   }
   await sendWhatsAppText(waNumber, outboundText);
+  console.log("[lifecycle] wa_send", { phoneLast4, ok: true });
   console.log("[send]", { phoneLast4, ok: true });
 
   const eventIdForIdempotency = String(opts?.eventId || "").trim();
@@ -1570,9 +1777,22 @@ async function mainLoop() {
         continue;
       }
 
-      const isTextLikeInbound = isBurstBatchEligibleKind(classified.kind);
+      const bucket = await ensureDurableBucketTs(row);
+      if (!bucket.ok || !bucket.bucketTs) {
+        await markEvent(id, {
+          status: "pending",
+          processed_at: null,
+          outcome: "bucket_set_error",
+          skip_reason: "bucket_set_error",
+          next_attempt_at: nowIso(),
+        });
+        continue;
+      }
+
+      const isSummaryCandidate = isBurstBatchEligibleKind(classified.kind);
+      const needsLeaderGate = isSummaryCandidate || classified.kind === "inbound_command";
       let leaderEventId = null;
-      if (isTextLikeInbound) {
+      if (needsLeaderGate) {
         const outcomeLower = String(row?.outcome || "").toLowerCase();
         if (outcomeLower === "summary_sent") {
           await markEvent(id, {
@@ -1584,37 +1804,36 @@ async function mainLoop() {
           continue;
         }
 
-        const currentStatus = String(row?.status || "").toLowerCase();
-        if (currentStatus === "leader") {
-          leaderEventId = String(id);
-          console.log("[leader-claim]", {
-            phoneLast4: tailN(waNumber, 4),
-            claimed: true,
-            leader_event_id_last4: tailN(leaderEventId, 4),
+        const leaderClaim = await claimBurstLeaderForPhone(waNumber, bucket.bucketTs, id);
+        if (!leaderClaim.ok) {
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            outcome: "burst_claim_error",
+            skip_reason: "leader_claim_error",
+            next_attempt_at: nowIso(),
           });
-        } else {
-          const leaderClaim = await claimBurstLeaderForPhone(waNumber);
-          if (!leaderClaim.ok) {
-            await markEvent(id, {
-              status: "pending",
-              processed_at: null,
-              outcome: "burst_claim_error",
-              skip_reason: "leader_claim_error",
-              next_attempt_at: nowIso(),
-            });
-            continue;
-          }
+          continue;
+        }
 
-          if (!leaderClaim.claimed || !leaderClaim.leaderEventId) {
-            await markRowAsBatchedChild(id, "none", "burst_non_leader");
-            continue;
-          }
+        if (!leaderClaim.isLeader || !leaderClaim.leaderEventId) {
+          const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+          const nextAttempt = idleGate.ok ? safeIso(idleGate.nextAttemptAt) || nowIso() : nowIso();
+          await parkFollowerForBurst(id, "none", nextAttempt, "burst_non_leader_wait_none");
+          continue;
+        }
 
-          leaderEventId = String(leaderClaim.leaderEventId);
-          if (String(id) !== leaderEventId) {
-            await markRowAsBatchedChild(id, leaderEventId, `burst_non_leader_${tailN(leaderEventId, 4)}`);
-            continue;
-          }
+        leaderEventId = String(leaderClaim.leaderEventId);
+        if (String(id) !== leaderEventId) {
+          const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+          const nextAttempt = idleGate.ok ? safeIso(idleGate.nextAttemptAt) || nowIso() : nowIso();
+          await parkFollowerForBurst(
+            id,
+            leaderEventId,
+            nextAttempt,
+            `burst_non_leader_wait_${tailN(leaderEventId, 4)}`
+          );
+          continue;
         }
       }
 
@@ -1681,7 +1900,7 @@ async function mainLoop() {
       }
 
       // Text
-      const primaryTextLoaded = isTextLikeInbound
+      const primaryTextLoaded = isSummaryCandidate
         ? preloadedPrimaryText || (await loadTextForClassifiedEvent(row, classified))
         : {
             ok: false,
@@ -1704,7 +1923,7 @@ async function mainLoop() {
         );
       }
 
-      if (isTextLikeInbound && primaryTextLoaded.fetchFailed) {
+      if (isSummaryCandidate && primaryTextLoaded.fetchFailed) {
         try {
           await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", { eventId: id });
         } catch {
@@ -1718,7 +1937,7 @@ async function mainLoop() {
         continue;
       }
 
-      if (isTextLikeInbound && (!textBody || !String(textBody).trim())) {
+      if (isSummaryCandidate && (!textBody || !String(textBody).trim())) {
         try {
           await sendWhatsAppText(
             waNumber,
@@ -1736,7 +1955,7 @@ async function mainLoop() {
         continue;
       }
 
-      const extractedCommand = isTextLikeInbound ? extractCommandText(textBody) : null;
+      const extractedCommand = isSummaryCandidate ? extractCommandText(textBody) : null;
       if (extractedCommand) {
         const r = await processCommand({
           waNumber,
@@ -1757,9 +1976,42 @@ async function mainLoop() {
       }
 
       let burstSummaryMessageCount = 0;
-      if (isTextLikeInbound) {
-        const burst = await buildBurstBatchFromLeader(row, classified, textBody, leaderEventId);
+      let burstIncludedRowIds = [String(id)];
+      if (isSummaryCandidate) {
+        const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+        if (!idleGate.ok) {
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            outcome: "burst_idle_gate_error",
+            skip_reason: "idle_gate_error",
+            next_attempt_at: nowIso(),
+          });
+          continue;
+        }
+
+        if (!idleGate.satisfied) {
+          const nextAttempt = safeIso(idleGate.nextAttemptAt) || nowIso();
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            next_attempt_at: nextAttempt,
+            outcome: "burst_waiting_idle",
+            skip_reason: "waiting_for_idle_window",
+          });
+          continue;
+        }
+
+        const burst = await buildBurstBatchFromLeader(row, classified, textBody, leaderEventId, bucket.bucketTs);
         if (!burst.ok) {
+          if (burst.reason === "text_fetch_failed") {
+            await markEvent(id, {
+              status: "error",
+              outcome: "text_fetch_failed",
+              last_error: burst.failedCode || "text_fetch_failed",
+            });
+            continue;
+          }
           await markEvent(id, {
             status: "pending",
             processed_at: null,
@@ -1775,23 +2027,48 @@ async function mainLoop() {
         burstSummaryMessageCount = Number.isFinite(Number(burst.burstMessageCount))
           ? Number(burst.burstMessageCount)
           : 0;
+        burstIncludedRowIds = Array.isArray(burst.burstRowIds) && burst.burstRowIds.length ? burst.burstRowIds : [String(id)];
 
-        console.log(
-          `[batch] leader phone=${tailN(burst.waNumber || waNumber, 4)} leader_id=${tailN(leaderEventId, 4)} burst_seconds=${BURST_SECONDS} row_count=${Array.isArray(burst.burstRowIds) ? burst.burstRowIds.length : 1} message_count=${burstSummaryMessageCount} total_chars=${String(textBody || "").length}`
-        );
+        console.log("[lifecycle] gather_count", {
+          phoneLast4: tailN(burst.waNumber || waNumber, 4),
+          bucket_ts: bucket.bucketTs,
+          row_count: burstIncludedRowIds.length,
+          message_count: burstSummaryMessageCount,
+        });
       }
 
       const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso, {
-        eventId: isTextLikeInbound && leaderEventId ? id : null,
-        skipReason: isTextLikeInbound && leaderEventId ? `burst_leader_${tailN(leaderEventId, 4)}` : null,
+        eventId: null,
+        skipReason: null,
       });
 
-      if (isTextLikeInbound && leaderEventId) {
-        await markEvent(id, {
+      if (isSummaryCandidate && leaderEventId) {
+        if (r.action === "summary_failed") {
+          await scheduleOpenAiRetry(id, attempts, r.error_code || "openai_error");
+          continue;
+        }
+
+        const leaderOutcome = r.action === "summary_sent" ? "summary_sent" : r.action || "processed";
+        await markEvent(leaderEventId, {
           status: "processed",
-          outcome: r.action || "processed",
+          outcome: leaderOutcome,
           skip_reason: `burst_leader_${tailN(leaderEventId, 4)}`,
           next_attempt_at: null,
+        });
+
+        if (leaderOutcome === "summary_sent") {
+          for (const childId of burstIncludedRowIds) {
+            const childStr = String(childId || "");
+            if (!childStr || childStr === String(leaderEventId)) continue;
+            await markRowAsBatchedChild(childStr, leaderEventId, `burst_non_leader_${tailN(leaderEventId, 4)}`);
+          }
+        }
+
+        console.log("[lifecycle] db_finalize", {
+          phoneLast4: tailN(waNumber, 4),
+          leader_id_last4: tailN(leaderEventId, 4),
+          row_count: burstIncludedRowIds.length,
+          outcome: leaderOutcome,
         });
         continue;
       }
