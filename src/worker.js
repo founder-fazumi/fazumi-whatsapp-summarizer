@@ -24,7 +24,7 @@ const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 
 // ---- WORKER VERSION FINGERPRINT ----
-const WORKER_VERSION = "p5-workerpool-burst-followers-finalize-2026-02-20";
+const WORKER_VERSION = "p5-workerpool-burst-single-reply-2026-02-20";
 
 // ---- OpenAI summarizer (CommonJS) ----
 let summarizeText = null;
@@ -478,6 +478,10 @@ function isBurstBatchEligibleKind(kind) {
   return kind === "inbound_text" || kind === "inbound_text_legacy";
 }
 
+function isLeaderGateEligibleKind(kind) {
+  return isBurstBatchEligibleKind(kind) || kind === "inbound_command";
+}
+
 function isoToMsOrNull(isoValue) {
   const iso = safeIso(isoValue);
   if (!iso) return null;
@@ -778,10 +782,11 @@ async function claimBurstLeaderForPhone(phoneE164, bucketTsIso, eventId) {
   }
 }
 
-async function fetchBurstRowsForLeader(phoneE164, bucketTsIso, maxRows = 800) {
+async function fetchBurstRowsForLeader(phoneE164, bucketTsIso, maxRows = 800, options = {}) {
   const phone = normalizePhoneE164(phoneE164);
   const bucketTs = safeIso(bucketTsIso);
   if (!phone || !bucketTs) return [];
+  const includeLeaderGateKinds = options && options.includeLeaderGateKinds === true;
 
   const { data, error } = await supabase
     .from("inbound_events")
@@ -804,7 +809,9 @@ async function fetchBurstRowsForLeader(phoneE164, bucketTsIso, maxRows = 800) {
     const outcome = String(row?.outcome || "").toLowerCase();
     if (outcome === "summary_sent" || outcome === "batched_child") return false;
     const classified = classifyWhatsAppEvent(row);
-    return isBurstBatchEligibleKind(classified.kind);
+    return includeLeaderGateKinds
+      ? isLeaderGateEligibleKind(classified.kind)
+      : isBurstBatchEligibleKind(classified.kind);
   });
 }
 
@@ -812,7 +819,9 @@ async function finalizeBurstChildrenForLeader(phoneE164, bucketTsIso, leaderEven
   const leaderId = String(leaderEventId || "").trim();
   if (!leaderId) return 0;
 
-  const rows = await fetchBurstRowsForLeader(phoneE164, bucketTsIso, 800);
+  const rows = await fetchBurstRowsForLeader(phoneE164, bucketTsIso, 800, {
+    includeLeaderGateKinds: true,
+  });
   let finalizedCount = 0;
   for (const row of rows) {
     const childId = String(row?.id || "").trim();
@@ -2067,7 +2076,23 @@ async function mainLoop() {
         },
       });
       if (legal.stop) {
-        await markEvent(id, { status: "processed", outcome: legal.outcome || "privacy_notice_sent" });
+        const legalOutcome = legal.outcome || "privacy_notice_sent";
+        await markEvent(id, { status: "processed", outcome: legalOutcome });
+        if (needsLeaderGate && leaderEventId) {
+          const finalizedChildren = await finalizeBurstChildrenForLeader(
+            waNumber,
+            bucket.bucketTs,
+            leaderEventId,
+            legalOutcome,
+            "processed"
+          );
+          console.log("[lifecycle] db_finalize", {
+            phoneLast4: tailN(waNumber, 4),
+            leader_id_last4: tailN(leaderEventId, 4),
+            row_count: finalizedChildren + 1,
+            outcome: legalOutcome,
+          });
+        }
         continue;
       }
 
@@ -2090,7 +2115,23 @@ async function mainLoop() {
           buildPayMessage,
         });
         if (r.handled === true) {
-          await markEvent(id, { status: "processed", outcome: r.action || "command_processed" });
+          const commandOutcome = r.action || "command_processed";
+          await markEvent(id, { status: "processed", outcome: commandOutcome });
+          if (leaderEventId) {
+            const finalizedChildren = await finalizeBurstChildrenForLeader(
+              waNumber,
+              bucket.bucketTs,
+              leaderEventId,
+              commandOutcome,
+              "processed"
+            );
+            console.log("[lifecycle] db_finalize", {
+              phoneLast4: tailN(waNumber, 4),
+              leader_id_last4: tailN(leaderEventId, 4),
+              row_count: finalizedChildren + 1,
+              outcome: commandOutcome,
+            });
+          }
           continue;
         }
         commandFallbackText = String(classified.command || "").trim();
@@ -2119,81 +2160,12 @@ async function mainLoop() {
           `[text_diag] id=${id} msg_type=${msgType || "unknown"} has_text_enc=${primaryTextLoaded.hasTextEnc} decrypt=${primaryTextLoaded.decryptStatus}${primaryTextLoaded.decryptReason ? ` reason=${primaryTextLoaded.decryptReason}` : ""} has_text_ref=${primaryTextLoaded.hasTextRef} storage_fetch=${primaryTextLoaded.storageFetchStatus || "n/a"} text_len=${String(textBody || "").trim().length}`
         );
       }
-
-      if (isSummaryCandidate) {
-        if (!leaderEventId) {
-          await settleFollowerAgainstLeader(id, null, waNumber, bucket.bucketTs, "burst_non_leader_wait_none");
-          continue;
-        }
-        if (String(id) !== String(leaderEventId)) {
-          await settleFollowerAgainstLeader(
-            id,
-            leaderEventId,
-            waNumber,
-            bucket.bucketTs,
-            `burst_non_leader_wait_${tailN(leaderEventId, 4)}`
-          );
-          continue;
-        }
-      }
-
-      if (isSummaryCandidate && primaryTextLoaded.fetchFailed) {
-        try {
-          await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", { eventId: id });
-        } catch {
-          // best effort
-        }
-        await markEvent(id, {
-          status: "error",
-          outcome: "text_fetch_failed",
-          last_error: primaryTextLoaded.lastErrorCode || "text_fetch_failed",
-        });
-        await finalizeBurstChildrenForLeader(waNumber, bucket.bucketTs, leaderEventId, "text_fetch_failed", "processed");
-        continue;
-      }
-
-      if (isSummaryCandidate && (!textBody || !String(textBody).trim())) {
-        try {
-          await sendWhatsAppText(
-            waNumber,
-            "I received your message but couldn't read the text. Please resend as plain text.",
-            { eventId: id }
-          );
-        } catch {
-          // best effort
-        }
-        await markEvent(id, {
-          status: "processed",
-          outcome: "empty_text",
-          last_error: primaryTextLoaded.lastErrorCode || null,
-        });
-        await finalizeBurstChildrenForLeader(waNumber, bucket.bucketTs, leaderEventId, "empty_text", "processed");
-        continue;
-      }
-
-      const extractedCommand = isSummaryCandidate ? extractCommandText(textBody) : null;
-      if (extractedCommand) {
-        const r = await processCommand({
-          waNumber,
-          user,
-          textBody: extractedCommand,
-          waMessageId: row?.wa_message_id || null,
-          eventTsIso,
-          supabase,
-          nowIso,
-          sendText: async (message) => sendWhatsAppText(waNumber, message, { eventId: id }),
-          buildStatusMessage,
-          buildPayMessage,
-        });
-        if (r.handled === true) {
-          await markEvent(id, { status: "processed", outcome: r.action || "command_processed" });
-          continue;
-        }
-      }
+      const extractedCommandFromPrimary = isSummaryCandidate ? extractCommandText(textBody) : null;
 
       let burstSummaryMessageCount = 0;
       let burstIncludedRowIds = [String(id)];
       if (isSummaryCandidate) {
+        // Leader-only summary path: always idle-gate and aggregate the full burst first.
         const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
         if (!idleGate.ok) {
           await markEvent(id, {
@@ -2221,12 +2193,37 @@ async function mainLoop() {
         const burst = await buildBurstBatchFromLeader(row, classified, textBody, leaderEventId, bucket.bucketTs);
         if (!burst.ok) {
           if (burst.reason === "text_fetch_failed") {
-            await markEvent(id, {
+            console.log("[lifecycle] aggregate_fetch_failed", {
+              phoneLast4: tailN(waNumber, 4),
+              leader_id_last4: tailN(leaderEventId || id, 4),
+              bucket_ts: bucket.bucketTs,
+              failed_row_id_last4: tailN(burst.failedRowId || "", 4) || null,
+            });
+            try {
+              await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", {
+                eventId: leaderEventId || id,
+              });
+            } catch {
+              // best effort; leader row is still finalized below
+            }
+            await markEvent(leaderEventId || id, {
               status: "error",
               outcome: "text_fetch_failed",
               last_error: burst.failedCode || "text_fetch_failed",
             });
-            await finalizeBurstChildrenForLeader(waNumber, bucket.bucketTs, leaderEventId, "text_fetch_failed", "error");
+            const finalizedChildren = await finalizeBurstChildrenForLeader(
+              waNumber,
+              bucket.bucketTs,
+              leaderEventId,
+              "text_fetch_failed",
+              "error"
+            );
+            console.log("[lifecycle] db_finalize", {
+              phoneLast4: tailN(waNumber, 4),
+              leader_id_last4: tailN(leaderEventId, 4),
+              row_count: finalizedChildren + 1,
+              outcome: "text_fetch_failed",
+            });
             continue;
           }
           await markEvent(id, {
@@ -2252,6 +2249,81 @@ async function mainLoop() {
           row_count: burstIncludedRowIds.length,
           message_count: burstSummaryMessageCount,
         });
+
+        const aggregatedTextIsEmpty = !String(textBody || "").trim() || burstSummaryMessageCount === 0;
+        if (aggregatedTextIsEmpty) {
+          console.log("[lifecycle] aggregate_empty", {
+            phoneLast4: tailN(waNumber, 4),
+            leader_id_last4: tailN(leaderEventId || id, 4),
+            bucket_ts: bucket.bucketTs,
+            row_count: burstIncludedRowIds.length,
+            message_count: burstSummaryMessageCount,
+          });
+          try {
+            await sendWhatsAppText(
+              waNumber,
+              "I received your message but couldn't read the text. Please resend as plain text.",
+              { eventId: leaderEventId || id }
+            );
+          } catch {
+            // best effort; leader row is still finalized below
+          }
+          await markEvent(leaderEventId || id, {
+            status: "processed",
+            outcome: "empty_text",
+            last_error: primaryTextLoaded.lastErrorCode || null,
+          });
+          const finalizedChildren = await finalizeBurstChildrenForLeader(
+            waNumber,
+            bucket.bucketTs,
+            leaderEventId,
+            "empty_text",
+            "processed"
+          );
+          console.log("[lifecycle] db_finalize", {
+            phoneLast4: tailN(waNumber, 4),
+            leader_id_last4: tailN(leaderEventId, 4),
+            row_count: finalizedChildren + 1,
+            outcome: "empty_text",
+          });
+          continue;
+        }
+      }
+
+      const extractedCommand = extractedCommandFromPrimary || (isSummaryCandidate ? extractCommandText(textBody) : null);
+      if (extractedCommand) {
+        const r = await processCommand({
+          waNumber,
+          user,
+          textBody: extractedCommand,
+          waMessageId: row?.wa_message_id || null,
+          eventTsIso,
+          supabase,
+          nowIso,
+          sendText: async (message) => sendWhatsAppText(waNumber, message, { eventId: id }),
+          buildStatusMessage,
+          buildPayMessage,
+        });
+        if (r.handled === true) {
+          const commandOutcome = r.action || "command_processed";
+          await markEvent(id, { status: "processed", outcome: commandOutcome });
+          if (leaderEventId) {
+            const finalizedChildren = await finalizeBurstChildrenForLeader(
+              waNumber,
+              bucket.bucketTs,
+              leaderEventId,
+              commandOutcome,
+              "processed"
+            );
+            console.log("[lifecycle] db_finalize", {
+              phoneLast4: tailN(waNumber, 4),
+              leader_id_last4: tailN(leaderEventId, 4),
+              row_count: finalizedChildren + 1,
+              outcome: commandOutcome,
+            });
+          }
+          continue;
+        }
       }
 
       const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso, {
