@@ -281,6 +281,18 @@ function labelsForTarget(target_lang) {
   };
 }
 
+function normalizeForcedLanguage(code) {
+  const v = String(code || "").trim().toLowerCase();
+  if (v === "en" || v === "ar" || v === "es" || v === "auto") return v;
+  return null;
+}
+
+function normalizeUiLanguage(code) {
+  const v = String(code || "").trim().toLowerCase();
+  if (v === "en" || v === "ar" || v === "es") return v;
+  return null;
+}
+
 // ---------- R1: time utilities (Asia/Qatar) ----------
 const DEFAULT_TZ = "Asia/Qatar";
 
@@ -875,8 +887,8 @@ function formatForWhatsApp(schemaObj, maxChars, target_lang, savedMinutes) {
 }
 
 // ---------- main summarizer ----------
-async function summarizeText({ text, anchor_ts_iso, timezone }) {
-  const DRY_RUN = getBoolEnv("DRY_RUN", true);
+async function summarizeText({ text, anchor_ts_iso, timezone, forced_lang, ui_lang }) {
+  const DRY_RUN = getBoolEnv("DRY_RUN", false);
 
   const model = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
   const projectId = (process.env.OPENAI_PROJECT_ID || "").trim();
@@ -897,13 +909,23 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
   const clipped = trimmed.length > maxInputChars ? trimmed.slice(0, maxInputChars) : trimmed;
   const savedMinutes = estimateSavedMinutesFromInput(trimmed);
 
-  const requestedOverride = extractRequestedLanguageOverride(clipped);
-  const langTarget = requestedOverride ? { target_lang: requestedOverride, reason: "explicit_override" } : detectTargetLanguage(clipped);
-  const target_lang = langTarget.target_lang;
+  const normalizedForcedLang = normalizeForcedLanguage(forced_lang);
+  let langTarget = null;
+  if (normalizedForcedLang && normalizedForcedLang !== "auto") {
+    langTarget = { target_lang: normalizedForcedLang, reason: "forced_user_pref" };
+  } else {
+    const requestedOverride = extractRequestedLanguageOverride(clipped);
+    langTarget = requestedOverride
+      ? { target_lang: requestedOverride, reason: "explicit_override" }
+      : detectTargetLanguage(clipped);
+  }
+  const content_target_lang = langTarget.target_lang;
+  const normalizedUiLang = normalizeUiLanguage(ui_lang);
+  const target_lang = normalizedUiLang || content_target_lang;
 
   const request_fingerprint = crypto
     .createHash("sha256")
-    .update(`${model}::${tz}::${anchor_ts_iso || ""}::${target_lang}::${clipped}`)
+    .update(`${model}::${tz}::${anchor_ts_iso || ""}::${content_target_lang}::${target_lang}::${clipped}`)
     .digest("hex");
 
   // R2: detect batch and range early (best-effort)
@@ -973,6 +995,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
       cost_usd_est: null,
       request_fingerprint,
       raw_json: fake,
+      target_lang,
     };
   }
 
@@ -986,7 +1009,11 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
       ...(projectId ? { project: projectId } : {}),
     });
 
-    const instructions = buildFazumiSystemPrompt({ anchor_ts_iso, timezone: tz, target_lang });
+    const instructions = buildFazumiSystemPrompt({
+      anchor_ts_iso,
+      timezone: tz,
+      target_lang: content_target_lang,
+    });
     const input = clipped;
 
     let lastErr = null;
@@ -1044,6 +1071,7 @@ async function summarizeText({ text, anchor_ts_iso, timezone }) {
           cost_usd_est: costUsdEst,
           request_fingerprint,
           raw_json: normalized,
+          target_lang,
         };
       } catch (err) {
         lastErr = err;

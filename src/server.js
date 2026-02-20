@@ -12,13 +12,13 @@
  * - Default: DO NOT store raw user message text in DB.
  * - Store only:
  *   - text_sha256 (proof/dedupe)
- *   - text_ref (Supabase Storage pointer) + text_len
+ *   - text_enc (AES-GCM encrypted payload) + text_len
  *   - minimal meta fields (no raw text)
  *
  * Phase 5 additions:
  * - Bind to 0.0.0.0 + PORT for cloud hosting (Render/Cloud Run).
  * - Handle multi-message payloads deterministically.
- * - Handle Reaction messages (for perceived learning in worker).
+ * - Ignore non-text message types for MVP text-only launch.
  *
  * IMPORTANT:
  * - Paywall decision MUST happen BEFORE any OpenAI call (worker enforces).
@@ -34,20 +34,19 @@ const morgan = require("morgan");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 
-const { getSupabaseAdmin, safeInsertInboundEvent } = require("./supabase");
+const { getSupabaseAdmin, normalizeProvider, safeInsertInboundEvent } = require("./supabase");
 const { redact, verifyLemonSignature, sha256Hex } = require("./util");
 
 const app = express();
 app.set("trust proxy", 1);
 
 const supabase = getSupabaseAdmin();
-const CHAT_EXPORTS_BUCKET = process.env.CHAT_EXPORTS_BUCKET || "chat-exports";
 
 /**
  * VERSION MARKER
  * Bump this string whenever you deploy changes so logs prove what's running.
  */
-const SERVER_BUILD_TAG = "SG6-webhook-skip-busy-2026-02-06";
+const SERVER_BUILD_TAG = "SG7-webhook-scheduled-queue-2026-02-14";
 
 app.use(helmet());
 app.use(morgan("tiny"));
@@ -85,7 +84,23 @@ function readEnvFlag(name, defaultValue) {
   return defaultValue;
 }
 
+function parseIntEnv(rawValue, fallback, minValue = 0) {
+  if (rawValue == null) return fallback;
+  const n = Number(rawValue);
+  if (!Number.isFinite(n)) return fallback;
+  const v = Math.floor(n);
+  if (v < minValue) return fallback;
+  return v;
+}
+
+function resolveBurstWindowSeconds(rawValue) {
+  return parseIntEnv(rawValue, 20, 1);
+}
+
 const WORKER_POOL_HEALTHY = readEnvFlag("WORKER_POOL_HEALTHY", true);
+const BURST_WINDOW_SECONDS = resolveBurstWindowSeconds(process.env.BURST_WINDOW_SECONDS);
+const EFFECTIVE_BURST_WINDOW_MS = BURST_WINDOW_SECONDS * 1000;
+// Manual verify: send a WhatsApp webhook and confirm inserted inbound_events rows have provider='whatsapp', status='queued', and non-null next_attempt_at ~= now()+BURST_WINDOW_SECONDS.
 
 /**
  * Parse timestamp robustly.
@@ -119,7 +134,23 @@ function parseTimestampToIsoOrNull(ts) {
 
 function normalizeInboundCommandText(text) {
   const collapsed = String(text || "").trim().replace(/\s+/g, " ");
-  return collapsed.toUpperCase().replace(/[.!?]+$/g, "");
+  const normalized = collapsed.toUpperCase().replace(/^\/+/, "").replace(/[.!?]+$/g, "");
+  return normalized.trim();
+}
+
+function normalizeRawCommandText(text) {
+  return String(text || "").trim().replace(/\s+/g, " ").replace(/^\/+/, "").trim();
+}
+
+function extractInboundTextBody(msg) {
+  const type = String(msg?.type || "").toLowerCase();
+  if (type === "text") return String(msg?.text?.body || "");
+  if (type === "button") return String(msg?.button?.text || "");
+  if (type === "interactive") {
+    const title = msg?.interactive?.button_reply?.title || msg?.interactive?.list_reply?.title || "";
+    return String(title);
+  }
+  return "";
 }
 
 /**
@@ -190,8 +221,18 @@ function safeIdSuffixForPath(id) {
   return suffix.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-function inboundTextPathFromMsgId(msgId) {
-  return `inbound_text/${safeIdSuffixForPath(msgId)}.txt`;
+function normalizePhoneE164(rawPhone) {
+  const raw = String(rawPhone || "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  return `+${digits}`;
+}
+
+const HAS_TEXT_ENC_KEY = Boolean(getEncKey());
+if (!HAS_TEXT_ENC_KEY) {
+  console.error("[server] Missing or invalid FAZUMI_TEXT_ENC_KEY_B64 (must be base64 of 32 bytes).");
+  process.exit(1);
 }
 
 /**
@@ -200,40 +241,13 @@ function inboundTextPathFromMsgId(msgId) {
 function getCommonWaMeta(value) {
   const metadata = value?.metadata || {};
   const contacts0 = Array.isArray(value?.contacts) ? value.contacts[0] : null;
-  const waId = contacts0?.wa_id || null;
+  const waId = normalizePhoneE164(contacts0?.wa_id || null);
 
   return {
     phone_number_id: metadata?.phone_number_id || null,
     display_phone_number: metadata?.display_phone_number || null,
     from_phone: waId || null,
   };
-}
-
-/**
- * Extract DOCUMENT info safely.
- * NOTE: Worker will still refuse processing except WhatsApp Export ZIP (.txt without media).
- * We do NOT download binary in server.
- */
-function extractDocumentMeta(msg) {
-  try {
-    if (!msg || typeof msg !== "object") return null;
-
-    const msgType = String(msg.type || "").toLowerCase();
-    if (msgType !== "document") return null;
-
-    const doc = msg.document;
-    if (!doc || typeof doc !== "object") return null;
-
-    return {
-      media_id: doc.id || null,
-      mime_type: doc.mime_type || null,
-      filename: doc.filename || null,
-      sha256: doc.sha256 || null,
-      caption: doc.caption || msg.caption || null,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -270,7 +284,7 @@ function extractOtherMediaMeta(msg) {
     const msgType = String(msg.type || "").toLowerCase();
     if (!msgType) return null;
 
-    const ignored = new Set(["text", "interactive", "button", "status", "document", "reaction"]);
+    const ignored = new Set(["text", "interactive", "button", "status", "reaction"]);
     if (ignored.has(msgType)) return null;
 
     const carrier = msg[msgType];
@@ -281,7 +295,6 @@ function extractOtherMediaMeta(msg) {
       media_id: carrier.id || null,
       mime_type: carrier.mime_type || null,
       sha256: carrier.sha256 || null,
-      caption: carrier.caption || msg.caption || null,
     };
   } catch {
     return null;
@@ -304,6 +317,54 @@ function shouldPersistInboundText({ eventKind, hasText, shouldEnqueue }) {
   if (!hasText) return false;
   if (eventKind !== "inbound_text") return false;
   return Boolean(shouldEnqueue);
+}
+
+const BURST_PENDING_STATUSES = ["pending", "queued"];
+
+function resolveBurstPhone(insertedRow, phoneE164) {
+  return normalizePhoneE164(phoneE164 || insertedRow?.from_phone || insertedRow?.wa_number || "");
+}
+
+function computeBurstDeadlineIso(windowSeconds) {
+  const safeSeconds = parseIntEnv(windowSeconds, 20, 1);
+  return new Date(Date.now() + safeSeconds * 1000).toISOString();
+}
+
+async function bumpPendingBurstDeadlinesForPhone({
+  supabaseClient,
+  phoneE164,
+  insertedRow,
+  newDeadlineIso,
+}) {
+  const phone = resolveBurstPhone(insertedRow, phoneE164);
+  if (!phone) {
+    return { ok: false, skipped: true, reason: "missing_phone" };
+  }
+
+  const safeDeadlineIso = parseTimestampToIsoOrNull(newDeadlineIso);
+  if (!safeDeadlineIso) {
+    return { ok: false, skipped: true, reason: "invalid_deadline" };
+  }
+
+  const deadlineOrFilter = [
+    `and(from_phone.eq.${phone},next_attempt_at.is.null)`,
+    `and(from_phone.eq.${phone},next_attempt_at.lt.${safeDeadlineIso})`,
+    `and(wa_number.eq.${phone},next_attempt_at.is.null)`,
+    `and(wa_number.eq.${phone},next_attempt_at.lt.${safeDeadlineIso})`,
+  ].join(",");
+
+  const { error } = await supabaseClient
+    .from("inbound_events")
+    .update({ next_attempt_at: safeDeadlineIso })
+    .or(deadlineOrFilter)
+    .in("status", BURST_PENDING_STATUSES)
+    .is("processed_at", null);
+
+  if (error) {
+    return { ok: false, skipped: false, reason: String(error.message || error).slice(0, 140) };
+  }
+
+  return { ok: true, skipped: false, phone, deadline: safeDeadlineIso };
 }
 
 /**
@@ -357,9 +418,10 @@ app.post("/webhooks/lemonsqueezy", express.raw({ type: "application/json", limit
   const customerId = attrs?.customer_id || attrs?.customerId || null;
 
   const row = {
-    provider: "lemonsqueezy",
+    provider: normalizeProvider("lemonsqueezy", "whatsapp"),
     status: "pending",
     attempts: 0,
+    next_attempt_at: new Date().toISOString(),
     provider_event_id: providerEventId,
     payload_sha256: payloadHash,
     wa_number: waNumber,
@@ -430,20 +492,22 @@ app.post("/webhooks/whatsapp", (req, res) => {
       for (const st of statuses) {
         const statusMsgId = st?.id || null;
         const statusName = st?.status ? String(st.status).toLowerCase() : "status";
-        if (!statusMsgId || !common.from_phone) continue;
+        const statusPhone = normalizePhoneE164(st?.recipient_id || common.from_phone || null);
+        if (!statusMsgId || !statusPhone) continue;
 
         const providerEventId = `${statusMsgId}:${statusName}`;
         const payloadHash = sha256Hex(Buffer.from(JSON.stringify({ kind: "status", st })));
 
         const row = {
           provider: "whatsapp",
-          status: "done",
+          status: "queued",
           attempts: 0,
           provider_event_id: providerEventId,
           payload_sha256: payloadHash,
-          wa_number: common.from_phone,
-          from_phone: common.from_phone,
+          wa_number: statusPhone,
+          from_phone: statusPhone,
           wa_message_id: statusMsgId,
+          next_attempt_at: new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString(),
           user_msg_ts: parseTimestampToIsoOrNull(st?.timestamp) || receivedAtIso,
           meta: {
             ...common,
@@ -454,67 +518,54 @@ app.post("/webhooks/whatsapp", (req, res) => {
           },
         };
 
-        await safeInsertInboundEvent(supabase, row);
+        const inserted = await safeInsertInboundEvent(supabase, row);
+        if (!inserted?.ok) {
+          console.log(`[whatsapp] status_enqueue_failed msg_id=${safeIdSuffixForPath(statusMsgId)}`);
+        }
       }
 
       // Incoming messages can come in value.messages[]
       const messages = Array.isArray(value.messages) ? value.messages : [];
       for (const msg of messages) {
         const msgId = msg?.id || null;
-        const from = msg?.from || common.from_phone || null;
+        const from = normalizePhoneE164(msg?.from || common.from_phone || null);
         const msgType = String(msg?.type || "").toLowerCase().trim();
         const msgTsIso = parseTimestampToIsoOrNull(msg?.timestamp) || receivedAtIso;
 
         if (!msgId || !from || !msgType) continue;
 
         // Text extraction (only for hashing/storage; never stored raw in DB)
-        let rawText = "";
-        if (msgType === "text" && msg?.text?.body) rawText = String(msg.text.body);
-        if ((msgType === "interactive" || msgType === "button") && msg?.button?.text) rawText = String(msg.button.text);
+        const rawText = extractInboundTextBody(msg);
         // Note: interactive payloads vary; worker can handle details if needed.
 
         const upper = rawText ? normalizeInboundCommandText(rawText) : "";
+        const rawCommand = rawText ? normalizeRawCommandText(rawText) : "";
 
-        const COMMANDS = new Set([
-          "HELP",
-          "STATUS",
-          "PAY",
-          "STOP",
-          "START",
-          "DELETE",
-          "REPORT",
-          "BLOCKME",
-          "IMPROVE ON",
-          "IMPROVE OFF",
-          "CONFIRM MEDIA",
-        ]);
+        const COMMANDS = new Set(["HELP", "STATUS", "PAY", "STOP", "START", "DELETE", "FEEDBACK"]);
         const isLangCommand = /^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(upper);
+        const isFeedbackCommand = /^FEEDBACK$/i.test(rawCommand);
 
         const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
         const hasText = rawText && rawText.trim().length > 0;
-        const isCommand = isTextLike && hasText && (COMMANDS.has(upper) || isLangCommand);
+        const isCommand = isTextLike && hasText && (COMMANDS.has(upper) || isLangCommand || isFeedbackCommand);
 
-        const docMeta = extractDocumentMeta(msg);
         const reactionMeta = extractReactionMeta(msg);
         const otherMediaMeta = extractOtherMediaMeta(msg);
 
-        const isDocument = Boolean(docMeta);
         const isReaction = Boolean(reactionMeta);
         const isOtherMedia = Boolean(otherMediaMeta);
 
         // Decide event_kind for worker routing
-        const event_kind = isReaction
-          ? "inbound_reaction"
-          : isDocument || isOtherMedia
-          ? "inbound_media"
-          : isCommand
+        const event_kind = isCommand
           ? "inbound_command"
           : isTextLike && hasText
           ? "inbound_text"
+          : isOtherMedia
+          ? "inbound_unsupported_media"
           : "unknown";
 
         // Ignore unknowns to avoid noise
-        if (event_kind === "unknown") continue;
+        if (event_kind === "unknown" || isReaction) continue;
 
         const shouldEnqueue = shouldEnqueueInboundEvent(event_kind, workerPoolHealthy);
         const skipReason = shouldEnqueue ? null : "worker_pool_unhealthy";
@@ -523,7 +574,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
         const textSha = hasText ? sha256Hex(Buffer.from(rawText, "utf8")) : null;
         const textLen = hasText ? rawText.length : null;
-        let textRef = null;
+        let textEnc = null;
 
         const shouldPersistText = shouldPersistInboundText({
           eventKind: event_kind,
@@ -532,24 +583,8 @@ app.post("/webhooks/whatsapp", (req, res) => {
         });
 
         if (shouldPersistText) {
-          const storagePath = inboundTextPathFromMsgId(msgId);
-          textRef = { bucket: CHAT_EXPORTS_BUCKET, path: storagePath };
-          try {
-            const textBuf = Buffer.from(rawText, "utf8");
-            const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, textBuf, {
-              upsert: true,
-              contentType: "text/plain; charset=utf-8",
-            });
-            if (uploadErr) {
-              console.log(
-                `[whatsapp] text_store outcome=error msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
-              );
-            }
-          } catch {
-            console.log(
-              `[whatsapp] text_store outcome=error msg_id=${safeIdSuffixForPath(msgId)} msg_type=${msgType} text_len=${textLen} has_text_ref=true`
-            );
-          }
+          const encrypted = encryptTextOrNull(rawText);
+          if (encrypted) textEnc = encrypted;
         }
 
         const safeMeta = {
@@ -558,11 +593,9 @@ app.post("/webhooks/whatsapp", (req, res) => {
           msg_type: msgType,
           event_kind,
 
-          ...(event_kind === "inbound_command" ? { command: upper } : {}),
+          ...(event_kind === "inbound_command" ? { command: isFeedbackCommand ? rawCommand : upper } : {}),
           ...(textSha ? { text_sha256: textSha } : {}),
-          ...(textRef ? { text_ref: textRef, text_len: textLen } : {}),
-
-          ...(docMeta ? { document: docMeta } : {}),
+          ...(textEnc ? { text_enc: textEnc, text_len: textLen } : {}),
           ...(otherMediaMeta ? { media: otherMediaMeta } : {}),
           ...(reactionMeta ? { reaction: reactionMeta } : {}),
           ...(skipReason ? { skip_reason: skipReason } : {}),
@@ -570,7 +603,7 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
         const row = {
           provider: "whatsapp",
-          status: shouldEnqueue ? "pending" : "done",
+          status: "queued",
           attempts: 0,
           provider_event_id: msgId, // dedupe key (DB must enforce)
           payload_sha256: payloadHash,
@@ -578,8 +611,11 @@ app.post("/webhooks/whatsapp", (req, res) => {
           from_phone: from,
           wa_message_id: msgId,
           user_msg_ts: msgTsIso,
+          next_attempt_at: new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString(),
           meta: safeMeta,
         };
+
+
 
         if (!shouldEnqueue) {
           console.log(
@@ -587,7 +623,34 @@ app.post("/webhooks/whatsapp", (req, res) => {
           );
         }
 
-        await safeInsertInboundEvent(supabase, row);
+        const inserted = await safeInsertInboundEvent(supabase, row);
+        if (!inserted?.ok) {
+          console.log(`[whatsapp] enqueue_failed msg_id=${safeIdSuffixForPath(msgId)}`);
+          continue;
+        }
+        if (inserted?.deduped || inserted?.inserted === false) {
+          console.log(`[whatsapp] deduped msg_id=${safeIdSuffixForPath(msgId)}`);
+          continue;
+        }
+
+        if (event_kind === "inbound_text" && shouldEnqueue && inserted?.row) {
+          const burstDeadline = computeBurstDeadlineIso(BURST_WINDOW_SECONDS);
+          const burst = await bumpPendingBurstDeadlinesForPhone({
+            supabaseClient: supabase,
+            phoneE164: from,
+            insertedRow: inserted.row,
+            newDeadlineIso: burstDeadline,
+          });
+          if (burst?.ok && burst?.deadline) {
+            console.log(
+              `[burst] schedule phone=${safeIdSuffixForPath(from)} deadline=${burst.deadline} statuses=${BURST_PENDING_STATUSES.join(",")}`
+            );
+          } else if (!burst?.skipped) {
+            console.log(
+              `[burst] schedule_failed phone=${safeIdSuffixForPath(from)} reason=${String(burst?.reason || "unknown").slice(0, 120)}`
+            );
+          }
+        }
       }
     } catch (e) {
       console.log("[whatsapp] async enqueue failed:", String(e?.message || e).slice(0, 300));
@@ -603,6 +666,5 @@ app.listen(port, host, () => {
   console.log(`[server] build=${SERVER_BUILD_TAG}`);
   console.log(`[server] listening on http://${host}:${port}`);
   console.log(`[server] supabase configured: ${Boolean(supabase)}`);
-  console.log(`[server] inbound_text_bucket=${CHAT_EXPORTS_BUCKET}`);
   console.log(`[server] worker_pool_healthy=${WORKER_POOL_HEALTHY}`);
 });

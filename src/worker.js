@@ -13,7 +13,7 @@
  *
  * Data minimization:
  * - Worker fetches inbound text from private storage via meta.text_ref
- * - Legacy: decrypts meta.text_enc, uses it, then wipes it (best-effort)
+ * - Legacy/compat: decrypts inbound_events.meta.text_enc when present
  */
 
 "use strict";
@@ -22,17 +22,16 @@ require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
-const JSZip = require("jszip");
 
 // ---- WORKER VERSION FINGERPRINT ----
-const WORKER_VERSION = "p5-workerpool-zip-ingest-mvp-2026-02-06a";
+const WORKER_VERSION = "p5-workerpool-burst-scheduled-only-2026-02-14";
 
 // ---- OpenAI summarizer (CommonJS) ----
 let summarizeText = null;
 try {
   ({ summarizeText } = require("./openai_summarizer"));
 } catch (e) {
-  summarizeText = null; // ok if DRY_RUN=true
+  summarizeText = null;
 }
 
 // -------------------- ENV --------------------
@@ -55,10 +54,6 @@ const SUPABASE_SERVICE_ROLE_KEY = envTrim("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE
 // 360dialog base
 const D360_BASE_URL = envTrim("D360_BASE_URL") || "https://waba-v2.360dialog.io";
 const D360_API_KEY = envTrim("D360_API_KEY") || "";
-const CHAT_EXPORTS_BUCKET = envTrim("CHAT_EXPORTS_BUCKET") || "chat-exports";
-const MEDIA_MAX_BYTES = Number(envTrim("MEDIA_MAX_BYTES") || 20 * 1024 * 1024);
-const ZIP_MAX_BYTES = Number(envTrim("ZIP_MAX_BYTES") || MEDIA_MAX_BYTES);
-const ZIP_MAX_TEXT_CHARS = Number(envTrim("ZIP_MAX_TEXT_CHARS") || 1_200_000);
 
 // Templates (kept for future proactive messaging; not used for inbound-triggered replies)
 const D360_TEMPLATE_LANG = envTrim("D360_TEMPLATE_LANG") || "en";
@@ -69,20 +64,24 @@ const WHATSAPP_WINDOW_HOURS = Number(envTrim("WHATSAPP_WINDOW_HOURS") || 24);
 const FAZUMI_TZ = envTrim("FAZUMI_TZ") || "Asia/Qatar";
 
 // Runtime controls
-const DRY_RUN = String(process.env.DRY_RUN || "true").toLowerCase() !== "false";
-const BATCH_INITIAL_WAIT_MS = parseIntEnv(envTrim("BATCH_INITIAL_WAIT_MS"), 1800, 0);
-const BATCH_MAX_WINDOW_MS = parseIntEnv(envTrim("BATCH_MAX_WINDOW_MS"), 12000, 0);
-const BATCH_QUIET_MS = parseIntEnv(envTrim("BATCH_QUIET_MS"), 2000, 0);
-const BATCH_POLL_MS = 400;
+const DRY_RUN = String(process.env.DRY_RUN || "false").toLowerCase() === "true";
+const BURST_WINDOW_MS =
+  parseIntEnv(envTrim("BURST_WINDOW_MS"), null, 1000) ||
+  parseIntEnv(envTrim("BURST_WINDOW_SECONDS"), null, 1) * 1000 ||
+  parseIntEnv(envTrim("BURST_SECONDS"), 60, 1) * 1000 ||
+  60000;
+const BURST_SECONDS = Math.max(1, Math.ceil(BURST_WINDOW_MS / 1000));
+const OPENAI_RETRY_MAX_ATTEMPTS = parseIntEnv(envTrim("OPENAI_RETRY_MAX_ATTEMPTS"), 6, 1);
+const OPENAI_RETRY_BASE_SECONDS = parseIntEnv(envTrim("OPENAI_RETRY_BASE_SECONDS"), 15, 1);
+const OPENAI_RETRY_MAX_SECONDS = parseIntEnv(envTrim("OPENAI_RETRY_MAX_SECONDS"), 300, 1);
 
 // TODO: replace Terms/Privacy placeholders with real Notion links.
 // Legal links (don’t invent links)
 const TERMS_LINK = envTrim("TERMS_LINK") || "Terms/Privacy pages coming soon.";
 const PRIVACY_LINK = envTrim("PRIVACY_LINK") || "Terms/Privacy pages coming soon.";
-const ZIP_ACCEPT_MIME_TYPES = new Set(["application/zip", "application/x-zip-compressed"]);
 
 console.log(
-  `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS}`
+  `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS} burst_seconds=${BURST_SECONDS}`
 );
 
 // ---- HARD startup checks (log only lengths / booleans, no secrets) ----
@@ -104,8 +103,8 @@ if (!D360_API_KEY) {
   console.error("[worker] Missing D360_API_KEY");
   process.exit(1);
 }
-if (!DRY_RUN && typeof summarizeText !== "function") {
-  console.error("[worker] DRY_RUN=false but openai_summarizer not loadable.");
+if (typeof summarizeText !== "function") {
+  console.error("[worker] openai_summarizer not loadable.");
   process.exit(1);
 }
 
@@ -183,39 +182,24 @@ function parseIntEnv(rawValue, fallback, minValue = 0) {
   return v;
 }
 
-function startsLikeJson(buf) {
-  if (!Buffer.isBuffer(buf) || buf.length < 1) return false;
-  let i = 0;
-  while (i < buf.length && (buf[i] === 0x20 || buf[i] === 0x09 || buf[i] === 0x0a || buf[i] === 0x0d)) i++;
-  if (i >= buf.length) return false;
-  return buf[i] === 0x7b || buf[i] === 0x5b; // { or [
-}
-
-function safeUrlForLog(rawUrl) {
-  try {
-    const u = new URL(String(rawUrl || ""));
-    return {
-      host: u.host || "n/a",
-      path: u.pathname || "/",
-    };
-  } catch {
-    return { host: "n/a", path: "n/a" };
-  }
-}
-
-function get360MediaMetaEndpoint(mediaId) {
-  return `${D360_BASE_URL.replace(/\/$/, "")}/${encodeURIComponent(String(mediaId || ""))}`;
-}
-
-function rewriteMediaDownloadUrlToD360(downloadUrl) {
-  const source = new URL(String(downloadUrl || ""));
-  const d360 = new URL(D360_BASE_URL);
-  return `${d360.origin}${source.pathname}${source.search}`;
+function stripProvider(updateObj) {
+  if (!updateObj || typeof updateObj !== "object" || Array.isArray(updateObj)) return {};
+  const clone = { ...updateObj };
+  if (Object.prototype.hasOwnProperty.call(clone, "provider")) delete clone.provider;
+  return clone;
 }
 
 // -------------------- PII-safe helpers --------------------
 function hashPhone(phoneE164) {
   return crypto.createHash("sha256").update(String(phoneE164), "utf8").digest("hex");
+}
+
+function normalizePhoneE164(rawPhone) {
+  const raw = String(rawPhone || "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  return `+${digits}`;
 }
 function isMeaningfulText(text) {
   const t = (text || "").trim();
@@ -233,10 +217,21 @@ function normalizeInboundText(text) {
 }
 
 function extractCommandText(text) {
-  const normalized = normalizeInboundText(text);
-  if (!normalized) return null;
-  if (/^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(normalized)) return normalized;
-  if (KNOWN_COMMANDS.has(normalized)) return normalized;
+  const raw = String(text || "").trim().replace(/\s+/g, " ");
+  if (!raw) return null;
+
+  if (/^\/?FEEDBACK\s*:.*$/i.test(raw)) {
+    return raw.replace(/^\/+/, "");
+  }
+
+  const normalized = normalizeInboundText(raw);
+
+  // Accept leading slash and trailing punctuation from mobile keyboards.
+  const cleaned = normalized.replace(/^\/+/, "").replace(/[:;,.!?]+$/g, "").trim();
+  if (!cleaned) return null;
+
+  if (/^LANG(?:\s+(?:AUTO|EN|AR|ES))$/.test(cleaned)) return cleaned;
+  if (KNOWN_COMMANDS.has(cleaned)) return cleaned;
   return null;
 }
 
@@ -389,34 +384,63 @@ async function withConcurrency(fn, opts = {}) {
 
 // -------------------- Text decryption (AES-256-GCM) --------------------
 function getEncKey() {
-  const b64 = process.env.FAZUMI_TEXT_ENC_KEY_B64;
-  if (!b64) return null;
+  const b64Raw = envTrim("FAZUMI_TEXT_ENC_KEY_B64");
+  if (!b64Raw) {
+    return { ok: false, key: null, error_code: "missing_enc_key" };
+  }
+
   try {
-    const key = Buffer.from(b64, "base64");
-    return key.length === 32 ? key : null;
+    const key = Buffer.from(b64Raw, "base64");
+    if (key.length !== 32) {
+      return { ok: false, key: null, error_code: "bad_enc_key_len" };
+    }
+    return { ok: true, key, error_code: null };
   } catch {
-    return null;
+    return { ok: false, key: null, error_code: "bad_enc_key_b64" };
   }
 }
 
 function decryptTextEncOrNull(textEnc) {
+  if (!textEnc || typeof textEnc !== "object") {
+    return { ok: false, text: null, error_code: "missing_text_enc", version: null };
+  }
+
+  const keyResult = getEncKey();
+  if (!keyResult.ok || !keyResult.key) {
+    return {
+      ok: false,
+      text: null,
+      error_code: keyResult.error_code || "missing_enc_key",
+      version: textEnc.v ?? null,
+    };
+  }
+
+  const version = textEnc.v ?? null;
+  if (version !== 1 && version !== "1") {
+    return { ok: false, text: null, error_code: "unsupported_enc_version", version };
+  }
+
+  let iv;
+  let tag;
+  let ct;
   try {
-    const key = getEncKey();
-    if (!key) return null;
-    if (!textEnc || typeof textEnc !== "object") return null;
-
-    const iv = Buffer.from(String(textEnc.iv_b64 || ""), "base64");
-    const tag = Buffer.from(String(textEnc.tag_b64 || ""), "base64");
-    const ct = Buffer.from(String(textEnc.ct_b64 || ""), "base64");
-    if (iv.length !== 12 || tag.length < 12 || ct.length < 1) return null;
-
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-
-    const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
-    return pt.toString("utf8");
+    iv = Buffer.from(String(textEnc.iv_b64 || ""), "base64");
+    tag = Buffer.from(String(textEnc.tag_b64 || ""), "base64");
+    ct = Buffer.from(String(textEnc.ct_b64 || ""), "base64");
   } catch {
-    return null;
+    return { ok: false, text: null, error_code: "decrypt_failed", version };
+  }
+  if (iv.length !== 12 || tag.length !== 16 || ct.length < 1) {
+    return { ok: false, text: null, error_code: "decrypt_failed", version };
+  }
+
+  try {
+    const decipher = crypto.createDecipheriv("aes-256-gcm", keyResult.key, iv);
+    decipher.setAuthTag(tag);
+    const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
+    return { ok: true, text: pt.toString("utf8"), error_code: null, version };
+  } catch {
+    return { ok: false, text: null, error_code: "decrypt_failed", version };
   }
 }
 
@@ -459,90 +483,372 @@ function isoToMsOrNull(isoValue) {
   return Number.isFinite(ms) ? ms : null;
 }
 
-async function fetchPendingBurstRows(waNumber, primaryId, windowStartIso, windowEndIso) {
-  if (!waNumber || !windowStartIso || !windowEndIso) return [];
+function getRowReceivedIso(row) {
+  return safeIso(row?.user_msg_ts) || safeIso(row?.received_at) || null;
+}
+
+function compareRowsByAnchor(a, b) {
+  const aMs = isoToMsOrNull(getRowReceivedIso(a)) ?? 0;
+  const bMs = isoToMsOrNull(getRowReceivedIso(b)) ?? 0;
+  if (aMs !== bMs) return aMs - bMs;
+  const aId = String(a?.id || "");
+  const bId = String(b?.id || "");
+  if (aId < bId) return -1;
+  if (aId > bId) return 1;
+  return 0;
+}
+
+async function markRowAsBatchedChild(rowId, leaderEventId, reason = null) {
+  const rowKey = String(rowId || "").trim();
+  if (!rowKey) return;
+
+  const skip = reason || `burst_child_of_${leaderEventId}`;
+  const patch = stripProvider({
+    status: "processed",
+    outcome: "batched_child",
+    skip_reason: skip,
+    processed_at: nowIso(),
+    next_attempt_at: null,
+  });
+
+  const { error } = await supabase
+    .from("inbound_events")
+    .update(patch)
+    .eq("id", rowKey)
+    .in("status", ["pending", "queued", "processing", "leader"]);
+
+  if (error) {
+    console.log(`[batch] child_mark_failed id_last4=${tailN(rowKey, 4)} leader_id_last4=${tailN(leaderEventId, 4)}`);
+  }
+}
+
+async function parkFollowerForBurst(rowId, leaderEventId, nextAttemptAtIso, reason = null) {
+  const rowKey = String(rowId || "").trim();
+  if (!rowKey) return;
+
+  const leaderId = String(leaderEventId || "").trim();
+  const nextAttempt = safeIso(nextAttemptAtIso) || nowIso();
+  const leaderTail = leaderId ? tailN(leaderId, 4) : "none";
+  const skip = reason || `burst_non_leader_wait_${leaderTail}`;
+  const patch = stripProvider({
+    status: "pending",
+    processed_at: null,
+    next_attempt_at: nextAttempt,
+    outcome: "burst_non_leader_wait",
+    skip_reason: skip,
+  });
+
+  const { error } = await supabase
+    .from("inbound_events")
+    .update(patch)
+    .eq("id", rowKey)
+    .in("status", ["pending", "queued", "processing", "leader"]);
+
+  if (error) {
+    console.log(`[batch] follower_park_failed id_last4=${tailN(rowKey, 4)} leader_id_last4=${leaderTail}`);
+  }
+}
+
+function deriveEventAnchorIso(row) {
+  return safeIso(row?.user_msg_ts) || safeIso(row?.received_at) || nowIso();
+}
+
+function floorToBurstBucketTsIso(anchorTsIso) {
+  const anchorMs = Date.parse(safeIso(anchorTsIso) || nowIso());
+  const windowMs = Math.max(1000, BURST_SECONDS * 1000);
+  const bucketMs = Math.floor(anchorMs / windowMs) * windowMs;
+  return new Date(bucketMs).toISOString();
+}
+
+function computeOpenAiNextAttemptIso(attempts) {
+  const n = Math.max(1, Number(attempts || 1));
+  const delaySeconds = Math.min(OPENAI_RETRY_MAX_SECONDS, OPENAI_RETRY_BASE_SECONDS * Math.pow(2, Math.max(0, n - 1)));
+  return new Date(Date.now() + delaySeconds * 1000).toISOString();
+}
+
+async function scheduleOpenAiRetry(rowId, attempts, errorCode = "openai_error") {
+  const tryCount = Math.max(0, Number(attempts || 0));
+  if (tryCount >= OPENAI_RETRY_MAX_ATTEMPTS) {
+    await markEvent(rowId, {
+      status: "error",
+      outcome: "openai_failed_max_retries",
+      last_error: errorCode,
+      next_attempt_at: null,
+    });
+    return;
+  }
+
+  await markEvent(rowId, {
+    status: "pending",
+    processed_at: null,
+    outcome: "openai_retry",
+    skip_reason: "openai_retry",
+    last_error: errorCode,
+    next_attempt_at: computeOpenAiNextAttemptIso(tryCount),
+  });
+}
+
+async function ensureDurableBucketTs(row) {
+  const rowId = String(row?.id || "").trim();
+  if (!rowId) return { ok: false, bucketTs: null, errorCode: "missing_row_id" };
+
+  const existingBucket = safeIso(row?.bucket_ts);
+  if (existingBucket) {
+    console.log("[lifecycle] bucket_set", { idLast4: tailN(rowId, 4), bucket_ts: existingBucket, persisted: true });
+    return { ok: true, bucketTs: existingBucket, errorCode: null };
+  }
+
+  const bucketTs = floorToBurstBucketTsIso(deriveEventAnchorIso(row));
+  const { data, error } = await supabase
+    .from("inbound_events")
+    .update({ bucket_ts: bucketTs })
+    .eq("id", rowId)
+    .is("bucket_ts", null)
+    .select("bucket_ts")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, bucketTs: null, errorCode: "bucket_update_error" };
+  }
+
+  const updatedBucket = safeIso(data?.bucket_ts);
+  if (updatedBucket) {
+    console.log("[lifecycle] bucket_set", { idLast4: tailN(rowId, 4), bucket_ts: updatedBucket, persisted: true });
+    return { ok: true, bucketTs: updatedBucket, errorCode: null };
+  }
+
+  const { data: fallbackRead, error: fallbackError } = await supabase
+    .from("inbound_events")
+    .select("bucket_ts")
+    .eq("id", rowId)
+    .maybeSingle();
+  const fallbackBucket = safeIso(fallbackRead?.bucket_ts);
+  if (fallbackError || !fallbackBucket) {
+    return { ok: false, bucketTs: null, errorCode: "bucket_readback_error" };
+  }
+
+  console.log("[lifecycle] bucket_set", { idLast4: tailN(rowId, 4), bucket_ts: fallbackBucket, persisted: true });
+  return { ok: true, bucketTs: fallbackBucket, errorCode: null };
+}
+
+async function claimBurstLeaderForPhone(phoneE164, bucketTsIso, eventId) {
+  const phone = normalizePhoneE164(phoneE164);
+  const bucketTs = safeIso(bucketTsIso);
+  const eventIdStr = String(eventId || "").trim();
+  if (!phone || !bucketTs || !eventIdStr) {
+    return { ok: false, isLeader: false, leaderEventId: null, errorCode: "invalid_claim_input" };
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("claim_burst_leader", {
+      p_phone_e164: phone,
+      p_bucket_ts: bucketTs,
+      p_event_id: eventIdStr,
+    });
+
+    if (error) {
+      console.log("[lifecycle] leader_claim", {
+        phoneLast4: tailN(phone, 4),
+        bucket_ts: bucketTs,
+        is_leader: false,
+        leader_event_id_last4: null,
+        error: "rpc_error",
+      });
+      return { ok: false, isLeader: false, leaderEventId: null, errorCode: "rpc_error" };
+    }
+
+    const row = Array.isArray(data) && data.length ? data[0] : null;
+    const leaderEventId = row?.leader_event_id != null ? String(row.leader_event_id) : null;
+    const isLeader = Boolean(row?.is_leader) && leaderEventId != null;
+
+    console.log("[lifecycle] leader_claim", {
+      phoneLast4: tailN(phone, 4),
+      bucket_ts: bucketTs,
+      is_leader: isLeader,
+      leader_event_id_last4: leaderEventId ? tailN(leaderEventId, 4) : null,
+    });
+
+    return { ok: true, isLeader, leaderEventId, errorCode: null };
+  } catch {
+    console.log("[lifecycle] leader_claim", {
+      phoneLast4: tailN(phone, 4),
+      bucket_ts: bucketTs,
+      is_leader: false,
+      leader_event_id_last4: null,
+      error: "rpc_exception",
+    });
+    return { ok: false, isLeader: false, leaderEventId: null, errorCode: "rpc_exception" };
+  }
+}
+
+async function fetchBurstRowsForLeader(phoneE164, bucketTsIso, maxRows = 800) {
+  const phone = normalizePhoneE164(phoneE164);
+  const bucketTs = safeIso(bucketTsIso);
+  if (!phone || !bucketTs) return [];
 
   const { data, error } = await supabase
     .from("inbound_events")
-    .select("id, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, provider")
+    .select(
+      "id, provider, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, status, processed_at, next_attempt_at, outcome, bucket_ts"
+    )
     .eq("provider", "whatsapp")
-    .eq("status", "pending")
-    .eq("from_phone", waNumber)
-    .neq("id", primaryId)
-    .gte("received_at", windowStartIso)
-    .lte("received_at", windowEndIso)
+    .eq("from_phone", phone)
+    .eq("bucket_ts", bucketTs)
+    .is("processed_at", null)
+    .in("status", ["pending", "leader", "queued", "processing"])
+    .order("user_msg_ts", { ascending: true, nullsFirst: false })
     .order("received_at", { ascending: true })
     .order("id", { ascending: true })
-    .limit(80);
+    .limit(maxRows);
 
-  if (error) {
-    console.log(`[batch] fetch_error primary_id_last4=${tailN(primaryId, 4)} msg=${truncateErr500(error)}`);
-    return [];
-  }
-  return Array.isArray(data) ? data : [];
+  if (error || !Array.isArray(data)) return [];
+
+  return data.filter((row) => {
+    const outcome = String(row?.outcome || "").toLowerCase();
+    if (outcome === "summary_sent" || outcome === "batched_child") return false;
+    const classified = classifyWhatsAppEvent(row);
+    return isBurstBatchEligibleKind(classified.kind);
+  });
 }
 
-async function collectBurstExtraRows(primaryRow, primaryClassified) {
-  if (!isBurstBatchEligibleKind(primaryClassified?.kind)) return [];
+async function buildBurstBatchFromLeader(primaryRow, primaryClassified, primaryTextBody, leaderEventId, bucketTsIso) {
+  const phone = normalizePhoneE164(primaryClassified?.wa_number || primaryRow?.from_phone || null);
+  const bucketTs = safeIso(bucketTsIso);
+  const primaryId = String(primaryRow?.id || "");
+  const leaderId = String(leaderEventId || "");
 
-  const waNumber = primaryClassified.wa_number || primaryRow?.from_phone || primaryRow?.wa_number || null;
-  if (!waNumber) return [];
-
-  const primaryReceivedIso = safeIso(primaryRow?.received_at) || nowIso();
-  const primaryReceivedMs = isoToMsOrNull(primaryReceivedIso) ?? Date.now();
-  const maxWindowEndMs = primaryReceivedMs + BATCH_MAX_WINDOW_MS;
-
-  if (BATCH_INITIAL_WAIT_MS > 0) {
-    const waitMs = Math.max(0, Math.min(BATCH_INITIAL_WAIT_MS, maxWindowEndMs - Date.now()));
-    if (waitMs > 0) await sleep(waitMs);
+  if (!phone || !primaryId || !leaderId || !bucketTs) {
+    return { ok: false, reason: "bad_burst_input" };
   }
 
-  const seen = new Set();
-  const extras = [];
-  let lastNewAtMs = null;
-  let firstPoll = true;
+  const burstRows = await fetchBurstRowsForLeader(phone, bucketTs, 800);
+  const dedupMap = new Map();
 
-  while (!shouldStop) {
-    const nowMs = Date.now();
-    const upperBoundMs = Math.min(nowMs, maxWindowEndMs);
-    const upperBoundIso = new Date(upperBoundMs).toISOString();
+  for (const row of burstRows) dedupMap.set(String(row.id), row);
+  dedupMap.set(primaryId, { ...primaryRow, bucket_ts: bucketTs });
 
-    const rows = await fetchPendingBurstRows(waNumber, primaryRow.id, primaryReceivedIso, upperBoundIso);
-    let newCount = 0;
+  const normalizedRows = Array.from(dedupMap.values()).sort(compareRowsByAnchor);
+  const textRows = [];
+  for (const row of normalizedRows) {
+    const classified = classifyWhatsAppEvent(row);
+    if (!isBurstBatchEligibleKind(classified.kind)) continue;
+    textRows.push({ row, classified });
+  }
+
+  const texts = [];
+  const includedRowIds = [];
+  for (const item of textRows) {
+    const rowId = String(item.row?.id || "");
+    includedRowIds.push(rowId);
+
+    if (rowId === primaryId && String(primaryTextBody || "").trim()) {
+      texts.push(String(primaryTextBody || ""));
+      continue;
+    }
+
+    const loaded = await loadTextForClassifiedEvent(item.row, item.classified);
+    if (loaded.fetchFailed) {
+      return { ok: false, reason: "text_fetch_failed", failedRowId: rowId, failedCode: loaded.lastErrorCode || null };
+    }
+    if (loaded.ok && !loaded.empty && String(loaded.textBody || "").trim()) {
+      texts.push(String(loaded.textBody || ""));
+    }
+  }
+
+  const uniqueIncludedIds = Array.from(new Set(includedRowIds.filter(Boolean)));
+  const combinedText = texts.length > 1 ? combineBurstMessagesForSummary(texts) : String(texts[0] || "");
+
+  return {
+    ok: true,
+    textBody: combinedText,
+    burstMessageCount: texts.length,
+    burstRowIds: uniqueIncludedIds,
+    leaderEventId: leaderId,
+    waNumber: phone,
+    bucketTs,
+  };
+}
+
+async function isIdleWindowSatisfied(phoneE164, bucketTsIso) {
+  const phone = normalizePhoneE164(phoneE164);
+  const bucketTs = safeIso(bucketTsIso);
+  if (!phone || !bucketTs) {
+    return {
+      ok: false,
+      satisfied: false,
+      latestTs: null,
+      nextAttemptAt: null,
+      idleMs: null,
+      errorCode: "invalid_idle_inputs",
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("inbound_events")
+      .select("user_msg_ts, received_at")
+      .eq("provider", "whatsapp")
+      .eq("from_phone", phone)
+      .eq("bucket_ts", bucketTs)
+      .is("processed_at", null)
+      .limit(2000);
+
+    if (error) {
+      return {
+        ok: false,
+        satisfied: false,
+        latestTs: null,
+        nextAttemptAt: null,
+        idleMs: null,
+        errorCode: "idle_query_error",
+      };
+    }
+
+    let latestMs = null;
+    const rows = Array.isArray(data) ? data : [];
     for (const row of rows) {
-      const idKey = String(row?.id ?? "");
-      if (!idKey || seen.has(idKey)) continue;
-
-      const classified = classifyWhatsAppEvent(row);
-      if (!isBurstBatchEligibleKind(classified.kind)) continue;
-
-      seen.add(idKey);
-      extras.push(row);
-      newCount++;
+      const anchorIso = safeIso(row?.user_msg_ts) || safeIso(row?.received_at);
+      if (!anchorIso) continue;
+      const anchorMs = Date.parse(anchorIso);
+      if (!Number.isFinite(anchorMs)) continue;
+      if (latestMs == null || anchorMs > latestMs) latestMs = anchorMs;
     }
 
-    if (newCount > 0) lastNewAtMs = Date.now();
-
-    if (firstPoll) {
-      firstPoll = false;
-      if (newCount === 0) break;
+    if (latestMs == null) {
+      return {
+        ok: true,
+        satisfied: true,
+        latestTs: null,
+        nextAttemptAt: null,
+        idleMs: null,
+        errorCode: null,
+      };
     }
 
-    const reachedMaxWindow = Date.now() >= maxWindowEndMs;
-    const quietElapsed =
-      lastNewAtMs != null && BATCH_QUIET_MS >= 0 ? Date.now() - lastNewAtMs >= BATCH_QUIET_MS : false;
-    if (reachedMaxWindow || quietElapsed) break;
+    const nowMs = Date.now();
+    const idleMs = nowMs - latestMs;
+    const waitMs = BURST_SECONDS * 1000;
+    const nextAttemptAt = new Date(latestMs + waitMs).toISOString();
+    const satisfied = idleMs >= waitMs;
 
-    await sleep(BATCH_POLL_MS);
+    return {
+      ok: true,
+      satisfied,
+      latestTs: new Date(latestMs).toISOString(),
+      nextAttemptAt,
+      idleMs,
+      errorCode: null,
+    };
+  } catch {
+    return {
+      ok: false,
+      satisfied: false,
+      latestTs: null,
+      nextAttemptAt: null,
+      idleMs: null,
+      errorCode: "idle_query_exception",
+    };
   }
-
-  extras.sort((a, b) => {
-    const aMs = isoToMsOrNull(a?.received_at) ?? 0;
-    const bMs = isoToMsOrNull(b?.received_at) ?? 0;
-    if (aMs !== bMs) return aMs - bMs;
-    return Number(a?.id || 0) - Number(b?.id || 0);
-  });
-  return extras;
 }
 
 function combineBurstMessagesForSummary(messageTexts) {
@@ -560,6 +866,10 @@ async function loadTextForClassifiedEvent(row, classified) {
       hasTextRef: false,
       storageFetchStatus: null,
       metaTextLen: Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null,
+      hasTextEnc: false,
+      decryptStatus: "n/a",
+      decryptReason: null,
+      lastErrorCode: null,
       fetchFailed: false,
       empty: !String(classified.text_body || "").trim(),
     };
@@ -572,6 +882,10 @@ async function loadTextForClassifiedEvent(row, classified) {
       hasTextRef: false,
       storageFetchStatus: null,
       metaTextLen: null,
+      hasTextEnc: false,
+      decryptStatus: "n/a",
+      decryptReason: null,
+      lastErrorCode: null,
       fetchFailed: false,
       empty: true,
     };
@@ -581,18 +895,37 @@ async function loadTextForClassifiedEvent(row, classified) {
   const hasTextRef = Boolean(classified.text_ref?.bucket && classified.text_ref?.path);
   let storageFetchStatus = null;
   const metaTextLen = Number.isFinite(Number(row?.meta?.text_len)) ? Number(row.meta.text_len) : null;
+  const hasEnc = Boolean(classified.text_enc && typeof classified.text_enc === "object");
+  let decryptStatus = "n/a";
+  let decryptReason = null;
+  let lastErrorCode = null;
 
-  if (hasTextRef) {
+  if (hasEnc) {
+    const dec = decryptTextEncOrNull(classified.text_enc);
+    decryptStatus = dec.ok ? "ok" : "failed";
+    decryptReason = dec.ok ? null : dec.error_code || "decrypt_failed";
+    if (dec.ok && String(dec.text || "").trim()) {
+      textBody = dec.text;
+    } else if (!dec.ok) {
+      lastErrorCode = dec.error_code || "decrypt_failed";
+    }
+    storageFetchStatus = hasTextRef ? "skipped_by_text_enc" : "n/a";
+  } else if (hasTextRef) {
     const fetched = await downloadInboundTextFromStorage(classified.text_ref);
     storageFetchStatus = fetched.ok ? "ok" : "error";
-    if (fetched.ok) textBody = fetched.text;
+    if (fetched.ok && String(fetched.text || "").trim()) {
+      textBody = fetched.text;
+    } else if (!fetched.ok) {
+      lastErrorCode = "text_fetch_failed";
+    }
   } else {
-    storageFetchStatus = "error";
-    if (classified.text_enc) textBody = decryptTextEncOrNull(classified.text_enc);
+    storageFetchStatus = "missing";
+    lastErrorCode = "missing_text_payload";
   }
 
   const empty = !textBody || !String(textBody).trim();
-  const fetchFailed = hasTextRef && storageFetchStatus !== "ok";
+  const fetchFailed =
+    !hasEnc && hasTextRef && storageFetchStatus !== "ok" && !String(textBody || "").trim();
 
   return {
     ok: !fetchFailed,
@@ -600,48 +933,33 @@ async function loadTextForClassifiedEvent(row, classified) {
     hasTextRef,
     storageFetchStatus,
     metaTextLen,
+    hasTextEnc: hasEnc,
+    decryptStatus,
+    decryptReason,
+    lastErrorCode,
     fetchFailed,
     empty,
   };
 }
 
-async function markBatchedChildrenProcessed(extraRows, parentId) {
-  for (const child of extraRows) {
-    const childId = child?.id;
-    if (childId == null) continue;
-    try {
-      const { error } = await supabase
-        .from("inbound_events")
-        .update({
-          processed_at: nowIso(),
-          status: "processed",
-          outcome: "batched_child",
-          skip_reason: `batched_to_${parentId}`,
-        })
-        .eq("id", childId)
-        .eq("status", "pending");
-      if (error) {
-        console.log(
-          `[batch] child_mark_error parent_id_last4=${tailN(parentId, 4)} child_id_last4=${tailN(childId, 4)}`
-        );
-      }
-    } catch {
-      console.log(
-        `[batch] child_mark_error parent_id_last4=${tailN(parentId, 4)} child_id_last4=${tailN(childId, 4)}`
-      );
-    }
-
-    await wipeInboundEventTextEnc(childId);
-  }
-}
-
 // -------------------- Supabase queue --------------------
 async function dequeueEventJson() {
-  const { data, error } = await supabase.rpc("dequeue_inbound_event_json");
+  const now = nowIso();
+  const baseSelect =
+    "id, provider, status, attempts, processed_at, outcome, skip_reason, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, next_attempt_at, bucket_ts";
+  const { data, error } = await supabase
+    .from("inbound_events")
+    .select(baseSelect)
+    .eq("provider", "whatsapp")
+    .in("status", ["pending", "leader"])
+    .is("processed_at", null)
+    .order("next_attempt_at", { ascending: true })
+    .order("received_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(20);
 
   if (error) {
     const msg = String(error.message || error);
-    // keep logs minimal + useful
     console.error("[worker] dequeue error:", {
       message: msg.slice(0, 160),
       hint: msg.toLowerCase().includes("invalid api key")
@@ -651,35 +969,70 @@ async function dequeueEventJson() {
     return null;
   }
 
-  if (!data || data.id == null) return null;
-  return data;
+  const candidates = Array.isArray(data) ? data : [];
+  for (const candidate of candidates) {
+    const dueMs = isoToMsOrNull(candidate?.next_attempt_at);
+    if (dueMs != null && dueMs > Date.now()) continue;
+
+    const currentAttempts = Number.isFinite(Number(candidate?.attempts)) ? Number(candidate.attempts) : 0;
+    const expectedStatus = String(candidate?.status || "pending");
+    const { data: claimed, error: claimError } = await supabase
+      .from("inbound_events")
+      .update(stripProvider({
+        status: expectedStatus === "leader" ? "leader" : "queued",
+        attempts: currentAttempts + 1,
+        processed_at: null,
+      }))
+      .eq("id", candidate.id)
+      .eq("status", expectedStatus)
+      .is("processed_at", null)
+      .select(baseSelect)
+      .maybeSingle();
+
+    if (claimError) continue;
+    if (claimed && claimed.id != null) {
+      console.log("[lifecycle] dequeue", {
+        idLast4: tailN(claimed.id, 4),
+        phoneLast4: tailN(claimed.from_phone || claimed.wa_number || claimed.meta?.from || "", 4) || "n/a",
+      });
+      return claimed;
+    }
+  }
+  return null;
 }
 
 async function markEvent(id, patch) {
-  const update = { processed_at: nowIso(), ...patch };
-  const { error } = await supabase.from("inbound_events").update(update).eq("id", id);
-  if (error) console.log("[worker] markEvent error:", String(error.message || error).slice(0, 140));
-}
-
-async function wipeInboundEventTextEnc(id) {
-  // Best-effort: remove encrypted text after use
-  try {
-    const { data: row } = await supabase
-      .from("inbound_events")
-      .select("meta")
-      .eq("id", id)
-      .maybeSingle();
-
-    const meta = row?.meta || null;
-    if (!meta || typeof meta !== "object") return;
-
-    if (meta.text_enc) {
-      delete meta.text_enc;
-      await supabase.from("inbound_events").update({ meta }).eq("id", id);
+  const allowed = [
+    "status",
+    "processed_at",
+    "locked_at",
+    "attempts",
+    "next_attempt_at",
+    "outcome",
+    "skip_reason",
+    "last_error",
+  ];
+  const update = { processed_at: nowIso() };
+  for (const key of allowed) {
+    if (Object.prototype.hasOwnProperty.call(patch || {}, key)) {
+      update[key] = patch[key];
     }
-  } catch {
-    // ignore
   }
+  if (!Object.prototype.hasOwnProperty.call(update, "status")) {
+    update.status = "processed";
+  }
+  if (update.status === "processed" && !Object.prototype.hasOwnProperty.call(update, "next_attempt_at")) {
+    update.next_attempt_at = null;
+  }
+
+  const safeUpdate = stripProvider(update);
+  let query = supabase
+    .from("inbound_events")
+    .update(safeUpdate)
+    .eq("id", id)
+    .in("status", ["pending", "queued", "processing", "leader"]);
+  const { error } = await query;
+  if (error) console.log("[worker] markEvent error:", String(error.message || error).slice(0, 140));
 }
 
 /**
@@ -688,43 +1041,54 @@ async function wipeInboundEventTextEnc(id) {
 function classifyWhatsAppEvent(eventRow) {
   const meta = eventRow.meta || {};
   const kind = String(meta.event_kind || "").toLowerCase();
+  const msgType = String(meta.msg_type || meta.type || meta.message_type || "").toLowerCase();
+  const textEnc = meta.text_enc && typeof meta.text_enc === "object" ? meta.text_enc : null;
+  const textRef = meta.text_ref && typeof meta.text_ref === "object" ? meta.text_ref : null;
 
-  const wa_number = eventRow.from_phone || eventRow.wa_number || meta.from_phone || meta.from || null;
+  const wa_number = normalizePhoneE164(
+    eventRow.from_phone || eventRow.wa_number || meta.from_phone || meta.from || null
+  );
   if (!wa_number) return { kind: "not_actionable" };
 
   if (kind === "status_event") return { kind: "status_event", wa_number };
 
   if (kind === "inbound_command") {
-    const command = String(meta.command || "").trim().toUpperCase();
+    const command = String(meta.command || "").trim();
     return { kind: "inbound_command", wa_number, command };
   }
-
-  if (kind === "inbound_media") {
-    const doc = meta.document || null;
-    const media = meta.media || null;
-    return { kind: "inbound_media", wa_number, document: doc, media };
-  }
+  if (kind === "inbound_unsupported_media") return { kind: "unsupported_media", wa_number };
+  if (kind === "ignored_non_text" || kind === "inbound_reaction") return { kind: "not_actionable", wa_number };
 
   if (kind === "inbound_text") {
     return {
       kind: "inbound_text",
       wa_number,
-      text_ref: meta.text_ref || null,
+      text_ref: textRef,
       text_len: meta.text_len ?? null,
-      text_enc: meta.text_enc || null,
+      text_enc: textEnc,
       text_sha256: meta.text_sha256 || null,
     };
   }
 
   // fallback legacy
-  const msgType = String(meta.msg_type || meta.type || meta.message_type || "").toLowerCase();
   if (msgType === "status" || meta.status) return { kind: "status_event", wa_number };
 
-  if (msgType === "document" && meta.document)
-    return { kind: "inbound_media", wa_number, document: meta.document, media: null };
+  if (msgType === "document" || msgType === "image" || msgType === "audio" || msgType === "video" || msgType === "sticker") {
+    return { kind: "unsupported_media", wa_number };
+  }
 
   const text_body = (meta.text_body || meta.text?.body || meta.body || "").trim();
   const isTextLike = msgType === "text" || msgType === "interactive" || msgType === "button";
+  if (isTextLike && (textRef || textEnc)) {
+    return {
+      kind: "inbound_text",
+      wa_number,
+      text_ref: textRef,
+      text_len: meta.text_len ?? null,
+      text_enc: textEnc,
+      text_sha256: meta.text_sha256 || null,
+    };
+  }
   if (isTextLike && text_body) return { kind: "inbound_text_legacy", wa_number, text_body };
 
   return { kind: "not_actionable" };
@@ -751,12 +1115,14 @@ async function getFreeLimitCached() {
 }
 
 async function resolveUser(waNumber) {
+  const phone = normalizePhoneE164(waNumber);
+  if (!phone) throw new Error("invalid_phone_e164");
   const freeLimit = await getFreeLimitCached();
 
   await supabase.from("users").upsert(
     {
-      phone_e164: waNumber,
-      phone_hash: hashPhone(waNumber),
+      phone_e164: phone,
+      phone_hash: hashPhone(phone),
       plan: "free",
       status: "active",
       is_paid: false,
@@ -771,28 +1137,31 @@ async function resolveUser(waNumber) {
     { onConflict: "phone_e164" }
   );
 
-  const { data, error } = await supabase.from("users").select("*").eq("phone_e164", waNumber).single();
+  const { data, error } = await supabase.from("users").select("*").eq("phone_e164", phone).single();
   if (error) throw error;
   return data;
 }
 
 async function updateLastUserMessageAt(waNumber, tsIso) {
+  const phone = normalizePhoneE164(waNumber);
+  if (!phone) return;
   const stamp = safeIso(tsIso) || nowIso();
   await supabase
     .from("users")
     .update({ last_user_message_at: stamp, updated_at: nowIso() })
-    .eq("phone_e164", waNumber);
+    .eq("phone_e164", phone);
 }
 
 // -------------------- WhatsApp send (360dialog) --------------------
 async function sendWhatsAppText(toNumber, bodyText, diag = {}) {
   const url = `${D360_BASE_URL.replace(/\/$/, "")}/messages`;
   const eventId = diag?.eventId ?? "n/a";
-  const toLast4 = tailN(toNumber, 4) || "n/a";
+  const normalizedTo = normalizePhoneE164(toNumber) || String(toNumber || "").trim();
+  const toLast4 = tailN(normalizedTo, 4) || "n/a";
 
   const payload = {
     messaging_product: "whatsapp",
-    to: String(toNumber),
+    to: String(normalizedTo),
     type: "text",
     text: { body: String(bodyText).slice(0, 4096) },
   };
@@ -818,441 +1187,11 @@ async function sendWhatsAppText(toNumber, bodyText, diag = {}) {
     if (status === "n/a") {
       console.log(`[wa_send] id=${eventId} to=${toLast4} status=n/a ok=false`);
     }
+    console.log("[send]", { phoneLast4: toLast4, ok: false });
     const error = new Error(truncateErr500(e));
     error.code = "wa_send_failed";
     throw error;
   }
-}
-
-// -------------------- ZIP media handling (MVP) --------------------
-function normalizeDocShaToHex(v) {
-  const raw = String(v || "").trim();
-  if (!raw) return crypto.createHash("sha256").update("missing", "utf8").digest("hex");
-  if (/^[a-fA-F0-9]{64}$/.test(raw)) return raw.toLowerCase();
-
-  try {
-    const b64 = raw.replace(/-/g, "+").replace(/_/g, "/");
-    const padLen = b64.length % 4 === 0 ? 0 : 4 - (b64.length % 4);
-    const padded = b64 + "=".repeat(padLen);
-    const decoded = Buffer.from(padded, "base64");
-    if (decoded.length === 32) return decoded.toString("hex");
-  } catch {
-    // ignore
-  }
-
-  return crypto.createHash("sha256").update(raw, "utf8").digest("hex");
-}
-
-function isAcceptedZipDocument(doc) {
-  const mime = String(doc?.mime_type || "").toLowerCase().trim();
-  const filename = String(doc?.filename || "").toLowerCase().trim();
-  if (filename.endsWith(".zip")) return true;
-  if (ZIP_ACCEPT_MIME_TYPES.has(mime)) return true;
-  return mime.includes("zip");
-}
-
-function safeStorageUserPart(userId) {
-  const raw = userId == null ? "unknown" : String(userId);
-  const safe = raw.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
-  return safe || "unknown";
-}
-
-async function get360MediaDownloadUrl(mediaId) {
-  const endpoint = get360MediaMetaEndpoint(mediaId);
-  const resp = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      "D360-API-KEY": D360_API_KEY,
-    },
-  });
-
-  const payload = await resp.json().catch(() => null);
-  const url = payload?.url || payload?.data?.url || null;
-  const mime = String(payload?.mime_type || payload?.data?.mime_type || "").toLowerCase() || "n/a";
-  const sizeRaw = payload?.file_size ?? payload?.data?.file_size ?? null;
-  const size = Number.isFinite(Number(sizeRaw)) ? Number(sizeRaw) : null;
-  const sha = String(payload?.sha256 || payload?.data?.sha256 || "");
-  const sha8 = sha ? sha.slice(0, 8) : "n/a";
-
-  return {
-    status: resp.status,
-    ok: resp.ok,
-    url: url ? String(url) : null,
-    mime,
-    size,
-    sha8,
-  };
-}
-
-async function downloadMediaBytes(downloadUrl) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
-
-  try {
-    const resp = await fetch(downloadUrl, {
-      method: "GET",
-      headers: {
-        "D360-API-KEY": D360_API_KEY,
-      },
-      signal: controller.signal,
-      redirect: "follow",
-    });
-    const ct = String(resp.headers.get("content-type") || "").toLowerCase();
-    const buf = resp.ok ? Buffer.from(await resp.arrayBuffer()) : Buffer.alloc(0);
-    return { status: resp.status, ok: resp.ok, bytes: buf, contentType: ct || "n/a" };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function pickBestTxtFromZip(zipBytes) {
-  const zip = await JSZip.loadAsync(zipBytes);
-  const allFiles = Object.values(zip.files).filter((f) => !f.dir);
-  const txtFiles = allFiles.filter((f) => /\.txt$/i.test(f.name || ""));
-  if (!txtFiles.length) {
-    const e = new Error("zip_no_txt");
-    e.entries = allFiles.length;
-    throw e;
-  }
-
-  let best = null;
-  for (const f of txtFiles) {
-    const name = String(f.name || "");
-    const preferred = /_chat\.txt$/i.test(name) || /whatsapp chat/i.test(name) ? 1 : 0;
-    const buf = Buffer.from(await f.async("uint8array"));
-    if (
-      !best ||
-      preferred > best.preferred ||
-      (preferred === best.preferred && buf.length > best.buf.length)
-    ) {
-      best = { name, buf, preferred };
-    }
-  }
-
-  if (!best || !best.buf) {
-    const e = new Error("zip_txt_select_failed");
-    e.entries = allFiles.length;
-    throw e;
-  }
-
-  let text = best.buf.toString("utf8");
-  const replacementCount = (text.match(/\uFFFD/g) || []).length;
-  if (replacementCount > Math.max(8, Math.floor(text.length * 0.005))) {
-    text = best.buf.toString("latin1");
-  }
-  if (text.length > ZIP_MAX_TEXT_CHARS) {
-    text = text.slice(0, ZIP_MAX_TEXT_CHARS);
-  }
-
-  return {
-    entries: allFiles.length,
-    text,
-    textChars: text.length,
-  };
-}
-
-async function upsertChatExportBestEffort(row, storagePath, shaHex, txtBytes) {
-  try {
-    const payload = {
-      inbound_event_id: row?.id ?? null,
-      user_id: row?.user_id ?? null,
-      wa_message_id: row?.msg_id ?? null,
-      storage_path: storagePath,
-      document_sha256: shaHex,
-      txt_bytes: Number(txtBytes || 0),
-      updated_at: nowIso(),
-    };
-    const { error } = await supabase.from("chat_exports").upsert(payload, { onConflict: "inbound_event_id" });
-    if (error) {
-      const code = String(error.code || "");
-      const msg = String(error.message || error);
-      if (code === "42P01" || /relation .*chat_exports.* does not exist/i.test(msg)) return false;
-      if (code === "42703" || /column .* does not exist/i.test(msg)) return false;
-      console.log("[zip] chat_exports upsert skipped:", msg.slice(0, 120));
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.log("[zip] chat_exports upsert error:", String(e?.message || e).slice(0, 120));
-    return false;
-  }
-}
-
-async function handleInboundMedia(waNumber, classified, row) {
-  const doc = classified?.document || null;
-  const media = classified?.media || null;
-  const eventId = row?.id;
-  const msgType = String(row?.meta?.msg_type || "").toLowerCase();
-
-  // Non-document media: explicit refusal path.
-  if (!doc && media) {
-    try {
-      await sendWhatsAppText(
-        waNumber,
-        "Supported: WhatsApp Export Chat ZIP (Without media).",
-        { eventId }
-      );
-      return { action: "refused_non_zip", skip_reason: "non_document_media" };
-    } catch (e) {
-      return { action: "wa_send_failed", skip_reason: "non_document_media", error: truncateErr500(e) };
-    }
-  }
-
-  if (msgType !== "document" && !doc) {
-    return { action: "media_skipped", skip_reason: "not_document_event" };
-  }
-
-  const mimeType = String(doc?.mime_type || "").toLowerCase().trim();
-  const filename = String(doc?.filename || "");
-  const filenameLen = filename.length;
-  const mediaId = String(doc?.media_id || "").trim();
-  const mediaIdLast6 = tailN(mediaId, 6) || "n/a";
-  const shaHex = normalizeDocShaToHex(doc?.sha256);
-  const sha8 = shaHex.slice(0, 8) || "unknown";
-  const d360ApiKeyPresent = !!D360_API_KEY;
-  console.log(
-    `[zip] id=${eventId} mime=${mimeType || "unknown"} filename_len=${filenameLen} media_id=${mediaIdLast6} sha8=${sha8}`
-  );
-
-  const isZip = isAcceptedZipDocument(doc);
-  if (!isZip) {
-    try {
-      await sendWhatsAppText(
-        waNumber,
-        "Supported: WhatsApp Export Chat ZIP (Without media).",
-        { eventId }
-      );
-      return { action: "refused_non_zip", skip_reason: "unsupported_document_type" };
-    } catch (e) {
-      return { action: "wa_send_failed", skip_reason: "unsupported_document_type", error: truncateErr500(e) };
-    }
-  }
-
-  if (DRY_RUN) {
-    return { action: "dry_run", skip_reason: "dry_run_no_send_no_download" };
-  }
-
-  const DOWNLOAD_FAIL_MSG =
-    "⚠️ ZIP received, but I couldn't download it (auth error). Please retry in a few minutes.";
-  const ZIP_TOO_LARGE_MSG = "⚠️ ZIP too large to process. Please export without media and try again.";
-
-  const sendZipFailureReply = async (code) => {
-    try {
-      await sendWhatsAppText(waNumber, DOWNLOAD_FAIL_MSG, { eventId });
-      if (code) console.log(`[zip] id=${eventId} failure_code=${String(code).slice(0, 32)}`);
-    } catch {
-      // Best effort; primary failure outcome still returned.
-    }
-  };
-
-  const sendZipTooLargeReply = async () => {
-    try {
-      await sendWhatsAppText(waNumber, ZIP_TOO_LARGE_MSG, { eventId });
-    } catch {
-      // Best effort; primary failure outcome still returned.
-    }
-  };
-
-  if (!mediaId) {
-    await sendZipFailureReply("missing_media_id");
-    return { action: "media_not_found", skip_reason: "missing_media_id", error: "missing_media_id" };
-  }
-
-  const fetchMediaMetaLogged = async () => {
-    const endpoint = get360MediaMetaEndpoint(mediaId);
-    const endpointSafe = safeUrlForLog(endpoint);
-    console.log(
-      `[media] step=meta_fetch outcome=attempt id=${eventId} status=n/a url_host=${endpointSafe.host} url_path=${endpointSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-    );
-    try {
-      const mediaMeta = await get360MediaDownloadUrl(mediaId);
-      const metaSafe = mediaMeta?.url ? safeUrlForLog(mediaMeta.url) : endpointSafe;
-      const outcome = mediaMeta.ok && mediaMeta.url ? "ok" : "error";
-      console.log(
-        `[media] step=meta_fetch outcome=${outcome} id=${eventId} status=${mediaMeta.status} url_host=${metaSafe.host} url_path=${metaSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return mediaMeta;
-    } catch (e) {
-      console.log(
-        `[media] step=meta_fetch outcome=error id=${eventId} status=n/a url_host=${endpointSafe.host} url_path=${endpointSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      throw e;
-    }
-  };
-
-  const tryDownloadFromMeta = async (mediaMeta) => {
-    if (!mediaMeta.ok || !mediaMeta.url) return { ok: false, failCode: mediaMeta.status, reason: "meta_unusable" };
-    if (Number.isFinite(mediaMeta.size) && mediaMeta.size > MEDIA_MAX_BYTES) {
-      return { ok: false, failCode: "too_large", reason: "media_too_large_meta" };
-    }
-    if (Number.isFinite(mediaMeta.size) && mediaMeta.size > ZIP_MAX_BYTES) {
-      return { ok: false, failCode: "too_large", reason: "zip_too_large_meta" };
-    }
-    let downloadUrl = null;
-    try {
-      downloadUrl = rewriteMediaDownloadUrlToD360(mediaMeta.url);
-    } catch {
-      return { ok: false, failCode: "bad_url", reason: "meta_download_url_invalid" };
-    }
-    const downloadSafe = safeUrlForLog(downloadUrl);
-    console.log(
-      `[media] step=file_download outcome=attempt id=${eventId} status=n/a bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-    );
-    let dl;
-    try {
-      dl = await downloadMediaBytes(downloadUrl);
-    } catch (e) {
-      const msg = String(e?.message || e);
-      const m = msg.match(/(\d{3})/);
-      const status = m ? m[1] : "n/a";
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${status} bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: "n/a", reason: "download_exception" };
-    }
-    if (!dl.ok) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=null url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: dl.status, reason: "dl_not_ok" };
-    }
-    if (dl.bytes.length > MEDIA_MAX_BYTES) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: "too_large", reason: "media_too_large_bytes" };
-    }
-    if (dl.bytes.length > ZIP_MAX_BYTES) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: "too_large", reason: "zip_too_large_bytes" };
-    }
-    if (dl.contentType.includes("json") || startsLikeJson(dl.bytes)) {
-      console.log(
-        `[media] step=file_download outcome=error id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-      );
-      return { ok: false, failCode: dl.status, reason: "downloaded_json" };
-    }
-    console.log(
-      `[media] step=file_download outcome=ok id=${eventId} status=${dl.status} bytes_len=${dl.bytes.length} url_host=${downloadSafe.host} url_path=${downloadSafe.path} d360_api_key_present=${d360ApiKeyPresent}`
-    );
-    return { ok: true, bytes: dl.bytes };
-  };
-
-  let zipBytes = null;
-  let failCode = "n/a";
-  try {
-    let mediaMeta = await fetchMediaMetaLogged();
-    let downloadAttempt = await tryDownloadFromMeta(mediaMeta);
-
-    if (!downloadAttempt.ok && (downloadAttempt.failCode === 401 || downloadAttempt.failCode === 404)) {
-      mediaMeta = await fetchMediaMetaLogged();
-      downloadAttempt = await tryDownloadFromMeta(mediaMeta);
-    }
-
-    if (!downloadAttempt.ok) {
-      failCode = String(downloadAttempt.failCode ?? "n/a");
-      if (failCode === "too_large") {
-        await sendZipTooLargeReply();
-        return {
-          action: "media_too_large",
-          skip_reason: downloadAttempt.reason || "media_too_large",
-          error: "zip_too_large",
-        };
-      }
-      if (failCode === "401") {
-        await sendZipFailureReply(failCode);
-        return {
-          action: "media_download_401",
-          skip_reason: downloadAttempt.reason || "media_download_401",
-          error: "media_download_401",
-        };
-      }
-      await sendZipFailureReply(failCode);
-      return {
-        action: "media_download_failed",
-        skip_reason: downloadAttempt.reason || "media_download_failed",
-        error: `media_download_failed_${failCode}`,
-      };
-    }
-
-    zipBytes = downloadAttempt.bytes;
-  } catch (e) {
-    const m = String(e?.message || e);
-    const statusMatch = m.match(/(\d{3})/);
-    failCode = statusMatch ? statusMatch[1] : "n/a";
-    await sendZipFailureReply(failCode);
-    return {
-      action: "media_download_failed",
-      skip_reason: "media_download_exception",
-      error: truncateErr500(e),
-    };
-  }
-
-  if (zipBytes.length < 2 || zipBytes[0] !== 0x50 || zipBytes[1] !== 0x4b) {
-    await sendZipFailureReply("zip_magic_mismatch");
-    return { action: "zip_bad", skip_reason: "zip_magic_mismatch", error: "zip_signature_invalid" };
-  }
-
-  let parsed = null;
-  console.log(
-    `[zip] step=unzip outcome=attempt id=${eventId} file_count=null extracted_text_len=null`
-  );
-  try {
-    parsed = await pickBestTxtFromZip(zipBytes);
-    const entryCount = Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "?";
-    const textChars = Number.isFinite(Number(parsed?.textChars)) ? Number(parsed.textChars) : 0;
-    console.log(
-      `[zip] step=unzip outcome=ok id=${eventId} file_count=${entryCount} extracted_text_len=${textChars}`
-    );
-  } catch (e) {
-    const fileCount = Number.isFinite(Number(e?.entries)) ? Number(e.entries) : "null";
-    console.log(
-      `[zip] step=unzip outcome=error id=${eventId} file_count=${fileCount} extracted_text_len=null`
-    );
-    await sendZipFailureReply("unzip_failed");
-    return { action: "zip_parse_failed", skip_reason: "unzip_failed", error: truncateErr500(e) };
-  }
-
-  if (!parsed || !parsed.text || parsed.text.length < 1) {
-    console.log(
-      `[zip] step=unzip outcome=error id=${eventId} file_count=${Number.isFinite(Number(parsed?.entries)) ? Number(parsed.entries) : "null"} extracted_text_len=null`
-    );
-    await sendZipFailureReply("zip_no_txt");
-    return { action: "zip_parse_failed", skip_reason: "zip_no_txt", error: "zip_no_txt" };
-  }
-
-  const storagePath = `chat_exports/${row?.id}.txt`;
-  const textBuf = Buffer.from(parsed.text, "utf8");
-  const { error: uploadErr } = await supabase.storage.from(CHAT_EXPORTS_BUCKET).upload(storagePath, textBuf, {
-    upsert: true,
-    contentType: "text/plain; charset=utf-8",
-  });
-  if (uploadErr) {
-    return {
-      action: "zip_parse_failed",
-      skip_reason: "zip_upload_failed",
-      error: truncateErr500(uploadErr?.message || uploadErr),
-    };
-  }
-  await upsertChatExportBestEffort(row, storagePath, shaHex, textBuf.length);
-
-  try {
-    await sendWhatsAppText(
-      waNumber,
-      "✅ ZIP received. I saved the chat text. Now ask: What did X say about Y?",
-      { eventId }
-    );
-  } catch (e) {
-    return { action: "wa_send_failed", skip_reason: null, error: truncateErr500(e) };
-  }
-
-  return {
-    action: "zip_parsed",
-    skip_reason: null,
-    metaPatch: { zip_txt_path: storagePath },
-  };
 }
 
 // -------------------- Legal templates --------------------
@@ -1366,7 +1305,7 @@ function buildWelcomeEn(user) {
     "",
     "🔒 By continuing you allow message processing for this service.",
     "⚠️ Please don't send sensitive/confidential info.",
-    "⚙️ Commands: HELP, STATUS, PAY, STOP, DELETE, START, LANG EN|AR|ES|AUTO",
+    "⚙️ Commands: HELP, STATUS, PAY, STOP, DELETE, START, FEEDBACK, LANG EN|AR|ES|AUTO",
     // TODO: replace placeholder Terms/Privacy links with real Notion pages.
     `Terms: ${TERMS_LINK}`,
     `Privacy: ${PRIVACY_LINK}`,
@@ -1385,7 +1324,7 @@ function buildWelcomeAr(user) {
     "",
     "🔒 بالمتابعة، أنت توافق على معالجة الرسائل لتقديم الخدمة.",
     "⚠️ رجاءً لا ترسل معلومات حساسة أو سرية.",
-    "⚙️ الأوامر: HELP، STATUS، PAY، STOP، DELETE، START، LANG EN|AR|ES|AUTO",
+    "⚙️ الأوامر: HELP، STATUS، PAY، STOP، DELETE، START، FEEDBACK، LANG EN|AR|ES|AUTO",
     `الشروط: ${TERMS_LINK}`,
     `الخصوصية: ${PRIVACY_LINK}`,
   ].join("\n");
@@ -1402,7 +1341,7 @@ function buildWelcomeEs(user) {
     "",
     "🔒 Si continuas, aceptas el procesamiento de mensajes para este servicio.",
     "⚠️ Evita enviar informacion sensible o confidencial.",
-    "⚙️ Comandos: HELP, STATUS, PAY, STOP, DELETE, START, LANG EN|AR|ES|AUTO",
+    "⚙️ Comandos: HELP, STATUS, PAY, STOP, DELETE, START, FEEDBACK, LANG EN|AR|ES|AUTO",
     `Terminos: ${TERMS_LINK}`,
     `Privacidad: ${PRIVACY_LINK}`,
   ].join("\n");
@@ -1428,11 +1367,7 @@ const KNOWN_COMMANDS = new Set([
   "STOP",
   "START",
   "DELETE",
-  "REPORT",
-  "BLOCKME",
-  "IMPROVE ON",
-  "IMPROVE OFF",
-  "CONFIRM MEDIA",
+  "FEEDBACK",
 ]);
 
 function buildStatusMessage(user) {
@@ -1457,38 +1392,58 @@ function buildPayMessage() {
   return ["💳 Upgrade your plan", "Choose Basic or Pro here:", checkoutUrl].join("\n");
 }
 
-// -------------------- OpenAI summary wrapper --------------------
-async function generateSummaryOrDryRun(inputText, eventTsIso) {
-  const maxChars = Number(process.env.OPENAI_MAX_INPUT_CHARS || 6000);
-  const prepared = buildSummarizerInputText(inputText, maxChars);
-  const capped = prepared.text;
+const SUMMARY_UI_I18N = {
+  en: {
+    freeLeft: "Free left: {n}",
+  },
+  es: {
+    freeLeft: "Gratis restantes: {n}",
+  },
+  ar: {
+    freeLeft: "المتبقي مجانا: {n}",
+  },
+};
 
-  if (DRY_RUN) {
-    return {
-      ok: true,
-      summary_text: `(DRY RUN) Summary would be generated for:\n${capped.slice(0, 240)}`,
-      openai_model: null,
-      input_tokens: null,
-      output_tokens: null,
-      total_tokens: null,
-      cost_usd_est: null,
-      error_code: null,
-    };
+function resolveSummaryUiLang(user, summaryLang) {
+  const pref = getUserLangPref(user);
+  if (pref === "en" || pref === "es" || pref === "ar") return pref;
+  const detected = String(summaryLang || "").toLowerCase();
+  if (detected === "en" || detected === "es" || detected === "ar") return detected;
+  return "en";
+}
+
+function buildFreeLeftLine(lang, count) {
+  const safeLang = lang === "ar" || lang === "es" ? lang : "en";
+  const tpl = SUMMARY_UI_I18N[safeLang].freeLeft;
+  const rendered = tpl.replace("{n}", String(count));
+  if (safeLang === "ar") {
+    return wrapWithDirectionMarks(rendered, "rtl");
   }
+  return rendered;
+}
+
+// -------------------- OpenAI summary wrapper --------------------
+async function generateSummaryOrDryRun(inputText, eventTsIso, languageOverride) {
+  const maxChars = Number(process.env.OPENAI_MAX_INPUT_CHARS || 6000);
+
+  if (DRY_RUN) return { ok: false, error_code: "dry_run_disabled" };
 
   const model = (process.env.OPENAI_MODEL || "unknown").trim();
-  try {
-    return await withConcurrency(
+  const summarizePreparedText = async (preparedText) => {
+    return withConcurrency(
       async () => {
         try {
           const r = await summarizeText({
-            text: capped,
+            text: preparedText,
             anchor_ts_iso: eventTsIso || null,
             timezone: FAZUMI_TZ,
+            forced_lang: languageOverride || null,
+            ui_lang: languageOverride || null,
           });
           return {
             ok: true,
             summary_text: r.summaryText,
+            summary_lang: String(r.target_lang || r.raw_json?.language || "en").toLowerCase(),
             openai_model: model,
             input_tokens: r.usage?.input_tokens ?? null,
             output_tokens: r.usage?.output_tokens ?? null,
@@ -1507,6 +1462,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
           return {
             ok: false,
             summary_text: null,
+            summary_lang: null,
             openai_model: model,
             input_tokens: null,
             output_tokens: null,
@@ -1518,11 +1474,118 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
       },
       { timeoutMs: CONCURRENCY_WAIT_TIMEOUT_MS }
     );
+  };
+
+  const splitForIterativeSummary = (text) => {
+    const normalized = String(text || "").trim();
+    if (!normalized) return [""];
+    if (normalized.length <= maxChars) return [normalized];
+
+    const parts = splitIntoLogicalMessages(normalized);
+    const units = parts.length > 1 ? parts : [normalized];
+    const chunks = [];
+    let current = "";
+
+    for (const unit of units) {
+      const segment = String(unit || "").trim();
+      if (!segment) continue;
+      const next = current ? `${current}\n\n${segment}` : segment;
+      if (next.length <= maxChars) {
+        current = next;
+        continue;
+      }
+      if (current) {
+        chunks.push(current);
+        current = "";
+      }
+      if (segment.length <= maxChars) {
+        current = segment;
+        continue;
+      }
+      for (let i = 0; i < segment.length; i += maxChars) {
+        chunks.push(segment.slice(i, i + maxChars));
+      }
+    }
+
+    if (current) chunks.push(current);
+    return chunks.length > 0 ? chunks : [normalized.slice(0, maxChars)];
+  };
+
+  try {
+    const chunks = splitForIterativeSummary(inputText);
+    if (chunks.length <= 1) {
+      const prepared = buildSummarizerInputText(chunks[0] || "", maxChars);
+      return await summarizePreparedText(prepared.text);
+    }
+
+    console.log(`[openai] chunking_enabled chunks=${chunks.length} max_chars=${maxChars}`);
+    const chunkSummaries = [];
+    let aggInputTokens = 0;
+    let aggOutputTokens = 0;
+    let aggTotalTokens = 0;
+    let aggCostUsd = 0;
+    let hasInputTokens = false;
+    let hasOutputTokens = false;
+    let hasTotalTokens = false;
+    let hasCost = false;
+
+    for (const chunk of chunks) {
+      const preparedChunk = buildSummarizerInputText(chunk, maxChars);
+      const chunkResult = await summarizePreparedText(preparedChunk.text);
+      if (!chunkResult.ok) return chunkResult;
+
+      chunkSummaries.push(String(chunkResult.summary_text || "").trim());
+      if (Number.isFinite(Number(chunkResult.input_tokens))) {
+        aggInputTokens += Number(chunkResult.input_tokens);
+        hasInputTokens = true;
+      }
+      if (Number.isFinite(Number(chunkResult.output_tokens))) {
+        aggOutputTokens += Number(chunkResult.output_tokens);
+        hasOutputTokens = true;
+      }
+      if (Number.isFinite(Number(chunkResult.total_tokens))) {
+        aggTotalTokens += Number(chunkResult.total_tokens);
+        hasTotalTokens = true;
+      }
+      if (Number.isFinite(Number(chunkResult.cost_usd_est))) {
+        aggCostUsd += Number(chunkResult.cost_usd_est);
+        hasCost = true;
+      }
+    }
+
+    const stitchedSummaries = chunkSummaries
+      .map((summary, idx) => `--- CHUNK SUMMARY ${idx + 1} ---\n${summary}`)
+      .join("\n\n");
+    const finalPrepared = buildSummarizerInputText(stitchedSummaries, maxChars);
+    const finalResult = await summarizePreparedText(finalPrepared.text);
+    if (!finalResult.ok) return finalResult;
+
+    const finalInputTokens = Number.isFinite(Number(finalResult.input_tokens))
+      ? Number(finalResult.input_tokens)
+      : 0;
+    const finalOutputTokens = Number.isFinite(Number(finalResult.output_tokens))
+      ? Number(finalResult.output_tokens)
+      : 0;
+    const finalTotalTokens = Number.isFinite(Number(finalResult.total_tokens))
+      ? Number(finalResult.total_tokens)
+      : 0;
+    const finalCostUsd = Number.isFinite(Number(finalResult.cost_usd_est))
+      ? Number(finalResult.cost_usd_est)
+      : 0;
+
+    return {
+      ...finalResult,
+      input_tokens: hasInputTokens || Number.isFinite(Number(finalResult.input_tokens)) ? aggInputTokens + finalInputTokens : null,
+      output_tokens: hasOutputTokens || Number.isFinite(Number(finalResult.output_tokens)) ? aggOutputTokens + finalOutputTokens : null,
+      total_tokens: hasTotalTokens || Number.isFinite(Number(finalResult.total_tokens)) ? aggTotalTokens + finalTotalTokens : null,
+      cost_usd_est: hasCost || Number.isFinite(Number(finalResult.cost_usd_est)) ? aggCostUsd + finalCostUsd : null,
+    };
   } catch (e) {
     if (e?.code === "concurrency_timeout") {
       return {
         ok: false,
         summary_text: null,
+        summary_lang: null,
         openai_model: model,
         input_tokens: null,
         output_tokens: null,
@@ -1545,6 +1608,7 @@ async function generateSummaryOrDryRun(inputText, eventTsIso) {
     return {
       ok: false,
       summary_text: null,
+      summary_lang: null,
       openai_model: model,
       input_tokens: null,
       output_tokens: null,
@@ -1560,9 +1624,11 @@ const { ensureFirstTimeNoticeAndTos } = require("./legal");
 const { processCommand, getLemonCheckoutUrl } = require("./commands");
 
 // ===================== Main WhatsApp processing =====================
-async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
+async function processWhatsAppText(waNumber, user, textBody, eventTsIso, opts = {}) {
+  const phoneLast4 = tailN(waNumber, 4) || "n/a";
   if (user.is_blocked) {
     await sendWhatsAppText(waNumber, "⛔ Summaries paused. Reply START to resume.");
+    console.log("[send]", { phoneLast4, ok: true });
     await updateLastUserMessageAt(waNumber, eventTsIso);
     return { action: "blocked_notice" };
   }
@@ -1573,11 +1639,20 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
 
   // Paywall BEFORE OpenAI
   if (user.plan === "free" && meaningful && Number(user.free_remaining || 0) <= 0) {
+    console.log("[paywall]", { phoneLast4, allowed: false });
+    console.log("[lifecycle] paywall_check", { phoneLast4, allowed: false });
     await sendWhatsAppText(waNumber, "You’ve used your free summaries.\nReply PAY to upgrade.");
+    console.log("[send]", { phoneLast4, ok: true });
     return { action: "paywall" };
   }
+  console.log("[paywall]", { phoneLast4, allowed: true });
+  console.log("[lifecycle] paywall_check", { phoneLast4, allowed: true });
 
-  const result = await generateSummaryOrDryRun(textBody, eventTsIso);
+  const langPref = getUserLangPref(user);
+  const forcedLang = langPref === "auto" ? null : langPref;
+
+  console.log("[lifecycle] openai_call", { phoneLast4, allowed: true });
+  const result = await generateSummaryOrDryRun(textBody, eventTsIso, forcedLang);
 
   if (!result.ok) {
     if (result.busy_reason) {
@@ -1588,15 +1663,36 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso) {
       const busyMax = Number.isFinite(Number(result.busy_max)) ? Number(result.busy_max) : MAX_CONCURRENCY;
       console.log(`[worker] busy_notice reason=${busyReason} inFlight=${busyInFlight} max=${busyMax}`);
       await sendWhatsAppText(waNumber, "⚠️ Sorry—summarizer is temporarily busy. Try again.");
+      console.log("[send]", { phoneLast4, ok: true });
       return { action: "summary_failed", error_code: result.error_code || null, busy_reason: busyReason };
     }
 
     await sendWhatsAppText(waNumber, "⚠️ Sorry—summarizer is temporarily unavailable. Try again.");
+    console.log("[send]", { phoneLast4, ok: true });
     return { action: "summary_failed", error_code: result.error_code || null };
   }
 
   // Send FIRST
-  await sendWhatsAppText(waNumber, result.summary_text);
+  let outboundText = result.summary_text;
+  if (user.plan === "free" && meaningful) {
+    const freeLeftAfterSend = Math.max(0, Number(user.free_remaining || 0) - 1);
+    const uiLang = resolveSummaryUiLang(user, result.summary_lang);
+    const freeLeftLine = buildFreeLeftLine(uiLang, freeLeftAfterSend);
+    outboundText = `${outboundText}\n\n${freeLeftLine}`;
+  }
+  await sendWhatsAppText(waNumber, outboundText);
+  console.log("[lifecycle] wa_send", { phoneLast4, ok: true });
+  console.log("[send]", { phoneLast4, ok: true });
+
+  const eventIdForIdempotency = String(opts?.eventId || "").trim();
+  if (eventIdForIdempotency) {
+    await markEvent(eventIdForIdempotency, {
+      status: "processed",
+      outcome: "summary_sent",
+      next_attempt_at: null,
+      skip_reason: opts?.skipReason || null,
+    });
+  }
 
   // Decrement after successful send
   try {
@@ -1663,8 +1759,16 @@ async function mainLoop() {
       nowIso();
 
     try {
+      const waNumber = classified.wa_number;
+
       if (classified.kind === "status_event") {
         await markEvent(id, { status: "processed", outcome: "status_ignored" });
+        continue;
+      }
+
+      if (classified.kind === "unsupported_media") {
+        await sendWhatsAppText(waNumber, "Text only supported in MVP.", { eventId: id });
+        await markEvent(id, { status: "processed", outcome: "unsupported_media" });
         continue;
       }
 
@@ -1673,7 +1777,65 @@ async function mainLoop() {
         continue;
       }
 
-      const waNumber = classified.wa_number;
+      const bucket = await ensureDurableBucketTs(row);
+      if (!bucket.ok || !bucket.bucketTs) {
+        await markEvent(id, {
+          status: "pending",
+          processed_at: null,
+          outcome: "bucket_set_error",
+          skip_reason: "bucket_set_error",
+          next_attempt_at: nowIso(),
+        });
+        continue;
+      }
+
+      const isSummaryCandidate = isBurstBatchEligibleKind(classified.kind);
+      const needsLeaderGate = isSummaryCandidate || classified.kind === "inbound_command";
+      let leaderEventId = null;
+      if (needsLeaderGate) {
+        const outcomeLower = String(row?.outcome || "").toLowerCase();
+        if (outcomeLower === "summary_sent") {
+          await markEvent(id, {
+            status: "processed",
+            outcome: "summary_sent",
+            skip_reason: "already_sent",
+            next_attempt_at: null,
+          });
+          continue;
+        }
+
+        const leaderClaim = await claimBurstLeaderForPhone(waNumber, bucket.bucketTs, id);
+        if (!leaderClaim.ok) {
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            outcome: "burst_claim_error",
+            skip_reason: "leader_claim_error",
+            next_attempt_at: nowIso(),
+          });
+          continue;
+        }
+
+        if (!leaderClaim.isLeader || !leaderClaim.leaderEventId) {
+          const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+          const nextAttempt = idleGate.ok ? safeIso(idleGate.nextAttemptAt) || nowIso() : nowIso();
+          await parkFollowerForBurst(id, "none", nextAttempt, "burst_non_leader_wait_none");
+          continue;
+        }
+
+        leaderEventId = String(leaderClaim.leaderEventId);
+        if (String(id) !== leaderEventId) {
+          const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+          const nextAttempt = idleGate.ok ? safeIso(idleGate.nextAttemptAt) || nowIso() : nowIso();
+          await parkFollowerForBurst(
+            id,
+            leaderEventId,
+            nextAttempt,
+            `burst_non_leader_wait_${tailN(leaderEventId, 4)}`
+          );
+          continue;
+        }
+      }
 
       // Ensure user exists
       let user = await resolveUser(waNumber);
@@ -1722,6 +1884,7 @@ async function mainLoop() {
           waNumber,
           user,
           textBody: classified.command,
+          waMessageId: row?.wa_message_id || null,
           eventTsIso,
           supabase,
           nowIso,
@@ -1736,52 +1899,8 @@ async function mainLoop() {
         commandFallbackText = String(classified.command || "").trim();
       }
 
-      // Media
-      if (classified.kind === "inbound_media") {
-        const r = await handleInboundMedia(waNumber, classified, row);
-        if (
-          r.action === "media_download_401" ||
-          r.action === "media_download_invalid" ||
-          r.action === "media_not_found" ||
-          r.action === "media_meta_failed" ||
-          r.action === "media_download_failed" ||
-          r.action === "media_download_bad_content" ||
-          r.action === "media_too_large" ||
-          r.action === "zip_bad" ||
-          r.action === "zip_store_failed" ||
-          r.action === "zip_parse_failed"
-        ) {
-          await markEvent(id, {
-            status: "error",
-            outcome: r.action,
-            skip_reason: r.skip_reason || null,
-            last_error: truncateErr500(r.error || r.action),
-            meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
-          });
-          continue;
-        }
-        if (r.action === "wa_send_failed") {
-          await markEvent(id, {
-            status: "error",
-            outcome: "wa_send_failed",
-            skip_reason: r.skip_reason || null,
-            last_error: truncateErr500(r.error || "wa_send_failed"),
-            meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
-          });
-          continue;
-        }
-        await markEvent(id, {
-          status: "processed",
-          outcome: r.action || "media_processed",
-          skip_reason: r.skip_reason || null,
-          meta: r.metaPatch ? { ...(meta || {}), ...r.metaPatch } : meta || null,
-        });
-        continue;
-      }
-
       // Text
-      const isTextLikeInbound = isBurstBatchEligibleKind(classified.kind);
-      const primaryTextLoaded = isTextLikeInbound
+      const primaryTextLoaded = isSummaryCandidate
         ? preloadedPrimaryText || (await loadTextForClassifiedEvent(row, classified))
         : {
             ok: false,
@@ -1789,6 +1908,10 @@ async function mainLoop() {
             hasTextRef: false,
             storageFetchStatus: null,
             metaTextLen: null,
+            hasTextEnc: false,
+            decryptStatus: "n/a",
+            decryptReason: null,
+            lastErrorCode: null,
             fetchFailed: false,
             empty: true,
           };
@@ -1796,21 +1919,25 @@ async function mainLoop() {
 
       if (classified.kind === "inbound_text") {
         console.log(
-          `[text_diag] id=${id} msg_type=${msgType || "unknown"} text_len=${primaryTextLoaded.metaTextLen ?? "null"} has_text_ref=${primaryTextLoaded.hasTextRef} storage_fetch=${primaryTextLoaded.storageFetchStatus === "ok" ? "ok" : "error"}`
+          `[text_diag] id=${id} msg_type=${msgType || "unknown"} has_text_enc=${primaryTextLoaded.hasTextEnc} decrypt=${primaryTextLoaded.decryptStatus}${primaryTextLoaded.decryptReason ? ` reason=${primaryTextLoaded.decryptReason}` : ""} has_text_ref=${primaryTextLoaded.hasTextRef} storage_fetch=${primaryTextLoaded.storageFetchStatus || "n/a"} text_len=${String(textBody || "").trim().length}`
         );
       }
 
-      if (isTextLikeInbound && primaryTextLoaded.fetchFailed) {
+      if (isSummaryCandidate && primaryTextLoaded.fetchFailed) {
         try {
           await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", { eventId: id });
         } catch {
           // best effort
         }
-        await markEvent(id, { status: "error", outcome: "text_fetch_failed" });
+        await markEvent(id, {
+          status: "error",
+          outcome: "text_fetch_failed",
+          last_error: primaryTextLoaded.lastErrorCode || "text_fetch_failed",
+        });
         continue;
       }
 
-      if (isTextLikeInbound && (!textBody || !String(textBody).trim())) {
+      if (isSummaryCandidate && (!textBody || !String(textBody).trim())) {
         try {
           await sendWhatsAppText(
             waNumber,
@@ -1820,16 +1947,21 @@ async function mainLoop() {
         } catch {
           // best effort
         }
-        await markEvent(id, { status: "processed", outcome: "empty_text" });
+        await markEvent(id, {
+          status: "processed",
+          outcome: "empty_text",
+          last_error: primaryTextLoaded.lastErrorCode || null,
+        });
         continue;
       }
 
-      const extractedCommand = isTextLikeInbound ? extractCommandText(textBody) : null;
+      const extractedCommand = isSummaryCandidate ? extractCommandText(textBody) : null;
       if (extractedCommand) {
         const r = await processCommand({
           waNumber,
           user,
           textBody: extractedCommand,
+          waMessageId: row?.wa_message_id || null,
           eventTsIso,
           supabase,
           nowIso,
@@ -1843,41 +1975,108 @@ async function mainLoop() {
         }
       }
 
-      let collectedExtras = [];
-      let extraRowsToFinalize = [];
-      if (isTextLikeInbound) {
-        collectedExtras = await collectBurstExtraRows(row, classified);
-
-        const burstTexts = [String(textBody)];
-        for (const extraRow of collectedExtras) {
-          const extraClassified = classifyWhatsAppEvent(extraRow);
-          const loaded = await loadTextForClassifiedEvent(extraRow, extraClassified);
-          if (!loaded.ok || loaded.empty) continue;
-          burstTexts.push(String(loaded.textBody));
-          extraRowsToFinalize.push(extraRow);
+      let burstSummaryMessageCount = 0;
+      let burstIncludedRowIds = [String(id)];
+      if (isSummaryCandidate) {
+        const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+        if (!idleGate.ok) {
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            outcome: "burst_idle_gate_error",
+            skip_reason: "idle_gate_error",
+            next_attempt_at: nowIso(),
+          });
+          continue;
         }
 
-        if (burstTexts.length > 1) {
-          textBody = combineBurstMessagesForSummary(burstTexts);
+        if (!idleGate.satisfied) {
+          const nextAttempt = safeIso(idleGate.nextAttemptAt) || nowIso();
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            next_attempt_at: nextAttempt,
+            outcome: "burst_waiting_idle",
+            skip_reason: "waiting_for_idle_window",
+          });
+          continue;
         }
 
-        const extraIdsLast4 = extraRowsToFinalize.map((x) => tailN(x?.id, 4)).join(",");
-        console.log(
-          `[batch] primary_id_last4=${tailN(id, 4)} extra_count=${extraRowsToFinalize.length} total_chars=${String(textBody || "").length}${extraIdsLast4 ? ` extra_ids_last4=${extraIdsLast4}` : ""}`
-        );
+        const burst = await buildBurstBatchFromLeader(row, classified, textBody, leaderEventId, bucket.bucketTs);
+        if (!burst.ok) {
+          if (burst.reason === "text_fetch_failed") {
+            await markEvent(id, {
+              status: "error",
+              outcome: "text_fetch_failed",
+              last_error: burst.failedCode || "text_fetch_failed",
+            });
+            continue;
+          }
+          await markEvent(id, {
+            status: "pending",
+            processed_at: null,
+            next_attempt_at: nowIso(),
+            outcome: "burst_retry",
+            skip_reason: "burst_retry",
+          });
+          continue;
+        }
+
+        leaderEventId = String(burst.leaderEventId || leaderEventId);
+        textBody = String(burst.textBody || textBody || "");
+        burstSummaryMessageCount = Number.isFinite(Number(burst.burstMessageCount))
+          ? Number(burst.burstMessageCount)
+          : 0;
+        burstIncludedRowIds = Array.isArray(burst.burstRowIds) && burst.burstRowIds.length ? burst.burstRowIds : [String(id)];
+
+        console.log("[lifecycle] gather_count", {
+          phoneLast4: tailN(burst.waNumber || waNumber, 4),
+          bucket_ts: bucket.bucketTs,
+          row_count: burstIncludedRowIds.length,
+          message_count: burstSummaryMessageCount,
+        });
       }
 
-      const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso);
+      const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso, {
+        eventId: null,
+        skipReason: null,
+      });
 
-      if (r.action === "summary_sent" && extraRowsToFinalize.length > 0) {
-        await markBatchedChildrenProcessed(extraRowsToFinalize, id);
+      if (isSummaryCandidate && leaderEventId) {
+        if (r.action === "summary_failed") {
+          await scheduleOpenAiRetry(id, attempts, r.error_code || "openai_error");
+          continue;
+        }
+
+        const leaderOutcome = r.action === "summary_sent" ? "summary_sent" : r.action || "processed";
+        await markEvent(leaderEventId, {
+          status: "processed",
+          outcome: leaderOutcome,
+          skip_reason: `burst_leader_${tailN(leaderEventId, 4)}`,
+          next_attempt_at: null,
+        });
+
+        if (leaderOutcome === "summary_sent") {
+          for (const childId of burstIncludedRowIds) {
+            const childStr = String(childId || "");
+            if (!childStr || childStr === String(leaderEventId)) continue;
+            await markRowAsBatchedChild(childStr, leaderEventId, `burst_non_leader_${tailN(leaderEventId, 4)}`);
+          }
+        }
+
+        console.log("[lifecycle] db_finalize", {
+          phoneLast4: tailN(waNumber, 4),
+          leader_id_last4: tailN(leaderEventId, 4),
+          row_count: burstIncludedRowIds.length,
+          outcome: leaderOutcome,
+        });
+        continue;
       }
 
       await markEvent(id, {
         status: "processed",
         outcome: r.action || "processed",
         skip_reason: r.skip_reason || null,
-        meta: { ...(meta || {}), outcome: r.action || "processed", skip_reason: r.skip_reason || null },
       });
     } catch (e) {
       await markEvent(id, {
@@ -1886,8 +2085,6 @@ async function mainLoop() {
         last_error: truncateErr500(e),
       });
       console.log("[worker] non-fatal loop error:", String(e?.message || e).slice(0, 200));
-    } finally {
-      await wipeInboundEventTextEnc(id);
     }
   }
 
