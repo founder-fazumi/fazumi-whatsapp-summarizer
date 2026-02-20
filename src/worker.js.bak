@@ -24,7 +24,7 @@ const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 
 // ---- WORKER VERSION FINGERPRINT ----
-const WORKER_VERSION = "p5-workerpool-burst-followers-finalize-2026-02-20";
+const WORKER_VERSION = "p5-workerpool-burst-scheduled-only-2026-02-14";
 
 // ---- OpenAI summarizer (CommonJS) ----
 let summarizeText = null;
@@ -74,8 +74,6 @@ const BURST_SECONDS = Math.max(1, Math.ceil(BURST_WINDOW_MS / 1000));
 const OPENAI_RETRY_MAX_ATTEMPTS = parseIntEnv(envTrim("OPENAI_RETRY_MAX_ATTEMPTS"), 6, 1);
 const OPENAI_RETRY_BASE_SECONDS = parseIntEnv(envTrim("OPENAI_RETRY_BASE_SECONDS"), 15, 1);
 const OPENAI_RETRY_MAX_SECONDS = parseIntEnv(envTrim("OPENAI_RETRY_MAX_SECONDS"), 300, 1);
-const FOLLOWER_MIN_BACKOFF_MS = 5000;
-const WORKER_MAX_ATTEMPTS = parseIntEnv(envTrim("WORKER_MAX_ATTEMPTS"), 25, 1);
 
 // TODO: replace Terms/Privacy placeholders with real Notion links.
 // Legal links (don’t invent links)
@@ -83,7 +81,7 @@ const TERMS_LINK = envTrim("TERMS_LINK") || "Terms/Privacy pages coming soon.";
 const PRIVACY_LINK = envTrim("PRIVACY_LINK") || "Terms/Privacy pages coming soon.";
 
 console.log(
-  `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS} burst_seconds=${BURST_SECONDS} worker_max_attempts=${WORKER_MAX_ATTEMPTS}`
+  `[worker] version=${WORKER_VERSION} DRY_RUN=${DRY_RUN} TZ=${FAZUMI_TZ} window_hours=${WHATSAPP_WINDOW_HOURS} burst_seconds=${BURST_SECONDS}`
 );
 
 // ---- HARD startup checks (log only lengths / booleans, no secrets) ----
@@ -500,23 +498,9 @@ function compareRowsByAnchor(a, b) {
   return 0;
 }
 
-const LEADER_TERMINAL_OUTCOMES = new Set([
-  "summary_sent",
-  "paywall",
-  "privacy_notice_sent",
-  "command_processed",
-  "unsupported_media",
-  "empty_text",
-  "text_fetch_failed",
-  "not_actionable",
-  "status_ignored",
-  "openai_failed_max_retries",
-  "error",
-]);
-
 async function markRowAsBatchedChild(rowId, leaderEventId, reason = null) {
   const rowKey = String(rowId || "").trim();
-  if (!rowKey) return false;
+  if (!rowKey) return;
 
   const skip = reason || `burst_child_of_${leaderEventId}`;
   const patch = stripProvider({
@@ -535,16 +519,7 @@ async function markRowAsBatchedChild(rowId, leaderEventId, reason = null) {
 
   if (error) {
     console.log(`[batch] child_mark_failed id_last4=${tailN(rowKey, 4)} leader_id_last4=${tailN(leaderEventId, 4)}`);
-    return false;
   }
-  return true;
-}
-
-function enforceMinFollowerBackoffIso(nextAttemptAtIso) {
-  const minMs = Date.now() + FOLLOWER_MIN_BACKOFF_MS;
-  const requestedMs = isoToMsOrNull(nextAttemptAtIso);
-  const nextMs = requestedMs == null ? minMs : Math.max(minMs, requestedMs);
-  return new Date(nextMs).toISOString();
 }
 
 async function parkFollowerForBurst(rowId, leaderEventId, nextAttemptAtIso, reason = null) {
@@ -552,18 +527,14 @@ async function parkFollowerForBurst(rowId, leaderEventId, nextAttemptAtIso, reas
   if (!rowKey) return;
 
   const leaderId = String(leaderEventId || "").trim();
-  const nextAttempt = enforceMinFollowerBackoffIso(nextAttemptAtIso);
+  const nextAttempt = safeIso(nextAttemptAtIso) || nowIso();
   const leaderTail = leaderId ? tailN(leaderId, 4) : "none";
-  const outcome = `burst_non_leader_wait_${leaderTail}`;
-  const skip =
-    typeof reason === "string" && reason.trim().startsWith("burst_wait_")
-      ? reason.trim()
-      : `burst_wait_${leaderTail}`;
+  const skip = reason || `burst_non_leader_wait_${leaderTail}`;
   const patch = stripProvider({
     status: "pending",
     processed_at: null,
     next_attempt_at: nextAttempt,
-    outcome,
+    outcome: "burst_non_leader_wait",
     skip_reason: skip,
   });
 
@@ -575,75 +546,7 @@ async function parkFollowerForBurst(rowId, leaderEventId, nextAttemptAtIso, reas
 
   if (error) {
     console.log(`[batch] follower_park_failed id_last4=${tailN(rowKey, 4)} leader_id_last4=${leaderTail}`);
-    return;
   }
-
-  console.log("[lifecycle] follower_parked", {
-    idLast4: tailN(rowKey, 4),
-    leader_id_last4: leaderId ? tailN(leaderId, 4) : null,
-    next_attempt_at: nextAttempt,
-    reason: skip,
-  });
-}
-
-async function fetchLeaderLifecycleRow(leaderEventId) {
-  const leaderId = String(leaderEventId || "").trim();
-  if (!leaderId) return null;
-
-  const { data, error } = await supabase
-    .from("inbound_events")
-    .select("id, status, outcome, processed_at")
-    .eq("id", leaderId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data;
-}
-
-function isLeaderTerminalState(leaderRow) {
-  if (!leaderRow) return false;
-
-  const leaderStatus = String(leaderRow.status || "").toLowerCase();
-  const leaderOutcome = String(leaderRow.outcome || "").toLowerCase();
-  return (
-    safeIso(leaderRow.processed_at) != null ||
-    leaderStatus === "processed" ||
-    leaderStatus === "error" ||
-    LEADER_TERMINAL_OUTCOMES.has(leaderOutcome)
-  );
-}
-
-async function settleFollowerAgainstLeader(rowId, leaderEventId, waNumber, bucketTsIso, reason = null) {
-  const rowKey = String(rowId || "").trim();
-  const leaderId = String(leaderEventId || "").trim();
-  if (!rowKey) return { action: "noop" };
-
-  // Deterministic follower settlement: if leader is terminal, finalize immediately.
-  if (leaderId) {
-    const leaderRow = await fetchLeaderLifecycleRow(leaderId);
-    if (isLeaderTerminalState(leaderRow)) {
-      const marked = await markRowAsBatchedChild(rowKey, leaderId);
-      if (marked) {
-        console.log("[lifecycle] finalize", {
-          row_count: 1,
-          total_chars: 0,
-          id_last4: tailN(rowKey, 4),
-          leader_id_last4: tailN(leaderId, 4),
-        });
-        return { action: "finalized", leaderRow, rowCount: 1, totalChars: 0 };
-      }
-    }
-  }
-
-  let nextAttempt = enforceMinFollowerBackoffIso(null);
-  if (waNumber && bucketTsIso) {
-    const idleGate = await isIdleWindowSatisfied(waNumber, bucketTsIso);
-    nextAttempt = enforceMinFollowerBackoffIso(idleGate.ok ? idleGate.nextAttemptAt : null);
-  }
-
-  const parkReason = reason || `burst_non_leader_wait_${leaderId ? tailN(leaderId, 4) : "none"}`;
-  await parkFollowerForBurst(rowKey, leaderId || null, nextAttempt, parkReason);
-  return { action: "parked", nextAttempt };
 }
 
 function deriveEventAnchorIso(row) {
@@ -744,11 +647,11 @@ async function claimBurstLeaderForPhone(phoneE164, bucketTsIso, eventId) {
     });
 
     if (error) {
-      console.log("[lifecycle] leader_election", {
-        phone_last4: tailN(phone, 4),
+      console.log("[lifecycle] leader_claim", {
+        phoneLast4: tailN(phone, 4),
         bucket_ts: bucketTs,
         is_leader: false,
-        leader_id_last4: null,
+        leader_event_id_last4: null,
         error: "rpc_error",
       });
       return { ok: false, isLeader: false, leaderEventId: null, errorCode: "rpc_error" };
@@ -758,20 +661,20 @@ async function claimBurstLeaderForPhone(phoneE164, bucketTsIso, eventId) {
     const leaderEventId = row?.leader_event_id != null ? String(row.leader_event_id) : null;
     const isLeader = Boolean(row?.is_leader) && leaderEventId != null;
 
-    console.log("[lifecycle] leader_election", {
-      phone_last4: tailN(phone, 4),
+    console.log("[lifecycle] leader_claim", {
+      phoneLast4: tailN(phone, 4),
       bucket_ts: bucketTs,
       is_leader: isLeader,
-      leader_id_last4: leaderEventId ? tailN(leaderEventId, 4) : null,
+      leader_event_id_last4: leaderEventId ? tailN(leaderEventId, 4) : null,
     });
 
     return { ok: true, isLeader, leaderEventId, errorCode: null };
   } catch {
-    console.log("[lifecycle] leader_election", {
-      phone_last4: tailN(phone, 4),
+    console.log("[lifecycle] leader_claim", {
+      phoneLast4: tailN(phone, 4),
       bucket_ts: bucketTs,
       is_leader: false,
-      leader_id_last4: null,
+      leader_event_id_last4: null,
       error: "rpc_exception",
     });
     return { ok: false, isLeader: false, leaderEventId: null, errorCode: "rpc_exception" };
@@ -806,30 +709,6 @@ async function fetchBurstRowsForLeader(phoneE164, bucketTsIso, maxRows = 800) {
     const classified = classifyWhatsAppEvent(row);
     return isBurstBatchEligibleKind(classified.kind);
   });
-}
-
-async function finalizeBurstChildrenForLeader(phoneE164, bucketTsIso, leaderEventId, leaderOutcome, leaderStatus) {
-  const leaderId = String(leaderEventId || "").trim();
-  if (!leaderId) return 0;
-
-  const rows = await fetchBurstRowsForLeader(phoneE164, bucketTsIso, 800);
-  let finalizedCount = 0;
-  for (const row of rows) {
-    const childId = String(row?.id || "").trim();
-    if (!childId || childId === leaderId) continue;
-
-    const marked = await markRowAsBatchedChild(childId, leaderId);
-    if (!marked) continue;
-    finalizedCount++;
-    console.log("[lifecycle] follower_finalized", {
-      idLast4: tailN(childId, 4),
-      leader_id_last4: tailN(leaderId, 4),
-      leader_outcome: String(leaderOutcome || ""),
-      leader_status: String(leaderStatus || ""),
-    });
-  }
-
-  return finalizedCount;
 }
 
 async function buildBurstBatchFromLeader(primaryRow, primaryClassified, primaryTextBody, leaderEventId, bucketTsIso) {
@@ -1065,7 +944,7 @@ async function loadTextForClassifiedEvent(row, classified) {
 
 // -------------------- Supabase queue --------------------
 async function dequeueEventJson() {
-  const nowMs = Date.now();
+  const now = nowIso();
   const baseSelect =
     "id, provider, status, attempts, processed_at, outcome, skip_reason, meta, received_at, user_msg_ts, wa_message_id, from_phone, wa_number, next_attempt_at, bucket_ts";
   const { data, error } = await supabase
@@ -1074,7 +953,7 @@ async function dequeueEventJson() {
     .eq("provider", "whatsapp")
     .in("status", ["pending", "queued", "leader"])
     .is("processed_at", null)
-    .order("next_attempt_at", { ascending: true, nullsFirst: true })
+    .order("next_attempt_at", { ascending: true })
     .order("received_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(20);
@@ -1093,92 +972,15 @@ async function dequeueEventJson() {
   const candidates = Array.isArray(data) ? data : [];
   for (const candidate of candidates) {
     const dueMs = isoToMsOrNull(candidate?.next_attempt_at);
-    if (dueMs != null && dueMs > nowMs) continue;
+    if (dueMs != null && dueMs > Date.now()) continue;
 
     const currentAttempts = Number.isFinite(Number(candidate?.attempts)) ? Number(candidate.attempts) : 0;
     const expectedStatus = String(candidate?.status || "pending");
-    const outcomeLower = String(candidate?.outcome || "").toLowerCase();
-    const isFollowerWait = outcomeLower.startsWith("burst_non_leader_wait");
-
-    if (currentAttempts >= WORKER_MAX_ATTEMPTS) {
-      if (expectedStatus === "leader") {
-        continue;
-      }
-
-      let terminalLeaderId = null;
-      const phone = normalizePhoneE164(
-        candidate?.from_phone || candidate?.wa_number || candidate?.meta?.from || candidate?.meta?.wa_number || null
-      );
-      const bucketTs = safeIso(candidate?.bucket_ts);
-
-      if (isFollowerWait && phone && bucketTs) {
-        const { data: peers, error: peerError } = await supabase
-          .from("inbound_events")
-          .select("id, status, outcome, processed_at, received_at")
-          .eq("provider", "whatsapp")
-          .eq("from_phone", phone)
-          .eq("bucket_ts", bucketTs)
-          .neq("id", String(candidate.id))
-          .order("processed_at", { ascending: false, nullsFirst: false })
-          .order("received_at", { ascending: true })
-          .order("id", { ascending: true })
-          .limit(20);
-
-        if (!peerError && Array.isArray(peers)) {
-          for (const peer of peers) {
-            const peerOutcome = String(peer?.outcome || "").toLowerCase();
-            if (peerOutcome === "batched_child" || peerOutcome.startsWith("burst_non_leader_wait")) continue;
-            if (isLeaderTerminalState(peer)) {
-              terminalLeaderId = String(peer?.id || "").trim() || null;
-              if (terminalLeaderId) break;
-            }
-          }
-        }
-      }
-
-      if (terminalLeaderId) {
-        const marked = await markRowAsBatchedChild(candidate.id, terminalLeaderId);
-        if (marked) {
-          console.log("[lifecycle] finalize", {
-            row_count: 1,
-            total_chars: 0,
-            id_last4: tailN(candidate.id, 4),
-            leader_id_last4: tailN(terminalLeaderId, 4),
-          });
-          continue;
-        }
-      }
-
-      const { error: terminalError } = await supabase
-        .from("inbound_events")
-        .update(stripProvider({
-          status: "error",
-          processed_at: nowIso(),
-          next_attempt_at: null,
-          outcome: "max_attempts_exceeded",
-          skip_reason: `max_attempts_exceeded_${WORKER_MAX_ATTEMPTS}`,
-          last_error: "max_attempts_exceeded",
-        }))
-        .eq("id", candidate.id)
-        .eq("status", expectedStatus)
-        .is("processed_at", null);
-
-      if (terminalError) {
-        console.log("[lifecycle] max_attempts_terminal_failed", {
-          id_last4: tailN(candidate.id, 4),
-          phone_last4: tailN(phone || "", 4) || "n/a",
-          bucket_ts: bucketTs,
-        });
-      }
-      continue;
-    }
-
-    const shouldBumpAttempts = expectedStatus === "leader" || !isFollowerWait;
     const { data: claimed, error: claimError } = await supabase
       .from("inbound_events")
       .update(stripProvider({
         status: expectedStatus === "leader" ? "leader" : "queued",
-        attempts: shouldBumpAttempts ? currentAttempts + 1 : currentAttempts,
+        attempts: currentAttempts + 1,
         processed_at: null,
       }))
       .eq("id", candidate.id)
@@ -1190,10 +992,8 @@ async function dequeueEventJson() {
     if (claimError) continue;
     if (claimed && claimed.id != null) {
       console.log("[lifecycle] dequeue", {
-        id_last4: tailN(claimed.id, 4),
-        phone_last4: tailN(claimed.from_phone || claimed.wa_number || claimed.meta?.from || "", 4) || "n/a",
-        bucket_ts: safeIso(claimed.bucket_ts),
-        status: String(claimed.status || expectedStatus || "queued"),
+        idLast4: tailN(claimed.id, 4),
+        phoneLast4: tailN(claimed.from_phone || claimed.wa_number || claimed.meta?.from || "", 4) || "n/a",
       });
       return claimed;
     }
@@ -2016,18 +1816,21 @@ async function mainLoop() {
           continue;
         }
 
-        if (!leaderClaim.leaderEventId) {
-          await settleFollowerAgainstLeader(id, null, waNumber, bucket.bucketTs, "burst_non_leader_wait_none");
+        if (!leaderClaim.isLeader || !leaderClaim.leaderEventId) {
+          const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+          const nextAttempt = idleGate.ok ? safeIso(idleGate.nextAttemptAt) || nowIso() : nowIso();
+          await parkFollowerForBurst(id, "none", nextAttempt, "burst_non_leader_wait_none");
           continue;
         }
 
         leaderEventId = String(leaderClaim.leaderEventId);
-        if (!leaderClaim.isLeader || String(id) !== leaderEventId) {
-          await settleFollowerAgainstLeader(
+        if (String(id) !== leaderEventId) {
+          const idleGate = await isIdleWindowSatisfied(waNumber, bucket.bucketTs);
+          const nextAttempt = idleGate.ok ? safeIso(idleGate.nextAttemptAt) || nowIso() : nowIso();
+          await parkFollowerForBurst(
             id,
             leaderEventId,
-            waNumber,
-            bucket.bucketTs,
+            nextAttempt,
             `burst_non_leader_wait_${tailN(leaderEventId, 4)}`
           );
           continue;
@@ -2120,23 +1923,6 @@ async function mainLoop() {
         );
       }
 
-      if (isSummaryCandidate) {
-        if (!leaderEventId) {
-          await settleFollowerAgainstLeader(id, null, waNumber, bucket.bucketTs, "burst_non_leader_wait_none");
-          continue;
-        }
-        if (String(id) !== String(leaderEventId)) {
-          await settleFollowerAgainstLeader(
-            id,
-            leaderEventId,
-            waNumber,
-            bucket.bucketTs,
-            `burst_non_leader_wait_${tailN(leaderEventId, 4)}`
-          );
-          continue;
-        }
-      }
-
       if (isSummaryCandidate && primaryTextLoaded.fetchFailed) {
         try {
           await sendWhatsAppText(waNumber, "I couldn't access your message text. Please resend.", { eventId: id });
@@ -2148,7 +1934,6 @@ async function mainLoop() {
           outcome: "text_fetch_failed",
           last_error: primaryTextLoaded.lastErrorCode || "text_fetch_failed",
         });
-        await finalizeBurstChildrenForLeader(waNumber, bucket.bucketTs, leaderEventId, "text_fetch_failed", "processed");
         continue;
       }
 
@@ -2167,7 +1952,6 @@ async function mainLoop() {
           outcome: "empty_text",
           last_error: primaryTextLoaded.lastErrorCode || null,
         });
-        await finalizeBurstChildrenForLeader(waNumber, bucket.bucketTs, leaderEventId, "empty_text", "processed");
         continue;
       }
 
@@ -2226,7 +2010,6 @@ async function mainLoop() {
               outcome: "text_fetch_failed",
               last_error: burst.failedCode || "text_fetch_failed",
             });
-            await finalizeBurstChildrenForLeader(waNumber, bucket.bucketTs, leaderEventId, "text_fetch_failed", "error");
             continue;
           }
           await markEvent(id, {
@@ -2273,18 +2056,18 @@ async function mainLoop() {
           next_attempt_at: null,
         });
 
-        const finalizedChildren = await finalizeBurstChildrenForLeader(
-          waNumber,
-          bucket.bucketTs,
-          leaderEventId,
-          leaderOutcome,
-          "processed"
-        );
+        if (leaderOutcome === "summary_sent") {
+          for (const childId of burstIncludedRowIds) {
+            const childStr = String(childId || "");
+            if (!childStr || childStr === String(leaderEventId)) continue;
+            await markRowAsBatchedChild(childStr, leaderEventId, `burst_non_leader_${tailN(leaderEventId, 4)}`);
+          }
+        }
 
         console.log("[lifecycle] db_finalize", {
           phoneLast4: tailN(waNumber, 4),
           leader_id_last4: tailN(leaderEventId, 4),
-          row_count: finalizedChildren + 1,
+          row_count: burstIncludedRowIds.length,
           outcome: leaderOutcome,
         });
         continue;
