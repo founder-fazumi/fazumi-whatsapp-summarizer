@@ -46,7 +46,7 @@ const supabase = getSupabaseAdmin();
  * VERSION MARKER
  * Bump this string whenever you deploy changes so logs prove what's running.
  */
-const SERVER_BUILD_TAG = "SG7-webhook-scheduled-queue-2026-02-14";
+const SERVER_BUILD_TAG = "SG7-webhook-scheduled-queue-2026-02-21-1600";
 
 app.use(helmet());
 app.use(morgan("tiny"));
