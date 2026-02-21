@@ -2294,15 +2294,6 @@ async function mainLoop() {
             row_count: burstIncludedRowIds.length,
             message_count: burstSummaryMessageCount,
           });
-          try {
-            await sendWhatsAppText(
-              waNumber,
-              "I received your message but couldn't read the text. Please resend as plain text.",
-              { eventId: leaderEventId || id }
-            );
-          } catch {
-            // best effort; leader row is still finalized below
-          }
           await markEvent(leaderEventId || id, {
             status: "processed",
             outcome: "empty_text",
