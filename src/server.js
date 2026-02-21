@@ -486,53 +486,19 @@ app.post("/webhooks/whatsapp", (req, res) => {
 
       const common = getCommonWaMeta(value);
       const workerPoolHealthy = WORKER_POOL_HEALTHY;
-
-      // Status updates can come in value.statuses
-      const statuses = Array.isArray(value.statuses) ? value.statuses : [];
-      for (const st of statuses) {
-        const statusMsgId = st?.id || null;
-        const statusName = st?.status ? String(st.status).toLowerCase() : "status";
-        const statusPhone = normalizePhoneE164(st?.recipient_id || common.from_phone || null);
-        if (!statusMsgId || !statusPhone) continue;
-
-        const providerEventId = `${statusMsgId}:${statusName}`;
-        const payloadHash = sha256Hex(Buffer.from(JSON.stringify({ kind: "status", st })));
-
-        const row = {
-          provider: "whatsapp",
-          status: "queued",
-          attempts: 0,
-          provider_event_id: providerEventId,
-          payload_sha256: payloadHash,
-          wa_number: statusPhone,
-          from_phone: statusPhone,
-          wa_message_id: statusMsgId,
-          next_attempt_at: new Date(Date.now() + EFFECTIVE_BURST_WINDOW_MS).toISOString(),
-          user_msg_ts: parseTimestampToIsoOrNull(st?.timestamp) || receivedAtIso,
-          meta: {
-            ...common,
-            msg_type: "status",
-            event_kind: "status_event",
-            status: statusName,
-            skip_reason: "status_event",
-          },
-        };
-
-        const inserted = await safeInsertInboundEvent(supabase, row);
-        if (!inserted?.ok) {
-          console.log(`[whatsapp] status_enqueue_failed msg_id=${safeIdSuffixForPath(statusMsgId)}`);
-        }
-      }
-
-      // Incoming messages can come in value.messages[]
-      const messages = Array.isArray(value.messages) ? value.messages : [];
+      // Process only real inbound text messages.
+      if (!value.messages || !Array.isArray(value.messages)) return;
+      const messages = value.messages;
       for (const msg of messages) {
         const msgId = msg?.id || null;
         const from = normalizePhoneE164(msg?.from || common.from_phone || null);
         const msgType = String(msg?.type || "").toLowerCase().trim();
         const msgTsIso = parseTimestampToIsoOrNull(msg?.timestamp) || receivedAtIso;
+        const textBody = msg?.text?.body?.trim();
 
-        if (!msgId || !from || !msgType) continue;
+        if (msgType !== "text") continue;
+        if (!textBody) continue;
+        if (!msgId || !from) continue;
 
         // Text extraction (only for hashing/storage; never stored raw in DB)
         const rawText = extractInboundTextBody(msg);
