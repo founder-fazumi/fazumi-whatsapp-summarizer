@@ -1210,7 +1210,7 @@ async function dequeueEventJson() {
   return null;
 }
 
-async function markEvent(id, patch) {
+async function markEvent(id, patch, opts = {}) {
   const allowed = [
     "status",
     "processed_at",
@@ -1241,7 +1241,15 @@ async function markEvent(id, patch) {
     .eq("id", id)
     .in("status", ["pending", "queued", "processing", "leader"]);
   const { error } = await query;
-  if (error) console.log("[worker] markEvent error:", String(error.message || error).slice(0, 140));
+  if (error) {
+    const msg = String(error.message || error).slice(0, 140);
+    console.log("[worker] markEvent error:", msg);
+    if (opts?.throwOnError) {
+      throw new Error(`mark_event_failed:${msg}`);
+    }
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -1857,6 +1865,7 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso, opts = 
   console.log("[paywall]", { phoneLast4, allowed: true });
   console.log("[lifecycle] paywall_check", { phoneLast4, allowed: true });
 
+  const eventIdForIdempotency = String(opts?.eventId || "").trim();
   const langPref = getUserLangPref(user);
   const forcedLang = langPref === "auto" ? null : langPref;
 
@@ -1881,6 +1890,22 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso, opts = 
     return { action: "summary_failed", error_code: result.error_code || null };
   }
 
+  if (eventIdForIdempotency) {
+    const { data: existing, error: existingError } = await supabase
+      .from("inbound_events")
+      .select("processed_at, outcome")
+      .eq("id", eventIdForIdempotency)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new Error(`idempotency_check_failed:${String(existingError.message || existingError).slice(0, 120)}`);
+    }
+
+    if (existing?.processed_at && existing?.outcome === "summary_sent") {
+      return { action: "already_sent" };
+    }
+  }
+
   // Send FIRST
   let outboundText = result.summary_text;
   if (user.plan === "free" && meaningful) {
@@ -1889,18 +1914,28 @@ async function processWhatsAppText(waNumber, user, textBody, eventTsIso, opts = 
     const freeLeftLine = buildFreeLeftLine(uiLang, freeLeftAfterSend);
     outboundText = `${outboundText}\n\n${freeLeftLine}`;
   }
-  await sendWhatsAppText(waNumber, outboundText);
-  console.log("[lifecycle] wa_send", { phoneLast4, ok: true });
-  console.log("[send]", { phoneLast4, ok: true });
+  try {
+    await sendWhatsAppText(waNumber, outboundText);
+    console.log("[lifecycle] wa_send", { phoneLast4, ok: true });
+    console.log("[send]", { phoneLast4, ok: true });
 
-  const eventIdForIdempotency = String(opts?.eventId || "").trim();
-  if (eventIdForIdempotency) {
-    await markEvent(eventIdForIdempotency, {
-      status: "processed",
-      outcome: "summary_sent",
-      next_attempt_at: null,
-      skip_reason: opts?.skipReason || null,
-    });
+    if (eventIdForIdempotency) {
+      await markEvent(
+        eventIdForIdempotency,
+        {
+          status: "processed",
+          outcome: "summary_sent",
+          next_attempt_at: null,
+          skip_reason: opts?.skipReason || null,
+        },
+        { throwOnError: true }
+      );
+      console.log("[burst] leader_finalized", {
+        id_last4: tailN(opts.eventId, 4),
+      });
+    }
+  } catch (e) {
+    throw e;
   }
 
   // Decrement after successful send
@@ -2006,7 +2041,7 @@ async function mainLoop() {
         if (outcomeLower === "summary_sent") {
           await markEvent(id, {
             status: "processed",
-            outcome: "summary_sent",
+            outcome: "already_sent",
             skip_reason: "already_sent",
             next_attempt_at: null,
           });
@@ -2327,8 +2362,8 @@ async function mainLoop() {
       }
 
       const r = await processWhatsAppText(waNumber, user, textBody, eventTsIso, {
-        eventId: null,
-        skipReason: null,
+        eventId: leaderEventId || id,
+        skipReason: `burst_leader_${tailN(leaderEventId || id, 4)}`,
       });
 
       if (isSummaryCandidate && leaderEventId) {
@@ -2338,12 +2373,6 @@ async function mainLoop() {
         }
 
         const leaderOutcome = r.action === "summary_sent" ? "summary_sent" : r.action || "processed";
-        await markEvent(leaderEventId, {
-          status: "processed",
-          outcome: leaderOutcome,
-          skip_reason: `burst_leader_${tailN(leaderEventId, 4)}`,
-          next_attempt_at: null,
-        });
 
         const finalizedChildren = await finalizeBurstChildrenForLeader(
           waNumber,
@@ -2359,6 +2388,12 @@ async function mainLoop() {
           row_count: finalizedChildren + 1,
           outcome: leaderOutcome,
         });
+        if (leaderOutcome === "summary_sent" || leaderOutcome === "already_sent") {
+          continue;
+        }
+      }
+
+      if (r.action === "summary_sent" || r.action === "already_sent") {
         continue;
       }
 
