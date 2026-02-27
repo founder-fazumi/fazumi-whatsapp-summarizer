@@ -1,0 +1,289 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Eye, EyeOff, Chrome } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+
+type Tab = "login" | "signup";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Create Supabase client once (module-scope equivalent in component)
+  const supabase = createClient();
+
+  async function handleGoogleAuth() {
+    setLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    }
+    // On success: browser redirects to Google — no further action needed
+  }
+
+  async function handleEmailLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setError(error.message);
+    } else {
+      router.push("/dashboard");
+    }
+    setLoading(false);
+  }
+
+  async function handleEmailSignup(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: name },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess("Check your email to confirm your account, then log in.");
+    }
+    setLoading(false);
+  }
+
+  const inputCls =
+    "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]";
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-12">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="mb-8 flex flex-col items-center gap-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary)] text-2xl shadow-sm">
+            🦊
+          </div>
+          <span className="text-xl font-bold text-[var(--foreground)]">Fazumi</span>
+          <span className="text-sm text-[var(--muted-foreground)]">
+            School chat summaries, instantly
+          </span>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Welcome</CardTitle>
+            <CardDescription>
+              Log in or create a free account to get started
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Google OAuth */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={handleGoogleAuth}
+              disabled={loading}
+            >
+              <Chrome className="h-4 w-4" />
+              Continue with Google
+            </Button>
+
+            {/* Apple (coming soon) */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 opacity-50 cursor-not-allowed"
+              disabled
+              title="Apple sign-in coming soon"
+            >
+              {/* Apple icon via unicode */}
+              <span className="text-base leading-none"></span>
+              Continue with Apple
+            </Button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3">
+              <span className="flex-1 border-t border-[var(--border)]" />
+              <span className="text-xs text-[var(--muted-foreground)]">or</span>
+              <span className="flex-1 border-t border-[var(--border)]" />
+            </div>
+
+            {/* Tabs */}
+            <Tabs value={tab} onValueChange={(v) => { setTab(v as Tab); setError(null); setSuccess(null); }}>
+              <TabsList className="w-full">
+                <TabsTrigger value="login" className="flex-1">Log in</TabsTrigger>
+                <TabsTrigger value="signup" className="flex-1">Sign up</TabsTrigger>
+              </TabsList>
+
+              {/* ── Login tab ── */}
+              <TabsContent value="login" className="mt-4">
+                <form onSubmit={handleEmailLogin} className="space-y-3">
+                  <div>
+                    <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                      Email
+                    </label>
+                    <input
+                      id="login-email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="login-pass" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="login-pass"
+                        type={showPass ? "text" : "password"}
+                        autoComplete="current-password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className={cn(inputCls, "pr-10")}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        onClick={() => setShowPass((s) => !s)}
+                        aria-label={showPass ? "Hide password" : "Show password"}
+                      >
+                        {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {error && (
+                    <p className="rounded-[var(--radius)] bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                      {error}
+                    </p>
+                  )}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Logging in…" : "Log in"}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              {/* ── Sign up tab ── */}
+              <TabsContent value="signup" className="mt-4">
+                <form onSubmit={handleEmailSignup} className="space-y-3">
+                  <div>
+                    <label htmlFor="signup-name" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                      Full name
+                    </label>
+                    <input
+                      id="signup-name"
+                      type="text"
+                      autoComplete="name"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Fatima Al Rashid"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="signup-email" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                      Email
+                    </label>
+                    <input
+                      id="signup-email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="signup-pass" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="signup-pass"
+                        type={showPass ? "text" : "password"}
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Min 8 characters"
+                        className={cn(inputCls, "pr-10")}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        onClick={() => setShowPass((s) => !s)}
+                        aria-label={showPass ? "Hide password" : "Show password"}
+                      >
+                        {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {error && (
+                    <p className="rounded-[var(--radius)] bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                      {error}
+                    </p>
+                  )}
+                  {success && (
+                    <p className="rounded-[var(--radius)] bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                      {success}
+                    </p>
+                  )}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Creating account…" : "Create free account"}
+                  </Button>
+                  <p className="text-center text-[10px] text-[var(--muted-foreground)]">
+                    7-day free trial · No credit card required
+                  </p>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <p className="mt-6 text-center text-xs text-[var(--muted-foreground)]">
+          By continuing you agree to our{" "}
+          <Link href="/terms" className="text-[var(--primary)] hover:underline">Terms</Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="text-[var(--primary)] hover:underline">Privacy Policy</Link>.
+        </p>
+      </div>
+    </div>
+  );
+}

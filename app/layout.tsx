@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { Cairo } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/lib/context/ThemeContext";
+import { LangProvider } from "@/lib/context/LangContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,7 +48,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${cairo.variable} font-sans antialiased`}
       >
-        {children}
+        <ThemeProvider>
+          <LangProvider>
+            {children}
+          </LangProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
