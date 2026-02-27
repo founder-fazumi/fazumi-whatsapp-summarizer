@@ -38,9 +38,9 @@ const RIGHT_COLUMN = (
 );
 
 const STATS = [
-  { label: "Today's Summaries", value: "3" },
-  { label: "Time Saved",        value: "12 min" },
-  { label: "Streak",            value: "5 days 🔥" },
+  { icon: "📋", label: "Today's Summaries", value: "3 new" },
+  { icon: "⏱️", label: "Time Saved",        value: "12 min" },
+  { icon: "🔥", label: "Streak",            value: "5 days" },
 ];
 
 export default function HomePage() {
@@ -112,37 +112,42 @@ export default function HomePage() {
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>
       {/* ── Banner ──────────────────────────────────── */}
-      <Card className="mb-5 border-0 bg-gradient-to-r from-[var(--card-tint)] to-[var(--bg-2)]">
-        <CardContent className="py-4 px-5">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-lg font-bold text-[var(--foreground)] leading-snug">
-                Good morning! 👋
+      <Card className="mb-5 overflow-hidden border-0 bg-gradient-to-br from-[var(--mint-wash)]/30 via-[var(--card-tint)] to-[var(--bg-2)]">
+        <CardContent className="py-5 px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-xl font-bold text-[var(--foreground)] leading-snug">
+                Good morning, Aisha 👋
               </h1>
-              <p className="text-sm text-[var(--muted-foreground)] mt-0.5">
-                Paste your school group chat below and get a clean summary in seconds.
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">
+                Here&apos;s what&apos;s important from your school chats today
               </p>
-            </div>
-            <div className="hidden sm:flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)] text-3xl shadow-md">
-              💬
-            </div>
-          </div>
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-3 gap-3">
-            {STATS.map(({ label, value }) => (
-              <div
-                key={label}
-                className="rounded-[var(--radius)] bg-[var(--card)] border border-[var(--border)] px-3 py-2.5 text-center"
-              >
-                <p className="text-base font-bold text-[var(--foreground)] leading-tight">
-                  {value}
-                </p>
-                <p className="text-[10px] text-[var(--muted-foreground)] mt-0.5 leading-tight">
-                  {label}
-                </p>
+              {/* Inline stats row — matches Photo 2 */}
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+                {STATS.map(({ icon, label, value }, i) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    {i > 0 && (
+                      <span className="hidden sm:block w-px h-4 bg-[var(--border)] mr-3" />
+                    )}
+                    <span className="text-sm">{icon}</span>
+                    <div>
+                      <span className="text-xs font-medium text-[var(--muted-foreground)]">
+                        {label}
+                      </span>
+                      <span className="ml-1.5 text-sm font-bold text-[var(--foreground)]">
+                        {value}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Mascot placeholder */}
+            <div className="hidden sm:flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-5xl select-none">
+              🦊
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -150,10 +155,9 @@ export default function HomePage() {
       {/* ── Summarize card ──────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>Summarize Chat</CardTitle>
+          <CardTitle>Paste school messages here</CardTitle>
           <CardDescription>
-            Paste messages from any school group. Only the summary is saved —
-            never your raw chat.
+            I&apos;ll extract tasks, dates &amp; announcements. Only the summary is saved — never your raw chat.
           </CardDescription>
         </CardHeader>
         <CardContent>

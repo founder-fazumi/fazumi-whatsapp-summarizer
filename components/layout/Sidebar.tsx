@@ -107,9 +107,9 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">8 / 10 used</span>
         </div>
         <Progress value={8} max={10} className="h-1.5 mb-2.5" />
-        <button className="w-full flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-[var(--primary)] text-[var(--primary)] text-xs font-semibold py-1.5 hover:bg-[var(--primary)] hover:text-white transition-colors">
+        <button className="w-full flex items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] text-white text-xs font-semibold py-1.5 hover:bg-[var(--primary-hover)] transition-colors shadow-sm">
           <ArrowUpCircle className="h-3.5 w-3.5" />
-          Upgrade Plan
+          Upgrade
         </button>
       </div>
 

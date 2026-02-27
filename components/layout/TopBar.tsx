@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LayoutGrid, Search, Bell, Globe, ChevronDown, Menu } from "lucide-react";
+import { LayoutGrid, Search, Bell, Globe, ChevronDown, Menu, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
@@ -63,6 +63,11 @@ export function TopBar({ className }: TopBarProps) {
           <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
             3
           </span>
+        </button>
+
+        {/* Settings */}
+        <button className="hidden sm:flex rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors" aria-label="Settings">
+          <Settings className="h-4 w-4" />
         </button>
 
         {/* Language toggle */}

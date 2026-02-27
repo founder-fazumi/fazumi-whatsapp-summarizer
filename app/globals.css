@@ -6,6 +6,8 @@
    ================================================================ */
 
 :root {
+  color-scheme: light;  /* ← force browser chrome to light even if OS prefers dark */
+
   /* ── Backgrounds ──────────────────────────────────────────── */
   --background:   #FAF7F8;   /* main page background          */
   --bg-2:         #F0EEEC;   /* slightly deeper surface        */
@@ -55,24 +57,29 @@
   --popover-foreground: #192E28;
 
   /* ── Radius ──────────────────────────────────────────────── */
-  --radius: 0.75rem;
+  --radius: 0.875rem;   /* 14px — slightly more prominent rounding */
+
+  /* ── Elevation shadows ────────────────────────────────────── */
+  --shadow-card: 0 1px 3px 0 rgba(25, 46, 40, 0.08), 0 0 0 1px rgba(25, 46, 40, 0.04);
 
   /* ── Fonts ───────────────────────────────────────────────── */
   --font-sans:   var(--font-geist-sans, system-ui, sans-serif);
   --font-arabic: var(--font-cairo, "Cairo", system-ui, sans-serif);
 }
 
-/* ── Dark mode overrides ──────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
-  :root {
+/* ── Dark mode — class-based (never auto from OS preference) ────── */
+/* Apply by adding class="dark" to <html>. Not used by default.      */
+.dark {
+    color-scheme: dark;
+
     /* Backgrounds */
     --background:   #0B1210;
-    --bg-2:         #0F1B16;   /* surface                       */
+    --bg-2:         #0F1B16;
     --mint-wash:    #1E3B2E;
 
     /* Cards */
     --card:         #14261F;
-    --card-tint:    #102019;   /* card-2                        */
+    --card-tint:    #102019;
     --card-foreground: #EAF3EE;
 
     /* Text */
@@ -110,7 +117,9 @@
     /* Semantic */
     --popover:          #14261F;
     --popover-foreground: #EAF3EE;
-  }
+
+    /* Shadows in dark */
+    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 /* ================================================================
@@ -177,6 +186,9 @@
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
   --radius-xl: calc(var(--radius) + 8px);
+
+  /* Shadows */
+  --shadow-card: var(--shadow-card);
 }
 
 /* ================================================================
