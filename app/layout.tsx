@@ -35,6 +35,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Prevent flash of wrong theme/direction before React hydrates */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('fazumi_theme');if(t==='dark')document.documentElement.classList.add('dark');var l=localStorage.getItem('fazumi_lang');if(l){document.documentElement.lang=l;if(l==='ar')document.documentElement.dir='rtl';}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${cairo.variable} font-sans antialiased`}
       >
