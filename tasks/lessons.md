@@ -8,6 +8,14 @@
 
 ---
 
+## L005 — Next.js ESLint lints archived CommonJS service code
+**Mistake:** Running `pnpm lint` on the Next.js app also linted `services/wa-bot/src/*.js` (CommonJS require() style), causing 17 errors.
+**Why:** `eslint.config.mjs` has no explicit ignore for `services/`. The default Next.js ESLint config lints all JS/TS files in the project root recursively.
+**Rule:** Whenever archiving non-Next.js code under the repo root, immediately add the folder to `globalIgnores` in `eslint.config.mjs`. Pattern: `"services/**"`.
+**Quick test:** `pnpm lint` must complete with zero errors when only `services/**` exists alongside Next.js code.
+
+---
+
 ## L001 — WA Bot on Free Render tier causes cold-start webhook failures
 **Mistake:** WhatsApp (360dialog) webhooks failed to ACK within timeout when Render free tier went to sleep.
 **Why:** Render free plan sleeps after 15min of inactivity. WhatsApp expects HTTP 200 within ~5 seconds.
