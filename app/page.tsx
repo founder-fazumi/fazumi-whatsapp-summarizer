@@ -86,7 +86,7 @@ export default function HomePage() {
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>
       {/* ── Banner ──────────────────────────────────── */}
-      <Card className="mb-5 border-0 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30">
+      <Card className="mb-5 border-0 bg-gradient-to-r from-[var(--card-tint)] to-[var(--bg-2)]">
         <CardContent className="flex items-center justify-between gap-4 py-4 px-5">
           <div>
             <h1 className="text-lg font-bold text-[var(--foreground)] leading-snug">

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export function ReferralCard() {
   return (
-    <Card className="bg-gradient-to-br from-[var(--muted)] to-[var(--card)]">
+    <Card className="bg-gradient-to-br from-[var(--accent-cream)]/20 to-[var(--card)]">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Gift className="h-4 w-4 text-[var(--primary)]" />
