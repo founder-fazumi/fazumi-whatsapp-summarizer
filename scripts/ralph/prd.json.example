@@ -1,0 +1,125 @@
+{
+  "product": "Fazumi",
+  "version": "1.0.0-mvp",
+  "goal": "Web micro-SaaS for summarizing WhatsApp chats. Mobile-first. Paste text or upload export. Structured 6-section output. Auth, payments, history.",
+  "stories": [
+    {
+      "id": "S001",
+      "title": "Next.js scaffold + dev tooling",
+      "phase": "A",
+      "status": "pending",
+      "acceptance": [
+        "pnpm dev starts on localhost:3000",
+        "pnpm lint passes with zero errors",
+        "pnpm typecheck passes with zero errors",
+        "shadcn/ui Button component renders on homepage"
+      ]
+    },
+    {
+      "id": "S002",
+      "title": "Supabase DB schema + RLS",
+      "phase": "B",
+      "status": "pending",
+      "acceptance": [
+        "supabase db push runs clean",
+        "profiles, summaries, subscriptions tables exist",
+        "RLS prevents cross-user data access (test with two users)"
+      ]
+    },
+    {
+      "id": "S003",
+      "title": "Paste text → AI summary → display",
+      "phase": "C",
+      "status": "pending",
+      "acceptance": [
+        "Paste 100+ chars of WhatsApp text → click Summarize → see 6-section output in < 30s",
+        "Anonymous user gets 1 free summary then sees signup CTA",
+        "Char counter shows remaining chars",
+        "Over 30,000 chars → form shows validation error before submission"
+      ]
+    },
+    {
+      "id": "S004",
+      "title": "File upload (txt + zip)",
+      "phase": "C",
+      "status": "pending",
+      "acceptance": [
+        "Upload .txt WhatsApp export → summarized",
+        "Upload .zip with _chat.txt → summarized",
+        "Upload .zip with media files → media ignored, text extracted, warning shown",
+        "Upload >10MB zip → rejected with error message"
+      ]
+    },
+    {
+      "id": "S005",
+      "title": "Google + Apple OAuth",
+      "phase": "D",
+      "status": "pending",
+      "acceptance": [
+        "Click 'Continue with Google' → Google OAuth → redirected to dashboard",
+        "Click 'Continue with Apple' → Apple OAuth → redirected to dashboard",
+        "Session persists on page refresh",
+        "Logout clears session"
+      ]
+    },
+    {
+      "id": "S006",
+      "title": "Persist summaries + usage tracking",
+      "phase": "E",
+      "status": "pending",
+      "acceptance": [
+        "Logged-in user runs summary → row in summaries table",
+        "profiles.summaries_today increments",
+        "No raw text in any DB column"
+      ]
+    },
+    {
+      "id": "S007",
+      "title": "Dashboard: history list + detail view",
+      "phase": "F",
+      "status": "pending",
+      "acceptance": [
+        "Dashboard shows list of past summaries newest-first",
+        "Click summary → full 6-section detail",
+        "Delete removes from list",
+        "Empty state shows CTA to run first summary"
+      ]
+    },
+    {
+      "id": "S008",
+      "title": "Lemon Squeezy payments + webhook",
+      "phase": "G",
+      "status": "pending",
+      "acceptance": [
+        "Pricing page shows 3 tiers",
+        "Click Monthly → LS checkout with correct price",
+        "Test purchase → webhook fires → subscriptions row created → plan = monthly",
+        "Cancelled subscription → plan reverts"
+      ]
+    },
+    {
+      "id": "S009",
+      "title": "Plan limits enforcement",
+      "phase": "H",
+      "status": "pending",
+      "acceptance": [
+        "Free trial: unlimited summaries for 7 days",
+        "After trial: 3 lifetime free summaries only",
+        "Paid: 50/day, 200/month (403 when exceeded)",
+        "History remains readable after limit hit"
+      ]
+    },
+    {
+      "id": "S010",
+      "title": "Referral system",
+      "phase": "I",
+      "status": "pending",
+      "acceptance": [
+        "Each profile has unique referral_code",
+        "Visit /ref/CODE → cookie set → redirected to home",
+        "Sign up via referral → referred_by populated",
+        "First payment → referrer credit += 3"
+      ]
+    }
+  ]
+}

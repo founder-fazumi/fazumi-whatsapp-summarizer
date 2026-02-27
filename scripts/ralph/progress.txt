@@ -1,0 +1,14 @@
+# Fazumi Ralph Loop — Progress Tracker
+# Format: STORY_ID = STATUS [DONE | IN_PROGRESS | PENDING | BLOCKED]
+# Update this file after each story completes.
+
+S001 = PENDING  # Next.js scaffold + dev tooling
+S002 = PENDING  # Supabase DB schema + RLS
+S003 = PENDING  # Paste text → AI summary → display
+S004 = PENDING  # File upload (txt + zip)
+S005 = PENDING  # Google + Apple OAuth
+S006 = PENDING  # Persist summaries + usage tracking
+S007 = PENDING  # Dashboard: history list + detail view
+S008 = PENDING  # Lemon Squeezy payments + webhook
+S009 = PENDING  # Plan limits enforcement
+S010 = PENDING  # Referral system

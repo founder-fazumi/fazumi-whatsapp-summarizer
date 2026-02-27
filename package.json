@@ -1,28 +1,33 @@
 {
-  "name": "fazumi-whatsapp-summarizer",
-  "version": "1.0.1",
-  "description": "WhatsApp (360dialog) + Lemon Squeezy webhooks into Supabase (Phase 5)",
-  "main": "src/server.js",
-  "type": "commonjs",
+  "name": "fazumi-next",
+  "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": ">=18"
-  },
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "worker": "node src/worker.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'No tests yet — OK' && exit 0"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.93.2",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "helmet": "^8.1.0",
-    "morgan": "^1.10.1",
-    "openai": "^6.17.0",
-    "uuid": "^13.0.0"
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.575.0",
+    "next": "16.1.6",
+    "openai": "^6.25.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
