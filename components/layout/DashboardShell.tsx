@@ -1,10 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { Menu } from "lucide-react";
+import React from "react";
 import { Sidebar } from "./Sidebar";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { TopBar } from "./TopBar";
 import { cn } from "@/lib/utils";
 
 interface DashboardShellProps {
@@ -18,35 +16,15 @@ export function DashboardShell({
   rightColumn,
   className,
 }: DashboardShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
   return (
     <div className={cn("min-h-screen bg-[var(--background)]", className)}>
-      {/* ── Mobile top bar ─────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--background)]/90 backdrop-blur-sm px-4 py-3 md:hidden">
-        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Open menu">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-[260px]">
-            <Sidebar onNavigate={() => setSidebarOpen(false)} />
-          </SheetContent>
-        </Sheet>
+      {/* ── Sticky top bar (all breakpoints) ───────────────────── */}
+      <TopBar />
 
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--primary)] text-white text-sm">
-            💬
-          </div>
-          <span className="font-bold text-sm">Fazumi</span>
-        </div>
-      </div>
-
-      {/* ── Desktop layout ─────────────────────────────────────── */}
-      <div className="flex h-[calc(100vh-0px)] md:h-screen">
+      {/* ── Body ────────────────────────────────────────────────── */}
+      <div className="flex h-[calc(100vh-3.5rem)]">
         {/* Sidebar — hidden on mobile */}
-        <div className="hidden md:flex md:w-[240px] md:shrink-0 md:flex-col">
+        <div className="hidden md:flex md:w-[240px] md:shrink-0 md:flex-col md:overflow-y-auto">
           <Sidebar className="h-full" />
         </div>
 
