@@ -192,6 +192,52 @@
 }
 
 /* ================================================================
+   Shine border — rotating conic gradient border trick
+   Usage: wrap element in <div class="shine-wrap"> ... </div>
+   ================================================================ */
+.shine-wrap {
+  position: relative;
+  border-radius: var(--radius-xl);
+  padding: 2px;
+  background: conic-gradient(
+    from 0deg,
+    var(--primary) 0%,
+    var(--mint-wash) 25%,
+    var(--accent-fox) 50%,
+    var(--mint-wash) 75%,
+    var(--primary) 100%
+  );
+  animation: shine-spin 5s linear infinite;
+}
+.shine-wrap:focus-within {
+  animation: shine-spin 2.5s linear infinite;
+}
+.shine-inner {
+  background: var(--card);
+  border-radius: calc(var(--radius-xl) - 2px);
+  position: relative;
+  z-index: 1;
+}
+@keyframes shine-spin {
+  from { filter: hue-rotate(0deg); }
+  to   { filter: hue-rotate(360deg); }
+}
+
+/* ================================================================
+   Testimonials infinite scroll
+   ================================================================ */
+@keyframes testimonials-scroll {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.testimonials-col {
+  animation: testimonials-scroll var(--duration, 30s) linear infinite;
+}
+.testimonials-col:hover {
+  animation-play-state: paused;
+}
+
+/* ================================================================
    Global resets
    ================================================================ */
 *,
