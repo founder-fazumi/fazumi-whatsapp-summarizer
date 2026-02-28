@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Check, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CheckoutButton } from "@/components/billing/CheckoutButton";
+
+const VARIANT_IDS = {
+  monthly: process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? "",
+  annual:  process.env.NEXT_PUBLIC_LS_ANNUAL_VARIANT  ?? "",
+  founder: process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? "",
+} as const;
 
 type Billing = "monthly" | "annual";
 
@@ -80,7 +88,11 @@ const PLANS = [
   },
 ];
 
-export function Pricing() {
+interface PricingProps {
+  isLoggedIn?: boolean;
+}
+
+export function Pricing({ isLoggedIn = false }: PricingProps) {
   const [billing, setBilling] = useState<Billing>("annual");
 
   return (
@@ -197,22 +209,33 @@ export function Pricing() {
               </div>
 
               {/* CTA */}
-              <button
-                disabled
-                title="Coming soon"
-                className={cn(
-                  "mb-5 w-full rounded-[var(--radius)] py-2.5 text-sm font-semibold transition-colors",
-                  plan.featured
-                    ? "bg-white text-[var(--primary)] hover:bg-white/90"
-                    : plan.id === "founder"
-                      ? "bg-amber-400 text-amber-900 hover:bg-amber-300"
-                      : "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]",
-                  "disabled:opacity-70 disabled:cursor-not-allowed"
-                )}
-              >
-                {plan.ctaText}
-                <span className="ml-1 text-[10px] opacity-60">(soon)</span>
-              </button>
+              {plan.id === "free" ? (
+                <Link
+                  href={isLoggedIn ? "/summarize" : "/login"}
+                  className={cn(
+                    "mb-5 w-full rounded-[var(--radius)] py-2.5 text-sm font-semibold transition-colors text-center block",
+                    "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
+                  )}
+                >
+                  {plan.ctaText}
+                </Link>
+              ) : (
+                <CheckoutButton
+                  variantId={VARIANT_IDS[plan.id as keyof typeof VARIANT_IDS]}
+                  isLoggedIn={isLoggedIn}
+                  className={cn(
+                    "mb-5 w-full rounded-[var(--radius)] py-2.5 text-sm font-semibold transition-colors",
+                    plan.featured
+                      ? "bg-white text-[var(--primary)] hover:bg-white/90"
+                      : plan.id === "founder"
+                        ? "bg-amber-400 text-amber-900 hover:bg-amber-300"
+                        : "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]",
+                    "disabled:opacity-70 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {plan.ctaText}
+                </CheckoutButton>
+              )}
 
               {/* Features */}
               <ul className="space-y-2 flex-1">
