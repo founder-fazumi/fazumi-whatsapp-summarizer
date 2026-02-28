@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Globe } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
 import { createClient } from "@/lib/supabase/client";
+import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 
 interface NavProps {
@@ -15,7 +16,7 @@ const COPY = {
   pricing: { en: "Pricing", ar: "الأسعار" },
   faq: { en: "FAQ", ar: "الأسئلة" },
   about: { en: "About", ar: "من نحن" },
-  dashboard: { en: "Go to Dashboard", ar: "لوحة التحكم" },
+  dashboard: { en: "Go to app", ar: "الذهاب إلى التطبيق" },
   beta: { en: "BETA", ar: "تجريبي" },
   toggle: { en: "Toggle language", ar: "تبديل اللغة" },
 } satisfies Record<string, LocalizedCopy<string>>;
@@ -87,12 +88,11 @@ export function Nav({ isLoggedIn = false }: NavProps) {
           </button>
 
           {loggedIn ? (
-            <Link
-              href="/dashboard"
+            <GoToAppButton
               className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
             >
               {pick(COPY.dashboard, locale)} →
-            </Link>
+            </GoToAppButton>
           ) : (
             <div className="flex items-center gap-2">
               <Link

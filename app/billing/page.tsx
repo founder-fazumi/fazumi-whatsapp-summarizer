@@ -1,8 +1,8 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { BillingPlansPanel } from "@/components/billing/BillingPlansPanel";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CreditCard, ExternalLink, Check } from "lucide-react";
-import Link from "next/link";
+import { CreditCard, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
 import type { Profile } from "@/lib/supabase/types";
@@ -43,6 +43,7 @@ const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
 };
 
 export default async function BillingPage() {
+  let isLoggedIn = false;
   let plan = "free";
   let trialExpiresAt: string | null = null;
   let portalUrl: string | null = null;
@@ -53,6 +54,7 @@ export default async function BillingPage() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
+      isLoggedIn = true;
       const [{ data: profile }, { data: sub }] = await Promise.all([
         supabase
           .from("profiles")
@@ -155,32 +157,11 @@ export default async function BillingPage() {
               </ul>
             </div>
 
-            {/* Actions */}
-            <div className="flex flex-wrap gap-3">
-              {isPaid && portalUrl ? (
-                <a
-                  href={portalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium hover:bg-[var(--bg-2)] transition-colors"
-                >
-                  <LocalizedText en="Manage subscription" ar="إدارة الاشتراك" />
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              ) : (
-                <Link
-                  href="/pricing"
-                  className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white hover:bg-[var(--primary-hover)] transition-colors"
-                >
-                  {isTrialActive ? (
-                    <LocalizedText en="Upgrade before trial ends" ar="قم بالترقية قبل نهاية التجربة" />
-                  ) : (
-                    <LocalizedText en="View plans" ar="عرض الخطط" />
-                  )}
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-              )}
-            </div>
+            <BillingPlansPanel
+              isLoggedIn={isLoggedIn}
+              plan={plan as "free" | "monthly" | "annual" | "founder"}
+              portalUrl={isPaid ? portalUrl : null}
+            />
 
             <p className="text-xs text-[var(--muted-foreground)]">
               <LocalizedText

@@ -79,7 +79,7 @@ export function Testimonials() {
             <LocalizedText en="Testimonials" ar="آراء العملاء" />
           </p>
           <h2 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)]">
-            <LocalizedText en="Parents love Fazumi" ar="أولياء الأمور يحبون Fazumi" />
+            <LocalizedText en="Parents love Fazumi" ar="أولياء الأمور يحبّون Fazumi" />
           </h2>
           <p className="mt-2 text-sm text-[var(--muted-foreground)]">
             <LocalizedText

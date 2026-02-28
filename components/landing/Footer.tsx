@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useLang } from "@/lib/context/LangContext";
+import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { formatNumber } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,7 @@ const LINKS = [
       { label: { en: "How it works", ar: "كيف يعمل" }, href: "/#how-it-works" },
       { label: { en: "Pricing", ar: "الأسعار" }, href: "/#pricing" },
       { label: { en: "FAQ", ar: "الأسئلة" }, href: "/#faq" },
-      { label: { en: "Go to app", ar: "الذهاب إلى التطبيق" }, href: "/summarize" },
+      { label: { en: "Go to app", ar: "الذهاب إلى التطبيق" }, href: "/dashboard", gate: true },
     ],
   },
   {
@@ -86,12 +87,18 @@ export function Footer() {
               <ul className="space-y-2">
                 {column.items.map((item) => (
                   <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className="text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                    >
-                      {pick(item.label, locale)}
-                    </Link>
+                    {item.gate ? (
+                      <GoToAppButton className="text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]">
+                        {pick(item.label, locale)}
+                      </GoToAppButton>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        className="text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                      >
+                        {pick(item.label, locale)}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

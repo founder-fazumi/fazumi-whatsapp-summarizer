@@ -101,15 +101,34 @@ const PLANS: Plan[] = [
 
 interface PricingProps {
   isLoggedIn?: boolean;
+  currentPlan?: "free" | "monthly" | "annual" | "founder";
+  embedded?: boolean;
+  sectionId?: string;
 }
 
-export function Pricing({ isLoggedIn = false }: PricingProps) {
+export function Pricing({
+  isLoggedIn = false,
+  currentPlan,
+  embedded = false,
+  sectionId = "pricing",
+}: PricingProps) {
   const { locale } = useLang();
-  const [billing, setBilling] = useState<Billing>("yearly");
+  const [billing, setBilling] = useState<Billing>(() => (currentPlan === "monthly" ? "monthly" : "yearly"));
+  const currentPlanId =
+    currentPlan === "founder"
+      ? "founder"
+      : currentPlan === "free"
+        ? "free"
+        : currentPlan
+          ? "monthly"
+          : null;
 
   return (
-    <section id="pricing" className="py-16 bg-[var(--bg-2)]">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+    <section
+      id={sectionId}
+      className={cn("bg-[var(--bg-2)] py-16", embedded && "rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--bg-2)] px-4 py-8 sm:px-5")}
+    >
+      <div className={cn("mx-auto max-w-6xl px-4 sm:px-6", embedded && "max-w-none px-0 sm:px-0")}>
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
             {locale === "ar" ? "الأسعار" : "Pricing"}
@@ -147,16 +166,36 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {PLANS.map((plan) => (
+          {PLANS.map((plan) => {
+            const isCurrentPlan = currentPlanId === plan.id;
+
+            return (
             <div
               key={plan.id}
               className={cn(
                 "relative rounded-[var(--radius-xl)] border p-6 flex flex-col shadow-[var(--shadow-card)]",
                 plan.featured
                   ? "border-[var(--primary)] bg-[var(--primary)] text-white"
-                  : "border-[var(--border)] bg-[var(--card)]"
+                  : "border-[var(--border)] bg-[var(--card)]",
+                isCurrentPlan && currentPlanId !== "founder" && (plan.featured ? "ring-2 ring-white/80 ring-offset-2 ring-offset-[var(--bg-2)]" : "ring-2 ring-[var(--primary)]"),
+                isCurrentPlan && currentPlanId === "founder" && "border-amber-300 ring-2 ring-amber-300 shadow-[0_18px_45px_rgba(245,158,11,0.18)]"
               )}
             >
+              {isCurrentPlan && (
+                <div
+                  className={cn(
+                    "absolute right-4 top-4 rounded-full px-2.5 py-1 text-[10px] font-bold",
+                    plan.featured
+                      ? "bg-white text-[var(--primary)]"
+                      : plan.id === "founder"
+                        ? "bg-amber-400 text-amber-900"
+                        : "bg-[var(--primary)]/10 text-[var(--primary)]"
+                  )}
+                >
+                  {locale === "ar" ? "الخطة الحالية" : "Current plan"}
+                </div>
+              )}
+
               {plan.badge && (
                 <div className={cn(
                   "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[10px] font-bold whitespace-nowrap",
@@ -224,7 +263,20 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
                 ) : null}
               </div>
 
-              {plan.id === "free" ? (
+              {isCurrentPlan ? (
+                <div
+                  className={cn(
+                    "mb-5 flex w-full items-center justify-center rounded-[var(--radius)] py-2.5 text-sm font-semibold",
+                    plan.featured
+                      ? "bg-white/15 text-white"
+                      : plan.id === "founder"
+                        ? "bg-amber-100 text-amber-900"
+                        : "bg-[var(--primary)]/10 text-[var(--primary)]"
+                  )}
+                >
+                  {locale === "ar" ? "الخطة الحالية" : "Current plan"}
+                </div>
+              ) : plan.id === "free" ? (
                 <Link
                   href={isLoggedIn ? "/summarize" : "/login"}
                   className={cn(
@@ -269,7 +321,8 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
                 ))}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <p className="mt-6 text-center text-xs text-[var(--muted-foreground)]">

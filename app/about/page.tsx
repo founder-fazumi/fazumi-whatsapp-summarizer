@@ -63,13 +63,16 @@ export default function AboutPage() {
               <Quote className="h-5 w-5" />
             </div>
             <blockquote className="text-lg font-semibold leading-8 text-[var(--foreground)]">
-              “Simple can be harder than complex.”
+              <LocalizedText
+                en="Stay hungry. Stay foolish."
+                ar="ابقَ جائعًا. ابقَ أحمقًا."
+              />
             </blockquote>
             <p className="text-sm text-[var(--muted-foreground)]">Steve Jobs</p>
             <p className="text-sm leading-7 text-[var(--muted-foreground)]">
               <LocalizedText
-                en="That principle is a useful constraint for this product: school communication is already noisy, so the interface should not add more noise."
-                ar="هذا المبدأ قيد مفيد لهذا المنتج: تواصل المدرسة مزدحم أصلًا، لذلك يجب ألا تضيف الواجهة مزيدًا من الضوضاء."
+                en="That reminder fits this product well: keep building with curiosity, but keep the experience clear for busy parents."
+                ar="هذه العبارة تناسب المنتج: نستمر بفضول، لكن نحافظ على تجربة واضحة لأولياء الأمور المشغولين."
               />
             </p>
           </CardContent>
