@@ -275,3 +275,46 @@ What remains for Claude:
 - Payments end-to-end: checkout behavior, the `Complete your upgrade` step, and any upgrade flow polish.
 - Billing wiring and account/billing UX beyond the current placeholder-safe changes.
 - Lemon Squeezy webhook completion and related subscription lifecycle wiring.
+
+---
+
+## Senior Review — 2026-02-28 (post-Codex audit)
+
+### ✅ PASSED (committed + pushed)
+- i18n + RTL: Nav/Footer/all landing components bilingual; `lib/format.ts` forces Latin digits
+- Summary language logic: `detectInputLanguage` + `resolveOutputLanguage` in `lib/ai/summarize.ts`
+- New pages: /about, /contact, /cookie-policy, /status — all render, bilingual
+- 3-plan pricing (Free/Monthly/Founder) with yearly toggle affecting Monthly only
+- Gated buttons (Calendar/Todo/Export): `actionMode` prop on SummaryDisplay → Dialog
+- Footer global via `app/layout.tsx`
+- Senior fix: "14-day" → "7-day" refund copy in Pricing.tsx + CheckoutTeaser.tsx
+
+### ❌ FIX LIST FOR CODEX — CheckoutTeaser.tsx cleanup
+
+**Issue:** `components/landing/CheckoutTeaser.tsx` — "Complete your upgrade" section still has a fake credit-card form (Full name, Email, Card number, Expiry, CVV, "Pay now" button), and the "Upgrade now" banner button is `disabled`.
+
+**Expected:**
+1. "Upgrade now" button → `<Link href="/pricing">` (not disabled) — styled with same CSS as current button.
+2. Remove the entire fake card form section (name/email/card/expiry/CVV inputs + "Pay now" button).
+3. Replace "Complete your upgrade" card body with two plan options using real `<CheckoutButton>`:
+   - Option A: Monthly $9.99/mo — `variantId={process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? ""}` — the component is "use client"; wrap in a client component or add "use client" to the file
+   - Option B: Founder $149 LTD — `variantId={process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? ""}`
+   - Both should pass `isLoggedIn={false}` (landing page context; clicking redirects to /login?next=/pricing which is correct)
+4. Trust line at bottom: "Secured by Lemon Squeezy · 7-day money-back on monthly & annual · Founder is final"
+5. Remove the "UI preview only" badge once real buttons are in place.
+
+**Files to change:**
+- `components/landing/CheckoutTeaser.tsx` — full rewrite of the card section
+- Must add `"use client"` at top (required for `CheckoutButton`)
+
+**Acceptance criteria:**
+- [ ] "Upgrade now" button is a link to /pricing (not disabled)
+- [ ] No card number / expiry / CVV inputs visible
+- [ ] "Complete your upgrade" card shows Monthly and Founder `<CheckoutButton>` options
+- [ ] Trust line reads "Secured by Lemon Squeezy" (not Stripe) + "7-day money-back"
+- [ ] `pnpm lint && pnpm typecheck` pass after change
+- [ ] Commit with message: `fix: CheckoutTeaser — real LS checkout buttons, remove fake card form`
+
+**TODO: E2E payment testing deferred (see D011 + D012)**
+- Do NOT do full checkout flow testing until LS products + variant IDs are configured in `.env.local`
+- When ready: test with LS test mode, verify webhook fires, subscription row created, profiles.plan updated

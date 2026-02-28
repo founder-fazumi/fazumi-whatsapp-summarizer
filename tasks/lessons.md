@@ -48,6 +48,22 @@
 
 ---
 
+## L007 — Senior review loop: never commit mixed unknown changes without diff audit
+**Mistake:** Codex submitted 43 changed files in one batch without committing. Senior dev had to audit all of them at once, making it hard to isolate issues.
+**Why:** Junior dev implemented too many changes across too many files in one session without intermediate commits. Some changes were correct, others had residual issues (fake card form, wrong refund period).
+**Rule:** Junior (Codex) must commit after each chunk/story (not after completing all stories). Each commit must be scoped to one logical change. Senior review loop must be run per-chunk, not per-session.
+**Quick test:** `git log --oneline` should show one commit per feature chunk, not one commit per session.
+
+---
+
+## L008 — Wrong refund period in copy: must match CLAUDE.md pricing section exactly
+**Mistake:** Codex used "14-day money-back guarantee" in Pricing.tsx and CheckoutTeaser.tsx. Actual policy is 7-day per CLAUDE.md.
+**Why:** Copy was inherited from earlier placeholders without cross-referencing the spec.
+**Rule:** Before writing any refund/guarantee/pricing copy, always read CLAUDE.md "Pricing & Limits" section. The canonical numbers are: 7-day money-back for monthly+annual; no refund for Founder.
+**Quick test:** `grep -r "14-day\|14 day" components/ app/` must return zero results.
+
+---
+
 ## L006 — Use local skills to standardize FE/BE/UI work and reduce rework
 **Mistake:** (Pre-emptive) Repeating the same implementation decisions across sessions without a shared reference — wrong Supabase client, missing RLS, inconsistent CSS var usage, vague microcopy.
 **Why:** Without written standards, each session risks diverging from established patterns, causing rework and bugs.

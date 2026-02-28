@@ -102,3 +102,24 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Consequences:** Does not require complex affiliate tracking. Lemon Squeezy discount codes are pre-created; referral credit is tracked in DB for simplicity.
 
 ---
+
+## D011 — Global i18n + RTL approach (locked)
+**Date:** 2026-02-28
+**Context:** App must support English (LTR) and Arabic (RTL) throughout: landing, dashboard, summaries.
+**Decision:**
+- UI language stored in `localStorage` as `fazumi_lang` via `LangContext`. Switch calls `setLocale()` which updates `document.documentElement.lang` and `dir`.
+- Static copy uses `LocalizedCopy<string>` objects `{ en, ar }`, rendered via `pick(obj, locale)` or `<LocalizedText en=".." ar=".." />`.
+- `lib/i18n.ts` handles `t(key, locale)` for dashboard shell structured keys.
+- `lib/format.ts` enforces Western (Latin) digits everywhere — see D012.
+- Summary output language is separate from UI locale: controlled by `langPref` (auto/en/ar) in the summarize form; resolved via `resolveOutputLanguage()` in `lib/ai/summarize.ts`.
+**Consequences:** Any new component with user-visible text must use `pick()` or `<LocalizedText>`. Numbers must go through `lib/format.ts`. Never use raw `n.toString()` for displayed numbers.
+
+---
+
+## D012 — Digits forced to Latin numeral system
+**Date:** 2026-02-28
+**Context:** When `document.documentElement.lang = "ar"`, browsers render numbers in Eastern Arabic-Indic digits (٠١٢٣٤٥٦٧٨٩) instead of Western digits (0–9), breaking pricing, counts, dates.
+**Decision:** All numeric formatting goes through `lib/format.ts` which hard-codes `numberingSystem: "latn"` in every `Intl.NumberFormat` and `Intl.DateTimeFormat` call. Never use bare `n.toLocaleString()` or `n.toString()` for displayed numbers.
+**Consequences:** All components updated. New components must import `formatNumber`, `formatPrice`, or `formatDate` from `lib/format.ts`.
+
+---
