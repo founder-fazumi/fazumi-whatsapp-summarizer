@@ -71,6 +71,15 @@ pnpm typecheck
 pnpm test
 ```
 
+## Debug
+
+```bash
+curl http://localhost:3000/api/health
+curl http://localhost:3000/api/dev/env-check
+```
+
+If any env booleans are `false`, fix your `.env.local` values and retry.
+
 ## Dev Testing Accounts
 
 Create the local test users with one request while `pnpm dev` is running:
