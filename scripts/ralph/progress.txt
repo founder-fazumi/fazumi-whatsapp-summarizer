@@ -12,3 +12,8 @@ S007 = PENDING  # Dashboard: history list + detail view
 S008 = PENDING  # Lemon Squeezy payments + webhook
 S009 = PENDING  # Plan limits enforcement
 S010 = PENDING  # Referral system
+
+# 2026-02-28
+# Hydration mismatch fix completed for theme/lang client preferences and browser-injected attributes.
+# Files: app/layout.tsx, public/hydration-sanitize.js, lib/context/ThemeContext.tsx, lib/context/LangContext.tsx, lib/hooks/useMounted.ts, components/landing/Nav.tsx, components/layout/TopBar.tsx, components/layout/SearchDialog.tsx, tasks/lessons.md
+# Pattern: use useSyncExternalStore for browser preference state that must match SSR on the first hydration pass.

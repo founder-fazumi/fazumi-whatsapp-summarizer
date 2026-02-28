@@ -15,6 +15,7 @@ import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SearchDialog } from "./SearchDialog";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useLang } from "@/lib/context/LangContext";
+import { useMounted } from "@/lib/hooks/useMounted";
 import { formatNumber } from "@/lib/format";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -58,6 +59,7 @@ export function TopBar({ className }: TopBarProps) {
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale } = useLang();
   const isArabic = locale === "ar";
+  const mounted = useMounted();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -196,31 +198,66 @@ export function TopBar({ className }: TopBarProps) {
     </div>
   );
   const themeToggle = (
-    <button
-      onClick={toggleTheme}
-      className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-1 text-xs font-medium hover:bg-[var(--muted)] transition-colors"
-      aria-label={theme === "dark" ? pick(COPY.lightMode, locale) : pick(COPY.darkMode, locale)}
-    >
-      <span className={cn("rounded-full p-1 transition-colors", theme === "light" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
-        <Sun className="h-3.5 w-3.5" />
-      </span>
-      <span className="text-[var(--muted-foreground)]">·</span>
-      <span className={cn("rounded-full p-1 transition-colors", theme === "dark" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
-        <Moon className="h-3.5 w-3.5" />
-      </span>
-    </button>
+    mounted ? (
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-1 text-xs font-medium hover:bg-[var(--muted)] transition-colors"
+        aria-label={theme === "dark" ? pick(COPY.lightMode, locale) : pick(COPY.darkMode, locale)}
+      >
+        <span className={cn("rounded-full p-1 transition-colors", theme === "light" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
+          <Sun className="h-3.5 w-3.5" />
+        </span>
+        <span className="text-[var(--muted-foreground)]">·</span>
+        <span className={cn("rounded-full p-1 transition-colors", theme === "dark" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
+          <Moon className="h-3.5 w-3.5" />
+        </span>
+      </button>
+    ) : (
+      <button
+        type="button"
+        disabled
+        suppressHydrationWarning
+        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-1 text-xs font-medium"
+        aria-label="Theme toggle"
+      >
+        <span className="rounded-full p-1 text-[var(--muted-foreground)]">
+          <Sun className="h-3.5 w-3.5" />
+        </span>
+        <span className="text-[var(--muted-foreground)]">·</span>
+        <span className="rounded-full p-1 text-[var(--muted-foreground)]">
+          <Moon className="h-3.5 w-3.5" />
+        </span>
+      </button>
+    )
   );
   const languageToggle = (
-    <button
-      onClick={() => setLocale(locale === "en" ? "ar" : "en")}
-      className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
-      aria-label={pick(COPY.toggleLang, locale)}
-    >
-      <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
-      <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
-      <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
-    </button>
+    mounted ? (
+      <button
+        type="button"
+        onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+        aria-label={pick(COPY.toggleLang, locale)}
+      >
+        <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
+        <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
+        <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
+        <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
+      </button>
+    ) : (
+      <button
+        type="button"
+        disabled
+        suppressHydrationWarning
+        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]"
+        aria-label="Language toggle"
+      >
+        <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
+        <span className="font-bold text-[var(--foreground)]">EN</span>
+        <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
+        <span className="text-[var(--muted-foreground)]">عربي</span>
+      </button>
+    )
   );
   const userControl = (
     <DropdownMenu

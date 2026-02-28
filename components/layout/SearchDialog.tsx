@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { useLang } from "@/lib/context/LangContext";
+import { useMounted } from "@/lib/hooks/useMounted";
 import { t } from "@/lib/i18n";
 
 const NAV_LINKS = [
@@ -28,11 +29,14 @@ interface SearchDialogProps {
 
 export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const { locale } = useLang();
+  const mounted = useMounted();
   const [query, setQuery] = useState("");
+  const dialogLocale = mounted ? locale : "en";
+  const isArabic = dialogLocale === "ar";
 
   const links = NAV_LINKS.map((link) => ({
     ...link,
-    label: t(link.labelKey, locale),
+    label: t(link.labelKey, dialogLocale),
   }));
 
   const filtered = links.filter((link) =>
@@ -42,24 +46,24 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setQuery(""); }}>
       {/* Search input */}
-      <div dir={locale === "ar" ? "rtl" : "ltr"} lang={locale} className="flex items-center gap-2 border-b border-[var(--border)] -mx-4 -mt-4 px-4 py-3">
+      <div dir={isArabic ? "rtl" : "ltr"} lang={dialogLocale} className="flex items-center gap-2 border-b border-[var(--border)] -mx-4 -mt-4 px-4 py-3">
         <Search className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
         <input
           autoFocus
-          dir={locale === "ar" ? "rtl" : "ltr"}
-          lang={locale}
+          dir={isArabic ? "rtl" : "ltr"}
+          lang={dialogLocale}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("topbar.search", locale)}
+          placeholder={t("topbar.search", dialogLocale)}
           className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
         />
       </div>
 
       {/* Navigation links */}
-      <div dir={locale === "ar" ? "rtl" : "ltr"} lang={locale} className="mt-3">
+      <div dir={isArabic ? "rtl" : "ltr"} lang={dialogLocale} className="mt-3">
         <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          {locale === "ar" ? "الانتقال إلى" : "Navigate to"}
+          {isArabic ? "الانتقال إلى" : "Navigate to"}
         </p>
         <ul className="space-y-0.5">
           {filtered.map((link) => (
@@ -76,7 +80,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
           ))}
           {filtered.length === 0 && (
             <li className="py-4 text-center text-sm text-[var(--muted-foreground)]">
-              {locale === "ar" ? `لا توجد نتائج لـ "${query}"` : `No results for "${query}"`}
+              {isArabic ? `لا توجد نتائج لـ "${query}"` : `No results for "${query}"`}
             </li>
           )}
         </ul>

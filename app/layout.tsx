@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import { Cairo } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/context/ThemeContext";
 import { LangProvider } from "@/lib/context/LangContext";
@@ -39,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
+        <Script src="/hydration-sanitize.js" strategy="beforeInteractive" />
         {/* Prevent flash of wrong theme/direction before React hydrates */}
         <script
           dangerouslySetInnerHTML={{

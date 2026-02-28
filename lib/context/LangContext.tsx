@@ -1,7 +1,10 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 import type { Locale } from "@/lib/i18n";
+
+const LANG_STORAGE_KEY = "fazumi_lang";
+const langListeners = new Set<() => void>();
 
 interface LangContextValue {
   locale: Locale;
@@ -15,19 +18,64 @@ const LangContext = createContext<LangContextValue>({
 
 function readStoredLocale(): Locale {
   if (typeof window === "undefined") return "en";
-  const stored = localStorage.getItem("fazumi_lang");
-  return stored === "ar" ? "ar" : "en";
+  try {
+    const stored = localStorage.getItem(LANG_STORAGE_KEY);
+    return stored === "ar" ? "ar" : "en";
+  } catch {
+    return "en";
+  }
+}
+
+function applyLocale(locale: Locale) {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang = locale;
+  document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+}
+
+function subscribeLocale(listener: () => void) {
+  langListeners.add(listener);
+
+  if (typeof window === "undefined") {
+    return () => {
+      langListeners.delete(listener);
+    };
+  }
+
+  function handleStorage(event: StorageEvent) {
+    if (event.key !== LANG_STORAGE_KEY) return;
+    applyLocale(event.newValue === "ar" ? "ar" : "en");
+    listener();
+  }
+
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    langListeners.delete(listener);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+function emitLocaleChange() {
+  for (const listener of langListeners) {
+    listener();
+  }
 }
 
 export function LangProvider({ children }: { children: React.ReactNode }) {
-  // Lazy initializer — runs synchronously on first client render, reads localStorage
-  const [locale, setLocaleState] = useState<Locale>(readStoredLocale);
+  const locale = useSyncExternalStore<Locale>(
+    subscribeLocale,
+    readStoredLocale,
+    () => "en"
+  );
 
   function setLocale(next: Locale) {
-    setLocaleState(next);
-    localStorage.setItem("fazumi_lang", next);
-    document.documentElement.lang = next;
-    document.documentElement.dir = next === "ar" ? "rtl" : "ltr";
+    try {
+      localStorage.setItem(LANG_STORAGE_KEY, next);
+    } catch {
+      // Ignore storage failures and keep the in-memory preference.
+    }
+    applyLocale(next);
+    emitLocaleChange();
   }
 
   return (
