@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Headphones, MessageSquareHeart } from "lucide-react";
+import { Headphones, Mail, MessageSquareHeart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ const RATINGS = [
   { value: "rough", emoji: "😩", label: "Very rough" },
 ] as const;
 
+const SUPPORT_EMAIL = "support@fazumi.app";
+
 export function ContactForm() {
   const { locale } = useLang();
   const isArabic = locale === "ar";
@@ -27,7 +29,6 @@ export function ContactForm() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [message, setMessage] = useState("");
-  const [submittedMode, setSubmittedMode] = useState<ContactMode | null>(null);
 
   const submitLabel = useMemo(
     () =>
@@ -37,58 +38,30 @@ export function ContactForm() {
     [locale, mode]
   );
 
-  function resetForm(nextMode = mode) {
-    setMode(nextMode);
-    setRating(null);
-    setEmail("");
-    setMobile("");
-    setMessage("");
-    setSubmittedMode(null);
-  }
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSubmittedMode(mode);
-    setEmail("");
-    setMobile("");
-    setMessage("");
-    setRating(null);
-  }
+    const subject =
+      mode === "feedback"
+        ? locale === "ar" ? "ملاحظات Fazumi" : "Fazumi feedback"
+        : locale === "ar" ? "طلب دعم Fazumi" : "Fazumi support request";
 
-  if (submittedMode) {
-    return (
-      <Card dir={isArabic ? "rtl" : "ltr"} lang={locale} className={cn(isArabic && "font-arabic")}>
-        <CardContent className={cn("flex flex-col gap-4 py-8", isArabic && "items-end text-right")}>
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-[var(--foreground)]">
-              {submittedMode === "feedback"
-                ? locale === "ar" ? "شكرًا على الملاحظات" : "Thanks for the feedback"
-                : locale === "ar" ? "تم استلام طلب الدعم" : "Support request received"}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-              {submittedMode === "feedback"
-                ? locale === "ar"
-                  ? "نقرأ كل ملاحظة ونستخدمها لتحسين تجربة المنتج."
-                  : "We read every note and use it to tighten the product experience."
-                : locale === "ar"
-                  ? "شكرًا لتواصلك. سنراجع المشكلة ونتابع معك بناءً على التفاصيل التي شاركتها."
-                  : "Thanks for reaching out. We will review the issue and follow up with the context you shared."}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" onClick={() => resetForm(submittedMode)}>
-              {locale === "ar" ? "إرسال رسالة أخرى" : "Send another"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => resetForm("feedback")}>
-              {locale === "ar" ? "العودة إلى النموذج" : "Back to contact form"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    const bodySections = [
+      mode === "feedback"
+        ? locale === "ar" ? `النوع: ملاحظات` : `Type: Feedback`
+        : locale === "ar" ? `النوع: دعم` : `Type: Support`,
+      rating
+        ? locale === "ar" ? `التقييم: ${rating}` : `Rating: ${rating}`
+        : null,
+      locale === "ar" ? `البريد الإلكتروني: ${email}` : `Email: ${email}`,
+      mobile
+        ? locale === "ar" ? `الجوال: ${mobile}` : `Mobile: ${mobile}`
+        : null,
+      "",
+      locale === "ar" ? "الرسالة:" : "Message:",
+      message,
+    ].filter((value): value is string => value !== null);
+
+    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodySections.join("\n"))}`;
   }
 
   return (
@@ -145,11 +118,11 @@ export function ContactForm() {
           <CardDescription>
             {mode === "feedback"
               ? locale === "ar"
-                ? "محلي فقط حاليًا. استخدمه لترك ملاحظات سريعة عن المنتج."
-                : "Client-only for now. Use this to leave quick product feedback."
+                ? "يفتح بريدك الإلكتروني مع رسالة ملاحظات جاهزة للإرسال."
+                : "Opens your email app with a prefilled feedback draft."
               : locale === "ar"
-                ? "محلي فقط حاليًا. استخدمه لمحاكاة تدفق طلب الدعم."
-                : "Client-only for now. Use this to simulate a support request flow."}
+                ? "يفتح بريدك الإلكتروني مع رسالة دعم جاهزة للإرسال."
+                : "Opens your email app with a prefilled support request."}
           </CardDescription>
         </CardHeader>
         <CardContent className={cn(isArabic && "text-right")}>
@@ -260,12 +233,18 @@ export function ContactForm() {
       <div className={cn("space-y-4", isArabic && "text-right")}>
         <Card>
           <CardHeader className={cn(isArabic && "text-right")}>
-            <CardTitle>{locale === "ar" ? "ماذا تتوقع" : "What to expect"}</CardTitle>
+            <CardTitle>{locale === "ar" ? "كيف نتواصل" : "How to reach us"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-[var(--muted-foreground)]">
-            <p>{locale === "ar" ? "وضع الملاحظات يجمع تقييمًا سريعًا وبيانات التواصل ورسالتك." : "Feedback mode collects a quick sentiment, your contact details, and a message."}</p>
-            <p>{locale === "ar" ? "وضع الدعم أبسط: بريد إلكتروني مع وصف للمشكلة." : "Support mode keeps it narrower: email plus the issue description."}</p>
-            <p>{locale === "ar" ? "لا يوجد تخزين خلفي موصول هنا بعد. هذه الصفحة تؤكد التدفق محليًا فقط." : "No backend storage is wired here yet. This page just confirms the flow client-side."}</p>
+            <p>{locale === "ar" ? "زر الإرسال يفتح تطبيق البريد لديك مع الموضوع والرسالة مجهزين." : "Submitting opens your email client with the subject and message prefilled."}</p>
+            <p>{locale === "ar" ? "يمكنك أيضًا مراسلتنا مباشرة إذا كان نموذج المتصفح لا يناسبك." : "You can also email us directly if the browser form is not convenient."}</p>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="inline-flex items-center gap-2 text-[var(--primary)] hover:underline"
+            >
+              <Mail className="h-4 w-4" />
+              {SUPPORT_EMAIL}
+            </a>
           </CardContent>
         </Card>
 

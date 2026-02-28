@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 type OutputLang = "en" | "ar";
 type ActionMode = "disabled" | "gated" | "coming-soon";
+type ActionKey = "calendar" | "todo" | "export";
 
 const SECTION_META: Record<
   string,
@@ -35,6 +36,48 @@ const SECTION_ORDER = [
 ] as const;
 
 type SectionKey = (typeof SECTION_ORDER)[number];
+
+const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
+  en: {
+    tldr: "TL;DR",
+    important_dates: "Important Dates",
+    action_items: "Action Items",
+    people_classes: "People / Classes",
+    links: "Links",
+    questions: "Questions",
+  },
+  ar: {
+    tldr: "الخلاصة",
+    important_dates: "المواعيد المهمة",
+    action_items: "المهام المطلوبة",
+    people_classes: "الأشخاص / المواد",
+    links: "الروابط",
+    questions: "الأسئلة",
+  },
+};
+
+const EXPORT_DIGIT_MAP: Record<string, string> = {
+  "٠": "0",
+  "١": "1",
+  "٢": "2",
+  "٣": "3",
+  "٤": "4",
+  "٥": "5",
+  "٦": "6",
+  "٧": "7",
+  "٨": "8",
+  "٩": "9",
+  "۰": "0",
+  "۱": "1",
+  "۲": "2",
+  "۳": "3",
+  "۴": "4",
+  "۵": "5",
+  "۶": "6",
+  "۷": "7",
+  "۸": "8",
+  "۹": "9",
+};
 
 const UI_COPY = {
   en: {
@@ -84,6 +127,46 @@ const ACTIONS = [
   { key: "todo", icon: ListChecks },
   { key: "export", icon: Download },
 ] as const;
+
+function normalizeExportDigits(value: string): string {
+  return value.replace(/[٠-٩۰-۹]/g, (char) => EXPORT_DIGIT_MAP[char] ?? char);
+}
+
+function buildPlainTextExport(summary: SummaryResult, outputLang: OutputLang, emptyLabel: string): string {
+  return normalizeExportDigits(
+    SECTION_ORDER.map((sectionKey) => {
+      const heading = EXPORT_HEADINGS[outputLang][sectionKey];
+      const value = summary[sectionKey];
+      const lines =
+        sectionKey === "tldr"
+          ? [typeof value === "string" && value.trim() ? value.trim() : emptyLabel]
+          : Array.isArray(value)
+            ? value
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .map((item) => `• ${item}`)
+            : [];
+
+      const sectionLines = lines.length > 0
+        ? lines
+            : [emptyLabel];
+
+      return [heading, "-".repeat(Math.max(5, heading.length)), ...sectionLines, ""].join("\n");
+    }).join("\n").trim()
+  );
+}
+
+function downloadSummaryExport(contents: string) {
+  const blob = new Blob([contents], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `fazumi-summary-${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
 function SectionCard({
   sectionKey,
@@ -193,9 +276,14 @@ export function SummaryDisplay({
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
 
-  function handleActionClick() {
+  function handleActionClick(actionKey: ActionKey) {
     if (actionMode === "gated") {
       setDialogVariant("upgrade");
+      return;
+    }
+
+    if (actionMode === "coming-soon" && actionKey === "export") {
+      downloadSummaryExport(buildPlainTextExport(summary, outputLang, copy.nothingMentioned));
       return;
     }
 
@@ -241,7 +329,7 @@ export function SummaryDisplay({
             <button
               key={key}
               type="button"
-              onClick={handleActionClick}
+              onClick={() => handleActionClick(key)}
               className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               disabled={actionMode === "disabled"}
               title={actionMode === "disabled" ? copy.comingSoon : undefined}

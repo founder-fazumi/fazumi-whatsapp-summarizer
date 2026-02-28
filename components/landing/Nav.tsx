@@ -18,6 +18,8 @@ const COPY = {
   pricing: { en: "Pricing", ar: "الأسعار" },
   faq: { en: "FAQ", ar: "الأسئلة" },
   about: { en: "About", ar: "من نحن" },
+  help: { en: "Help", ar: "المساعدة" },
+  contact: { en: "Contact", ar: "تواصل" },
   dashboard: { en: "Go to app", ar: "الذهاب إلى التطبيق" },
   beta: { en: "BETA", ar: "تجريبي" },
   toggle: { en: "Toggle language", ar: "تبديل اللغة" },
@@ -149,6 +151,18 @@ export function Nav({ isLoggedIn = false }: NavProps) {
             className="hidden lg:block text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
           >
             {pick(COPY.about, locale)}
+          </Link>
+          <Link
+            href="/help"
+            className="hidden lg:block text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            {pick(COPY.help, locale)}
+          </Link>
+          <Link
+            href="/contact"
+            className="hidden xl:block text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          >
+            {pick(COPY.contact, locale)}
           </Link>
           {themeToggleButton}
           {languageToggleButton}

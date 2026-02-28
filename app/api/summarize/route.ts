@@ -248,14 +248,33 @@ export async function POST(req: NextRequest) {
   try {
     const summary = await summarizeChat(text, langPref);
 
-    // ── Save + increment AFTER successful response (never charge on failure) ──
+    // ── Consume post-trial free allowance once summarization succeeds, even if later persistence fails. ──
     let savedId: string | null = null;
     if (authedUserId) {
-      savedId = await saveSummary(authedUserId, summary, text.length);
-      await incrementUsage(authedUserId, usageDateKey ?? getUtcDateKey());
+      let persistError: unknown = null;
+      let lifetimeError: unknown = null;
 
-      if (savedId && shouldIncrementLifetimeFree) {
-        await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
+      try {
+        savedId = await saveSummary(authedUserId, summary, text.length);
+        await incrementUsage(authedUserId, usageDateKey ?? getUtcDateKey());
+      } catch (err) {
+        persistError = err;
+      }
+
+      if (shouldIncrementLifetimeFree) {
+        try {
+          await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
+        } catch (err) {
+          lifetimeError = err;
+        }
+      }
+
+      if (persistError) {
+        throw persistError;
+      }
+
+      if (lifetimeError) {
+        throw lifetimeError;
       }
     }
 
