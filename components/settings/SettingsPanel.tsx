@@ -1,27 +1,69 @@
 "use client";
 
+import { useState } from "react";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useLang } from "@/lib/context/LangContext";
-import { t } from "@/lib/i18n";
+import { t, type Locale } from "@/lib/i18n";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Sun, Moon, Globe } from "lucide-react";
+import { Sun, Moon, Globe, Check } from "lucide-react";
+
+async function savePrefs(patch: { theme_pref?: string; lang_pref?: string }) {
+  try {
+    await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  } catch {
+    // silently ignore — localStorage already applied
+  }
+}
 
 export function SettingsPanel() {
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale } = useLang();
+  const [savedKey, setSavedKey] = useState<"theme" | "lang" | null>(null);
+
+  function flash(key: "theme" | "lang") {
+    setSavedKey(key);
+    setTimeout(() => setSavedKey(null), 1800);
+  }
+
+  async function handleTheme(next: "light" | "dark") {
+    if (theme === next) return;
+    toggleTheme();
+    await savePrefs({ theme_pref: next });
+    flash("theme");
+  }
+
+  async function handleLang(next: Locale) {
+    if (locale === next) return;
+    setLocale(next);
+    await savePrefs({ lang_pref: next });
+    flash("lang");
+  }
 
   return (
     <div className="space-y-4">
       {/* Theme */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings.theme", locale)}</CardTitle>
-          <CardDescription>{t("settings.theme.desc", locale)}</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{t("settings.theme", locale)}</CardTitle>
+              <CardDescription>{t("settings.theme.desc", locale)}</CardDescription>
+            </div>
+            {savedKey === "theme" && (
+              <span className="flex items-center gap-1 text-xs font-medium text-[var(--primary)]">
+                <Check className="h-3.5 w-3.5" /> {t("settings.saved", locale)}
+              </span>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
             <button
-              onClick={() => { if (theme !== "light") toggleTheme(); }}
+              onClick={() => handleTheme("light")}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 py-3 text-sm font-medium transition-colors ${
                 theme === "light"
                   ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
@@ -32,7 +74,7 @@ export function SettingsPanel() {
               {t("settings.light", locale)}
             </button>
             <button
-              onClick={() => { if (theme !== "dark") toggleTheme(); }}
+              onClick={() => handleTheme("dark")}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 py-3 text-sm font-medium transition-colors ${
                 theme === "dark"
                   ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
@@ -49,13 +91,22 @@ export function SettingsPanel() {
       {/* Language */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings.lang", locale)}</CardTitle>
-          <CardDescription>{t("settings.lang.desc", locale)}</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{t("settings.lang", locale)}</CardTitle>
+              <CardDescription>{t("settings.lang.desc", locale)}</CardDescription>
+            </div>
+            {savedKey === "lang" && (
+              <span className="flex items-center gap-1 text-xs font-medium text-[var(--primary)]">
+                <Check className="h-3.5 w-3.5" /> {t("settings.saved", locale)}
+              </span>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
             <button
-              onClick={() => setLocale("en")}
+              onClick={() => handleLang("en")}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 py-3 text-sm font-medium transition-colors ${
                 locale === "en"
                   ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
@@ -66,7 +117,7 @@ export function SettingsPanel() {
               English
             </button>
             <button
-              onClick={() => setLocale("ar")}
+              onClick={() => handleLang("ar")}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 py-3 text-sm font-medium transition-colors ${
                 locale === "ar"
                   ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
