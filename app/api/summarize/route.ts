@@ -3,17 +3,8 @@ import { summarizeChat, type LangPref, type SummaryResult } from "@/lib/ai/summa
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
+import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey } from "@/lib/limits";
 import type { Profile, UsageDaily } from "@/lib/supabase/types";
-
-// Limits per plan
-const LIMITS: Record<string, number> = {
-  monthly: 50,
-  annual: 50,
-  founder: 50,
-  trial: 50,   // active trial: generous daily limit
-  free: 0,     // expired free: 0/day (lifetime cap handled separately)
-};
-const FREE_LIFETIME_CAP = 3;
 
 const MAX_CHARS = 30_000;
 
@@ -39,13 +30,22 @@ function makeTitle(tldr: string): string {
   return first.length > 60 ? first.slice(0, 57) + "…" : first;
 }
 
+function getAdminClient() {
+  const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!adminUrl || !adminKey) {
+    return null;
+  }
+
+  return createAdminClient(adminUrl, adminKey);
+}
+
 async function saveSummary(userId: string, summary: SummaryResult, charCount: number): Promise<string | null> {
   try {
-    const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!adminUrl || !adminKey) return null;
+    const admin = getAdminClient();
+    if (!admin) return null;
 
-    const admin = createAdminClient(adminUrl, adminKey);
     const { data, error } = await admin.from("summaries").insert({
       user_id: userId,
       title: makeTitle(summary.tldr),
@@ -68,11 +68,9 @@ async function saveSummary(userId: string, summary: SummaryResult, charCount: nu
 
 async function incrementUsage(userId: string): Promise<void> {
   try {
-    const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!adminUrl || !adminKey) return;
+    const admin = getAdminClient();
+    if (!admin) return;
 
-    const admin = createAdminClient(adminUrl, adminKey);
     const today = new Date().toISOString().slice(0, 10);
 
     // Read current count then write incremented value (MVP simplification — not perfectly atomic)
@@ -94,6 +92,20 @@ async function incrementUsage(userId: string): Promise<void> {
   }
 }
 
+async function incrementLifetimeFreeUsage(userId: string, lifetimeFreeUsed: number): Promise<void> {
+  try {
+    const admin = getAdminClient();
+    if (!admin) return;
+
+    await admin
+      .from("profiles")
+      .update({ lifetime_free_used: lifetimeFreeUsed + 1 })
+      .eq("id", userId);
+  } catch {
+    // Non-fatal — summary creation already succeeded
+  }
+}
+
 function getClientIp(req: NextRequest): string {
   return (
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -105,6 +117,10 @@ function getClientIp(req: NextRequest): string {
 export async function POST(req: NextRequest) {
   // ── Auth + plan limit check (authenticated users) ──────────────────────
   let authedUserId: string | null = null;
+  let tierKey = "free";
+  let lifetimeFreeUsed = 0;
+  let shouldIncrementLifetimeFree = false;
+
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -130,16 +146,14 @@ export async function POST(req: NextRequest) {
 
       const plan = profile?.plan ?? "free";
       const trialExpires = profile?.trial_expires_at;
-      const lifetimeFreeUsed = profile?.lifetime_free_used ?? 0;
+      lifetimeFreeUsed = profile?.lifetime_free_used ?? 0;
       const usedToday = usage?.summaries_used ?? 0;
-      const isTrialActive = !!trialExpires && new Date(trialExpires) > new Date();
-      const isPaid = ["monthly", "annual", "founder"].includes(plan);
 
-      // Determine tier key for daily limit
-      const tierKey = isPaid ? plan : isTrialActive ? "trial" : "free";
-      const dailyLimit = LIMITS[tierKey] ?? 0;
+      tierKey = getTierKey(plan, trialExpires);
+      shouldIncrementLifetimeFree = tierKey === "free";
+      const dailyLimit = getDailyLimit(tierKey);
 
-      if (!isPaid && !isTrialActive) {
+      if (tierKey === "free") {
         // Post-trial free: enforce lifetime cap
         if (lifetimeFreeUsed >= FREE_LIFETIME_CAP) {
           return NextResponse.json(
@@ -209,10 +223,15 @@ export async function POST(req: NextRequest) {
     // ── Save + increment AFTER successful response (never charge on failure) ──
     let savedId: string | null = null;
     if (authedUserId) {
-      [savedId] = await Promise.all([
+      const [nextSavedId] = await Promise.all([
         saveSummary(authedUserId, summary, text.length),
         incrementUsage(authedUserId),
       ]);
+      savedId = nextSavedId;
+
+      if (savedId && shouldIncrementLifetimeFree) {
+        await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
+      }
     }
 
     return NextResponse.json({ summary, savedId });

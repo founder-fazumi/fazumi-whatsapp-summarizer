@@ -7,6 +7,7 @@ import { ReferralCard } from "@/components/widgets/ReferralCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
+import { getDailyLimit, getTierKey } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UsageDaily } from "@/lib/supabase/types";
 
@@ -24,7 +25,6 @@ export default async function DashboardPage() {
   let plan = "free";
   let trialExpiresAt: string | null = null;
   let summariesUsed = 0;
-  const summariesLimit = 50;
 
   try {
     const supabase = await createClient();
@@ -55,6 +55,8 @@ export default async function DashboardPage() {
   } catch {
     // Supabase not configured — show dashboard with default values
   }
+
+  const summariesLimit = getDailyLimit(getTierKey(plan, trialExpiresAt));
 
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>

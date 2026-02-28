@@ -71,6 +71,29 @@ pnpm typecheck
 pnpm test
 ```
 
+## Smoke Checks — Accounts + Limits
+
+1. **Signup + login**
+   - Sign up or log in with Google and confirm a row exists in `public.profiles`
+   - Confirm `trial_expires_at` is set for the new account
+
+2. **Trial daily limit (3/day)**
+   - Summarize 3 times as an active trial user and confirm all 3 requests succeed
+   - Submit a 4th summary on the same day and confirm the app shows the limit state instead of saving a new summary
+
+3. **Post-trial lifetime cap (3 total)**
+   - Set `trial_expires_at` to a past timestamp for a free user
+   - Summarize 3 times successfully and confirm `profiles.lifetime_free_used` increments to `3`
+   - Submit a 4th summary and confirm the API returns `402 LIFETIME_CAP`
+
+4. **History saved**
+   - After a successful summary, confirm the item appears in `/history`
+   - Open the saved detail page and confirm the structured summary renders correctly
+
+5. **No raw chat stored**
+   - Inspect the latest `summaries` row and confirm only structured summary fields are stored
+   - Confirm the original pasted chat text does not appear in the database
+
 ---
 
 ## Summary Output Format (always in this order)
