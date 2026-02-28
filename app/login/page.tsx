@@ -12,6 +12,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { cn } from "@/lib/utils";
 
 type Tab = "login" | "signup";
+const IS_DEV_EMAIL_SIGNUP = process.env.NODE_ENV !== "production";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,8 +49,10 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const trimmedEmail = email.trim();
+    const { error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
     if (error) {
       setError(error.message);
     } else {
@@ -64,20 +67,75 @@ export default function LoginPage() {
     setError(null);
     setSuccess(null);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: name },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess(locale === "ar" ? "تحقق من بريدك الإلكتروني لتأكيد الحساب ثم سجّل الدخول." : "Check your email to confirm your account, then log in.");
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim();
+
+    try {
+      if (IS_DEV_EMAIL_SIGNUP) {
+        const response = await fetch("/api/dev/mock-signup", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: trimmedEmail,
+            password,
+            fullName: trimmedName,
+          }),
+        });
+
+        const data = (await response.json().catch(() => null)) as
+          | { ok?: boolean; error?: string }
+          | null;
+
+        if (!response.ok || !data?.ok) {
+          setError(data?.error ?? (locale === "ar" ? "تعذر إنشاء الحساب." : "Could not create account."));
+          return;
+        }
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: trimmedEmail,
+          password,
+        });
+
+        if (signInError) {
+          setError(signInError.message);
+          return;
+        }
+
+        router.push("/dashboard");
+        return;
+      }
+
+      const { error } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: {
+          data: { full_name: trimmedName },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess(
+          locale === "ar"
+            ? "تحقق من بريدك الإلكتروني لتأكيد الحساب ثم سجّل الدخول."
+            : "Check your email to confirm your account, then log in."
+        );
+      }
+    } catch (signupError) {
+      setError(
+        signupError instanceof Error
+          ? signupError.message
+          : locale === "ar"
+            ? "حدث خطأ غير متوقع."
+            : "An unexpected error occurred."
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   const inputCls =
