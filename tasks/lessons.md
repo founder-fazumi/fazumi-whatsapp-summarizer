@@ -47,3 +47,11 @@
 **Quick test:** Force an OpenAI error mid-request → verify user's counter did not increment.
 
 ---
+
+## L006 — Use local skills to standardize FE/BE/UI work and reduce rework
+**Mistake:** (Pre-emptive) Repeating the same implementation decisions across sessions without a shared reference — wrong Supabase client, missing RLS, inconsistent CSS var usage, vague microcopy.
+**Why:** Without written standards, each session risks diverging from established patterns, causing rework and bugs.
+**Rule:** Invoke the relevant skill before implementing: `/frontend-dev` for UI/pages, `/backend-dev` for API/DB/auth, `/ui-ux` for conversion and copy decisions. Skills live in `.claude/skills/<name>/SKILL.md`. Update them when a new pattern is confirmed.
+**Quick test:** Open the skill file and verify the decision you're about to make is covered. If not, add it to the skill after implementation.
+
+---

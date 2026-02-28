@@ -31,6 +31,88 @@ The old WhatsApp bot is **NOT** part of MVP. It may be archived for later:
 6) **Do not introduce new services** unless explicitly approved.
 7) **Windows PowerShell is the default shell.** Use PowerShell commands (see below). Do NOT use bash/CMD flags.
 
+## Skills (Approved + How to Use)
+
+Claude Code supports reusable “skills” (invokable via `/skill-name`) to reduce repeated prompting and keep workflows consistent. Keep skills local to this repo when possible and prefer audited sources. Official guide: https://code.claude.com/docs/en/skills  (read first)
+
+### Where skills can come from (trust order)
+1) Local repo skills we write and maintain under `.claude/skills/`
+2) Official/reference skills from Anthropic (use as templates, review before copying)
+3) Curated lists / marketplaces ONLY after reviewing contents (security risk)
+
+### Security rules for skills
+- Never run or install unreviewed skills from random sources.
+- No skill may instruct committing secrets, running unknown shell scripts, or disabling security tools.
+- Block pushes if any `.env*` file is staged/tracked.
+
+### Skills to add for building + shipping FAZUMI (high leverage)
+Create these skills locally (each as `.claude/skills/<name>/SKILL.md`) and keep them short + operational:
+
+1) /prd-to-tasks (Ralph loop)
+- Input: feature/PRD/story
+- Output: update `/tasks/todo.md` with checklist + acceptance criteria + smallest shippable steps
+- Enforce: one story per iteration, verify, commit
+
+2) /nextjs-app-router-implementer
+- Next.js App Router patterns, server/client boundaries, API routes, env handling, error boundaries
+- Must keep repo runnable with `pnpm dev` after each change
+
+3) /supabase-schema-rls
+- Writes Supabase migrations + RLS policies
+- Ensures “user sees only own rows”
+- Includes quick verification queries and a rollback note
+
+4) /auth-social-login
+- Supabase Auth Google/Apple setup checklist
+- Redirect URLs (local + prod) checklist
+- Post-login routing rules (landing vs dashboard)
+
+5) /lemonsqueezy-billing-webhooks
+- Webhook verification checklist + implementation steps
+- Update plan status in DB
+- Local test plan + failure handling
+
+6) /ui-match-screenshot
+- When a screenshot is provided: produce a “diff list” vs current UI, then implement
+- Use FAZUMI palette tokens + spacing/typography rules
+- No improvisation: must match the target screenshot layout
+
+7) /rtl-arabic-i18n
+- Enforce `dir="rtl"` + `lang="ar"` + Arabic font when Arabic
+- UI language toggle EN/AR (global)
+- Output language rules: Auto-detect + translate when needed
+- RTL-safe lists/cards/accordions rules
+
+8) /qa-verify-before-commit
+- Runs `pnpm lint`, `pnpm typecheck`, `pnpm test`
+- Adds a manual smoke checklist (open /, summarize, Arabic RTL, etc.)
+- Refuses to mark “done” without proof
+
+9) /security-secrets-guard
+- Checks `.gitignore` contains `.env*`
+- Checks `git status` for secrets before commit/push
+- Adds a “stop and alert” rule if secrets are detected
+
+10) /deploy-vercel-ci
+- GitHub Actions checks + Vercel deploy expectations
+- “main must always be green” rule
+- Adds minimal CI config and verification steps
+
+### Optional (only if explicitly enabled)
+- /github-mcp-ops:
+  Use GitHub MCP server for issues/PRs/changelog automation. Only enable after confirming credentials and permissions.
+
+## Spec Kit Workflow (Usage Saver)
+We use spec-driven development to reduce Claude usage and rework.
+- Specs live in /specs (or /spec-kit) and are the source of truth.
+- For each milestone: update the spec first, then generate a checklist in /tasks/todo.md, then implement.
+
+## Model Policy (Usage Saver)
+- Default: Sonnet for implementation.
+- Opus: only for architecture, tricky bugs, high-risk refactors.
+- Haiku: small edits (copy/CSS/tiny refactors).
+- When switching phases, explicitly run `/model <opus|sonnet|haiku>` and confirm with `/status`.
+
 ## Output Format (Always This Order)
 1) TL;DR
 2) Important Dates (date + time + location)

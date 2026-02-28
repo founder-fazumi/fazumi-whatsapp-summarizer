@@ -19,6 +19,21 @@
 
 ---
 
+## SPEC-DRIVEN FEATURES (Spec Kit)
+
+> Specs in `.specify/features/<id>/` — read spec + plan before implementing.
+
+### Feature: auth-shell-lang-theme (P0 — blocks all auth features)
+> [spec](.specify/features/auth-shell-lang-theme/spec.md) · [plan](.specify/features/auth-shell-lang-theme/plan.md) · [tasks](.specify/features/auth-shell-lang-theme/tasks.md)
+
+- [x] Chunk 1 — Supabase clients + middleware + DB migrations
+- [x] Chunk 2 — ThemeProvider + LangProvider + login page
+- [~] Chunk 3 — Dashboard shell + all route stubs (settings/billing/profile/help/legal/pricing remaining)
+- [ ] Chunk 4 — Settings persistence + auth-aware landing nav
+- [ ] Chunk 5 — Usage tracking + legal content
+
+---
+
 ## PHASE 1 — MVP IMPLEMENTATION (only after "Proceed")
 
 ### A — Repo Restructure + Next.js Scaffold
