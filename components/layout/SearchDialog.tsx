@@ -7,16 +7,18 @@ import {
   Settings, CreditCard, User, HelpCircle, Search,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
+import { useLang } from "@/lib/context/LangContext";
+import { t } from "@/lib/i18n";
 
 const NAV_LINKS = [
-  { label: "Dashboard",  href: "/dashboard",  icon: <LayoutDashboard className="h-4 w-4" /> },
-  { label: "Summarize",  href: "/summarize",  icon: <MessageSquareText className="h-4 w-4" /> },
-  { label: "History",    href: "/history",    icon: <History className="h-4 w-4" /> },
-  { label: "Calendar",   href: "/calendar",   icon: <Calendar className="h-4 w-4" /> },
-  { label: "Settings",   href: "/settings",   icon: <Settings className="h-4 w-4" /> },
-  { label: "Billing",    href: "/billing",    icon: <CreditCard className="h-4 w-4" /> },
-  { label: "Profile",    href: "/profile",    icon: <User className="h-4 w-4" /> },
-  { label: "Help",       href: "/help",       icon: <HelpCircle className="h-4 w-4" /> },
+  { labelKey: "nav.dashboard", href: "/dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+  { labelKey: "nav.summarize", href: "/summarize", icon: <MessageSquareText className="h-4 w-4" /> },
+  { labelKey: "nav.history",   href: "/history",   icon: <History className="h-4 w-4" /> },
+  { labelKey: "nav.calendar",  href: "/calendar",  icon: <Calendar className="h-4 w-4" /> },
+  { labelKey: "nav.settings",  href: "/settings",  icon: <Settings className="h-4 w-4" /> },
+  { labelKey: "nav.billing",   href: "/billing",   icon: <CreditCard className="h-4 w-4" /> },
+  { labelKey: "nav.profile",   href: "/profile",   icon: <User className="h-4 w-4" /> },
+  { labelKey: "nav.help",      href: "/help",      icon: <HelpCircle className="h-4 w-4" /> },
 ];
 
 interface SearchDialogProps {
@@ -25,10 +27,16 @@ interface SearchDialogProps {
 }
 
 export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
+  const { locale } = useLang();
   const [query, setQuery] = useState("");
 
-  const filtered = NAV_LINKS.filter((l) =>
-    l.label.toLowerCase().includes(query.toLowerCase())
+  const links = NAV_LINKS.map((link) => ({
+    ...link,
+    label: t(link.labelKey, locale),
+  }));
+
+  const filtered = links.filter((link) =>
+    link.label.toLowerCase().includes(query.toLowerCase())
   );
 
   return (
@@ -41,7 +49,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search messages, tasks, dates…"
+          placeholder={t("topbar.search", locale)}
           className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
         />
       </div>
@@ -49,7 +57,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       {/* Navigation links */}
       <div className="mt-3">
         <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          Navigate to
+          {locale === "ar" ? "الانتقال إلى" : "Navigate to"}
         </p>
         <ul className="space-y-0.5">
           {filtered.map((link) => (
@@ -66,7 +74,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
           ))}
           {filtered.length === 0 && (
             <li className="py-4 text-center text-sm text-[var(--muted-foreground)]">
-              No results for &quot;{query}&quot;
+              {locale === "ar" ? `لا توجد نتائج لـ "${query}"` : `No results for "${query}"`}
             </li>
           )}
         </ul>

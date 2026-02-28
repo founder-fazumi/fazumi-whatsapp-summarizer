@@ -1,0 +1,80 @@
+import { Quote } from "lucide-react";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
+import { PublicPageShell } from "@/components/layout/PublicPageShell";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+const SECTIONS = [
+  {
+    title: { en: "What Fazumi is", ar: "ما هو Fazumi" },
+    body: {
+      en: "Fazumi is a focused tool for parents who need the important signal from busy school chat threads: dates, tasks, decisions, and follow-ups.",
+      ar: "Fazumi أداة مركزة لأولياء الأمور الذين يحتاجون إلى أهم ما في محادثات المدرسة المزدحمة: التواريخ والمهام والقرارات والمتابعات.",
+    },
+  },
+  {
+    title: { en: "What exists today", ar: "ما الموجود اليوم" },
+    body: {
+      en: "The current product is an MVP. Core summarization works, account flows exist, and the surrounding pages are still being tightened into a complete customer experience.",
+      ar: "المنتج الحالي هو MVP. التلخيص الأساسي يعمل، وتدفقات الحساب موجودة، وما زالت الصفحات المحيطة تتحسن لتقديم تجربة متكاملة.",
+    },
+  },
+  {
+    title: { en: "What we are shaping next", ar: "ما الذي نطوره لاحقًا" },
+    body: {
+      en: "This placeholder page will eventually explain the story behind the product, the team, and the principles guiding product choices, privacy, and billing.",
+      ar: "ستشرح هذه الصفحة لاحقًا قصة المنتج والفريق والمبادئ التي توجه قرارات المنتج والخصوصية والفوترة.",
+    },
+  },
+] as const;
+
+export default function AboutPage() {
+  return (
+    <PublicPageShell
+      eyebrow={{ en: "About", ar: "من نحن" }}
+      title={{ en: "About Fazumi", ar: "عن Fazumi" }}
+      description={{ en: "A placeholder overview of the product, the problem it solves, and the direction it is heading.", ar: "نظرة عامة مبدئية على المنتج والمشكلة التي يحلها والاتجاه الذي يسير إليه." }}
+    >
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-4">
+          {SECTIONS.map((section) => (
+            <Card key={section.title.en}>
+              <CardHeader>
+                <CardTitle>
+                  <LocalizedText en={section.title.en} ar={section.title.ar} />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                  <LocalizedText en={section.body.en} ar={section.body.ar} />
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle>
+              <LocalizedText en="Product note" ar="ملاحظة عن المنتج" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
+              <Quote className="h-5 w-5" />
+            </div>
+            <blockquote className="text-lg font-semibold leading-8 text-[var(--foreground)]">
+              “Simple can be harder than complex.”
+            </blockquote>
+            <p className="text-sm text-[var(--muted-foreground)]">Steve Jobs</p>
+            <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+              <LocalizedText
+                en="That principle is a useful constraint for this product: school communication is already noisy, so the interface should not add more noise."
+                ar="هذا المبدأ قيد مفيد لهذا المنتج: تواصل المدرسة مزدحم أصلًا، لذلك يجب ألا تضيف الواجهة مزيدًا من الضوضاء."
+              />
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </PublicPageShell>
+  );
+}

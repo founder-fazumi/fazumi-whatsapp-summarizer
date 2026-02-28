@@ -257,3 +257,21 @@
 | `.env.example` (root) | Move to `services/wa-bot/.env.example` | Replace with web app `.env.local.example` |
 | `DEPLOYMENT_BLOCKERS.md` | Move to `services/wa-bot/DEPLOYMENT_BLOCKERS.md` | WA bot specific |
 | `supabase/migrations/20260213_*.sql` | Keep + keep path | WA bot schema — may share DB |
+
+---
+
+## Claude Handoff — 2026-02-28
+
+What changed:
+- Added a global footer via `app/layout.tsx` and updated footer links so they work from every route.
+- Added public placeholder routes for `/cookie-policy`, `/status`, `/about`, and `/contact`, plus a client-only contact form with feedback/support modes and local success states.
+- Removed the landing compare slider section and deleted `components/landing/Compare.tsx`.
+- Added the landing header language toggle, simplified pricing to `Free`, `Monthly`, and `Founder`, and changed the monthly card label with a `Yearly` toggle.
+- Replaced the `Secured by Stripe` copy with `Secure checkout`.
+- Made summarize output language deterministic for `auto/en/ar`, localized the summary chrome for Arabic RTL output, and gated hero/free summary actions with an upgrade prompt.
+- Hardened `/pricing` so it still renders when Supabase env vars are missing.
+
+What remains for Claude:
+- Payments end-to-end: checkout behavior, the `Complete your upgrade` step, and any upgrade flow polish.
+- Billing wiring and account/billing UX beyond the current placeholder-safe changes.
+- Lemon Squeezy webhook completion and related subscription lifecycle wiring.

@@ -1,23 +1,45 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CreditCard, ExternalLink, Check } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
 import type { Profile } from "@/lib/supabase/types";
+import { formatDate, formatNumber, formatPrice } from "@/lib/format";
 
-const PLAN_LABELS: Record<string, { name: string; price: string; color: string }> = {
-  free:    { name: "Free",          price: "$0",       color: "text-[var(--muted-foreground)]" },
-  monthly: { name: "Pro Monthly",   price: "$9.99/mo", color: "text-[var(--primary)]" },
-  annual:  { name: "Pro Annual",    price: "$99.99/yr",color: "text-[var(--primary)]" },
-  founder: { name: "Founder LTD",   price: "$149",     color: "text-emerald-600" },
+const PLAN_LABELS: Record<string, { name: { en: string; ar: string }; price: string; color: string }> = {
+  free:    { name: { en: "Free", ar: "مجاني" },          price: formatPrice(0),       color: "text-[var(--muted-foreground)]" },
+  monthly: { name: { en: "Pro Monthly", ar: "Pro شهري" }, price: `${formatPrice(9.99, 2)}/mo`, color: "text-[var(--primary)]" },
+  annual:  { name: { en: "Pro Annual", ar: "Pro سنوي" },  price: `${formatPrice(99.99, 2)}/yr`, color: "text-[var(--primary)]" },
+  founder: { name: { en: "Founder LTD", ar: "المؤسس" },   price: formatPrice(149),     color: "text-emerald-600" },
 };
 
-const PLAN_FEATURES: Record<string, string[]> = {
-  free:    ["3 lifetime summaries", "Summary history", "EN + AR support"],
-  monthly: ["50 summaries / day", "200 / month", "Priority support", "Full history"],
-  annual:  ["50 summaries / day", "200 / month", "Priority support", "Full history", "2 months free"],
-  founder: ["50 summaries / day", "200 / month", "Lifetime access", "All future features"],
+const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
+  free: [
+    { en: "3 lifetime summaries", ar: "3 ملخصات مدى الحياة" },
+    { en: "Summary history", ar: "سجل الملخصات" },
+    { en: "EN + AR support", ar: "دعم العربية والإنجليزية" },
+  ],
+  monthly: [
+    { en: "50 summaries / day", ar: "50 ملخصًا يوميًا" },
+    { en: "200 / month", ar: "200 شهريًا" },
+    { en: "Priority support", ar: "دعم أولوية" },
+    { en: "Full history", ar: "سجل كامل" },
+  ],
+  annual: [
+    { en: "50 summaries / day", ar: "50 ملخصًا يوميًا" },
+    { en: "200 / month", ar: "200 شهريًا" },
+    { en: "Priority support", ar: "دعم أولوية" },
+    { en: "Full history", ar: "سجل كامل" },
+    { en: "2 months free", ar: "شهران مجانًا" },
+  ],
+  founder: [
+    { en: "50 summaries / day", ar: "50 ملخصًا يوميًا" },
+    { en: "200 / month", ar: "200 شهريًا" },
+    { en: "Lifetime access", ar: "وصول مدى الحياة" },
+    { en: "All future features", ar: "كل الميزات المستقبلية" },
+  ],
 };
 
 export default async function BillingPage() {
@@ -72,9 +94,8 @@ export default async function BillingPage() {
     ? Math.max(0, Math.ceil((new Date(trialExpiresAt).getTime() - Date.now()) / 86_400_000))
     : null;
 
-  const periodEndFormatted = periodEnd
-    ? new Date(periodEnd).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
-    : null;
+  const periodEndEn = periodEnd ? formatDate(periodEnd, "en", { year: "numeric", month: "long", day: "numeric" }) : null;
+  const periodEndAr = periodEnd ? formatDate(periodEnd, "ar", { year: "numeric", month: "long", day: "numeric" }) : null;
 
   return (
     <DashboardShell>
@@ -86,34 +107,49 @@ export default async function BillingPage() {
                 <CreditCard className="h-5 w-5 text-[var(--primary)]" />
               </div>
               <div>
-                <CardTitle>Billing</CardTitle>
-                <CardDescription>Manage your subscription and invoices</CardDescription>
+                <CardTitle>
+                  <LocalizedText en="Billing" ar="الفوترة" />
+                </CardTitle>
+                <CardDescription>
+                  <LocalizedText en="Manage your subscription and invoices" ar="أدر اشتراكك وفواتيرك" />
+                </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
             {/* Current plan */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-2)] p-4">
-              <p className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">Current plan</p>
-              <p className={`mt-1 text-2xl font-bold ${planInfo.color}`}>{planInfo.name}</p>
+              <p className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
+                <LocalizedText en="Current plan" ar="الخطة الحالية" />
+              </p>
+              <p className={`mt-1 text-2xl font-bold ${planInfo.color}`}>
+                <LocalizedText en={planInfo.name.en} ar={planInfo.name.ar} />
+              </p>
               <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">{planInfo.price}</p>
 
               {isTrialActive && trialDaysLeft !== null && (
                 <p className="mt-2 text-xs text-amber-600 font-medium">
-                  Free trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} remaining
+                  <LocalizedText
+                    en={`Free trial. ${formatNumber(trialDaysLeft)} day${trialDaysLeft !== 1 ? "s" : ""} remaining`}
+                    ar={`فترة تجريبية. متبقٍ ${formatNumber(trialDaysLeft)} يوم`}
+                  />
                 </p>
               )}
-              {periodEndFormatted && (
+              {periodEndEn && periodEndAr && (
                 <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  {plan === "free" ? "Access until" : "Renews"}: {periodEndFormatted}
+                  {plan === "free" ? (
+                    <LocalizedText en={`Access until: ${periodEndEn}`} ar={`الوصول حتى: ${periodEndAr}`} />
+                  ) : (
+                    <LocalizedText en={`Renews: ${periodEndEn}`} ar={`يتجدد: ${periodEndAr}`} />
+                  )}
                 </p>
               )}
 
               <ul className="mt-3 space-y-1.5">
                 {features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+                  <li key={f.en} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
                     <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                    {f}
+                    <LocalizedText en={f.en} ar={f.ar} />
                   </li>
                 ))}
               </ul>
@@ -128,7 +164,7 @@ export default async function BillingPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium hover:bg-[var(--bg-2)] transition-colors"
                 >
-                  Manage subscription
+                  <LocalizedText en="Manage subscription" ar="إدارة الاشتراك" />
                   <ExternalLink className="h-3.5 w-3.5" />
                 </a>
               ) : (
@@ -136,14 +172,21 @@ export default async function BillingPage() {
                   href="/pricing"
                   className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white hover:bg-[var(--primary-hover)] transition-colors"
                 >
-                  {isTrialActive ? "Upgrade before trial ends" : "View plans"}
+                  {isTrialActive ? (
+                    <LocalizedText en="Upgrade before trial ends" ar="قم بالترقية قبل نهاية التجربة" />
+                  ) : (
+                    <LocalizedText en="View plans" ar="عرض الخطط" />
+                  )}
                   <ExternalLink className="h-4 w-4" />
                 </Link>
               )}
             </div>
 
             <p className="text-xs text-[var(--muted-foreground)]">
-              Invoice history is available in the Lemon Squeezy customer portal.
+              <LocalizedText
+                en="Invoice history is available in the Lemon Squeezy customer portal."
+                ar="سجل الفواتير متاح في بوابة عملاء Lemon Squeezy."
+              />
             </p>
           </CardContent>
         </Card>

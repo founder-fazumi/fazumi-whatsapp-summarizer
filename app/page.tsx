@@ -3,14 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { Nav } from "@/components/landing/Nav";
 import { Hero } from "@/components/landing/Hero";
 import { SocialProof } from "@/components/landing/SocialProof";
-import { Compare } from "@/components/landing/Compare";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Testimonials } from "@/components/landing/Testimonials";
 import { Pricing } from "@/components/landing/Pricing";
 import { CheckoutTeaser } from "@/components/landing/CheckoutTeaser";
 import { FAQ } from "@/components/landing/FAQ";
 import { Newsletter } from "@/components/landing/Newsletter";
-import { Footer } from "@/components/landing/Footer";
 import type { Profile } from "@/lib/supabase/types";
 
 export default async function LandingPage() {
@@ -44,17 +42,13 @@ export default async function LandingPage() {
       <main>
         <Hero />
         <SocialProof />
-        <Compare />
         <HowItWorks />
         <Testimonials />
-        <section id="pricing">
-          <Pricing />
-        </section>
+        <Pricing />
         <CheckoutTeaser />
         <FAQ />
         <Newsletter />
       </main>
-      <Footer />
     </div>
   );
 }

@@ -8,12 +8,14 @@ import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useLang } from "@/lib/context/LangContext";
 import { cn } from "@/lib/utils";
 
 type Tab = "login" | "signup";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { locale } = useLang();
   const [tab, setTab] = useState<Tab>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -73,7 +75,7 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     } else {
-      setSuccess("Check your email to confirm your account, then log in.");
+      setSuccess(locale === "ar" ? "تحقق من بريدك الإلكتروني لتأكيد الحساب ثم سجّل الدخول." : "Check your email to confirm your account, then log in.");
     }
     setLoading(false);
   }
@@ -91,15 +93,15 @@ export default function LoginPage() {
           </div>
           <span className="text-xl font-bold text-[var(--foreground)]">Fazumi</span>
           <span className="text-sm text-[var(--muted-foreground)]">
-            School chat summaries, instantly
+            {locale === "ar" ? "ملخصات محادثات المدرسة فورًا" : "School chat summaries, instantly"}
           </span>
         </div>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Welcome</CardTitle>
+            <CardTitle className="text-base">{locale === "ar" ? "مرحبًا" : "Welcome"}</CardTitle>
             <CardDescription>
-              Log in or create a free account to get started
+              {locale === "ar" ? "سجّل الدخول أو أنشئ حسابًا مجانيًا للبدء" : "Log in or create a free account to get started"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -112,7 +114,7 @@ export default function LoginPage() {
               disabled={loading}
             >
               <Chrome className="h-4 w-4" />
-              Continue with Google
+              {locale === "ar" ? "المتابعة عبر Google" : "Continue with Google"}
             </Button>
 
             {/* Apple (coming soon) */}
@@ -121,25 +123,25 @@ export default function LoginPage() {
               variant="outline"
               className="w-full gap-2 opacity-50 cursor-not-allowed"
               disabled
-              title="Apple sign-in coming soon"
+              title={locale === "ar" ? "تسجيل الدخول عبر Apple قريبًا" : "Apple sign-in coming soon"}
             >
               {/* Apple icon via unicode */}
               <span className="text-base leading-none"></span>
-              Continue with Apple
+              {locale === "ar" ? "المتابعة عبر Apple" : "Continue with Apple"}
             </Button>
 
             {/* Divider */}
             <div className="flex items-center gap-3">
               <span className="flex-1 border-t border-[var(--border)]" />
-              <span className="text-xs text-[var(--muted-foreground)]">or</span>
+              <span className="text-xs text-[var(--muted-foreground)]">{locale === "ar" ? "أو" : "or"}</span>
               <span className="flex-1 border-t border-[var(--border)]" />
             </div>
 
             {/* Tabs */}
             <Tabs value={tab} onValueChange={(v) => { setTab(v as Tab); setError(null); setSuccess(null); }}>
               <TabsList className="w-full">
-                <TabsTrigger value="login" className="flex-1">Log in</TabsTrigger>
-                <TabsTrigger value="signup" className="flex-1">Sign up</TabsTrigger>
+                <TabsTrigger value="login" className="flex-1">{locale === "ar" ? "تسجيل الدخول" : "Log in"}</TabsTrigger>
+                <TabsTrigger value="signup" className="flex-1">{locale === "ar" ? "إنشاء حساب" : "Sign up"}</TabsTrigger>
               </TabsList>
 
               {/* ── Login tab ── */}
@@ -147,7 +149,7 @@ export default function LoginPage() {
                 <form onSubmit={handleEmailLogin} className="space-y-3">
                   <div>
                     <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
-                      Email
+                      {locale === "ar" ? "البريد الإلكتروني" : "Email"}
                     </label>
                     <input
                       id="login-email"
@@ -162,7 +164,7 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <label htmlFor="login-pass" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
-                      Password
+                      {locale === "ar" ? "كلمة المرور" : "Password"}
                     </label>
                     <div className="relative">
                       <input
@@ -179,7 +181,7 @@ export default function LoginPage() {
                         type="button"
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                         onClick={() => setShowPass((s) => !s)}
-                        aria-label={showPass ? "Hide password" : "Show password"}
+                        aria-label={showPass ? (locale === "ar" ? "إخفاء كلمة المرور" : "Hide password") : (locale === "ar" ? "إظهار كلمة المرور" : "Show password")}
                       >
                         {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -191,7 +193,7 @@ export default function LoginPage() {
                     </p>
                   )}
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Logging in…" : "Log in"}
+                    {loading ? (locale === "ar" ? "جارٍ تسجيل الدخول…" : "Logging in…") : (locale === "ar" ? "تسجيل الدخول" : "Log in")}
                   </Button>
                 </form>
               </TabsContent>
@@ -201,7 +203,7 @@ export default function LoginPage() {
                 <form onSubmit={handleEmailSignup} className="space-y-3">
                   <div>
                     <label htmlFor="signup-name" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
-                      Full name
+                      {locale === "ar" ? "الاسم الكامل" : "Full name"}
                     </label>
                     <input
                       id="signup-name"
@@ -216,7 +218,7 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <label htmlFor="signup-email" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
-                      Email
+                      {locale === "ar" ? "البريد الإلكتروني" : "Email"}
                     </label>
                     <input
                       id="signup-email"
@@ -231,7 +233,7 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <label htmlFor="signup-pass" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
-                      Password
+                      {locale === "ar" ? "كلمة المرور" : "Password"}
                     </label>
                     <div className="relative">
                       <input
@@ -249,7 +251,7 @@ export default function LoginPage() {
                         type="button"
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                         onClick={() => setShowPass((s) => !s)}
-                        aria-label={showPass ? "Hide password" : "Show password"}
+                        aria-label={showPass ? (locale === "ar" ? "إخفاء كلمة المرور" : "Hide password") : (locale === "ar" ? "إظهار كلمة المرور" : "Show password")}
                       >
                         {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -266,10 +268,10 @@ export default function LoginPage() {
                     </p>
                   )}
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Creating account…" : "Create free account"}
+                    {loading ? (locale === "ar" ? "جارٍ إنشاء الحساب…" : "Creating account…") : (locale === "ar" ? "إنشاء حساب مجاني" : "Create free account")}
                   </Button>
                   <p className="text-center text-[10px] text-[var(--muted-foreground)]">
-                    7-day free trial · No credit card required
+                    {locale === "ar" ? "تجربة مجانية لمدة 7 أيام · لا حاجة إلى بطاقة" : "7-day free trial · No credit card required"}
                   </p>
                 </form>
               </TabsContent>
@@ -278,10 +280,10 @@ export default function LoginPage() {
         </Card>
 
         <p className="mt-6 text-center text-xs text-[var(--muted-foreground)]">
-          By continuing you agree to our{" "}
-          <Link href="/terms" className="text-[var(--primary)] hover:underline">Terms</Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="text-[var(--primary)] hover:underline">Privacy Policy</Link>.
+          {locale === "ar" ? "بالمتابعة فإنك توافق على " : "By continuing you agree to our "}
+          <Link href="/terms" className="text-[var(--primary)] hover:underline">{locale === "ar" ? "الشروط" : "Terms"}</Link>{" "}
+          {locale === "ar" ? "و" : "and "}
+          <Link href="/privacy" className="text-[var(--primary)] hover:underline">{locale === "ar" ? "سياسة الخصوصية" : "Privacy Policy"}</Link>.
         </p>
       </div>
     </div>

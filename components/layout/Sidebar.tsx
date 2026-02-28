@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
-import { t } from "@/lib/i18n";
+import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 
 const NAV_ITEMS = [
   { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
@@ -25,6 +25,17 @@ const NAV_ITEMS = [
   { href: "/settings",  labelKey: "nav.settings",   icon: Settings },
   { href: "/help",      labelKey: "nav.resources",  icon: HelpCircle },
 ] as const;
+
+const COPY = {
+  brandSub: { en: "School chat. Clear plan.", ar: "دردشة المدرسة، وخطة واضحة." },
+  soon: { en: "Coming soon", ar: "قريبًا" },
+  freePlan: { en: "Free Plan", ar: "الخطة المجانية" },
+  trialActive: { en: "Trial active", ar: "التجربة مفعلة" },
+  premium: { en: "Get Premium", ar: "احصل على Premium" },
+  unlimited: { en: "Unlimited summaries", ar: "ملخصات غير محدودة" },
+  calendar: { en: "Calendar sync", ar: "مزامنة التقويم" },
+  priority: { en: "Priority support", ar: "دعم أولوية" },
+} satisfies Record<string, LocalizedCopy<string>>;
 
 interface SidebarProps {
   className?: string;
@@ -58,7 +69,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           </span>
           <span className="flex items-center gap-1 text-[10px] leading-tight text-[var(--primary)] font-medium mt-0.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
-            School chat · Clear plan ✓
+            {pick(COPY.brandSub, locale)}
           </span>
         </div>
       </div>
@@ -91,7 +102,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           <li>
             <button
               disabled
-              title="Coming soon"
+              title={pick(COPY.soon, locale)}
               className="flex w-full items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-sm font-medium text-[var(--muted-foreground)] opacity-50 cursor-not-allowed"
             >
               <CheckSquare className="h-4 w-4 shrink-0" />
@@ -105,8 +116,8 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       <div className="px-4 py-3 border-t border-[var(--sidebar-border)]">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-sm">🥇</span>
-          <span className="text-xs font-semibold text-[var(--foreground)]">Free Plan</span>
-          <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">Trial active</span>
+          <span className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.freePlan, locale)}</span>
+          <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">{pick(COPY.trialActive, locale)}</span>
         </div>
         <Progress value={3} max={7} className="h-1.5 mb-2.5" />
         <Link
@@ -122,17 +133,17 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       <div className="px-4 py-3">
         <div className="rounded-[var(--radius)] bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-3">
           <p className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1.5">
-            ★ Get Premium ›
+            ★ {pick(COPY.premium, locale)} ›
           </p>
           <ul className="space-y-1 text-[10px] text-amber-700 dark:text-amber-400">
             <li className="flex items-center gap-1.5">
-              <span className="text-amber-500">✓</span> Unlimited summaries
+              <span className="text-amber-500">✓</span> {pick(COPY.unlimited, locale)}
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="text-amber-500">✓</span> Calendar sync
+              <span className="text-amber-500">✓</span> {pick(COPY.calendar, locale)}
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="text-amber-500">✓</span> Priority support
+              <span className="text-amber-500">✓</span> {pick(COPY.priority, locale)}
             </li>
           </ul>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLang } from "@/lib/context/LangContext";
 
 interface Props {
   variantId: string;
@@ -12,6 +13,7 @@ interface Props {
 
 export function CheckoutButton({ variantId, children, className, isLoggedIn = false }: Props) {
   const router = useRouter();
+  const { locale } = useLang();
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
@@ -49,7 +51,7 @@ export function CheckoutButton({ variantId, children, className, isLoggedIn = fa
       disabled={loading}
       className={className}
     >
-      {loading ? "Redirecting…" : children}
+      {loading ? (locale === "ar" ? "جارٍ التحويل…" : "Redirecting…") : children}
     </button>
   );
 }

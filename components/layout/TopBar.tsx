@@ -15,15 +15,39 @@ import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SearchDialog } from "./SearchDialog";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useLang } from "@/lib/context/LangContext";
-import { t } from "@/lib/i18n";
+import { formatNumber } from "@/lib/format";
+import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 const NOTIFICATIONS = [
-  { id: 1, text: "Science project due Apr 30", icon: "📚" },
-  { id: 2, text: "Permission slip due tomorrow", icon: "📋" },
-  { id: 3, text: "Parent meeting Friday 4 PM", icon: "📅" },
+  {
+    id: 1,
+    text: { en: "Science project due Apr 30", ar: "مشروع العلوم مستحق في 30 أبريل" },
+    icon: "📚",
+  },
+  {
+    id: 2,
+    text: { en: "Permission slip due tomorrow", ar: "استمارة الموافقة مطلوبة غدًا" },
+    icon: "📋",
+  },
+  {
+    id: 3,
+    text: { en: "Parent meeting Friday 4 PM", ar: "اجتماع أولياء الأمور يوم الجمعة الساعة 4 مساءً" },
+    icon: "📅",
+  },
 ];
+
+const COPY = {
+  openMenu: { en: "Open menu", ar: "افتح القائمة" },
+  dashboard: { en: "Dashboard", ar: "لوحة التحكم" },
+  markRead: { en: "Mark all read", ar: "تحديد الكل كمقروء" },
+  lightMode: { en: "Switch to light mode", ar: "التبديل إلى الوضع الفاتح" },
+  darkMode: { en: "Switch to dark mode", ar: "التبديل إلى الوضع الداكن" },
+  toggleLang: { en: "Toggle language", ar: "تبديل اللغة" },
+  freeTrial: { en: "Free Trial", ar: "فترة تجريبية" },
+  user: { en: "User", ar: "المستخدم" },
+} satisfies Record<string, LocalizedCopy<string>>;
 
 interface TopBarProps {
   className?: string;
@@ -62,7 +86,7 @@ export function TopBar({ className }: TopBarProps) {
 
   const userName = user?.user_metadata?.full_name as string | undefined
     ?? user?.email?.split("@")[0]
-    ?? "User";
+    ?? pick(COPY.user, locale);
 
   const userMenuItems = [
     { label: t("nav.profile", locale),  href: "/profile",  icon: <User className="h-4 w-4" /> },
@@ -86,7 +110,7 @@ export function TopBar({ className }: TopBarProps) {
           <SheetTrigger asChild>
             <button
               className="flex md:hidden items-center justify-center rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-              aria-label="Open menu"
+              aria-label={pick(COPY.openMenu, locale)}
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -100,7 +124,7 @@ export function TopBar({ className }: TopBarProps) {
         <Link
           href="/dashboard"
           className="hidden md:flex items-center justify-center rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-          aria-label="Dashboard"
+          aria-label={pick(COPY.dashboard, locale)}
         >
           <LayoutDashboard className="h-5 w-5" />
         </Link>
@@ -131,7 +155,7 @@ export function TopBar({ className }: TopBarProps) {
             >
               <Bell className="h-4.5 w-4.5" />
               <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
-                {NOTIFICATIONS.length}
+                {formatNumber(NOTIFICATIONS.length)}
               </span>
             </button>
 
@@ -145,7 +169,7 @@ export function TopBar({ className }: TopBarProps) {
                     onClick={() => setNotifOpen(false)}
                     className="text-[10px] text-[var(--muted-foreground)] hover:text-[var(--primary)]"
                   >
-                    Mark all read
+                    {pick(COPY.markRead, locale)}
                   </button>
                 </div>
                 <ul>
@@ -155,7 +179,7 @@ export function TopBar({ className }: TopBarProps) {
                       className="flex items-start gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--muted)] cursor-pointer border-b border-[var(--border)] last:border-0"
                     >
                       <span className="text-base mt-0.5">{n.icon}</span>
-                      <span className="text-[var(--foreground)] leading-snug">{n.text}</span>
+                      <span className="text-[var(--foreground)] leading-snug">{pick(n.text, locale)}</span>
                     </li>
                   ))}
                 </ul>
@@ -167,7 +191,7 @@ export function TopBar({ className }: TopBarProps) {
           <button
             onClick={toggleTheme}
             className="hidden sm:flex rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? pick(COPY.lightMode, locale) : pick(COPY.darkMode, locale)}
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
@@ -176,7 +200,7 @@ export function TopBar({ className }: TopBarProps) {
           <button
             onClick={() => setLocale(locale === "en" ? "ar" : "en")}
             className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
-            aria-label="Toggle language"
+            aria-label={pick(COPY.toggleLang, locale)}
           >
             <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
             {locale === "en" ? "EN" : "AR"}
@@ -194,7 +218,7 @@ export function TopBar({ className }: TopBarProps) {
                     {userName}
                   </p>
                   <p className="text-[10px] text-[var(--muted-foreground)] leading-tight">
-                    Free Trial
+                    {pick(COPY.freeTrial, locale)}
                   </p>
                 </div>
               </button>

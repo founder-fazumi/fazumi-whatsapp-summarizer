@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
 import { DeleteSummaryButton } from "@/components/history/DeleteSummaryButton";
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Link from "next/link";
 import { ArrowLeft, Clock, FileText } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
+import { formatDate, formatNumber } from "@/lib/format";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -53,9 +55,16 @@ export default async function SummaryDetailPage({ params }: PageProps) {
   };
 
   const outputLang: "en" | "ar" = row.lang_detected === "ar" ? "ar" : "en";
-  const date = new Date(row.created_at).toLocaleDateString(undefined, {
+  const dateEn = formatDate(row.created_at, "en", {
     year: "numeric", month: "short", day: "numeric",
   });
+  const dateAr = formatDate(row.created_at, "ar", {
+    year: "numeric", month: "short", day: "numeric",
+  });
+  const charCount = `${formatNumber(row.char_count / 1000, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}k`;
 
   return (
     <DashboardShell>
@@ -69,16 +78,16 @@ export default async function SummaryDetailPage({ params }: PageProps) {
                 className="flex items-center gap-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
-                History
+                <LocalizedText en="History" ar="السجل" />
               </Link>
               <span className="text-[var(--border)]">·</span>
               <div className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
                 <Clock className="h-3.5 w-3.5" />
-                {date}
+                <LocalizedText en={dateEn} ar={dateAr} />
               </div>
               <div className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
                 <FileText className="h-3.5 w-3.5" />
-                {(row.char_count / 1000).toFixed(1)}k chars
+                <LocalizedText en={`${charCount} chars`} ar={`${charCount} أحرف`} />
               </div>
               <span className="rounded-full border border-[var(--border)] px-2 py-px text-xs font-medium text-[var(--muted-foreground)]">
                 {row.lang_detected.toUpperCase()}
@@ -89,7 +98,7 @@ export default async function SummaryDetailPage({ params }: PageProps) {
                 href="/summarize"
                 className="text-xs text-[var(--primary)] hover:underline"
               >
-                Summarize again →
+                <LocalizedText en="Summarize again →" ar="لخّص مرة أخرى ←" />
               </Link>
               <DeleteSummaryButton summaryId={id} />
             </div>

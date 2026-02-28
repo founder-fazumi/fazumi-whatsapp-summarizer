@@ -13,6 +13,8 @@ export interface SummaryResult {
   char_count: number;
 }
 
+type ResolvedLang = Exclude<LangPref, "auto">;
+
 const SYSTEM_PROMPT = `You are Fazumi, an AI assistant that summarizes school WhatsApp group chats for parents.
 
 Analyze the provided chat text and return a JSON object with EXACTLY these six fields (no extra keys):
@@ -29,8 +31,7 @@ Analyze the provided chat text and return a JSON object with EXACTLY these six f
 RULES:
 - Use absolute dates (e.g. "Monday Feb 24" not "tomorrow" or "next week").
 - Be concise. Bullet points, not paragraphs, for list fields.
-- Reply in the SAME language as the chat (auto-detect). If the chat is in Arabic, reply in Standard Arabic. If mixed Arabic-English (Arabizi), reply in Standard Arabic.
-- If a preferred output language is specified, use that language regardless of input.
+- Follow the output language requested in the user message. If no output language is requested, reply in the SAME language as the chat.
 - Never include raw message text in your output.
 - If the chat is too short or unclear to summarize, set tldr to a brief note explaining that, and return empty arrays for all list fields.
 
@@ -46,13 +47,24 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
-function buildUserMessage(text: string, langPref: LangPref): string {
+function detectInputLanguage(text: string): ResolvedLang {
+  const arabicChars = text.match(/[\u0600-\u06FF]/g)?.length ?? 0;
+  const latinChars = text.match(/[A-Za-z]/g)?.length ?? 0;
+
+  if (arabicChars === 0) return "en";
+  if (latinChars === 0) return "ar";
+  return arabicChars >= latinChars ? "ar" : "en";
+}
+
+function resolveOutputLanguage(text: string, langPref: LangPref): ResolvedLang {
+  return langPref === "auto" ? detectInputLanguage(text) : langPref;
+}
+
+function buildUserMessage(text: string, outputLang: ResolvedLang): string {
   const langInstruction =
-    langPref === "en"
+    outputLang === "en"
       ? "\n\nIMPORTANT: Reply in English only, regardless of the chat language."
-      : langPref === "ar"
-        ? "\n\nIMPORTANT: Reply in Standard Arabic (فصحى) only, regardless of the chat language."
-        : "";
+      : "\n\nIMPORTANT: Reply in Standard Arabic (فصحى) only, regardless of the chat language.";
 
   return `Here is the WhatsApp chat to summarize:
 
@@ -68,6 +80,7 @@ export async function summarizeChat(
 ): Promise<SummaryResult> {
   const openai = getOpenAI();
   const model = process.env.OPENAI_MODEL ?? "gpt-4o";
+  const outputLang = resolveOutputLanguage(text, langPref);
 
   const completion = await openai.chat.completions.create({
     model,
@@ -76,7 +89,7 @@ export async function summarizeChat(
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: buildUserMessage(text, langPref) },
+      { role: "user", content: buildUserMessage(text, outputLang) },
     ],
   });
 
@@ -89,10 +102,7 @@ export async function summarizeChat(
     throw new Error("AI returned invalid JSON");
   }
 
-  // Detect language from tldr field (rough heuristic)
   const tldr = String(parsed.tldr ?? "");
-  const hasArabic = /[\u0600-\u06FF]/.test(tldr);
-  const lang_detected = hasArabic ? "ar" : "en";
 
   return {
     tldr,
@@ -101,7 +111,7 @@ export async function summarizeChat(
     people_classes: toStringArray(parsed.people_classes),
     links: toStringArray(parsed.links),
     questions: toStringArray(parsed.questions),
-    lang_detected,
+    lang_detected: outputLang,
     char_count: text.length,
   };
 }

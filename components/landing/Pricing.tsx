@@ -5,6 +5,9 @@ import Link from "next/link";
 import { Check, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CheckoutButton } from "@/components/billing/CheckoutButton";
+import { useLang } from "@/lib/context/LangContext";
+import { formatNumber, formatPrice } from "@/lib/format";
+import { pick, type LocalizedCopy } from "@/lib/i18n";
 
 const VARIANT_IDS = {
   monthly: process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? "",
@@ -12,77 +15,85 @@ const VARIANT_IDS = {
   founder: process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? "",
 } as const;
 
-type Billing = "monthly" | "annual";
+type Billing = "monthly" | "yearly";
 
-const PLANS = [
+interface BasePlan {
+  name: LocalizedCopy<string>;
+  description: LocalizedCopy<string>;
+  badge: LocalizedCopy<string> | null;
+  featured: boolean;
+  ctaText: LocalizedCopy<string>;
+  features: LocalizedCopy<string>[];
+}
+
+interface FreePlan extends BasePlan {
+  id: "free";
+}
+
+interface MonthlyPlan extends BasePlan {
+  id: "monthly";
+  monthlyPrice: number;
+  annualPrice: number;
+  yearlyMonthlyPrice: number;
+}
+
+interface FounderPlan extends BasePlan {
+  id: "founder";
+  founderBadge: true;
+  seatsLeft: number;
+}
+
+type Plan = FreePlan | MonthlyPlan | FounderPlan;
+
+const PLANS: Plan[] = [
   {
     id: "free",
-    name: "Free Trial",
-    monthlyPrice: 0,
-    annualPrice: 0,
-    description: "7-day full access, then 3 lifetime summaries",
+    name: { en: "Free", ar: "مجاني" },
+    description: { en: "7-day full access, then 3 lifetime summaries", ar: "وصول كامل لمدة 7 أيام ثم 3 ملخصات مدى الحياة" },
     badge: null,
     featured: false,
-    ctaText: "Start free trial",
+    ctaText: { en: "Start free", ar: "ابدأ مجانًا" },
     features: [
-      "7-day full access trial",
-      "3 lifetime summaries after trial",
-      "English & Arabic output",
-      "6-section structured output",
-      "Web paste & upload",
+      { en: "7-day full access trial", ar: "تجربة وصول كامل لمدة 7 أيام" },
+      { en: "3 lifetime summaries after trial", ar: "3 ملخصات مدى الحياة بعد التجربة" },
+      { en: "English & Arabic output", ar: "مخرجات بالعربية والإنجليزية" },
+      { en: "6-section structured output", ar: "مخرجات منظمة من 6 أقسام" },
+      { en: "Web paste and upload", ar: "لصق ورفع من الويب" },
     ],
   },
   {
     id: "monthly",
-    name: "Monthly",
+    name: { en: "Monthly", ar: "شهري" },
     monthlyPrice: 9.99,
-    annualPrice: 9.99,
-    description: "Unlimited summaries, billed monthly",
-    badge: null,
-    featured: false,
-    ctaText: "Get started",
-    features: [
-      "Unlimited summaries",
-      "English & Arabic output",
-      "File upload (.txt + .zip)",
-      "Calendar & To-Do sync",
-      "Priority support",
-    ],
-  },
-  {
-    id: "annual",
-    name: "Annual",
-    monthlyPrice: 8.33,
     annualPrice: 99.99,
-    description: "Save 17% vs monthly — best value",
-    badge: "Most popular",
+    yearlyMonthlyPrice: 8.33,
+    description: { en: "Unlimited summaries with flexible billing", ar: "ملخصات غير محدودة مع فوترة مرنة" },
+    badge: { en: "Most popular", ar: "الأكثر شيوعًا" },
     featured: true,
-    ctaText: "Get started",
+    ctaText: { en: "Get started", ar: "ابدأ الآن" },
     features: [
-      "Everything in Monthly",
-      "Save 17% vs monthly",
-      "Early access to new features",
-      "Dedicated support",
-      "Export to PDF / CSV",
+      { en: "Unlimited summaries", ar: "ملخصات غير محدودة" },
+      { en: "English & Arabic output", ar: "مخرجات بالعربية والإنجليزية" },
+      { en: "File upload (.txt + .zip)", ar: "رفع الملفات (.txt + .zip)" },
+      { en: "Calendar and To-Do sync", ar: "مزامنة التقويم والمهام" },
+      { en: "Priority support", ar: "دعم أولوية" },
     ],
   },
   {
     id: "founder",
-    name: "Founder",
-    monthlyPrice: 149,
-    annualPrice: 149,
-    description: "One-time lifetime access — 200 seats only",
-    badge: "⭐ Founding Supporter",
+    name: { en: "Founder", ar: "المؤسس" },
+    description: { en: "One-time lifetime access. 200 seats only.", ar: "وصول مدى الحياة بدفعة واحدة. 200 مقعد فقط." },
+    badge: { en: "Founding Supporter", ar: "داعم مؤسس" },
     featured: false,
     founderBadge: true,
-    ctaText: "Claim founder access",
+    ctaText: { en: "Claim founder access", ar: "احجز وصول المؤسس" },
     features: [
-      "Lifetime unlimited summaries",
-      "Includes 1 year of future top tier",
-      "Founding Supporter badge",
-      "Private Discord community",
-      "Input on roadmap & features",
-      "No refunds — final sale",
+      { en: "Lifetime unlimited summaries", ar: "ملخصات غير محدودة مدى الحياة" },
+      { en: "Includes 1 year of future top tier", ar: "يشمل سنة واحدة من أعلى فئة مستقبلية" },
+      { en: "Founding Supporter badge", ar: "شارة الداعم المؤسس" },
+      { en: "Private Discord community", ar: "مجتمع Discord خاص" },
+      { en: "Input on roadmap and features", ar: "مشاركة في خارطة الطريق والميزات" },
+      { en: "No refunds. Final sale.", ar: "لا توجد استردادات. البيع نهائي." },
     ],
     seatsLeft: 127,
   },
@@ -93,23 +104,25 @@ interface PricingProps {
 }
 
 export function Pricing({ isLoggedIn = false }: PricingProps) {
-  const [billing, setBilling] = useState<Billing>("annual");
+  const { locale } = useLang();
+  const [billing, setBilling] = useState<Billing>("yearly");
 
   return (
     <section id="pricing" className="py-16 bg-[var(--bg-2)]">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="text-center mb-10">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">Pricing</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
+            {locale === "ar" ? "الأسعار" : "Pricing"}
+          </p>
           <h2 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)]">
-            Simple, transparent pricing
+            {locale === "ar" ? "أسعار واضحة وبسيطة" : "Simple, transparent pricing"}
           </h2>
           <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-            Start free. Upgrade when you love it.
+            {locale === "ar" ? "ابدأ مجانًا ثم قم بالترقية عندما يناسبك." : "Start free. Upgrade when you love it."}
           </p>
 
-          {/* Billing toggle */}
           <div className="inline-flex items-center mt-6 gap-1 rounded-full border border-[var(--border)] bg-[var(--card)] p-1">
-            {(["monthly", "annual"] as Billing[]).map((b) => (
+            {(["monthly", "yearly"] as Billing[]).map((b) => (
               <button
                 key={b}
                 onClick={() => setBilling(b)}
@@ -118,10 +131,12 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
                   billing === b
                     ? "bg-[var(--primary)] text-white shadow-sm"
                     : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                )}
+                )}  
               >
-                {b === "monthly" ? "Monthly" : "Annual"}
-                {b === "annual" && (
+                {b === "monthly"
+                  ? locale === "ar" ? "شهري" : "Monthly"
+                  : locale === "ar" ? "سنوي" : "Yearly"}
+                {b === "yearly" && (
                   <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">
                     -17%
                   </span>
@@ -131,7 +146,7 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           {PLANS.map((plan) => (
             <div
               key={plan.id}
@@ -142,7 +157,6 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
                   : "border-[var(--border)] bg-[var(--card)]"
               )}
             >
-              {/* Badge */}
               {plan.badge && (
                 <div className={cn(
                   "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[10px] font-bold whitespace-nowrap",
@@ -150,65 +164,66 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
                     ? "bg-white text-[var(--primary)]"
                     : "bg-amber-400 text-amber-900"
                 )}>
-                  {plan.badge}
+                  {pick(plan.badge, locale)}
                 </div>
               )}
 
-              {/* Founder badge decoration */}
               {"founderBadge" in plan && plan.founderBadge && (
                 <div className="mb-3 flex items-center gap-1.5">
                   <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
                   <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">
-                    Founding Supporter
+                    {locale === "ar" ? "داعم مؤسس" : "Founding Supporter"}
                   </span>
                 </div>
               )}
 
               <div className="mb-4">
                 <h3 className={cn("font-bold text-base", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
-                  {plan.name}
+                  {pick(plan.name, locale)}
                 </h3>
                 <p className={cn("text-xs mt-0.5", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>
-                  {plan.description}
+                  {pick(plan.description, locale)}
                 </p>
               </div>
 
-              {/* Price */}
               <div className="mb-5">
-                {plan.monthlyPrice === 0 ? (
+                {plan.id === "free" ? (
                   <p className={cn("text-3xl font-bold", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
-                    Free
+                    {pick(plan.name, locale)}
                   </p>
                 ) : plan.id === "founder" ? (
                   <div>
                     <p className={cn("text-3xl font-bold", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
-                      $149
+                      {formatPrice(149)}
                     </p>
                     <p className={cn("text-xs", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>
-                      one-time · lifetime
+                      {locale === "ar" ? "دفعة واحدة · مدى الحياة" : "one-time · lifetime"}
                     </p>
                     {"seatsLeft" in plan && (
                       <p className="mt-1 text-[10px] font-semibold text-amber-600">
-                        {plan.seatsLeft} seats remaining
+                        {locale === "ar"
+                          ? `${formatNumber(plan.seatsLeft)} مقعدًا متبقيًا`
+                          : `${formatNumber(plan.seatsLeft)} seats remaining`}
                       </p>
                     )}
                   </div>
-                ) : (
+                ) : plan.id === "monthly" ? (
                   <div>
                     <p className={cn("text-3xl font-bold", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
-                      ${billing === "annual" ? plan.monthlyPrice.toFixed(2) : plan.monthlyPrice.toFixed(2)}
+                      {formatPrice(billing === "yearly" ? plan.yearlyMonthlyPrice : plan.monthlyPrice, 2)}
                       <span className={cn("text-sm font-normal ml-1", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>/mo</span>
                     </p>
-                    {billing === "annual" && plan.id !== "free" && plan.id !== "founder" && (
+                    {billing === "yearly" && (
                       <p className={cn("text-[11px]", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>
-                        ${plan.annualPrice.toFixed(2)} billed annually
+                        {locale === "ar"
+                          ? `${formatPrice(plan.annualPrice, 2)} تُحصّل سنويًا`
+                          : `${formatPrice(plan.annualPrice, 2)} billed annually`}
                       </p>
                     )}
                   </div>
-                )}
+                ) : null}
               </div>
 
-              {/* CTA */}
               {plan.id === "free" ? (
                 <Link
                   href={isLoggedIn ? "/summarize" : "/login"}
@@ -217,11 +232,17 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
                     "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
                   )}
                 >
-                  {plan.ctaText}
+                  {pick(plan.ctaText, locale)}
                 </Link>
               ) : (
                 <CheckoutButton
-                  variantId={VARIANT_IDS[plan.id as keyof typeof VARIANT_IDS]}
+                  variantId={
+                    plan.id === "founder"
+                      ? VARIANT_IDS.founder
+                      : billing === "yearly"
+                        ? VARIANT_IDS.annual
+                        : VARIANT_IDS.monthly
+                  }
                   isLoggedIn={isLoggedIn}
                   className={cn(
                     "mb-5 w-full rounded-[var(--radius)] py-2.5 text-sm font-semibold transition-colors",
@@ -233,16 +254,17 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
                     "disabled:opacity-70 disabled:cursor-not-allowed"
                   )}
                 >
-                  {plan.ctaText}
+                  {pick(plan.ctaText, locale)}
                 </CheckoutButton>
               )}
 
-              {/* Features */}
               <ul className="space-y-2 flex-1">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-xs">
+                {plan.features.map((feature) => (
+                  <li key={feature.en} className="flex items-start gap-2 text-xs">
                     <Check className={cn("h-4 w-4 shrink-0 mt-0.5", plan.featured ? "text-white" : "text-[var(--primary)]")} />
-                    <span className={plan.featured ? "text-white/90" : "text-[var(--foreground)]"}>{f}</span>
+                    <span className={plan.featured ? "text-white/90" : "text-[var(--foreground)]"}>
+                      {pick(feature, locale)}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -251,7 +273,9 @@ export function Pricing({ isLoggedIn = false }: PricingProps) {
         </div>
 
         <p className="mt-6 text-center text-xs text-[var(--muted-foreground)]">
-          14-day money-back guarantee on monthly &amp; annual plans. Founder plan is final sale — no refunds.
+          {locale === "ar"
+            ? "ضمان استرداد لمدة 7 أيام على الخطط الشهرية والسنوية. خطة المؤسس بيع نهائي بلا استرداد."
+            : "7-day money-back guarantee on monthly and annual plans. Founder plan is final sale — no refunds."}
         </p>
       </div>
     </section>

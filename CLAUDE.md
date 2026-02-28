@@ -113,6 +113,13 @@ We use spec-driven development to reduce Claude usage and rework.
 - Haiku: small edits (copy/CSS/tiny refactors).
 - When switching phases, explicitly run `/model <opus|sonnet|haiku>` and confirm with `/status`.
 
+## Multi-Agent Protocol (Claude = Senior, Codex = Junior)
+- Claude Code is the senior developer: reviews architecture, enforces rules, runs final verification, and approves commits/pushes.
+- Codex 5.3 is the junior developer: implements ONLY tasks explicitly listed in /tasks/todo.md or in a “Fix List” written by Claude.
+- Codex must read CODEX.md and CLAUDE.md before every task.
+- Claude must read CODEX.md and CLAUDE.md before review to ensure consistent rules.
+- Never bundle unknown/unrelated edits into one commit. Keep commits small and purposeful.
+
 ## Output Format (Always This Order)
 1) TL;DR
 2) Important Dates (date + time + location)

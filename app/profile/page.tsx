@@ -5,9 +5,11 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { User } from "lucide-react";
+import { useLang } from "@/lib/context/LangContext";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export default function ProfilePage() {
+  const { locale } = useLang();
   const [user, setUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
@@ -38,8 +40,8 @@ export default function ProfilePage() {
               <User className="h-5 w-5 text-[var(--primary)]" />
             </div>
             <div>
-              <CardTitle>Profile</CardTitle>
-              <CardDescription>Your account details</CardDescription>
+              <CardTitle>{locale === "ar" ? "الملف الشخصي" : "Profile"}</CardTitle>
+              <CardDescription>{locale === "ar" ? "تفاصيل حسابك" : "Your account details"}</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -52,7 +54,9 @@ export default function ProfilePage() {
             </div>
           </div>
           <p className="text-xs text-[var(--muted-foreground)]">
-            Profile editing and account deletion coming soon.
+            {locale === "ar"
+              ? "تعديل الملف الشخصي وحذف الحساب سيصلان قريبًا."
+              : "Profile editing and account deletion coming soon."}
           </p>
         </CardContent>
       </Card>

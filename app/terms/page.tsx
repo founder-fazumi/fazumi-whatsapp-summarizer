@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function TermsPage() {
@@ -6,8 +7,12 @@ export default function TermsPage() {
     <DashboardShell>
       <Card>
         <CardHeader>
-          <CardTitle>Terms of Service</CardTitle>
-          <p className="text-xs text-[var(--muted-foreground)]">Last updated: March 2026</p>
+          <CardTitle>
+            <LocalizedText en="Terms of Service" ar="شروط الخدمة" />
+          </CardTitle>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            <LocalizedText en="Last updated: March 2026" ar="آخر تحديث: مارس 2026" />
+          </p>
         </CardHeader>
         <CardContent className="space-y-6 text-[var(--foreground)]">
           <section>

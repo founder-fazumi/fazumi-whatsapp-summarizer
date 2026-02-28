@@ -1,4 +1,5 @@
 export type Locale = "en" | "ar";
+export type LocalizedCopy<T = string> = Record<Locale, T>;
 
 const labels: Record<string, Record<Locale, string>> = {
   // ── Navigation ────────────────────────────────────────────────
@@ -41,7 +42,7 @@ const labels: Record<string, Record<Locale, string>> = {
   "settings.lang.desc":     { en: "Switch the app between English and Arabic (RTL).", ar: "بدّل التطبيق بين العربية والإنجليزية." },
   "settings.light":         { en: "Light",                              ar: "فاتح" },
   "settings.dark":          { en: "Dark",                               ar: "داكن" },
-  "settings.english":       { en: "English",                            ar: "English" },
+  "settings.english":       { en: "English",                            ar: "الإنجليزية" },
   "settings.arabic":        { en: "Arabic",                             ar: "العربية" },
   "settings.saved":         { en: "Saved",                              ar: "تم الحفظ" },
   "settings.account":       { en: "Account",                            ar: "الحساب" },
@@ -55,4 +56,8 @@ const labels: Record<string, Record<Locale, string>> = {
 
 export function t(key: string, locale: Locale = "en"): string {
   return labels[key]?.[locale] ?? labels[key]?.["en"] ?? key;
+}
+
+export function pick<T>(copy: LocalizedCopy<T>, locale: Locale): T {
+  return copy[locale] ?? copy.en;
 }

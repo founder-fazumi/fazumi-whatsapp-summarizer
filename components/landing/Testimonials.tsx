@@ -1,3 +1,5 @@
+import { LocalizedText } from "@/components/i18n/LocalizedText";
+
 const TESTIMONIALS = [
   { name: "Fatima Al-Rashidi",  role: "Parent of 2 · Al Khor",         quote: "Finally, I understand what happens in my daughter's class every week. No more guessing!", stars: 5 },
   { name: "Ahmed Hassan",       role: "Parent · Doha",                  quote: "The Arabic output is perfect — clear, accurate, and reads naturally. Exactly what I needed.", stars: 5 },
@@ -74,13 +76,16 @@ export function Testimonials() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
-            Testimonials
+            <LocalizedText en="Testimonials" ar="آراء العملاء" />
           </p>
           <h2 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)]">
-            Parents love Fazumi
+            <LocalizedText en="Parents love Fazumi" ar="أولياء الأمور يحبون Fazumi" />
           </h2>
           <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-            Join 12,500+ parents who save time every week
+            <LocalizedText
+              en="Join 12,500+ parents who save time every week"
+              ar="انضم إلى 12,500 من أولياء الأمور الذين يوفرون الوقت كل أسبوع"
+            />
           </p>
         </div>
 

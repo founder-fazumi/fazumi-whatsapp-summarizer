@@ -3,9 +3,15 @@ import { Nav } from "@/components/landing/Nav";
 import { Pricing } from "@/components/landing/Pricing";
 
 export default async function PricingPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const isLoggedIn = !!user;
+  let isLoggedIn = false;
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    isLoggedIn = !!user;
+  } catch {
+    // Supabase env vars not configured — render pricing normally.
+  }
 
   return (
     <main className="min-h-screen bg-[var(--background)]">

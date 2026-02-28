@@ -4,6 +4,7 @@ import { Cairo } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/context/ThemeContext";
 import { LangProvider } from "@/lib/context/LangContext";
+import { Footer } from "@/components/landing/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,12 +37,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <head>
         {/* Prevent flash of wrong theme/direction before React hydrates */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('fazumi_theme');if(t==='dark')document.documentElement.classList.add('dark');var l=localStorage.getItem('fazumi_lang');if(l){document.documentElement.lang=l;if(l==='ar')document.documentElement.dir='rtl';}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('fazumi_theme');if(t==='dark')document.documentElement.classList.add('dark');var l=localStorage.getItem('fazumi_lang')||'en';document.documentElement.lang=l;document.documentElement.dir=l==='ar'?'rtl':'ltr';}catch(e){document.documentElement.lang='en';document.documentElement.dir='ltr';}})();`,
           }}
         />
       </head>
@@ -51,6 +52,7 @@ export default function RootLayout({
         <ThemeProvider>
           <LangProvider>
             {children}
+            <Footer />
           </LangProvider>
         </ThemeProvider>
       </body>

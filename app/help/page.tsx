@@ -1,36 +1,78 @@
+"use client";
+
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion } from "@/components/ui/accordion";
 import { HelpCircle, Mail } from "lucide-react";
+import { useLang } from "@/lib/context/LangContext";
+import { pick } from "@/lib/i18n";
 
 const FAQS = [
   {
-    q: "How does Fazumi work?",
-    a: "Paste your WhatsApp group chat export into the text box, click Summarize, and Fazumi extracts key dates, tasks, people, and questions — using AI — in seconds.",
+    q: {
+      en: "How does Fazumi work?",
+      ar: "كيف يعمل Fazumi؟",
+    },
+    a: {
+      en: "Paste your WhatsApp group chat export into the text box, click Summarize, and Fazumi extracts key dates, tasks, people, and questions in seconds.",
+      ar: "الصق تصدير محادثة واتساب في مربع النص ثم اضغط على التلخيص، وسيستخرج Fazumi التواريخ والمهام والأشخاص والأسئلة خلال ثوانٍ.",
+    },
   },
   {
-    q: "Is my chat text stored?",
-    a: "No. Your raw chat text is processed in memory and immediately discarded. Only the structured summary output is saved to your account.",
+    q: {
+      en: "Is my chat text stored?",
+      ar: "هل يتم حفظ نص المحادثة؟",
+    },
+    a: {
+      en: "No. Your raw chat text is processed in memory and discarded immediately. Only the structured summary output is saved.",
+      ar: "لا. تتم معالجة نص المحادثة الخام في الذاكرة ثم يُحذف فورًا. يتم حفظ المخرجات المنظمة فقط.",
+    },
   },
   {
-    q: "What languages are supported?",
-    a: "Fazumi auto-detects Arabic and English and outputs summaries in the same language. You can also pin a preferred output language in Settings.",
+    q: {
+      en: "What languages are supported?",
+      ar: "ما اللغات المدعومة؟",
+    },
+    a: {
+      en: "Fazumi auto-detects Arabic and English and can also be pinned to a preferred output language.",
+      ar: "يكتشف Fazumi العربية والإنجليزية تلقائيًا ويمكن أيضًا تثبيته على لغة إخراج مفضلة.",
+    },
   },
   {
-    q: "How many summaries do I get on the free plan?",
-    a: "You get a 7-day free trial with unlimited summaries. After the trial, 3 lifetime summaries are available without a subscription.",
+    q: {
+      en: "How many summaries do I get on the free plan?",
+      ar: "كم عدد الملخصات المتاحة في الخطة المجانية؟",
+    },
+    a: {
+      en: "You get a 7-day free trial with unlimited summaries, then 3 lifetime summaries without a subscription.",
+      ar: "تحصل على تجربة مجانية لمدة 7 أيام مع ملخصات غير محدودة، ثم 3 ملخصات مدى الحياة بدون اشتراك.",
+    },
   },
   {
-    q: "Can I summarize a ZIP file?",
-    a: "Yes. Export your WhatsApp chat as a ZIP, upload it here, and Fazumi extracts the text content automatically (media files are ignored).",
+    q: {
+      en: "Can I summarize a ZIP file?",
+      ar: "هل يمكنني تلخيص ملف ZIP؟",
+    },
+    a: {
+      en: "Yes. Upload a WhatsApp export zip file and Fazumi extracts the text automatically while ignoring media files.",
+      ar: "نعم. ارفع ملف zip لتصدير واتساب وسيستخرج Fazumi النص تلقائيًا مع تجاهل ملفات الوسائط.",
+    },
   },
   {
-    q: "How do I cancel my subscription?",
-    a: "You can cancel anytime from the Billing page. You keep access until the end of your billing period.",
+    q: {
+      en: "How do I cancel my subscription?",
+      ar: "كيف ألغي اشتراكي؟",
+    },
+    a: {
+      en: "You can cancel anytime from the Billing page and keep access until the end of the billing period.",
+      ar: "يمكنك الإلغاء في أي وقت من صفحة الفوترة مع الاحتفاظ بالوصول حتى نهاية فترة الفوترة.",
+    },
   },
 ];
 
 export default function HelpPage() {
+  const { locale } = useLang();
+
   return (
     <DashboardShell>
       <div className="space-y-4">
@@ -40,12 +82,15 @@ export default function HelpPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary)]/10">
                 <HelpCircle className="h-5 w-5 text-[var(--primary)]" />
               </div>
-              <CardTitle>Help & FAQ</CardTitle>
+              <CardTitle>{locale === "ar" ? "المساعدة والأسئلة" : "Help & FAQ"}</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
             <Accordion
-              items={FAQS.map((faq) => ({ question: faq.q, answer: faq.a }))}
+              items={FAQS.map((faq) => ({
+                question: pick(faq.q, locale),
+                answer: pick(faq.a, locale),
+              }))}
             />
           </CardContent>
         </Card>
@@ -57,7 +102,9 @@ export default function HelpPage() {
                 <Mail className="h-4 w-4 text-[var(--primary)]" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">Still need help?</p>
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  {locale === "ar" ? "هل ما زلت بحاجة إلى مساعدة؟" : "Still need help?"}
+                </p>
                 <a
                   href="mailto:support@fazumi.app"
                   className="text-sm text-[var(--primary)] hover:underline"

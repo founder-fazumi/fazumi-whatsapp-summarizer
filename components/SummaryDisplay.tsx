@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { buttonVariants } from "@/components/ui/button";
+import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type OutputLang = "en" | "ar";
+type ActionMode = "disabled" | "gated" | "coming-soon";
 
 const SECTION_META: Record<
   string,
@@ -31,6 +36,55 @@ const SECTION_ORDER = [
 
 type SectionKey = (typeof SECTION_ORDER)[number];
 
+const UI_COPY = {
+  en: {
+    latestSummary: "Latest Summary",
+    justNow: "Just now",
+    chars: "chars",
+    addToCalendar: "Add to Calendar",
+    addToTodo: "Add to To-Do",
+    export: "Export",
+    helpful: "Was this summary helpful?",
+    noStorage: "No chat text was stored — only this summary.",
+    comingSoon: "Coming soon",
+    subscribeTitle: "Subscribe to use this feature",
+    subscribeBody: "Upgrade to unlock calendar, to-do, and export actions from your summaries.",
+    upgradeCta: "View plans",
+    later: "Maybe later",
+    empty: "empty",
+    nothingMentioned: "Nothing mentioned",
+    soonTitle: "Feature coming soon",
+    soonBody: "This action is reserved for paid plans and is still being finished.",
+    close: "Close",
+  },
+  ar: {
+    latestSummary: "أحدث ملخص",
+    justNow: "الآن",
+    chars: "حرفًا",
+    addToCalendar: "أضف إلى التقويم",
+    addToTodo: "أضف إلى المهام",
+    export: "تصدير",
+    helpful: "هل كان هذا الملخص مفيدًا؟",
+    noStorage: "لم يتم حفظ نص المحادثة، بل هذا الملخص فقط.",
+    comingSoon: "قريبًا",
+    subscribeTitle: "اشترك لاستخدام هذه الميزة",
+    subscribeBody: "قم بالترقية لفتح ميزات التقويم والمهام والتصدير من الملخص.",
+    upgradeCta: "عرض الخطط",
+    later: "لاحقًا",
+    empty: "فارغ",
+    nothingMentioned: "لا يوجد شيء مذكور",
+    soonTitle: "الميزة قيد الإعداد",
+    soonBody: "هذه الميزة مخصصة للخطط المدفوعة وما زالت قيد الإكمال.",
+    close: "إغلاق",
+  },
+} as const;
+
+const ACTIONS = [
+  { key: "calendar", icon: CalendarPlus },
+  { key: "todo", icon: ListChecks },
+  { key: "export", icon: Download },
+] as const;
+
 function SectionCard({
   sectionKey,
   summary,
@@ -44,6 +98,7 @@ function SectionCard({
   const meta = SECTION_META[sectionKey];
   const label = meta[outputLang];
   const isRtl = outputLang === "ar";
+  const copy = UI_COPY[outputLang];
   const value = summary[sectionKey];
 
   const isEmpty =
@@ -55,7 +110,10 @@ function SectionCard({
     <Card>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2.5 px-5 py-3.5 text-left rounded-t-[var(--radius-xl)] hover:bg-[var(--muted)] transition-colors"
+        className={cn(
+          "w-full flex items-center gap-2.5 rounded-t-[var(--radius-xl)] px-5 py-3.5 hover:bg-[var(--muted)] transition-colors",
+          isRtl ? "text-right" : "text-left"
+        )}
         aria-expanded={open}
       >
         <span className="text-base shrink-0">{meta.icon}</span>
@@ -64,7 +122,7 @@ function SectionCard({
         </span>
         {isEmpty && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--muted)] text-[var(--muted-foreground)]">
-            {outputLang === "ar" ? "فارغ" : "empty"}
+            {copy.empty}
           </span>
         )}
         <span
@@ -88,7 +146,7 @@ function SectionCard({
         >
           {isEmpty ? (
             <p className="text-sm text-[var(--muted-foreground)] italic">
-              {outputLang === "ar" ? "لا شيء مذكور" : "Nothing mentioned"}
+              {copy.nothingMentioned}
             </p>
           ) : sectionKey === "tldr" ? (
             <p className="text-sm leading-relaxed text-[var(--card-foreground)]">
@@ -97,7 +155,13 @@ function SectionCard({
           ) : (
             <ul className={cn("space-y-2", isRtl ? "pr-2" : "pl-2")}>
               {(value as string[]).map((item, i) => (
-                <li key={i} className="flex gap-2 text-sm text-[var(--card-foreground)]">
+                <li
+                  key={i}
+                  className={cn(
+                    "flex gap-2 text-sm text-[var(--card-foreground)]",
+                    isRtl && "flex-row-reverse text-right"
+                  )}
+                >
                   <span className="mt-1 shrink-0 text-[var(--primary)] leading-none">•</span>
                   <span className="leading-relaxed">{item}</span>
                 </li>
@@ -113,56 +177,80 @@ function SectionCard({
 interface SummaryDisplayProps {
   summary: SummaryResult;
   outputLang: OutputLang;
+  actionMode?: ActionMode;
+  upgradeHref?: string;
 }
 
-export function SummaryDisplay({ summary, outputLang }: SummaryDisplayProps) {
+export function SummaryDisplay({
+  summary,
+  outputLang,
+  actionMode = "disabled",
+  upgradeHref = "/pricing",
+}: SummaryDisplayProps) {
   const [helpful, setHelpful] = useState<"up" | "down" | null>(null);
+  const [dialogVariant, setDialogVariant] = useState<"upgrade" | "soon" | null>(null);
+  const copy = UI_COPY[outputLang];
+  const isRtl = outputLang === "ar";
+  const formattedCharCount = formatNumber(summary.char_count);
+
+  function handleActionClick() {
+    if (actionMode === "gated") {
+      setDialogVariant("upgrade");
+      return;
+    }
+
+    if (actionMode === "coming-soon") {
+      setDialogVariant("soon");
+    }
+  }
 
   return (
-    <div className="space-y-3">
+    <div
+      dir={isRtl ? "rtl" : "ltr"}
+      lang={isRtl ? "ar" : "en"}
+      className={cn("space-y-3", isRtl && "font-arabic text-right")}
+    >
       {/* ── Latest Summary header ─────────────────── */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-[var(--primary)]" />
           <h2 className="font-semibold text-sm text-[var(--foreground)]">
-            Latest Summary
+            {copy.latestSummary}
           </h2>
           <span className="flex items-center gap-1 rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--primary)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
-            Just now
+            {copy.justNow}
           </span>
         </div>
         <span className="text-xs text-[var(--muted-foreground)]">
-          {summary.char_count.toLocaleString()} chars
+          {formattedCharCount} {copy.chars}
         </span>
       </div>
 
       {/* ── Quick action pills ────────────────────── */}
       <div className="flex gap-2 flex-wrap px-1">
-        <button
-          className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
-          disabled
-          title="Coming soon"
-        >
-          <CalendarPlus className="h-3.5 w-3.5 text-[var(--primary)]" />
-          Add to Calendar
-        </button>
-        <button
-          className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
-          disabled
-          title="Coming soon"
-        >
-          <ListChecks className="h-3.5 w-3.5 text-[var(--primary)]" />
-          Add to To-Do
-        </button>
-        <button
-          className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
-          disabled
-          title="Coming soon"
-        >
-          <Download className="h-3.5 w-3.5 text-[var(--primary)]" />
-          Export
-        </button>
+        {ACTIONS.map(({ key, icon: Icon }) => {
+          const label =
+            key === "calendar"
+              ? copy.addToCalendar
+              : key === "todo"
+                ? copy.addToTodo
+                : copy.export;
+
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={handleActionClick}
+              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={actionMode === "disabled"}
+              title={actionMode === "disabled" ? copy.comingSoon : undefined}
+            >
+              <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Section cards ─────────────────────────── */}
@@ -178,7 +266,7 @@ export function SummaryDisplay({ summary, outputLang }: SummaryDisplayProps) {
       {/* ── Was this helpful? ─────────────────────── */}
       <div className="flex items-center justify-between rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-3">
         <p className="text-xs font-medium text-[var(--foreground)]">
-          Was this summary helpful?
+          {copy.helpful}
         </p>
         <div className="flex gap-2">
           <button
@@ -209,8 +297,44 @@ export function SummaryDisplay({ summary, outputLang }: SummaryDisplayProps) {
       </div>
 
       <p className="text-center text-xs text-[var(--muted-foreground)] pt-1">
-        ✅ No chat text was stored — only this summary.
+        ✅ {copy.noStorage}
       </p>
+
+      <Dialog
+        open={dialogVariant !== null}
+        onOpenChange={(open) => {
+          if (!open) setDialogVariant(null);
+        }}
+        title={dialogVariant === "upgrade" ? copy.subscribeTitle : copy.soonTitle}
+      >
+        <div
+          dir={isRtl ? "rtl" : "ltr"}
+          lang={isRtl ? "ar" : "en"}
+          className={cn("space-y-4", isRtl && "font-arabic text-right")}
+        >
+          <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+            {dialogVariant === "upgrade" ? copy.subscribeBody : copy.soonBody}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {dialogVariant === "upgrade" && (
+              <Link
+                href={upgradeHref}
+                className={cn(buttonVariants({ variant: "default" }))}
+                onClick={() => setDialogVariant(null)}
+              >
+                {copy.upgradeCta}
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => setDialogVariant(null)}
+              className={cn(buttonVariants({ variant: dialogVariant === "upgrade" ? "outline" : "default" }))}
+            >
+              {dialogVariant === "upgrade" ? copy.later : copy.close}
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

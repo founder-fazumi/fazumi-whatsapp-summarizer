@@ -3,27 +3,57 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useLang } from "@/lib/context/LangContext";
+import { formatNumber } from "@/lib/format";
+import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+const WEEKDAYS: Record<"en" | "ar", string[]> = {
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  ar: ["أحد", "اثن", "ثلا", "أرب", "خمي", "جمع", "سبت"],
+};
 
-const EVENTS: Record<string, { color: string; label: string }[]> = {
-  "2026-02-09": [{ color: "bg-blue-400",          label: "Math test" }],
-  "2026-02-14": [{ color: "bg-pink-400",           label: "Valentine's Day" }],
-  "2026-02-17": [{ color: "bg-[var(--primary)]",  label: "Homework due" }],
-  "2026-02-23": [{ color: "bg-amber-400",          label: "Field trip" }],
-  "2026-02-27": [{ color: "bg-purple-400",         label: "Parent meeting" }],
+const MONTH_NAMES: Record<"en" | "ar", string[]> = {
+  en: [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ],
+  ar: [
+    "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+    "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+  ],
+};
+
+const EVENTS: Record<string, { color: string; label: LocalizedCopy<string> }[]> = {
+  "2026-02-09": [{ color: "bg-blue-400", label: { en: "Math test", ar: "اختبار الرياضيات" } }],
+  "2026-02-14": [{ color: "bg-pink-400", label: { en: "Valentine's Day", ar: "يوم فالنتاين" } }],
+  "2026-02-17": [{ color: "bg-[var(--primary)]", label: { en: "Homework due", ar: "موعد الواجب" } }],
+  "2026-02-23": [{ color: "bg-amber-400", label: { en: "Field trip", ar: "الرحلة المدرسية" } }],
+  "2026-02-27": [{ color: "bg-purple-400", label: { en: "Parent meeting", ar: "اجتماع أولياء الأمور" } }],
 };
 
 const UPCOMING = [
-  { date: "Feb 27", dot: "bg-purple-400",          label: "Parent meeting" },
-  { date: "Mar 2",  dot: "bg-blue-400",            label: "Science project due" },
-  { date: "Mar 5",  dot: "bg-[var(--primary)]",   label: "School Sports Day" },
+  {
+    date: { en: "Feb 27", ar: "27 فبراير" },
+    dot: "bg-purple-400",
+    label: { en: "Parent meeting", ar: "اجتماع أولياء الأمور" },
+  },
+  {
+    date: { en: "Mar 2", ar: "2 مارس" },
+    dot: "bg-blue-400",
+    label: { en: "Science project due", ar: "موعد مشروع العلوم" },
+  },
+  {
+    date: { en: "Mar 5", ar: "5 مارس" },
+    dot: "bg-[var(--primary)]",
+    label: { en: "School Sports Day", ar: "اليوم الرياضي المدرسي" },
+  },
 ];
+
+const COPY = {
+  today: { en: "Today", ar: "اليوم" },
+  upcoming: { en: "Upcoming. Next 7 days", ar: "القادم خلال 7 أيام" },
+} satisfies Record<string, LocalizedCopy<string>>;
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -33,6 +63,7 @@ function getFirstDayOfMonth(year: number, month: number) {
 }
 
 export function CalendarWidget() {
+  const { locale } = useLang();
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -76,13 +107,13 @@ export function CalendarWidget() {
 
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[var(--foreground)]">
-              {MONTH_NAMES[viewMonth]} {viewYear}
+              {MONTH_NAMES[locale][viewMonth]} {formatNumber(viewYear)}
             </span>
             <button
               onClick={() => { setViewMonth(today.getMonth()); setViewYear(today.getFullYear()); }}
               className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)] hover:bg-[var(--muted)] transition-colors"
             >
-              Today
+              {pick(COPY.today, locale)}
             </button>
           </div>
 
@@ -98,7 +129,7 @@ export function CalendarWidget() {
       <CardContent className="px-3 pb-4">
         {/* Weekday headers */}
         <div className="grid grid-cols-7 mb-1">
-          {WEEKDAYS.map((d) => (
+          {WEEKDAYS[locale].map((d) => (
             <div key={d} className="text-center text-[10px] font-semibold text-[var(--muted-foreground)] py-1">
               {d}
             </div>
@@ -121,7 +152,7 @@ export function CalendarWidget() {
                       : "text-[var(--foreground)] hover:bg-[var(--muted)] cursor-default"
                   )}
                 >
-                  {day}
+                  {formatNumber(day)}
                 </span>
                 {events.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5">
@@ -138,14 +169,14 @@ export function CalendarWidget() {
         {/* Upcoming */}
         <div className="mt-3 border-t border-[var(--border)] pt-3">
           <p className="text-[10px] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide mb-2">
-            Upcoming · Next 7 days
+            {pick(COPY.upcoming, locale)}
           </p>
           <ul className="space-y-1.5">
             {UPCOMING.map(({ date, dot, label }) => (
-              <li key={label} className="flex items-center gap-2">
+              <li key={label.en} className="flex items-center gap-2">
                 <span className={cn("h-2 w-2 rounded-full shrink-0", dot)} />
-                <span className="text-[11px] text-[var(--muted-foreground)] w-[42px] shrink-0">{date}</span>
-                <span className="text-[11px] text-[var(--foreground)] truncate">{label}</span>
+                <span className="text-[11px] text-[var(--muted-foreground)] w-[42px] shrink-0">{pick(date, locale)}</span>
+                <span className="text-[11px] text-[var(--foreground)] truncate">{pick(label, locale)}</span>
               </li>
             ))}
           </ul>

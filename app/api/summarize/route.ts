@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { summarizeChat, type LangPref, type SummaryResult } from "@/lib/ai/summarize";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { formatNumber } from "@/lib/format";
 import type { Profile, UsageDaily } from "@/lib/supabase/types";
 
 // Limits per plan
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
   if (text.length > MAX_CHARS) {
     return NextResponse.json(
       {
-        error: `Text is too long. Maximum is ${MAX_CHARS.toLocaleString()} characters. You provided ${text.length.toLocaleString()}.`,
+        error: `Text is too long. Maximum is ${formatNumber(MAX_CHARS)} characters. You provided ${formatNumber(text.length)}.`,
       },
       { status: 400 }
     );

@@ -250,12 +250,46 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-variant-numeric: lining-nums;
+  font-feature-settings: "lnum" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+html[lang="ar"] body {
+  font-family: var(--font-arabic);
+  font-variant-numeric: lining-nums;
+  font-feature-settings: "lnum" 1;
+  unicode-bidi: plaintext;
+}
+
+[lang="en"] {
+  font-family: var(--font-sans);
+}
+
 /* Arabic content: apply Cairo font */
 [lang="ar"],
-.font-arabic {
+.font-arabic,
+[data-localized-text="ar"] {
   font-family: var(--font-arabic);
+}
+
+html[lang="en"] [data-localized-text="ar"],
+html[lang="ar"] [data-localized-text="en"] {
+  display: none !important;
+}
+
+html[lang="en"] [data-localized-text="en"],
+html[lang="ar"] [data-localized-text="ar"] {
+  display: inline;
+}
+
+html[lang="ar"] input,
+html[lang="ar"] textarea,
+html[lang="ar"] select,
+html[lang="ar"] button,
+html[lang="ar"] [data-force-latin-digits] {
+  font-variant-numeric: lining-nums;
+  font-feature-settings: "lnum" 1;
+  unicode-bidi: plaintext;
 }

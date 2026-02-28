@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function PrivacyPage() {
@@ -6,8 +7,12 @@ export default function PrivacyPage() {
     <DashboardShell>
       <Card>
         <CardHeader>
-          <CardTitle>Privacy Policy</CardTitle>
-          <p className="text-xs text-[var(--muted-foreground)]">Last updated: March 2026</p>
+          <CardTitle>
+            <LocalizedText en="Privacy Policy" ar="سياسة الخصوصية" />
+          </CardTitle>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            <LocalizedText en="Last updated: March 2026" ar="آخر تحديث: مارس 2026" />
+          </p>
         </CardHeader>
         <CardContent className="prose prose-sm dark:prose-invert max-w-none space-y-6 text-[var(--foreground)]">
           <section>
