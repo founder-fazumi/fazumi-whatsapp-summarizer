@@ -88,6 +88,33 @@ pnpm typecheck
 pnpm test
 ```
 
+## Webhooks Verification (Dev)
+
+Required env var names:
+
+- `LEMONSQUEEZY_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_LS_FOUNDER_VARIANT`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Steps:
+
+```powershell
+pnpm dev
+pnpm webhook:replay
+```
+
+Then run `scripts/webhooks/verify.sql` in the Supabase SQL editor.
+
+For recurring webhook checks:
+
+```powershell
+pnpm webhook:replay subscription_payment_success
+pnpm webhook:replay subscription_updated_active
+```
+
+Idempotency test: replay `order_created_founder` twice, then confirm `order_test_founder_001` still has exactly one row in `subscriptions`.
+
 ## Debug
 
 ```bash
@@ -97,7 +124,7 @@ curl http://localhost:3000/api/dev/env-check
 
 If any env booleans are `false`, fix your `.env.local` values and retry.
 
-Dev-only: replay a signed Lemon Squeezy webhook payload later with the `curl` example in `specs/payments-lemon-squeezy-webhooks.md`.
+Dev-only: use `pnpm webhook:replay` and `scripts/webhooks/README.md` instead of the older manual `curl` flow.
 
 ## Dev Testing Accounts
 

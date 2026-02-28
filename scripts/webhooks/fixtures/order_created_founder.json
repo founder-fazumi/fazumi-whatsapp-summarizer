@@ -1,0 +1,17 @@
+{
+  "meta": {
+    "event_name": "order_created",
+    "custom_data": {
+      "user_id": "__TEST_USER_ID__"
+    }
+  },
+  "data": {
+    "id": "order_test_founder_001",
+    "attributes": {
+      "variant_id": "__FOUNDER_VARIANT_ID__",
+      "first_order_item": {
+        "variant_id": "__FOUNDER_VARIANT_ID__"
+      }
+    }
+  }
+}

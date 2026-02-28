@@ -1,0 +1,15 @@
+{
+  "meta": {
+    "event_name": "subscription_updated",
+    "custom_data": {
+      "user_id": "__TEST_USER_ID__"
+    }
+  },
+  "data": {
+    "id": "sub_test_monthly_001",
+    "attributes": {
+      "status": "active",
+      "renews_at": "2026-04-01T00:00:00.000Z"
+    }
+  }
+}

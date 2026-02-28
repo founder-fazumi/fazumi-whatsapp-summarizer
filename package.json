@@ -9,7 +9,11 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'No tests yet — OK' && exit 0"
+    "test": "echo 'No tests yet — OK' && exit 0",
+    "webhook:replay": "node scripts/webhooks/replay-lemonsqueezy.js",
+    "webhook:replay:order": "node scripts/webhooks/replay-lemonsqueezy.js order_created_founder",
+    "webhook:replay:payment-success": "node scripts/webhooks/replay-lemonsqueezy.js subscription_payment_success",
+    "webhook:replay:sub-active": "node scripts/webhooks/replay-lemonsqueezy.js subscription_updated_active"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
