@@ -318,3 +318,219 @@ What remains for Claude:
 **TODO: E2E payment testing deferred (see D011 + D012)**
 - Do NOT do full checkout flow testing until LS products + variant IDs are configured in `.env.local`
 - When ready: test with LS test mode, verify webhook fires, subscription row created, profiles.plan updated
+
+---
+
+## Senior Review — Round 2 (post-commit fcf74b3)
+
+### ✅ PASSED
+- Notifications bilingual (TopBar.tsx COPY map + `pick()`) ✓
+- Footer bilingual + `dir`/`lang`/`font-arabic` ✓
+- SearchDialog labels use `t()` from `lib/i18n` ✓
+- Dashboard pages (History, Calendar, Billing, Dashboard) all use `<LocalizedText>` / `pick()` ✓
+- `lib/format.ts` enforces Latin digits via `numberingSystem: "latn"` ✓
+- `lib/sampleChats.ts` `getSampleChat(langPref, locale)` maps auto→UI locale correctly ✓
+- `lib/ai/summarize.ts` `resolveOutputLanguage()` handles all 6 cases ✓
+- TopBar RTL layout swap (controls LEFT / brand+search RIGHT in Arabic) — design confirmed ✓
+
+### ❌ FIX LIST FOR CODEX — Round 2 (i18n/RTL cleanup)
+
+---
+
+#### Fix R2-F — `components/landing/Testimonials.tsx`: quotes/roles hardcoded English
+
+**Repro:** Switch to Arabic. Scroll to Testimonials on landing page. All 12 quotes and reviewer roles show in English.
+
+**Root cause:** `TESTIMONIALS` array has plain `string` for `quote` and `role` — no `{ en, ar }` structure.
+
+**Expected:** All quotes and roles render in Arabic when `locale === "ar"`.
+
+**Files to change:** `components/landing/Testimonials.tsx`
+
+**Exact changes:**
+1. Add `"use client"` at top of file.
+2. Import `useLang` from `@/lib/context/LangContext` and `pick` from `@/lib/i18n`.
+3. Change `TESTIMONIALS` type from `{ name, role, quote, stars }` to `{ name, role: { en, ar }, quote: { en, ar }, stars }`.
+4. Replace all `role` and `quote` values with bilingual objects using the translations below.
+5. In `TestimonialCard`, add `const { locale } = useLang()` and replace `{quote}` → `{pick(quote, locale)}`, `{role}` → `{pick(role, locale)}`. Update the component prop types accordingly.
+
+**Bilingual data (copy exactly):**
+```ts
+{ name: "Fatima Al-Rashidi",
+  role:  { en: "Parent of 2 · Al Khor",        ar: "أم لطفلين · الخور" },
+  quote: { en: "Finally, I understand what happens in my daughter's class every week. No more guessing!",
+           ar: "أخيرًا أفهم ما يجري في فصل ابنتي كل أسبوع. لا مزيد من التخمين!" }, stars: 5 },
+{ name: "Ahmed Hassan",
+  role:  { en: "Parent · Doha",                ar: "والد · الدوحة" },
+  quote: { en: "The Arabic output is perfect — clear, accurate, and reads naturally. Exactly what I needed.",
+           ar: "الإخراج بالعربية مثالي — واضح ودقيق وطبيعي. بالضبط ما أحتاجه." }, stars: 5 },
+{ name: "Sarah Mitchell",
+  role:  { en: "Expat parent · Al Wakra",       ar: "والدة وافدة · الوكرة" },
+  quote: { en: "Game changer for busy parents. What used to take me 20 minutes takes 30 seconds now.",
+           ar: "تغيير جذري للآباء المشغولين. ما كان يستغرق 20 دقيقة أصبح 30 ثانية فقط." }, stars: 5 },
+{ name: "Noor Al-Ali",
+  role:  { en: "Parent · Lusail",               ar: "والدة · لوسيل" },
+  quote: { en: "I never miss a homework deadline anymore. The action items are always spot on.",
+           ar: "لم أفوّت موعد واجب منذ ذلك. بنود المهام دائمًا في محلها." }, stars: 5 },
+{ name: "Michael Chen",
+  role:  { en: "Parent · West Bay",             ar: "والد · ويست باي" },
+  quote: { en: "Best parenting tool I have used this school year. Simple, fast, and reliable.",
+           ar: "أفضل أداة استخدمتها هذا العام الدراسي. بسيطة وسريعة وموثوقة." }, stars: 5 },
+{ name: "Layla Ibrahim",
+  role:  { en: "Parent · Education City",       ar: "والدة · مدينة التعليم" },
+  quote: { en: "The To-Do items save me hours every week. I just check Fazumi in the morning and I'm set.",
+           ar: "بنود المهام توفر لي ساعات كل أسبوع. أتحقق من Fazumi صباحًا وأكون مستعدة." }, stars: 5 },
+{ name: "Omar Al-Sulaiti",
+  role:  { en: "Parent of 3 · The Pearl",       ar: "أب لثلاثة · اللؤلؤة" },
+  quote: { en: "Love how it handles both English and Arabic groups. My kids go to two schools!",
+           ar: "أحب كيف يتعامل مع مجموعات اللغتين. أطفالي في مدرستين مختلفتين!" }, stars: 5 },
+{ name: "Priya Nair",
+  role:  { en: "Parent · Msheireb",             ar: "والدة · مشيرب" },
+  quote: { en: "My mother-in-law uses the Arabic version and now she's part of the school conversation.",
+           ar: "حماتي تستخدم النسخة العربية وأصبحت الآن جزءًا من محادثة المدرسة." }, stars: 4 },
+{ name: "Hassan Al-Dosari",
+  role:  { en: "Parent · Al Thumama",           ar: "والد · الثمامة" },
+  quote: { en: "Fast, private, and accurate. I recommended it to the entire parent committee.",
+           ar: "سريع وخاص ودقيق. أوصيت به لكامل لجنة أولياء الأمور." }, stars: 5 },
+{ name: "Amira Khalil",
+  role:  { en: "Parent · Madinat Khalifa",      ar: "والدة · مدينة خليفة" },
+  quote: { en: "The summary even caught an event I completely missed in 300 messages. Impressive.",
+           ar: "الملخص اكتشف حدثًا أغفلته تمامًا في 300 رسالة. مثير للإعجاب." }, stars: 5 },
+{ name: "James O'Brien",
+  role:  { en: "Expat parent · Al Sadd",        ar: "والد وافد · السد" },
+  quote: { en: "Dead simple to use. Paste, click, done. My wife and I share the summaries every morning.",
+           ar: "بسيط للغاية. لصق ونقر وتم. أنا وزوجتي نتشارك الملخصات كل صباح." }, stars: 5 },
+{ name: "Rania Mahmoud",
+  role:  { en: "Parent · Old Airport",          ar: "والدة · المطار القديم" },
+  quote: { en: "As a working mom I don't have time to scroll. Fazumi gives me exactly what I need to know.",
+           ar: "بصفتي أمًا عاملة لا وقت لديّ للتمرير. Fazumi يعطيني بالضبط ما أحتاج معرفته." }, stars: 5 },
+```
+
+**Acceptance criteria:**
+- [ ] Switch to Arabic → all 12 testimonial quotes and reviewer roles appear in Arabic
+- [ ] Switch back to English → all show in English
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### Fix R2-H — Language toggle shows only active locale (Nav + TopBar)
+
+**Repro:** Open landing page or dashboard. Look at the language toggle button in the header. It shows only `"EN"` or `"AR"` — cannot see the other option.
+
+**Root cause:** Both components render `{locale === "en" ? "EN" : "AR"}` — single active state only.
+
+**Expected:** Toggle shows both options with the active one highlighted, e.g.:
+`EN / عربي` — active one in `text-[var(--primary)] font-bold`, inactive one in `text-[var(--muted-foreground)]`.
+
+**Files to change:**
+- `components/landing/Nav.tsx` — update the `<Globe>` button label
+- `components/layout/TopBar.tsx` — update the `<Globe>` button label (line ~222)
+
+**Exact replacement for both files** — replace the current button inner content:
+```tsx
+{/* BEFORE */}
+{locale === "en" ? "EN" : "AR"}
+
+{/* AFTER */}
+<span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
+<span className="text-[var(--muted-foreground)] mx-0.5">/</span>
+<span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
+```
+
+**Acceptance criteria:**
+- [ ] When locale is English: "**EN** / عربي" (EN bold, عربي muted)
+- [ ] When locale is Arabic: "EN / **عربي**" (عربي bold, EN muted)
+- [ ] Clicking the button still toggles locale
+- [ ] Applies to both Nav (landing) and TopBar (dashboard)
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### Fix R2-I — No theme toggle on landing Nav
+
+**Repro:** Open `/` (landing page). There is no dark/light mode toggle in the navigation bar. The toggle exists only in the dashboard TopBar.
+
+**Root cause:** `components/landing/Nav.tsx` has no theme toggle button.
+
+**Expected:** A Moon/Sun icon button in Nav, same style as TopBar's theme toggle.
+
+**Files to change:** `components/landing/Nav.tsx`
+
+**Exact changes:**
+1. Import `useTheme` from `@/lib/context/ThemeContext` and `Moon, Sun` from `lucide-react`.
+2. Inside `Nav()`, add: `const { theme, toggleTheme } = useTheme();`
+3. In the controls row (where the language toggle is), add a theme toggle button immediately before the language toggle:
+```tsx
+{/* Theme toggle */}
+<button
+  onClick={toggleTheme}
+  className="hidden sm:flex rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+  aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+>
+  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+</button>
+```
+
+**Acceptance criteria:**
+- [ ] Moon/Sun icon visible in landing nav header (desktop, hidden on mobile — `hidden sm:flex`)
+- [ ] Click toggles dark/light mode on landing page
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### Fix R2-G — SearchDialog: missing `dir`/`lang` on container and input
+
+**Repro:** Switch to Arabic. Open search (⌘K or click search bar in dashboard). Type Arabic text — input doesn't align text right-to-left. The dialog container has no RTL direction set.
+
+**Root cause:** `components/layout/SearchDialog.tsx` — no `dir` or `lang` on the wrapping div or the `<input>`.
+
+**Files to change:** `components/layout/SearchDialog.tsx`
+
+**Exact changes:**
+1. Add `dir={locale === "ar" ? "rtl" : "ltr"} lang={locale}` to the outer wrapper `<div>` of the Dialog content (the flex row at line 45):
+```tsx
+{/* BEFORE */}
+<div className="flex items-center gap-2 border-b border-[var(--border)] -mx-4 -mt-4 px-4 py-3">
+
+{/* AFTER */}
+<div dir={locale === "ar" ? "rtl" : "ltr"} lang={locale} className="flex items-center gap-2 border-b border-[var(--border)] -mx-4 -mt-4 px-4 py-3">
+```
+2. Add `dir={locale === "ar" ? "rtl" : "ltr"}` to the `<input>` element (line ~48):
+```tsx
+{/* BEFORE */}
+<input autoFocus type="search" ...
+
+{/* AFTER */}
+<input autoFocus dir={locale === "ar" ? "rtl" : "ltr"} type="search" ...
+```
+3. Add the same `dir`/`lang` to the results `<div>` wrapper at line 58:
+```tsx
+{/* BEFORE */}
+<div className="mt-3">
+
+{/* AFTER */}
+<div dir={locale === "ar" ? "rtl" : "ltr"} lang={locale} className="mt-3">
+```
+
+**Acceptance criteria:**
+- [ ] Switch to Arabic, open search, type Arabic text → text aligns right in input
+- [ ] "Navigate to" heading and nav link labels render RTL
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### Fix R2-C1 (carry-forward) — CheckoutTeaser fake card form
+
+**Status:** In previous Fix List (Round 1). NOT YET FIXED. `components/landing/CheckoutTeaser.tsx` still has the fake card form.
+
+**See full spec above in "FIX LIST FOR CODEX — CheckoutTeaser.tsx cleanup".**
+
+All acceptance criteria from that section still apply.
+
+---
+
+**After all R2 fixes, run and confirm:**
+```
+pnpm lint && pnpm typecheck && pnpm test
+```
+**Commit message:** `fix: i18n round-2 — testimonials bilingual, lang toggle both options, theme toggle on nav, searchdialog RTL`
