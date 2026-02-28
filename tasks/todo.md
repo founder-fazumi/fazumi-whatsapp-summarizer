@@ -23,14 +23,31 @@
 
 > Specs in `.specify/features/<id>/` — read spec + plan before implementing.
 
-### Feature: auth-shell-lang-theme (P0 — blocks all auth features)
+### Feature: auth-shell-lang-theme (P0 — COMPLETE)
 > [spec](.specify/features/auth-shell-lang-theme/spec.md) · [plan](.specify/features/auth-shell-lang-theme/plan.md) · [tasks](.specify/features/auth-shell-lang-theme/tasks.md)
 
 - [x] Chunk 1 — Supabase clients + middleware + DB migrations
 - [x] Chunk 2 — ThemeProvider + LangProvider + login page
-- [~] Chunk 3 — Dashboard shell + all route stubs (settings/billing/profile/help/legal/pricing remaining)
-- [ ] Chunk 4 — Settings persistence + auth-aware landing nav
-- [ ] Chunk 5 — Usage tracking + legal content
+- [x] Chunk 3 — Dashboard shell + all route stubs
+- [x] Chunk 4 — Settings persistence + auth-aware landing nav
+- [x] Chunk 5 — Usage tracking + legal content
+
+### Feature: summary-history (P1 — COMPLETE)
+> Implemented: summary auto-save, /history list, /history/[id] detail + delete
+
+- [x] DB migration: summaries table + RLS
+- [x] Auto-save in /api/summarize + savedId in response
+- [x] /history: server-fetch, client search, empty state
+- [x] /history/[id]: SummaryDisplay + meta + delete
+- [x] "Saved to history ✓" badge on /summarize
+
+### Feature: payments-lemonsqueezy (P1 — next)
+> [spec](.specify/features/payments-lemonsqueezy/spec.md) · [plan](.specify/features/payments-lemonsqueezy/plan.md) · [tasks](.specify/features/payments-lemonsqueezy/tasks.md)
+
+- [ ] Chunk 1 — subscriptions DB migration + env stubs
+- [ ] Chunk 2 — lib/lemonsqueezy.ts + /api/checkout
+- [ ] Chunk 3 — /api/webhooks/lemonsqueezy (HMAC + event routing)
+- [ ] Chunk 4 — /pricing CTAs + /billing real data
 
 ---
 
