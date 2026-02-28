@@ -48,7 +48,7 @@ async function main() {
     await seedRecurringSubscription(payload, userId);
   }
 
-  const secret = readRequiredEnv(["LEMONSQUEEZY_WEBHOOK_SECRET"]);
+  const secret = resolveWebhookSecret();
   const rawBody = JSON.stringify(payload);
   const signature = createHmac("sha256", secret).update(rawBody).digest("hex");
   const response = await fetch(webhookUrl, {
@@ -135,7 +135,7 @@ async function ensureLocalTestAccounts(baseUrl) {
 }
 
 async function findUserIdByEmail(email) {
-  const supabaseUrl = readRequiredEnv(["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"]);
+  const supabaseUrl = readRequiredEnv(["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"]);
   const serviceRoleKey = readRequiredEnv(["SUPABASE_SERVICE_ROLE_KEY"]);
   let page = 1;
 
@@ -182,7 +182,21 @@ function applyPlaceholders(payload, eventName, userId) {
     return;
   }
 
-  const founderVariant = readRequiredEnv(["NEXT_PUBLIC_LS_FOUNDER_VARIANT"]);
+  const needsFounderVariant =
+    payload?.data?.attributes?.variant_id === FOUNDER_VARIANT_PLACEHOLDER ||
+    payload?.data?.attributes?.first_order_item?.variant_id === FOUNDER_VARIANT_PLACEHOLDER;
+
+  if (!needsFounderVariant) {
+    return;
+  }
+
+  const founderVariant = process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT?.trim();
+  if (!founderVariant) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_LS_FOUNDER_VARIANT. The founder replay fixture needs the canonical founder variant id."
+    );
+  }
+
   if (payload?.data?.attributes?.variant_id === FOUNDER_VARIANT_PLACEHOLDER) {
     payload.data.attributes.variant_id = founderVariant;
   }
@@ -193,7 +207,7 @@ function applyPlaceholders(payload, eventName, userId) {
 }
 
 async function seedRecurringSubscription(payload, userId) {
-  const supabaseUrl = readRequiredEnv(["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"]);
+  const supabaseUrl = readRequiredEnv(["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL"]);
   const serviceRoleKey = readRequiredEnv(["SUPABASE_SERVICE_ROLE_KEY"]);
   const subscriptionId = String(payload?.data?.id ?? "");
 
@@ -230,6 +244,18 @@ async function seedRecurringSubscription(payload, userId) {
   }
 
   console.log(`[webhook:replay] Prepared recurring seed for ${subscriptionId} with status past_due`);
+}
+
+function resolveWebhookSecret() {
+  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? process.env.LEMON_SIGNING_SECRET;
+
+  if (typeof secret === "string" && secret.trim()) {
+    return secret.trim();
+  }
+
+  throw new Error(
+    "Missing webhook signing secret. Required env var names: LEMONSQUEEZY_WEBHOOK_SECRET (preferred), LEMON_SIGNING_SECRET (legacy alias)."
+  );
 }
 
 function readRequiredEnv(names) {

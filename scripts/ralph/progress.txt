@@ -22,3 +22,8 @@ S010 = PENDING  # Referral system
 # Product loop bugfixes: summarize persistence is explicit, daily limits use one UTC key, dashboard widgets/notifications now derive from saved summaries, and local dev helpers can seed test accounts/set plans.
 # Files: app/api/summarize/route.ts, lib/limits.ts, lib/dashboard-insights.ts, lib/hooks/useDashboardInsights.ts, components/widgets/CalendarWidget.tsx, components/widgets/TodoWidget.tsx, components/layout/TopBar.tsx, components/dashboard/DashboardBanner.tsx, app/summarize/page.tsx, app/api/dev/create-test-accounts/route.ts, app/api/dev/set-plan/route.ts, README.md, tasks/lessons.md
 # Pattern: for any product loop that depends on persistence, drive UI from saved rows rather than sample data and fail loudly when the write path breaks.
+
+# 2026-02-28
+# Lemon Squeezy env naming is standardized around canonical names with a legacy webhook-secret fallback so local replay and production config resolve the same values.
+# Files: app/api/webhooks/lemonsqueezy/route.ts, scripts/webhooks/replay-lemonsqueezy.js, scripts/webhooks/README.md, README.md, .env.local.example
+# Pattern: when env names drift, keep one canonical name in docs and accept a narrow legacy alias only at the boundary that reads the value.

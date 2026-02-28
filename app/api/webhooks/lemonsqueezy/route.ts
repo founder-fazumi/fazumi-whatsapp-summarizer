@@ -38,11 +38,19 @@ interface LsWebhookPayload {
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-signature") ?? "";
-  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? "";
+  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? process.env.LEMON_SIGNING_SECRET;
 
   if (!secret) {
-    console.error("[LS webhook] LEMONSQUEEZY_WEBHOOK_SECRET not configured");
-    return NextResponse.json({ error: "not configured" }, { status: 500 });
+    console.error(
+      "[LS webhook] Missing webhook secret env var (LEMONSQUEEZY_WEBHOOK_SECRET or legacy LEMON_SIGNING_SECRET)"
+    );
+    return NextResponse.json(
+      {
+        error:
+          "Missing webhook secret env var. Set LEMONSQUEEZY_WEBHOOK_SECRET or legacy LEMON_SIGNING_SECRET.",
+      },
+      { status: 500 }
+    );
   }
 
   if (!verifyWebhookSignature(rawBody, signature, secret)) {

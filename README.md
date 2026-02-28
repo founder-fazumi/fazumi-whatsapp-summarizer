@@ -90,10 +90,22 @@ pnpm test
 
 ## Webhooks Verification (Dev)
 
-Required env var names:
+Canonical env var names:
 
 - `LEMONSQUEEZY_WEBHOOK_SECRET`
 - `NEXT_PUBLIC_LS_FOUNDER_VARIANT`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_APP_URL`
+- `OPENAI_API_KEY`
+
+Legacy alias `LEMON_SIGNING_SECRET` is supported, but prefer `LEMONSQUEEZY_WEBHOOK_SECRET`.
+
+`pnpm webhook:replay` uses these env vars directly:
+
+- `LEMONSQUEEZY_WEBHOOK_SECRET` or legacy `LEMON_SIGNING_SECRET`
+- `NEXT_PUBLIC_LS_FOUNDER_VARIANT` only when the founder fixture placeholder is present
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
