@@ -71,6 +71,32 @@ pnpm typecheck
 pnpm test
 ```
 
+## Dev Testing Accounts
+
+Create the local test users with one request while `pnpm dev` is running:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/create-test-accounts
+```
+
+Seeded credentials:
+
+- `free1@fazumi.local` / `FazumiTest!12345`
+- `paid1@fazumi.local` / `FazumiTest!12345`
+- `founder1@fazumi.local` / `FazumiTest!12345`
+
+The helper is blocked in production and only works from `localhost`.
+
+To change a plan during testing:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"paid1@fazumi.local","plan":"monthly"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"founder1@fazumi.local","plan":"founder"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"free1@fazumi.local","plan":"free"}'
+```
+
+`plan: "free"` resets the account to an active 7-day trial for local testing. Paid plans clear the trial date.
+
 ## Smoke Checks — Accounts + Limits
 
 1. **Signup + login**

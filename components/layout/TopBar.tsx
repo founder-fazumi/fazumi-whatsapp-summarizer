@@ -16,28 +16,11 @@ import { SearchDialog } from "./SearchDialog";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useLang } from "@/lib/context/LangContext";
 import { useMounted } from "@/lib/hooks/useMounted";
-import { formatNumber } from "@/lib/format";
+import { useDashboardInsights } from "@/lib/hooks/useDashboardInsights";
+import { formatDate, formatNumber } from "@/lib/format";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-
-const NOTIFICATIONS = [
-  {
-    id: 1,
-    text: { en: "Science project due Apr 30", ar: "مشروع العلوم مستحق في 30 أبريل" },
-    icon: "📚",
-  },
-  {
-    id: 2,
-    text: { en: "Permission slip due tomorrow", ar: "استمارة الموافقة مطلوبة غدًا" },
-    icon: "📋",
-  },
-  {
-    id: 3,
-    text: { en: "Parent meeting Friday 4 PM", ar: "اجتماع أولياء الأمور يوم الجمعة الساعة 4 مساءً" },
-    icon: "📅",
-  },
-];
 
 const COPY = {
   openMenu: { en: "Open menu", ar: "افتح القائمة" },
@@ -47,7 +30,14 @@ const COPY = {
   darkMode: { en: "Switch to dark mode", ar: "التبديل إلى الوضع الداكن" },
   toggleLang: { en: "Toggle language", ar: "تبديل اللغة" },
   freeTrial: { en: "Free Trial", ar: "فترة تجريبية" },
+  free: { en: "Free", ar: "مجاني" },
+  pro: { en: "Pro", ar: "احترافي" },
   user: { en: "User", ar: "المستخدم" },
+  emptyNotifTitle: { en: "No upcoming dates yet", ar: "لا توجد مواعيد قادمة بعد" },
+  emptyNotifBody: {
+    en: "Important dates from your summaries will appear here.",
+    ar: "ستظهر هنا التواريخ المهمة المستخرجة من ملخصاتك.",
+  },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 interface TopBarProps {
@@ -64,6 +54,9 @@ export function TopBar({ className }: TopBarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [plan, setPlan] = useState("free");
+  const [trialExpiresAt, setTrialExpiresAt] = useState<string | null>(null);
+  const { notifications } = useDashboardInsights();
 
   // Fetch session client-side (supabase-js reads from cookie — fast, no round-trip)
   useEffect(() => {
@@ -74,7 +67,33 @@ export function TopBar({ className }: TopBarProps) {
       // Env vars not configured — skip auth
       return;
     }
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
+
+    async function loadUserState() {
+      if (!supabase) {
+        return;
+      }
+
+      const { data } = await supabase.auth.getUser();
+      const nextUser = data.user ?? null;
+      setUser(nextUser);
+
+      if (!nextUser) {
+        setPlan("free");
+        setTrialExpiresAt(null);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("plan, trial_expires_at")
+        .eq("id", nextUser.id)
+        .maybeSingle<{ plan: string | null; trial_expires_at: string | null }>();
+
+      setPlan(profile?.plan ?? "free");
+      setTrialExpiresAt(profile?.trial_expires_at ?? null);
+    }
+
+    void loadUserState();
   }, []);
 
   async function handleSignOut() {
@@ -90,6 +109,13 @@ export function TopBar({ className }: TopBarProps) {
   const userName = user?.user_metadata?.full_name as string | undefined
     ?? user?.email?.split("@")[0]
     ?? pick(COPY.user, locale);
+  const isPaid = ["monthly", "annual", "founder"].includes(plan);
+  const isTrialActive = !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
+  const planLabel = isPaid
+    ? pick(COPY.pro, locale)
+    : isTrialActive
+      ? pick(COPY.freeTrial, locale)
+      : pick(COPY.free, locale);
 
   const userMenuItems = [
     { label: t("nav.profile", locale),  href: "/profile",  icon: <User className="h-4 w-4" /> },
@@ -148,14 +174,16 @@ export function TopBar({ className }: TopBarProps) {
         aria-label={t("topbar.notif", locale)}
       >
         <Bell className="h-4.5 w-4.5" />
-        <span
-          className={cn(
-            "absolute top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none",
-            "right-1"
-          )}
-        >
-          {formatNumber(NOTIFICATIONS.length)}
-        </span>
+        {notifications.length > 0 && (
+          <span
+            className={cn(
+              "absolute top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none",
+              "right-1"
+            )}
+          >
+            {formatNumber(notifications.length)}
+          </span>
+        )}
       </button>
 
       {notifOpen && (
@@ -180,18 +208,38 @@ export function TopBar({ className }: TopBarProps) {
             </button>
           </div>
           <ul>
-            {NOTIFICATIONS.map((n) => (
-              <li
-                key={n.id}
-                className={cn(
-                  "flex items-start gap-2.5 border-b border-[var(--border)] px-3 py-2.5 text-sm last:border-0 hover:bg-[var(--muted)] cursor-pointer",
-                  isArabic && "flex-row-reverse text-right"
-                )}
-              >
-                <span className="mt-0.5 shrink-0 text-base">{n.icon}</span>
-                <span className="text-[var(--foreground)] leading-snug">{pick(n.text, locale)}</span>
+            {notifications.length === 0 ? (
+              <li className="px-3 py-4 text-sm">
+                <p className="font-semibold text-[var(--foreground)]">{pick(COPY.emptyNotifTitle, locale)}</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                  {pick(COPY.emptyNotifBody, locale)}
+                </p>
               </li>
-            ))}
+            ) : (
+              notifications.map((notification) => (
+                <li
+                  key={notification.id}
+                  className={cn(
+                    "flex items-start gap-2.5 border-b border-[var(--border)] px-3 py-2.5 text-sm last:border-0 hover:bg-[var(--muted)]",
+                    isArabic && "flex-row-reverse text-right"
+                  )}
+                >
+                  <span className="mt-0.5 shrink-0 text-base">📅</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="block leading-snug text-[var(--foreground)]">{notification.label}</span>
+                    {notification.isoDate && (
+                      <span className="mt-1 block text-[10px] text-[var(--muted-foreground)]">
+                        {formatDate(notification.isoDate, locale, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))
+            )}
           </ul>
         </div>
       )}
@@ -276,7 +324,7 @@ export function TopBar({ className }: TopBarProps) {
               {userName}
             </p>
             <p className="text-[10px] text-[var(--muted-foreground)] leading-tight">
-              {pick(COPY.freeTrial, locale)}
+              {planLabel}
             </p>
           </div>
         </button>

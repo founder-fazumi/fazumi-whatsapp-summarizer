@@ -3,7 +3,7 @@ import { summarizeChat, type LangPref, type SummaryResult } from "@/lib/ai/summa
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
-import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey } from "@/lib/limits";
+import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
 import type { Profile, UsageDaily } from "@/lib/supabase/types";
 
 const MAX_CHARS = 30_000;
@@ -30,6 +30,8 @@ function makeTitle(tldr: string): string {
   return first.length > 60 ? first.slice(0, 57) + "…" : first;
 }
 
+class PersistError extends Error {}
+
 function getAdminClient() {
   const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -41,68 +43,80 @@ function getAdminClient() {
   return createAdminClient(adminUrl, adminKey);
 }
 
-async function saveSummary(userId: string, summary: SummaryResult, charCount: number): Promise<string | null> {
-  try {
-    const admin = getAdminClient();
-    if (!admin) return null;
-
-    const { data, error } = await admin.from("summaries").insert({
-      user_id: userId,
-      title: makeTitle(summary.tldr),
-      tldr: summary.tldr,
-      important_dates: summary.important_dates,
-      action_items: summary.action_items,
-      people_classes: summary.people_classes,
-      links: summary.links,
-      questions: summary.questions,
-      char_count: charCount,
-      lang_detected: summary.lang_detected ?? "en",
-    }).select("id").single<{ id: string }>();
-
-    if (error) return null;
-    return data?.id ?? null;
-  } catch {
-    return null;
+function logLimitDebug(code: "DAILY_CAP" | "LIFETIME_CAP", details: Record<string, string | number>) {
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[/api/summarize] limit", { code, ...details });
   }
 }
 
-async function incrementUsage(userId: string): Promise<void> {
-  try {
-    const admin = getAdminClient();
-    if (!admin) return;
+async function saveSummary(userId: string, summary: SummaryResult, charCount: number): Promise<string> {
+  const admin = getAdminClient();
+  if (!admin) {
+    throw new PersistError("Summary storage is not configured.");
+  }
 
-    const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await admin.from("summaries").insert({
+    user_id: userId,
+    title: makeTitle(summary.tldr),
+    tldr: summary.tldr,
+    important_dates: summary.important_dates,
+    action_items: summary.action_items,
+    people_classes: summary.people_classes,
+    links: summary.links,
+    questions: summary.questions,
+    char_count: charCount,
+    lang_detected: summary.lang_detected ?? "en",
+  }).select("id").single<{ id: string }>();
 
-    // Read current count then write incremented value (MVP simplification — not perfectly atomic)
-    const { data: existing } = await admin
-      .from("usage_daily")
-      .select("summaries_used")
-      .eq("user_id", userId)
-      .eq("date", today)
-      .single<Pick<UsageDaily, "summaries_used">>();
+  if (error || !data?.id) {
+    throw new PersistError("Could not save summary.");
+  }
 
-    const newCount = (existing?.summaries_used ?? 0) + 1;
+  return data.id;
+}
 
-    await admin.from("usage_daily").upsert(
-      { user_id: userId, date: today, summaries_used: newCount },
-      { onConflict: "user_id,date" }
-    );
-  } catch {
-    // Non-fatal — usage tracking failure must not fail the user's request
+async function incrementUsage(userId: string, dateKey: string): Promise<void> {
+  const admin = getAdminClient();
+  if (!admin) {
+    throw new PersistError("Summary storage is not configured.");
+  }
+
+  const { data: existing, error: readError } = await admin
+    .from("usage_daily")
+    .select("summaries_used")
+    .eq("user_id", userId)
+    .eq("date", dateKey)
+    .maybeSingle<Pick<UsageDaily, "summaries_used">>();
+
+  if (readError) {
+    throw new PersistError("Could not read daily usage.");
+  }
+
+  const newCount = (existing?.summaries_used ?? 0) + 1;
+
+  const { error: writeError } = await admin.from("usage_daily").upsert(
+    { user_id: userId, date: dateKey, summaries_used: newCount },
+    { onConflict: "user_id,date" }
+  );
+
+  if (writeError) {
+    throw new PersistError("Could not update daily usage.");
   }
 }
 
 async function incrementLifetimeFreeUsage(userId: string, lifetimeFreeUsed: number): Promise<void> {
-  try {
-    const admin = getAdminClient();
-    if (!admin) return;
+  const admin = getAdminClient();
+  if (!admin) {
+    throw new PersistError("Summary storage is not configured.");
+  }
 
-    await admin
-      .from("profiles")
-      .update({ lifetime_free_used: lifetimeFreeUsed + 1 })
-      .eq("id", userId);
-  } catch {
-    // Non-fatal — summary creation already succeeded
+  const { error } = await admin
+    .from("profiles")
+    .update({ lifetime_free_used: lifetimeFreeUsed + 1 })
+    .eq("id", userId);
+
+  if (error) {
+    throw new PersistError("Could not update lifetime usage.");
   }
 }
 
@@ -120,6 +134,7 @@ export async function POST(req: NextRequest) {
   let tierKey = "free";
   let lifetimeFreeUsed = 0;
   let shouldIncrementLifetimeFree = false;
+  let usageDateKey: string | null = null;
 
   try {
     const supabase = await createClient();
@@ -129,19 +144,20 @@ export async function POST(req: NextRequest) {
       authedUserId = user.id;
 
       // Fetch profile + today's usage
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getUtcDateKey();
+      usageDateKey = today;
       const [{ data: profile }, { data: usage }] = await Promise.all([
         supabase
           .from("profiles")
           .select("plan, trial_expires_at, lifetime_free_used")
           .eq("id", user.id)
-          .single<Pick<Profile, "plan" | "trial_expires_at" | "lifetime_free_used">>(),
+          .maybeSingle<Pick<Profile, "plan" | "trial_expires_at" | "lifetime_free_used">>(),
         supabase
           .from("usage_daily")
           .select("summaries_used")
           .eq("user_id", user.id)
           .eq("date", today)
-          .single<Pick<UsageDaily, "summaries_used">>(),
+          .maybeSingle<Pick<UsageDaily, "summaries_used">>(),
       ]);
 
       const plan = profile?.plan ?? "free";
@@ -156,12 +172,24 @@ export async function POST(req: NextRequest) {
       if (tierKey === "free") {
         // Post-trial free: enforce lifetime cap
         if (lifetimeFreeUsed >= FREE_LIFETIME_CAP) {
+          logLimitDebug("LIFETIME_CAP", {
+            userId: user.id,
+            dateKey: today,
+            lifetimeFreeUsed,
+          });
           return NextResponse.json(
             { error: "limit_reached", code: "LIFETIME_CAP" },
             { status: 402 }
           );
         }
       } else if (usedToday >= dailyLimit) {
+        logLimitDebug("DAILY_CAP", {
+          userId: user.id,
+          dateKey: today,
+          tierKey,
+          usedToday,
+          dailyLimit,
+        });
         return NextResponse.json(
           { error: "limit_reached", code: "DAILY_CAP" },
           { status: 402 }
@@ -223,11 +251,8 @@ export async function POST(req: NextRequest) {
     // ── Save + increment AFTER successful response (never charge on failure) ──
     let savedId: string | null = null;
     if (authedUserId) {
-      const [nextSavedId] = await Promise.all([
-        saveSummary(authedUserId, summary, text.length),
-        incrementUsage(authedUserId),
-      ]);
-      savedId = nextSavedId;
+      savedId = await saveSummary(authedUserId, summary, text.length);
+      await incrementUsage(authedUserId, usageDateKey ?? getUtcDateKey());
 
       if (savedId && shouldIncrementLifetimeFree) {
         await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
@@ -238,6 +263,12 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "An unexpected error occurred.";
+
+    if (err instanceof PersistError) {
+      console.error("[/api/summarize] Persist error:", message);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
     console.error("[/api/summarize] Error:", message);
 
     if (message.includes("OPENAI_API_KEY")) {

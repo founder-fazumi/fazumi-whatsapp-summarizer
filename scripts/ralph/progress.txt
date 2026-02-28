@@ -17,3 +17,8 @@ S010 = PENDING  # Referral system
 # Hydration mismatch fix completed for theme/lang client preferences and browser-injected attributes.
 # Files: app/layout.tsx, public/hydration-sanitize.js, lib/context/ThemeContext.tsx, lib/context/LangContext.tsx, lib/hooks/useMounted.ts, components/landing/Nav.tsx, components/layout/TopBar.tsx, components/layout/SearchDialog.tsx, tasks/lessons.md
 # Pattern: use useSyncExternalStore for browser preference state that must match SSR on the first hydration pass.
+
+# 2026-02-28
+# Product loop bugfixes: summarize persistence is explicit, daily limits use one UTC key, dashboard widgets/notifications now derive from saved summaries, and local dev helpers can seed test accounts/set plans.
+# Files: app/api/summarize/route.ts, lib/limits.ts, lib/dashboard-insights.ts, lib/hooks/useDashboardInsights.ts, components/widgets/CalendarWidget.tsx, components/widgets/TodoWidget.tsx, components/layout/TopBar.tsx, components/dashboard/DashboardBanner.tsx, app/summarize/page.tsx, app/api/dev/create-test-accounts/route.ts, app/api/dev/set-plan/route.ts, README.md, tasks/lessons.md
+# Pattern: for any product loop that depends on persistence, drive UI from saved rows rather than sample data and fail loudly when the write path breaks.

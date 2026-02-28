@@ -16,6 +16,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLang } from "@/lib/context/LangContext";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber } from "@/lib/format";
+import { emitDashboardInsightsRefresh } from "@/lib/hooks/useDashboardInsights";
+import { getUtcDateKey } from "@/lib/limits";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { getSampleChat, type SampleLangPref } from "@/lib/sampleChats";
 import { cn } from "@/lib/utils";
@@ -32,7 +34,7 @@ const RIGHT_COLUMN = (
 );
 
 const COPY = {
-  greeting: { en: "Good morning, Aisha", ar: "صباح الخير، عائشة" },
+  greeting: { en: "Good morning", ar: "صباح الخير" },
   bannerSub: {
     en: "Here is what matters from your school chats today.",
     ar: "إليك ما يهم من محادثات المدرسة اليوم.",
@@ -40,9 +42,6 @@ const COPY = {
   statsSummary: { en: "Today's Summaries", ar: "ملخصات اليوم" },
   statsTime: { en: "Time Saved", ar: "الوقت الموفَّر" },
   statsStreak: { en: "Streak", ar: "الاستمرارية" },
-  statSummaryValue: { en: "3 new", ar: "3 جديد" },
-  statTimeValue: { en: "12 min", ar: "12 دقيقة" },
-  statStreakValue: { en: "5 days", ar: "5 أيام" },
   pasteTitle: { en: "Paste school messages here", ar: "الصق رسائل المدرسة هنا" },
   pasteDescription: {
     en: "I will extract tasks, dates, and announcements. Only the summary is saved, never your raw chat.",
@@ -83,8 +82,8 @@ const COPY = {
     ar: "لقد وصلت إلى حد الملخصات",
   },
   limitBody: {
-    en: "Upgrade to Pro to keep going. 50 summaries per day.",
-    ar: "قم بالترقية إلى Pro للمتابعة. 50 ملخصًا يوميًا.",
+    en: "Upgrade to Pro to keep going and unlock a higher daily limit.",
+    ar: "قم بالترقية إلى Pro للمتابعة والحصول على حد يومي أعلى.",
   },
   upgrade: { en: "Upgrade to Pro", ar: "الترقية إلى Pro" },
   saved: { en: "Saved to history", ar: "تم الحفظ في السجل" },
@@ -116,15 +115,29 @@ export default function SummarizePage() {
   const [limitReached, setLimitReached] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
+  const [bannerUserName, setBannerUserName] = useState<string | null>(null);
+  const [summariesUsedToday, setSummariesUsedToday] = useState(0);
   const summaryRef = useRef<HTMLDivElement>(null);
 
   const charCount = text.length;
   const remaining = MAX_CHARS - charCount;
   const isOverLimit = charCount > MAX_CHARS;
   const stats = [
-    { icon: "📋", label: pick(COPY.statsSummary, locale), value: pick(COPY.statSummaryValue, locale) },
-    { icon: "⏱️", label: pick(COPY.statsTime, locale), value: pick(COPY.statTimeValue, locale) },
-    { icon: "🔥", label: pick(COPY.statsStreak, locale), value: pick(COPY.statStreakValue, locale) },
+    {
+      icon: "📋",
+      label: pick(COPY.statsSummary, locale),
+      value: locale === "ar" ? `${formatNumber(summariesUsedToday)} اليوم` : `${formatNumber(summariesUsedToday)} today`,
+    },
+    {
+      icon: "⏱️",
+      label: pick(COPY.statsTime, locale),
+      value: locale === "ar" ? `${formatNumber(summariesUsedToday * 4)} دقيقة` : `${formatNumber(summariesUsedToday * 4)} min`,
+    },
+    {
+      icon: "🔥",
+      label: pick(COPY.statsStreak, locale),
+      value: locale === "ar" ? `${formatNumber(0)} أيام` : `${formatNumber(0)} days`,
+    },
   ];
 
   async function handleSubmit(e: React.FormEvent) {
@@ -166,7 +179,10 @@ export default function SummarizePage() {
       }
 
       setSummary(data.summary);
-      if (data.savedId) setSavedId(data.savedId);
+      if (data.savedId) {
+        setSavedId(data.savedId);
+        emitDashboardInsightsRefresh();
+      }
       setTimeout(() => {
         summaryRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -207,21 +223,40 @@ export default function SummarizePage() {
         const user = authData.user;
 
         if (!user) {
-          if (mounted) setIsSubscribed(false);
+          if (mounted) {
+            setIsSubscribed(false);
+            setBannerUserName(null);
+            setSummariesUsedToday(0);
+          }
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .single<{ plan: string | null }>();
+        const today = getUtcDateKey();
+        const [{ data: profile }, { data: usage }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("plan")
+            .eq("id", user.id)
+            .maybeSingle<{ plan: string | null }>(),
+          supabase
+            .from("usage_daily")
+            .select("summaries_used")
+            .eq("user_id", user.id)
+            .eq("date", today)
+            .maybeSingle<{ summaries_used: number }>(),
+        ]);
 
         if (mounted) {
           setIsSubscribed(["monthly", "annual", "founder"].includes(profile?.plan ?? ""));
+          setBannerUserName((user.user_metadata?.full_name as string | null) ?? user.email?.split("@")[0] ?? null);
+          setSummariesUsedToday(usage?.summaries_used ?? 0);
         }
       } catch {
-        if (mounted) setIsSubscribed(false);
+        if (mounted) {
+          setIsSubscribed(false);
+          setBannerUserName(null);
+          setSummariesUsedToday(0);
+        }
       }
     }
 
@@ -240,7 +275,7 @@ export default function SummarizePage() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <h1 className="text-xl font-bold leading-snug text-[var(--foreground)]">
-                  {pick(COPY.greeting, locale)} 👋
+                  {pick(COPY.greeting, locale)}{bannerUserName ? `, ${bannerUserName}` : ""} 👋
                 </h1>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                   {pick(COPY.bannerSub, locale)}

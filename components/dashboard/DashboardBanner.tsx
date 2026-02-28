@@ -31,6 +31,8 @@ const COPY = {
     en: "Here is what matters from your school chats today.",
     ar: "إليك ما يهم من محادثات المدرسة اليوم.",
   },
+  usageToday: { en: "Usage today", ar: "استخدام اليوم" },
+  upgradeUsage: { en: "Upgrade to continue", ar: "قم بالترقية للمتابعة" },
   timeSaved: { en: "Time Saved", ar: "الوقت الموفَّر" },
   streak: { en: "Streak", ar: "الاستمرارية" },
 } satisfies Record<string, LocalizedCopy<string>>;
@@ -54,11 +56,16 @@ export function DashboardBanner({
   const isPaid = ["monthly", "annual", "founder"].includes(plan);
   const isTrialActive = !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
   const showUpgrade = !isPaid;
+  const progressMax = summariesLimit > 0 ? summariesLimit : 1;
+  const progressValue = summariesLimit > 0 ? Math.min(summariesUsed, summariesLimit) : 0;
+  const usageLabel = summariesLimit > 0
+    ? `${formatNumber(summariesUsed)}/${formatNumber(summariesLimit)}`
+    : pick(COPY.upgradeUsage, locale);
 
   const STATS = [
-    { icon: "📋", label: t("dash.summaries", locale), value: `${formatNumber(summariesUsed)}/${formatNumber(summariesLimit)}` },
+    { icon: "📋", label: t("dash.summaries", locale), value: usageLabel },
     { icon: "⏱️", label: pick(COPY.timeSaved, locale), value: locale === "ar" ? `${formatNumber(summariesUsed * 4)} دقيقة` : `${formatNumber(summariesUsed * 4)} min` },
-    { icon: "🔥", label: pick(COPY.streak, locale), value: locale === "ar" ? `${formatNumber(5)} أيام` : `${formatNumber(5)} days` },
+    { icon: "🔥", label: pick(COPY.streak, locale), value: locale === "ar" ? `${formatNumber(0)} أيام` : `${formatNumber(0)} days` },
   ];
 
   return (
@@ -78,19 +85,24 @@ export function DashboardBanner({
               {pick(COPY.subtitle, locale)}
             </p>
 
-            {/* Trial countdown */}
-            {isTrialActive && !isPaid && (
-              <div className="mt-3 space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--muted-foreground)]">
-                    {locale === "ar" ? "التجربة:" : "Trial:"} <strong className="text-[var(--foreground)]">{formatNumber(daysLeft)}</strong> {t("dash.trial.days", locale)}
-                  </span>
-                  <span className="text-[var(--muted-foreground)]">
-                    {locale === "ar" ? `اليوم ${formatNumber(7 - daysLeft)}/${formatNumber(7)}` : `Day ${formatNumber(7 - daysLeft)}/${formatNumber(7)}`}
-                  </span>
-                </div>
-                <Progress value={7 - daysLeft} max={7} className="h-1.5" />
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--muted-foreground)]">
+                  {pick(COPY.usageToday, locale)}
+                </span>
+                <span className="text-[var(--muted-foreground)]">
+                  {usageLabel}
+                </span>
               </div>
+              <Progress value={progressValue} max={progressMax} className="h-1.5" />
+            </div>
+
+            {isTrialActive && !isPaid && (
+              <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                {locale === "ar"
+                  ? `متبقٍ ${formatNumber(daysLeft)} ${t("dash.trial.days", locale)}`
+                  : `${formatNumber(daysLeft)} ${t("dash.trial.days", locale)}`}
+              </p>
             )}
 
             {/* Stats row */}

@@ -13,6 +13,10 @@ export function getDailyLimit(tierKey: string): number {
   return LIMITS[tierKey] ?? 0;
 }
 
+export function getUtcDateKey(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
 export function getTierKey(plan: string | null | undefined, trialExpiresAt: string | null | undefined): string {
   if (plan === "monthly" || plan === "annual" || plan === "founder") {
     return plan;
