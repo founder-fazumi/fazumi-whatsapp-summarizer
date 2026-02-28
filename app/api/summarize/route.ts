@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { summarizeChat, type LangPref } from "@/lib/ai/summarize";
+import { summarizeChat, type LangPref, type SummaryResult } from "@/lib/ai/summarize";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Profile, UsageDaily } from "@/lib/supabase/types";
@@ -31,6 +31,38 @@ function checkRateLimit(ip: string): boolean {
   if (entry.count >= 5) return false;
   entry.count++;
   return true;
+}
+
+function makeTitle(tldr: string): string {
+  const first = tldr.split(/[.\n]/)[0]?.trim() ?? tldr;
+  return first.length > 60 ? first.slice(0, 57) + "…" : first;
+}
+
+async function saveSummary(userId: string, summary: SummaryResult, charCount: number): Promise<string | null> {
+  try {
+    const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!adminUrl || !adminKey) return null;
+
+    const admin = createAdminClient(adminUrl, adminKey);
+    const { data, error } = await admin.from("summaries").insert({
+      user_id: userId,
+      title: makeTitle(summary.tldr),
+      tldr: summary.tldr,
+      important_dates: summary.important_dates,
+      action_items: summary.action_items,
+      people_classes: summary.people_classes,
+      links: summary.links,
+      questions: summary.questions,
+      char_count: charCount,
+      lang_detected: summary.lang_detected ?? "en",
+    }).select("id").single<{ id: string }>();
+
+    if (error) return null;
+    return data?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function incrementUsage(userId: string): Promise<void> {
@@ -173,12 +205,16 @@ export async function POST(req: NextRequest) {
   try {
     const summary = await summarizeChat(text, langPref);
 
-    // ── Increment usage AFTER successful response (never charge on failure) ──
+    // ── Save + increment AFTER successful response (never charge on failure) ──
+    let savedId: string | null = null;
     if (authedUserId) {
-      void incrementUsage(authedUserId);
+      [savedId] = await Promise.all([
+        saveSummary(authedUserId, summary, text.length),
+        incrementUsage(authedUserId),
+      ]);
     }
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ summary, savedId });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "An unexpected error occurred.";

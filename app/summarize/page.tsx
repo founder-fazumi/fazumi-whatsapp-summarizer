@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Sparkles, Lightbulb, ArrowUpCircle } from "lucide-react";
+import { Upload, Sparkles, Lightbulb, ArrowUpCircle, Check } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
@@ -53,6 +53,7 @@ export default function SummarizePage() {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
   const charCount = text.length;
@@ -67,6 +68,7 @@ export default function SummarizePage() {
     setError(null);
     setSummary(null);
     setLimitReached(false);
+    setSavedId(null);
 
     try {
       const res = await fetch("/api/summarize", {
@@ -87,6 +89,7 @@ export default function SummarizePage() {
 
       const data = (await res.json()) as {
         summary?: SummaryResult;
+        savedId?: string | null;
         error?: string;
       };
 
@@ -96,6 +99,7 @@ export default function SummarizePage() {
       }
 
       setSummary(data.summary);
+      if (data.savedId) setSavedId(data.savedId);
       setTimeout(
         () => summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
         100
@@ -276,6 +280,15 @@ export default function SummarizePage() {
 
       {summary && (
         <div ref={summaryRef} className="mt-5">
+          {savedId && (
+            <div className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              <Check className="h-4 w-4 shrink-0" />
+              <span>Saved to history</span>
+              <a href={`/history/${savedId}`} className="ml-auto text-xs underline hover:no-underline">
+                View →
+              </a>
+            </div>
+          )}
           <SummaryDisplay summary={summary} outputLang={outputLang} />
         </div>
       )}
