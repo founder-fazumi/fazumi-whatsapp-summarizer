@@ -88,8 +88,8 @@ const TABS = [
       {
         question: { en: "Can I get a refund?", ar: "هل يمكنني استرداد المبلغ؟" },
         answer: {
-          en: "Monthly and annual plans include a 14-day money-back guarantee. The Founder plan is final sale.",
-          ar: "تشمل الخطط الشهرية والسنوية ضمان استرداد لمدة 14 يومًا. أما خطة المؤسس فهي بيع نهائي.",
+          en: "Monthly and annual plans include a 7-day money-back guarantee. The Founder plan is final sale.",
+          ar: "تشمل الخطط الشهرية والسنوية ضمان استرداد 7 أيام. أما خطة المؤسس فهي بيع نهائي.",
         },
       },
       {

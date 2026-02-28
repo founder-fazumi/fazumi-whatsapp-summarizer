@@ -81,9 +81,13 @@ const COPY = {
     en: "You've reached your summary limit",
     ar: "لقد وصلت إلى حد الملخصات",
   },
-  limitBody: {
-    en: "Upgrade to Pro to keep going and unlock a higher daily limit.",
-    ar: "قم بالترقية إلى Pro للمتابعة والحصول على حد يومي أعلى.",
+  limitBodyDaily: {
+    en: "You've reached today's limit. Try again tomorrow or upgrade to Pro for a higher daily limit.",
+    ar: "لقد وصلت إلى الحد اليومي. حاول غدًا أو قم بالترقية إلى Pro للحصول على حد يومي أعلى.",
+  },
+  limitBodyLifetime: {
+    en: "All free summaries have been used. Subscribe to Pro to continue summarizing.",
+    ar: "تم استخدام جميع الملخصات المجانية. اشترك في Pro للمتابعة.",
   },
   upgrade: { en: "Upgrade to Pro", ar: "الترقية إلى Pro" },
   saved: { en: "Saved to history", ar: "تم الحفظ في السجل" },
@@ -113,6 +117,7 @@ export default function SummarizePage() {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
+  const [limitCode, setLimitCode] = useState<"DAILY_CAP" | "LIFETIME_CAP">("DAILY_CAP");
   const [savedId, setSavedId] = useState<string | null>(null);
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [bannerUserName, setBannerUserName] = useState<string | null>(null);
@@ -148,6 +153,7 @@ export default function SummarizePage() {
     setError(null);
     setSummary(null);
     setLimitReached(false);
+    setLimitCode("DAILY_CAP");
     setSavedId(null);
 
     try {
@@ -163,6 +169,8 @@ export default function SummarizePage() {
       }
 
       if (res.status === 402) {
+        const body = await res.json().catch(() => ({})) as { code?: string };
+        setLimitCode(body.code === "LIFETIME_CAP" ? "LIFETIME_CAP" : "DAILY_CAP");
         setLimitReached(true);
         return;
       }
@@ -445,7 +453,9 @@ export default function SummarizePage() {
             <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div>
               <p className="text-sm font-semibold text-amber-900">{pick(COPY.limitTitle, locale)}</p>
-              <p className="mt-0.5 text-sm text-amber-700">{pick(COPY.limitBody, locale)}</p>
+              <p className="mt-0.5 text-sm text-amber-700">
+                {pick(limitCode === "LIFETIME_CAP" ? COPY.limitBodyLifetime : COPY.limitBodyDaily, locale)}
+              </p>
               <a
                 href="/billing"
                 className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-[var(--primary-hover)]"

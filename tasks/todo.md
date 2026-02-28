@@ -534,3 +534,260 @@ All acceptance criteria from that section still apply.
 pnpm lint && pnpm typecheck && pnpm test
 ```
 **Commit message:** `fix: i18n round-2 — testimonials bilingual, lang toggle both options, theme toggle on nav, searchdialog RTL`
+
+---
+
+## Milestone: Accounts + Limits + History
+
+> Spec: `/specs/accounts-limits-history.md`
+> Status: Verified — all tables/RLS/auth exist. Two bugs + one gap to fix in code only. No schema changes.
+
+### M1 — Extract `lib/limits.ts` [Codex]
+
+**What:** Move `LIMITS` constant and `FREE_LIFETIME_CAP` from `app/api/summarize/route.ts` into a new shared module.
+
+**Files:** `lib/limits.ts` (new), `app/api/summarize/route.ts` (import from `@/lib/limits`)
+
+**Exact shape of `lib/limits.ts`:**
+```typescript
+export const LIMITS: Record<string, number> = {
+  monthly: 50,
+  annual: 50,
+  founder: 50,
+  trial: 3,
+  free: 0,
+};
+
+export const FREE_LIFETIME_CAP = 3;
+export const DAILY_LIMIT_PAID = 50;
+
+export function getDailyLimit(tier: string): number {
+  return LIMITS[tier] ?? 0;
+}
+```
+
+**Acceptance:**
+- [ ] `lib/limits.ts` exports `LIMITS`, `FREE_LIFETIME_CAP`, `DAILY_LIMIT_PAID`, `getDailyLimit`
+- [ ] `route.ts` imports from `@/lib/limits` and removes its inline `LIMITS` / `FREE_LIFETIME_CAP` consts
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### M2 — Fix trial daily limit: 50 → 3 [Codex]
+
+**What:** `LIMITS.trial` is currently `50` in `route.ts`. After extracting to `lib/limits.ts` (M1), set it to `3`.
+
+**Files:** `lib/limits.ts`
+
+**Note:** This task is already satisfied if M1 is done with `trial: 3` as shown above — confirm the value is 3, not 50.
+
+**Acceptance:**
+- [ ] `LIMITS.trial === 3` in `lib/limits.ts`
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### M3 — Fix `lifetime_free_used` not incrementing [Codex]
+
+**What:** In `app/api/summarize/route.ts`, after a successful summary, when the user is post-trial free (plan=free AND trial expired), increment `profiles.lifetime_free_used` by 1 using the admin client.
+
+**Files:** `app/api/summarize/route.ts`
+
+**Where to add (after `saveSummary()` + `incrementUsage()` succeed, inside the success block):**
+```typescript
+// Increment lifetime free counter for post-trial free users
+if (!isPaid && !isTrialActive) {
+  await admin
+    .from("profiles")
+    .update({ lifetime_free_used: lifetimeFreeUsed + 1 })
+    .eq("id", userId);
+}
+```
+`lifetimeFreeUsed` is already read at the top of the request handler — use that value (optimistic, not re-queried).
+
+**Acceptance:**
+- [ ] Post-trial free user summarizes → `profiles.lifetime_free_used` increments by 1 per success
+- [ ] Does NOT increment for trial users (`isTrialActive === true`)
+- [ ] Does NOT increment for paid users (`isPaid === true`)
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### M4 — Fix dashboard daily limit display [Codex]
+
+**What:** `app/dashboard/page.tsx` hardcodes `summariesLimit = 50`. Should derive the correct limit from plan + trial status, same logic as `route.ts`.
+
+**Files:** `app/dashboard/page.tsx`, `lib/limits.ts` (already exports `getDailyLimit` from M1)
+
+**Logic to use in dashboard page (server component):**
+```typescript
+import { getDailyLimit } from "@/lib/limits";
+
+// After fetching profile:
+const isTrialActive = profile.trial_expires_at
+  ? new Date(profile.trial_expires_at) > new Date()
+  : false;
+const isPaid = ["monthly", "annual", "founder"].includes(profile.plan ?? "free");
+const tierKey = isPaid ? "monthly" : isTrialActive ? "trial" : "free";
+const summariesLimit = getDailyLimit(tierKey);
+```
+
+**Acceptance:**
+- [ ] Trial user sees limit = 3 in dashboard
+- [ ] Paid user sees limit = 50
+- [ ] Post-trial free user sees limit = 0 (or "upgrade to continue" UX — check existing UI)
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### M5 — Update CLAUDE.md + docs/decisions.md: trial limit 3/day [Claude]
+
+**What:** CLAUDE.md "Pricing & Limits" section says "Free trial: 7 days unlimited". The product decision is now 3/day during trial. Update both docs.
+
+**Files:** `CLAUDE.md`, `docs/decisions.md`
+
+**CLAUDE.md change:** In the Pricing & Limits section, update:
+- `"Free: 7-day free trial + fallback 3 lifetime summaries"` →
+  `"Free: 7-day free trial (3 summaries/day) + fallback 3 lifetime summaries after trial"`
+
+**docs/decisions.md change:** Add new entry:
+
+```markdown
+## D013 — Trial limit: unlimited → 3 summaries/day
+**Date:** March 2026
+**Context:** Original CLAUDE.md said "unlimited during trial". Implementation had LIMITS.trial=50.
+Product review determined 3/day during the 7-day trial prevents abuse while still being generous enough to demonstrate value.
+**Decision:** Free trial = 3 summaries/day for 7 days. Post-trial free = 3 lifetime total. Paid = 50/day.
+**Consequences:** lib/limits.ts reflects this. CLAUDE.md updated. Dashboard limit display updated to match.
+```
+
+**Acceptance:**
+- [ ] CLAUDE.md Pricing section reads "3 summaries/day" for free trial
+- [ ] `docs/decisions.md` has D013 entry
+- [ ] No code changes needed (covered by M1–M4)
+
+---
+
+### M6 — Verify profile auto-create trigger live [Claude]
+
+**What:** Confirm in Supabase dashboard that `on_auth_user_created` trigger exists and migration was applied. Verification task — no code changes.
+
+**Verification steps (run in Supabase SQL editor):**
+```sql
+-- Confirm profiles table exists with correct columns
+SELECT column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_name = 'profiles'
+ORDER BY ordinal_position;
+
+-- Confirm trigger exists
+SELECT trigger_name, event_manipulation, action_timing
+FROM information_schema.triggers
+WHERE event_object_table = 'users';
+
+-- Confirm existing users have profile rows
+SELECT id, plan, trial_expires_at, lifetime_free_used FROM public.profiles LIMIT 5;
+```
+
+**Acceptance:**
+- [ ] `profiles` table has: `id`, `plan`, `trial_expires_at`, `lifetime_free_used` columns
+- [ ] Trigger `on_auth_user_created` exists on `auth.users`
+- [ ] At least one profile row exists (or: sign up test user → row appears with `trial_expires_at` = now+7days)
+
+---
+
+### M7 — Verify summaries save end-to-end [Claude]
+
+**What:** Smoke test the full summarize → save → history flow with a real Supabase connection.
+
+**Steps:**
+1. `pnpm dev` running at localhost:3000
+2. Log in with Google account
+3. Paste a WhatsApp export sample (use `lib/sampleChats.ts` content)
+4. Click Summarize
+5. Confirm "Saved to history ✓ View →" badge appears
+6. Click View → `/history/[id]` loads full summary
+7. In Supabase SQL editor: `SELECT id, tldr, char_count FROM summaries ORDER BY created_at DESC LIMIT 1;`
+
+**Acceptance:**
+- [ ] "Saved to history" badge appears after summarize
+- [ ] `/history` shows the new row
+- [ ] `/history/[id]` renders all 6 sections
+- [ ] DB query: row exists, `tldr` is populated, no raw chat column present
+
+---
+
+### M8 — Smoke test trial limit enforcement [Claude]
+
+**What:** Test the 3/day limit with a real account in trial.
+
+**Steps:**
+1. Log in as a fresh trial user (or reset `usage_daily` for your test user)
+2. Summarize 3 times — all succeed
+3. Submit a 4th time → expect amber "limit reached" banner + upgrade CTA
+4. Check API response: `{ error: "DAILY_CAP" }` with status 402
+5. Next UTC day: confirm `usage_daily` row resets (new date)
+
+**Acceptance:**
+- [ ] 3rd summary: success
+- [ ] 4th summary: 402 DAILY_CAP + amber banner shown
+- [ ] `/history` still loads (read-only mode working)
+
+---
+
+### M9 — Smoke test lifetime cap enforcement [Claude]
+
+**What:** Simulate post-trial free user hitting 3-lifetime cap.
+
+**Steps (Supabase SQL editor):**
+```sql
+-- Expire trial for test user
+UPDATE profiles
+SET trial_expires_at = now() - interval '1 day'
+WHERE id = '<your-test-user-id>';
+
+-- Reset usage_daily so today's count is 0
+DELETE FROM usage_daily WHERE user_id = '<your-test-user-id>';
+```
+Then:
+1. Summarize → success. Check `profiles.lifetime_free_used` = 1 (M3 fix must be live)
+2. Summarize again → `lifetime_free_used` = 2
+3. Summarize again → `lifetime_free_used` = 3
+4. 4th attempt → 402 LIFETIME_CAP + upgrade CTA
+5. `/history` still readable
+
+**Acceptance:**
+- [ ] `lifetime_free_used` increments correctly per success
+- [ ] After 3: 402 LIFETIME_CAP returned
+- [ ] History remains accessible (read-only)
+
+---
+
+### M10 — README smoke checklist update [Codex]
+
+**What:** Add accounts + limits verification steps to `README.md` under the existing "Checks" section.
+
+**Files:** `README.md`
+
+**Content to add (after the existing `pnpm test` line):**
+```markdown
+## Smoke Checks — Accounts + Limits
+
+1. **Signup + profile auto-create:**
+   - Sign up with Google → profile row in `public.profiles` with `trial_expires_at = now + 7 days`
+
+2. **Trial daily limit (3/day):**
+   - Summarize 3 times as a trial user → all succeed
+   - 4th attempt → amber "limit reached" banner + "Upgrade to Pro" CTA
+
+3. **History read-only after limit:**
+   - After daily cap hit → `/history` still loads existing summaries
+
+4. **Lifetime cap (post-trial free):**
+   - Set `trial_expires_at` to past in SQL → summarize → `lifetime_free_used` increments
+   - After 3 lifetime summaries → 402 LIFETIME_CAP returned
+```
+
+**Acceptance:**
+- [ ] README has the smoke checklist under a clear heading
+- [ ] `pnpm lint && pnpm typecheck` pass

@@ -45,6 +45,19 @@ export function CheckoutButton({ variantId, children, className, isLoggedIn = fa
     }
   }
 
+  if (!variantId) {
+    return (
+      <button
+        disabled
+        title={locale === "ar" ? "المدفوعات غير مُهيَّأة" : "Payments not configured"}
+        className={className}
+        aria-disabled="true"
+      >
+        {children}
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={handleClick}
