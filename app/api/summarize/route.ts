@@ -1,5 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { summarizeChat, type LangPref } from "@/lib/ai/summarize";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import type { Profile, UsageDaily } from "@/lib/supabase/types";
+
+// Limits per plan
+const LIMITS: Record<string, number> = {
+  monthly: 50,
+  annual: 50,
+  founder: 50,
+  trial: 50,   // active trial: generous daily limit
+  free: 0,     // expired free: 0/day (lifetime cap handled separately)
+};
+const FREE_LIFETIME_CAP = 3;
 
 const MAX_CHARS = 30_000;
 
@@ -20,6 +33,34 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+async function incrementUsage(userId: string): Promise<void> {
+  try {
+    const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!adminUrl || !adminKey) return;
+
+    const admin = createAdminClient(adminUrl, adminKey);
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Read current count then write incremented value (MVP simplification — not perfectly atomic)
+    const { data: existing } = await admin
+      .from("usage_daily")
+      .select("summaries_used")
+      .eq("user_id", userId)
+      .eq("date", today)
+      .single<Pick<UsageDaily, "summaries_used">>();
+
+    const newCount = (existing?.summaries_used ?? 0) + 1;
+
+    await admin.from("usage_daily").upsert(
+      { user_id: userId, date: today, summaries_used: newCount },
+      { onConflict: "user_id,date" }
+    );
+  } catch {
+    // Non-fatal — usage tracking failure must not fail the user's request
+  }
+}
+
 function getClientIp(req: NextRequest): string {
   return (
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -29,13 +70,70 @@ function getClientIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Rate limit
-  const ip = getClientIp(req);
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json(
-      { error: "Too many requests. Please wait a moment and try again." },
-      { status: 429 }
-    );
+  // ── Auth + plan limit check (authenticated users) ──────────────────────
+  let authedUserId: string | null = null;
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      authedUserId = user.id;
+
+      // Fetch profile + today's usage
+      const today = new Date().toISOString().slice(0, 10);
+      const [{ data: profile }, { data: usage }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("plan, trial_expires_at, lifetime_free_used")
+          .eq("id", user.id)
+          .single<Pick<Profile, "plan" | "trial_expires_at" | "lifetime_free_used">>(),
+        supabase
+          .from("usage_daily")
+          .select("summaries_used")
+          .eq("user_id", user.id)
+          .eq("date", today)
+          .single<Pick<UsageDaily, "summaries_used">>(),
+      ]);
+
+      const plan = profile?.plan ?? "free";
+      const trialExpires = profile?.trial_expires_at;
+      const lifetimeFreeUsed = profile?.lifetime_free_used ?? 0;
+      const usedToday = usage?.summaries_used ?? 0;
+      const isTrialActive = !!trialExpires && new Date(trialExpires) > new Date();
+      const isPaid = ["monthly", "annual", "founder"].includes(plan);
+
+      // Determine tier key for daily limit
+      const tierKey = isPaid ? plan : isTrialActive ? "trial" : "free";
+      const dailyLimit = LIMITS[tierKey] ?? 0;
+
+      if (!isPaid && !isTrialActive) {
+        // Post-trial free: enforce lifetime cap
+        if (lifetimeFreeUsed >= FREE_LIFETIME_CAP) {
+          return NextResponse.json(
+            { error: "limit_reached", code: "LIFETIME_CAP" },
+            { status: 402 }
+          );
+        }
+      } else if (usedToday >= dailyLimit) {
+        return NextResponse.json(
+          { error: "limit_reached", code: "DAILY_CAP" },
+          { status: 402 }
+        );
+      }
+    }
+  } catch {
+    // Supabase not configured — fall through to anonymous IP rate limit
+  }
+
+  // ── Anonymous IP rate limit ─────────────────────────────────────────────
+  if (!authedUserId) {
+    const ip = getClientIp(req);
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment and try again." },
+        { status: 429 }
+      );
+    }
   }
 
   let body: { text?: string; lang_pref?: string };
@@ -74,6 +172,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const summary = await summarizeChat(text, langPref);
+
+    // ── Increment usage AFTER successful response (never charge on failure) ──
+    if (authedUserId) {
+      void incrementUsage(authedUserId);
+    }
+
     return NextResponse.json({ summary });
   } catch (err) {
     const message =

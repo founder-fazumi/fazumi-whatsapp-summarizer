@@ -1,7 +1,7 @@
 # Spec — Auth + Dashboard Shell + Language/Theme
 
 **Feature ID:** `auth-shell-lang-theme`
-**Status:** In progress
+**Status:** Complete
 **Priority:** P0 (blocks all authenticated features)
 
 ---

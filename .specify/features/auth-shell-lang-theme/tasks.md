@@ -52,43 +52,43 @@
 - [x] [P] `app/history/page.tsx` — empty state
 - [x] [P] `app/calendar/page.tsx` — CalendarWidget centered
 - [ ] [P] `app/settings/page.tsx` — theme + lang cards (save logic in Chunk 4)
-- [ ] [P] `app/billing/page.tsx` — plan card + portal CTA
-- [ ] [P] `app/profile/page.tsx` — read-only name/email
-- [ ] [P] `app/help/page.tsx` — FAQ accordion + contact
-- [ ] [P] `app/privacy/page.tsx` — static placeholder
-- [ ] [P] `app/terms/page.tsx` — static placeholder
-- [ ] [P] `app/refunds/page.tsx` — static placeholder
-- [ ] [P] `app/pricing/page.tsx` — Pricing component + Nav
-- [ ] Checkpoint: `pnpm lint && pnpm typecheck && pnpm test`
-- [ ] Commit + push: "feat: dashboard shell — all route stubs + UI components"
+- [x] [P] `app/billing/page.tsx` — plan card + portal CTA
+- [x] [P] `app/profile/page.tsx` — read-only name/email
+- [x] [P] `app/help/page.tsx` — FAQ accordion + contact
+- [x] [P] `app/privacy/page.tsx` — full copy (7 sections)
+- [x] [P] `app/terms/page.tsx` — full copy (8 sections)
+- [x] [P] `app/refunds/page.tsx` — full copy (3 sections)
+- [x] [P] `app/pricing/page.tsx` — Pricing component + Nav
+- [x] Checkpoint: `pnpm lint && pnpm typecheck && pnpm test`
+- [x] Commit + push: "feat: dashboard shell — remaining route stubs"
 
 ---
 
 ## Chunk 4 — Settings Persistence + Auth-Aware Landing
 > Verify: Settings toggle → DB updated; Landing nav shows Login/Signup or Dashboard
 
-- [ ] [P] `app/api/profile/route.ts` — PATCH lang_pref/theme_pref
-- [ ] `app/settings/page.tsx` — wire toggles to PATCH; show "Saved ✓"
-- [ ] `components/landing/Nav.tsx` — add isLoggedIn prop
-- [ ] `app/page.tsx` — async RSC; session check; active-plan redirect
-- [ ] Checkpoint: `pnpm lint && pnpm typecheck && pnpm test`
-- [ ] Commit + push: "feat: settings persistence + auth-aware landing nav"
+- [x] [P] `app/api/profile/route.ts` — PATCH lang_pref/theme_pref
+- [x] `app/settings/page.tsx` — wire toggles to PATCH; show "Saved ✓"
+- [x] `components/landing/Nav.tsx` — add isLoggedIn prop
+- [x] `app/page.tsx` — async RSC; session check; active-plan redirect
+- [x] Checkpoint: `pnpm lint && pnpm typecheck && pnpm test`
+- [x] Commit + push: "feat: settings persistence + auth-aware landing nav"
 
 ---
 
 ## Chunk 5 — Usage Tracking + Legal Content
 > Verify: 3 free summaries → 4th blocked; usage_daily upserted; legal pages have full copy
 
-- [ ] `app/api/summarize/route.ts` — auth + usage check + admin upsert
-- [ ] `app/summarize/page.tsx` — handle 401/402 inline banners
-- [ ] `app/dashboard/page.tsx` — fetch today's usage_daily; pass to DashboardBanner
-- [ ] `components/dashboard/DashboardBanner.tsx` — live trial countdown + progress
-- [ ] `app/privacy/page.tsx` — full copy (7 sections)
-- [ ] `app/terms/page.tsx` — full copy (8 sections)
-- [ ] `app/refunds/page.tsx` — full copy (3 sections)
-- [ ] `app/help/page.tsx` — full FAQ + contact
-- [ ] Checkpoint: `pnpm lint && pnpm typecheck && pnpm test`
-- [ ] Commit + push: "feat: usage tracking + legal pages"
+- [x] `app/api/summarize/route.ts` — auth + usage check + admin upsert
+- [x] `app/summarize/page.tsx` — handle 401/402 inline banners
+- [x] `app/dashboard/page.tsx` — fetch today's usage_daily; pass to DashboardBanner
+- [x] `components/dashboard/DashboardBanner.tsx` — live trial countdown + progress props
+- [x] `app/privacy/page.tsx` — full copy (7 sections) [done in Chunk 3]
+- [x] `app/terms/page.tsx` — full copy (8 sections) [done in Chunk 3]
+- [x] `app/refunds/page.tsx` — full copy (3 sections) [done in Chunk 3]
+- [x] `app/help/page.tsx` — full FAQ + contact [done in Chunk 3]
+- [x] Checkpoint: `pnpm lint && pnpm typecheck && pnpm test`
+- [x] Commit + push: "feat: usage tracking + legal pages"
 
 ---
 
@@ -97,12 +97,12 @@
 | AC | Description | Chunk |
 |---|---|---|
 | AC1 | Unauthenticated `/dashboard` → redirects to `/login` | 1 ✅ |
-| AC2 | Active-plan user on `/` → redirects to `/dashboard` | 4 |
+| AC2 | Active-plan user on `/` → redirects to `/dashboard` | 4 ✅ |
 | AC3 | `/login` has Google + email tabs; Apple disabled | 2 ✅ |
 | AC4 | After login → lands on `/dashboard` | 2 ✅ |
-| AC5 | Sidebar nav links correct routes + active highlight | 3 |
-| AC6 | TopBar shows real user name (not hardcoded) | 3 |
+| AC5 | Sidebar nav links correct routes + active highlight | 3 ✅ |
+| AC6 | TopBar shows real user name (not hardcoded) | 3 ✅ |
 | AC7 | Theme toggle persists on hard refresh | 2 ✅ |
-| AC8 | Language toggle switches labels; Arabic = RTL | 3 |
-| AC9 | Sign out clears session → redirects to `/` | 3 |
-| AC10 | `/summarize` paste → summarize → 6-section output works | 5 |
+| AC8 | Language toggle switches labels; Arabic = RTL | 3 ✅ |
+| AC9 | Sign out clears session → redirects to `/` | 3 ✅ |
+| AC10 | `/summarize` paste → summarize → 6-section output works | 5 ✅ |

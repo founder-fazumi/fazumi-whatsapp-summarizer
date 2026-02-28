@@ -6,6 +6,8 @@ import { ReferralCard } from "@/components/widgets/ReferralCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import type { Profile, UsageDaily } from "@/lib/supabase/types";
 
 const RIGHT_COLUMN = (
   <>
@@ -15,10 +17,53 @@ const RIGHT_COLUMN = (
   </>
 );
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  // Fetch session + profile + today's usage server-side
+  let userName: string | null = null;
+  let plan = "free";
+  let trialExpiresAt: string | null = null;
+  let summariesUsed = 0;
+  const summariesLimit = 50;
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      userName = (user.user_metadata?.full_name as string | null) ?? user.email?.split("@")[0] ?? null;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const [{ data: profile }, { data: usage }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("plan, trial_expires_at")
+          .eq("id", user.id)
+          .single<Pick<Profile, "plan" | "trial_expires_at">>(),
+        supabase
+          .from("usage_daily")
+          .select("summaries_used")
+          .eq("user_id", user.id)
+          .eq("date", today)
+          .single<Pick<UsageDaily, "summaries_used">>(),
+      ]);
+
+      plan = profile?.plan ?? "free";
+      trialExpiresAt = profile?.trial_expires_at ?? null;
+      summariesUsed = usage?.summaries_used ?? 0;
+    }
+  } catch {
+    // Supabase not configured — show dashboard with default values
+  }
+
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>
-      <DashboardBanner />
+      <DashboardBanner
+        userName={userName}
+        plan={plan}
+        trialExpiresAt={trialExpiresAt}
+        summariesUsed={summariesUsed}
+        summariesLimit={summariesLimit}
+      />
 
       {/* Quick action card */}
       <Card>

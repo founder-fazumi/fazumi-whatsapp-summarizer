@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, Sparkles, Lightbulb } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Upload, Sparkles, Lightbulb, ArrowUpCircle } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
@@ -44,12 +45,14 @@ const STATS = [
 ];
 
 export default function SummarizePage() {
+  const router = useRouter();
   const [platform, setPlatform] = useState("whatsapp");
   const [text, setText] = useState("");
   const [langPref, setLangPref] = useState<LangPref>("auto");
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
 
   const charCount = text.length;
@@ -63,6 +66,7 @@ export default function SummarizePage() {
     setLoading(true);
     setError(null);
     setSummary(null);
+    setLimitReached(false);
 
     try {
       const res = await fetch("/api/summarize", {
@@ -70,6 +74,17 @@ export default function SummarizePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, lang_pref: langPref }),
       });
+
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      if (res.status === 402) {
+        setLimitReached(true);
+        return;
+      }
+
       const data = (await res.json()) as {
         summary?: SummaryResult;
         error?: string;
@@ -239,6 +254,23 @@ export default function SummarizePage() {
       {error && (
         <div className="mt-4 rounded-[var(--radius-lg)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {limitReached && (
+        <div className="mt-4 rounded-[var(--radius-lg)] border border-amber-200 bg-amber-50 px-4 py-4 flex items-start gap-3">
+          <ArrowUpCircle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-900">You&apos;ve reached your summary limit</p>
+            <p className="text-sm text-amber-700 mt-0.5">Upgrade to Pro to keep going — 50 summaries/day.</p>
+            <a
+              href="/billing"
+              className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-white hover:bg-[var(--primary-hover)] transition-colors"
+            >
+              <ArrowUpCircle className="h-3.5 w-3.5" />
+              Upgrade to Pro
+            </a>
+          </div>
         </div>
       )}
 
