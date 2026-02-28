@@ -791,3 +791,271 @@ Then:
 **Acceptance:**
 - [ ] README has the smoke checklist under a clear heading
 - [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+## Release Checklist: MVP Clickability
+> Generated: March 2026 — after T1/T2/T3 fixes (f8e3c40)
+> Rule: 1–3 items per Codex run. Each item has acceptance criteria + exact files.
+
+### Route + Button Inventory (snapshot)
+
+| Route / Button | Status | Notes |
+|---|---|---|
+| `/` — nav, hero, FAQ, footer | ✅ | All links resolve |
+| `/login` — Google OAuth, email/pw | ✅ | Working |
+| `/summarize` — submit, 402 UX | ✅ | DAILY_CAP vs LIFETIME_CAP now distinct |
+| `/history` — list, delete | ✅ | Server-fetched, soft delete |
+| `/history/[id]` — detail, delete | ✅ | Full 6-section display |
+| `/dashboard` — banner, widgets | ✅ | Real plan/usage data |
+| `/billing` — plan display, CTAs | ✅ | Real data; checkout guarded for empty variantId |
+| `/settings` — theme, lang | ✅ | Works + PATCH /api/profile |
+| `/calendar` — CalendarWidget | ✅ | Real data |
+| `/profile` — name/email | 🟡 | Read-only; no edit/delete yet |
+| `/contact` — form | 🟡 | Local success state only, no real POST |
+| `/about`, `/help`, `/privacy`, `/terms`, `/refunds`, `/status` | ✅ | Content-only pages render |
+| SummaryDisplay: Export | 🟡 | "Coming soon" dialog (no real download) |
+| SummaryDisplay: Calendar/Todo | 🟡 | "Coming soon" / upgrade gate dialog |
+| SummaryDisplay: thumbs up/down | 🟡 | Local state only, not persisted |
+| ReferralCard "Copy Link" | 🟡 | Disabled; shows fake `fazumi.com/ref/your-code` |
+| Newsletter "Notify me" | 🟡 | Local success state, no API |
+| Dashboard/summarize streak stat | ❌ | Hardcoded `0 days` — misleading |
+| File upload in /summarize | 🟡 | Disabled "coming soon" (intentional) |
+| Migration filename | ❌ | `2026021302_phone_burst_lock.sql.sql` double extension |
+
+---
+
+### CRITICAL — RC Slice 1 (RC1 + RC2 + RC3)
+
+#### RC1 — Remove streak stat from DashboardBanner + summarize page [Codex]
+**Why:** Shows "0 days" hardcoded on both pages — misleading, users report confusion.
+
+**Files:**
+- `components/dashboard/DashboardBanner.tsx`
+- `app/summarize/page.tsx`
+
+**DashboardBanner.tsx change:**
+Remove the streak entry from the `STATS` array (line ~68). Remove `streak` from `COPY` object too.
+The `STATS` array should have only 2 items: summaries (with usage bar label) + time saved.
+
+**summarize/page.tsx change:**
+Remove the `🔥 Streak` entry from the `stats` array (line ~137-140). Keep "Today's Summaries" and "Time Saved".
+
+**Acceptance:**
+- [x] Dashboard page renders with 2 stats (summaries + time saved), no streak stat
+- [x] Summarize page banner renders with 2 stats, no streak stat
+- [x] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### RC2 — Fix migration filename typo + commit pending migrations [Codex]
+**Why:** `2026021302_phone_burst_lock.sql.sql` has a double `.sql.sql` extension. The file cannot be applied by Supabase CLI. Also 4 old-named migrations (deleted in tree) need to be replaced by the renamed ones (already exist as untracked files).
+
+**Files (git operations only):**
+- Rename `supabase/migrations/2026021302_phone_burst_lock.sql.sql` → `supabase/migrations/2026021302_phone_burst_lock.sql`
+  - PowerShell: `Move-Item supabase/migrations/2026021302_phone_burst_lock.sql.sql supabase/migrations/2026021302_phone_burst_lock.sql`
+- Stage: `git add supabase/migrations/` (stages deletions of old + additions of renamed)
+- Also stage: `supabase/migrations/2026021301_fix_burst_deadline_extension.sql`, `2026021302_phone_burst_lock.sql`, `2026021303_phone_bursts.sql`, `2026030101_create_usage_daily.sql`
+
+**Acceptance:**
+- [ ] No file with `.sql.sql` extension exists under `supabase/migrations/`
+- [ ] `git status` shows migrations staged cleanly (no "deleted" entries for old names)
+- [ ] `pnpm lint && pnpm typecheck` pass (no code changes, just file renames)
+
+---
+
+#### RC3 — Update CLAUDE.md + docs/decisions.md: trial = 3/day [Claude]
+**Why:** CLAUDE.md still says "7 days unlimited trial". Decision is 3 summaries/day for 7 days.
+
+**Files:** `CLAUDE.md`, `docs/decisions.md`
+
+**CLAUDE.md change** (Pricing & Limits section):
+Replace: `"Free: 7-day free trial + fallback 3 lifetime summaries for no-card users."`
+With: `"Free: 7-day free trial (3 summaries/day) + fallback 3 lifetime summaries for no-card users after trial."`
+
+**docs/decisions.md — add after D012:**
+```markdown
+## D013 — Trial limit: unlimited → 3 summaries/day
+**Date:** March 2026
+**Context:** CLAUDE.md originally said "unlimited during trial". Product review determined 3/day during the 7-day trial balances demo value vs abuse risk.
+**Decision:** Free trial = 3 summaries/day for 7 days. Post-trial free = 3 lifetime total. Paid = 50/day.
+**Consequences:** `lib/limits.ts` LIMITS.trial = 3. CLAUDE.md updated. Dashboard + summarize page derive limit correctly via getDailyLimit().
+```
+
+**Acceptance:**
+- [ ] CLAUDE.md Pricing section reads "3 summaries/day" for trial
+- [ ] `docs/decisions.md` ends with D013 entry
+- [ ] No code changes
+
+---
+
+### HIGH — RC Slice 2 (RC4 + RC5 + RC6)
+
+#### RC4 — route.ts: remove redundant `savedId &&` guard [Codex]
+**Why:** `saveSummary()` now throws `PersistError` on failure (never returns null). The `if (savedId && shouldIncrementLifetimeFree)` guard is redundant.
+
+**File:** `app/api/summarize/route.ts`
+
+**Change (line ~257):**
+```typescript
+// Before:
+if (savedId && shouldIncrementLifetimeFree) {
+// After:
+if (shouldIncrementLifetimeFree) {
+```
+
+**Acceptance:**
+- [x] Line reads `if (shouldIncrementLifetimeFree) {`
+- [x] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### RC5 — SummaryDisplay: implement plain-text export [Codex]
+**Why:** "Export" button shows "coming soon" dialog for paid users. A plain-text download is a quick win that makes the feature real.
+
+**File:** `components/SummaryDisplay.tsx`
+
+**Change:** When `actionMode === "coming-soon"` and user clicks Export, instead of showing "coming soon" dialog — trigger a `Blob` download of the summary as a `.txt` file.
+
+Format of `.txt`:
+```
+TL;DR
+-----
+{summary.tldr}
+
+Important Dates
+---------------
+{summary.important_dates.map(d => `• ${d}`).join('\n')}
+
+Action Items
+------------
+{summary.action_items.map(a => `• ${a}`).join('\n')}
+
+People / Classes
+----------------
+{summary.people_classes.map(p => `• ${p}`).join('\n')}
+
+Links
+-----
+{summary.links.map(l => `• ${l}`).join('\n')}
+
+Questions
+---------
+{summary.questions.map(q => `• ${q}`).join('\n')}
+```
+
+Filename: `fazumi-summary-{yyyy-mm-dd}.txt`
+
+Keep the "gated" mode (free users) showing the upgrade dialog — only the "coming-soon" mode gets the real download.
+
+**Acceptance:**
+- [x] Paid user (actionMode="coming-soon") clicks Export → `.txt` file downloads immediately
+- [x] Free user (actionMode="gated") clicks Export → upgrade dialog still shown
+- [x] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### RC6 — Contact form: POST to mailto or Supabase waitlist [Codex]
+**Why:** `/contact` form shows local success state with no real submission. Users who fill it in expect to be heard.
+
+**File:** `app/contact/page.tsx`
+
+**Change:** On submit, use `window.location.href = 'mailto:support@fazumi.app?subject=...&body=...'` (simplest, no server required). Build the mailto URL from the form fields (name, email, message).
+
+Alternatively if that feels cheap: POST to a new `/api/contact` route that sends an email via Supabase Edge Function or simply writes to a `contact_submissions` table. For MVP, **use the mailto approach** — it's reliable and requires no new infra.
+
+**Acceptance:**
+- [x] Submitting the contact form opens the user's mail client with subject + body pre-filled
+- [x] No network call to backend
+- [x] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### MEDIUM — RC Slice 3 (RC7 + RC8 + RC9)
+
+#### RC7 — pnpm build smoke [Codex]
+**Why:** Production build may surface type errors or missing env var guards not caught by `pnpm typecheck`.
+
+**Command:** `pnpm build`
+
+**Action:** Fix any errors encountered during build. Common issues: missing `"use client"` on components using hooks, unguarded `process.env.*` references, `next/image` domain config.
+
+**Acceptance:**
+- [ ] `pnpm build` exits 0 with no errors
+- [ ] `pnpm lint && pnpm typecheck` still pass after fixes
+
+---
+
+#### RC8 — /profile: add account deletion via support email [Codex]
+**Why:** GDPR requires a clear deletion path. MVP can use a mailto link to `support@fazumi.app` rather than a real delete flow.
+
+**File:** `app/profile/page.tsx`
+
+**Change:** Replace `"Profile editing and account deletion coming soon."` with two items:
+1. A link to `/settings` for preferences
+2. A `mailto:support@fazumi.app?subject=Delete%20my%20account` link labelled "Request account deletion" (styled as a small danger-colored text link, not a button)
+
+**Acceptance:**
+- [ ] `/profile` shows "Request account deletion →" with correct mailto link
+- [ ] Also shows "Manage preferences →" linking to `/settings`
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### RC9 — Add NEXT_PUBLIC_APP_URL to .env.local.example [Codex]
+**Why:** Several components reference `process.env.NEXT_PUBLIC_APP_URL` but `.env.local.example` doesn't document it.
+
+**File:** `.env.local.example`
+
+**Change:** Add after existing entries:
+```
+# App URL (used for absolute links in emails/webhooks)
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+**Acceptance:**
+- [ ] `.env.local.example` contains `NEXT_PUBLIC_APP_URL` key with comment
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### LOW / DEFERRED (RC10–RC15)
+
+#### RC10 — Webhook handler audit [Claude]
+Read `app/api/webhooks/lemonsqueezy/route.ts` in full. Verify:
+- HMAC signature verification uses raw body (not parsed JSON)
+- `subscription_created`, `subscription_updated`, `subscription_cancelled` events handled
+- `profiles.plan` updated correctly on each event
+- Service role key used for all writes
+
+#### RC11 — Vercel deploy: env vars + auto-deploy [Claude]
+Configure Vercel project with all required env vars. Verify auto-deploy on push to main.
+
+#### RC12 — ReferralCard: show real code from profile [Codex — Week 2]
+**Files:** `components/widgets/ReferralCard.tsx`, `app/api/profile/route.ts`
+Fetch `profiles.referral_code` via the existing `/api/profile` PATCH endpoint (or a GET). Display real URL.
+
+#### RC13 — Newsletter "Notify me": write to Supabase waitlist table [Codex — Week 2]
+**Files:** `components/landing/Newsletter.tsx`, `app/api/waitlist/route.ts` (new)
+Simple `waitlist` table: `(email text primary key, created_at timestamptz)`. POST email on submit.
+
+#### RC14 — SummaryDisplay thumbs feedback: persist to Supabase [Codex — Week 2]
+**Files:** `components/SummaryDisplay.tsx`, `app/api/summaries/[id]/feedback/route.ts` (new)
+PATCH `summaries.feedback_thumb` (add column: `tinyint -1/0/1`) on thumb click.
+
+#### RC15 — Account management section in /settings [Codex — Week 2]
+**Files:** `components/settings/SettingsPanel.tsx`
+Add link to `/billing` (upgrade/manage) and `/profile` (view/delete request) in the "Account" card body.
+
+---
+
+### Verification after each RC slice
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test
+```
+
+Manual smoke (run after each slice):
+1. Open `http://localhost:3000` — landing renders, no console errors
+2. Click each changed button/route — confirm expected behaviour
+3. Arabic mode (EN/AR toggle) — no layout breaks
