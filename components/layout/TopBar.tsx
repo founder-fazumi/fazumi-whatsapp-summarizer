@@ -129,18 +129,7 @@ export function TopBar({ className }: TopBarProps) {
       </kbd>
     </button>
   );
-  const brandLink = isArabic ? (
-    <Link
-      href="/dashboard"
-      className="flex shrink-0 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-1.5 py-1.5 text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] sm:gap-2.5 sm:px-2.5"
-      aria-label={pick(COPY.dashboard, locale)}
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--primary)] text-base leading-none text-white">
-        🦊
-      </span>
-      <span className="hidden text-sm font-bold uppercase tracking-[0.18em] sm:block">FAZUMI</span>
-    </Link>
-  ) : (
+  const brandLink = (
     <Link
       href="/dashboard"
       className="hidden md:flex items-center justify-center rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
@@ -149,130 +138,137 @@ export function TopBar({ className }: TopBarProps) {
       <LayoutDashboard className="h-5 w-5" />
     </Link>
   );
-  const controls = (
-    <div className={cn("flex items-center gap-1.5", !isArabic && "ml-auto")}>
-
-      {/* Notifications */}
-      <div className="relative">
-        <button
-          onClick={() => setNotifOpen((o) => !o)}
-          className="relative rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-          aria-label={t("topbar.notif", locale)}
+  const notificationsControl = (
+    <div className="relative">
+      <button
+        onClick={() => setNotifOpen((o) => !o)}
+        className="relative rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+        aria-label={t("topbar.notif", locale)}
+      >
+        <Bell className="h-4.5 w-4.5" />
+        <span
+          className={cn(
+            "absolute top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none",
+            "right-1"
+          )}
         >
-          <Bell className="h-4.5 w-4.5" />
-          <span
-            className={cn(
-              "absolute top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none",
-              isArabic ? "left-1" : "right-1"
-            )}
-          >
-            {formatNumber(NOTIFICATIONS.length)}
-          </span>
-        </button>
+          {formatNumber(NOTIFICATIONS.length)}
+        </span>
+      </button>
 
-        {notifOpen && (
-          <div
-            className={cn(
-              "absolute top-full z-50 mt-1.5 w-72 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] overflow-hidden",
-              isArabic ? "left-0" : "right-0"
-            )}
-          >
-            <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-              <span className="text-xs font-semibold text-[var(--foreground)]">
-                {t("topbar.notif", locale)}
-              </span>
-              <button
-                onClick={() => setNotifOpen(false)}
-                className="text-[10px] text-[var(--muted-foreground)] hover:text-[var(--primary)]"
-              >
-                {pick(COPY.markRead, locale)}
-              </button>
-            </div>
-            <ul>
-              {NOTIFICATIONS.map((n) => (
-                <li
-                  key={n.id}
-                  className="flex items-start gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--muted)] cursor-pointer border-b border-[var(--border)] last:border-0"
-                >
-                  <span className="text-base mt-0.5">{n.icon}</span>
-                  <span className="text-[var(--foreground)] leading-snug">{pick(n.text, locale)}</span>
-                </li>
-              ))}
-            </ul>
+      {notifOpen && (
+        <div
+          dir={isArabic ? "rtl" : "ltr"}
+          lang={locale}
+          className={cn(
+            "fixed left-4 right-4 top-[3.75rem] z-50 w-auto overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] sm:absolute sm:top-full sm:mt-1.5 sm:w-72 sm:left-auto sm:right-auto",
+            "sm:right-0",
+            isArabic && "font-arabic"
+          )}
+        >
+          <div className={cn("flex items-center justify-between border-b border-[var(--border)] px-3 py-2", isArabic && "text-right")}>
+            <span className="text-xs font-semibold text-[var(--foreground)]">
+              {t("topbar.notif", locale)}
+            </span>
+            <button
+              onClick={() => setNotifOpen(false)}
+              className="text-[10px] text-[var(--muted-foreground)] hover:text-[var(--primary)]"
+            >
+              {pick(COPY.markRead, locale)}
+            </button>
           </div>
-        )}
-      </div>
-
-      {/* Theme toggle */}
-      <button
-        onClick={toggleTheme}
-        className="hidden sm:flex rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-        aria-label={theme === "dark" ? pick(COPY.lightMode, locale) : pick(COPY.darkMode, locale)}
-      >
-        {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      </button>
-
-      {/* Language toggle */}
-      <button
-        onClick={() => setLocale(locale === "en" ? "ar" : "en")}
-        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
-        aria-label={pick(COPY.toggleLang, locale)}
-      >
-        <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-        <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
-        <span className="text-[var(--muted-foreground)] mx-0.5">/</span>
-        <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
-      </button>
-
-      {/* User pill with dropdown */}
-      <DropdownMenu
-        items={userMenuItems}
-        align={isArabic ? "left" : "right"}
-        trigger={
-          <button className="hidden sm:flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] pl-1 pr-2.5 py-1 hover:bg-[var(--muted)] transition-colors">
-            <Avatar name={userName} src={user?.user_metadata?.avatar_url as string | undefined} size="sm" />
-            <div className={cn("hidden lg:block", isArabic ? "text-right" : "text-left")}>
-              <p className="text-xs font-semibold text-[var(--foreground)] leading-tight">
-                {userName}
-              </p>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-tight">
-                {pick(COPY.freeTrial, locale)}
-              </p>
-            </div>
-          </button>
-        }
-      />
+          <ul>
+            {NOTIFICATIONS.map((n) => (
+              <li
+                key={n.id}
+                className={cn(
+                  "flex items-start gap-2.5 border-b border-[var(--border)] px-3 py-2.5 text-sm last:border-0 hover:bg-[var(--muted)] cursor-pointer",
+                  isArabic && "flex-row-reverse text-right"
+                )}
+              >
+                <span className="mt-0.5 shrink-0 text-base">{n.icon}</span>
+                <span className="text-[var(--foreground)] leading-snug">{pick(n.text, locale)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+  const themeToggle = (
+    <button
+      onClick={toggleTheme}
+      className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-1 text-xs font-medium hover:bg-[var(--muted)] transition-colors"
+      aria-label={theme === "dark" ? pick(COPY.lightMode, locale) : pick(COPY.darkMode, locale)}
+    >
+      <span className={cn("rounded-full p-1 transition-colors", theme === "light" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
+        <Sun className="h-3.5 w-3.5" />
+      </span>
+      <span className="text-[var(--muted-foreground)]">·</span>
+      <span className={cn("rounded-full p-1 transition-colors", theme === "dark" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
+        <Moon className="h-3.5 w-3.5" />
+      </span>
+    </button>
+  );
+  const languageToggle = (
+    <button
+      onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+      className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+      aria-label={pick(COPY.toggleLang, locale)}
+    >
+      <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
+      <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
+      <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
+      <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
+    </button>
+  );
+  const userControl = (
+    <DropdownMenu
+      items={userMenuItems}
+      align="right"
+      trigger={
+        <button
+          className={cn(
+            "hidden sm:flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] py-1 hover:bg-[var(--muted)] transition-colors",
+            "pl-1 pr-2.5"
+          )}
+        >
+          <Avatar name={userName} src={user?.user_metadata?.avatar_url as string | undefined} size="sm" />
+          <div className={cn("hidden lg:block", isArabic ? "text-right" : "text-left")}>
+            <p className="text-xs font-semibold text-[var(--foreground)] leading-tight">
+              {userName}
+            </p>
+            <p className="text-[10px] text-[var(--muted-foreground)] leading-tight">
+              {pick(COPY.freeTrial, locale)}
+            </p>
+          </div>
+        </button>
+      }
+    />
+  );
+  const controls = (
+    <div className="ml-auto flex items-center gap-1.5">
+      {notificationsControl}
+      {themeToggle}
+      {languageToggle}
+      {userControl}
     </div>
   );
 
   return (
     <>
       <header
+        dir="ltr"
         className={cn(
           "sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-[var(--border)]",
           "bg-[var(--background)]/95 backdrop-blur-sm px-4",
           className
         )}
       >
-        {isArabic ? (
-          <>
-            <div className="flex items-center gap-1.5">
-              {mobileMenuButton}
-              {controls}
-            </div>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-              {searchTrigger}
-              {brandLink}
-            </div>
-          </>
-        ) : (
-          <>
-            {mobileMenuButton}
-            {brandLink}
-            {searchTrigger}
-            {controls}
-          </>
-        )}
+        {mobileMenuButton}
+        {brandLink}
+        {searchTrigger}
+        {controls}
       </header>
 
       {/* Search dialog */}

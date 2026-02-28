@@ -1,7 +1,10 @@
+"use client";
+
 import { Quote } from "lucide-react";
-import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLang } from "@/lib/context/LangContext";
+import { pick } from "@/lib/i18n";
 
 const SECTIONS = [
   {
@@ -28,6 +31,8 @@ const SECTIONS = [
 ] as const;
 
 export default function AboutPage() {
+  const { locale } = useLang();
+
   return (
     <PublicPageShell
       eyebrow={{ en: "About", ar: "من نحن" }}
@@ -39,14 +44,10 @@ export default function AboutPage() {
           {SECTIONS.map((section) => (
             <Card key={section.title.en}>
               <CardHeader>
-                <CardTitle>
-                  <LocalizedText en={section.title.en} ar={section.title.ar} />
-                </CardTitle>
+                <CardTitle>{pick(section.title, locale)}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-                  <LocalizedText en={section.body.en} ar={section.body.ar} />
-                </p>
+                <p className="text-sm leading-7 text-[var(--muted-foreground)]">{pick(section.body, locale)}</p>
               </CardContent>
             </Card>
           ))}
@@ -54,26 +55,20 @@ export default function AboutPage() {
 
         <Card className="h-fit">
           <CardHeader>
-            <CardTitle>
-              <LocalizedText en="Product note" ar="ملاحظة عن المنتج" />
-            </CardTitle>
+            <CardTitle>{locale === "ar" ? "ملاحظة عن المنتج" : "Product note"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
               <Quote className="h-5 w-5" />
             </div>
             <blockquote className="text-lg font-semibold leading-8 text-[var(--foreground)]">
-              <LocalizedText
-                en="Stay hungry. Stay foolish."
-                ar="ابقَ جائعًا. ابقَ أحمقًا."
-              />
+              {locale === "ar" ? "ابقَ جائعًا. ابقَ أحمقًا." : "Stay hungry. Stay foolish."}
             </blockquote>
-            <p className="text-sm text-[var(--muted-foreground)]">Steve Jobs</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{locale === "ar" ? "ستيف جوبز" : "Steve Jobs"}</p>
             <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-              <LocalizedText
-                en="That reminder fits this product well: keep building with curiosity, but keep the experience clear for busy parents."
-                ar="هذه العبارة تناسب المنتج: نستمر بفضول، لكن نحافظ على تجربة واضحة لأولياء الأمور المشغولين."
-              />
+              {locale === "ar"
+                ? "هذه العبارة تناسب المنتج: نستمر بفضول، لكن نحافظ على تجربة واضحة لأولياء الأمور المشغولين."
+                : "That reminder fits this product well: keep building with curiosity, but keep the experience clear for busy parents."}
             </p>
           </CardContent>
         </Card>

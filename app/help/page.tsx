@@ -1,6 +1,6 @@
 "use client";
 
-import { DashboardShell } from "@/components/layout/DashboardShell";
+import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion } from "@/components/ui/accordion";
 import { HelpCircle, Mail } from "lucide-react";
@@ -72,12 +72,20 @@ const FAQS = [
 
 export default function HelpPage() {
   const { locale } = useLang();
+  const isArabic = locale === "ar";
 
   return (
-    <DashboardShell>
-      <div className="space-y-4">
+    <PublicPageShell
+      eyebrow={{ en: "Support", ar: "الدعم" }}
+      title={{ en: "Help & Support", ar: "المساعدة والدعم" }}
+      description={{
+        en: "Answers to the common setup, plan, and product questions, plus a direct support contact if you still need help.",
+        ar: "إجابات عن الأسئلة الشائعة المتعلقة بالإعداد والخطط والمنتج، مع وسيلة تواصل مباشرة مع الدعم إذا كنت لا تزال بحاجة إلى مساعدة.",
+      }}
+    >
+      <div className="mx-auto max-w-3xl space-y-4">
         <Card>
-          <CardHeader>
+          <CardHeader className={isArabic ? "text-right" : undefined}>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary)]/10">
                 <HelpCircle className="h-5 w-5 text-[var(--primary)]" />
@@ -96,7 +104,7 @@ export default function HelpPage() {
         </Card>
 
         <Card>
-          <CardContent className="py-5">
+          <CardContent className={`py-5 ${isArabic ? "text-right" : ""}`}>
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)]/10">
                 <Mail className="h-4 w-4 text-[var(--primary)]" />
@@ -116,6 +124,6 @@ export default function HelpPage() {
           </CardContent>
         </Card>
       </div>
-    </DashboardShell>
+    </PublicPageShell>
   );
 }

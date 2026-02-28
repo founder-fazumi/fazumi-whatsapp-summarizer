@@ -100,7 +100,7 @@ export default async function BillingPage() {
   const periodEndAr = periodEnd ? formatDate(periodEnd, "ar", { year: "numeric", month: "long", day: "numeric" }) : null;
 
   return (
-    <DashboardShell>
+    <DashboardShell contentClassName="max-w-6xl">
       <div className="space-y-4">
         <Card>
           <CardHeader>

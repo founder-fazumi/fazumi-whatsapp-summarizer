@@ -157,7 +157,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           className="flex w-full items-center gap-2 rounded-[var(--radius)] px-2 py-1.5 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
         >
           <HelpCircle className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">{t("nav.help", locale)}</span>
+          <span className="flex-1 text-start">{t("nav.help", locale)}</span>
           <Settings className="h-3.5 w-3.5 shrink-0 opacity-60" />
         </Link>
       </div>

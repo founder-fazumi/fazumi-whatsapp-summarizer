@@ -21,6 +21,7 @@ const RATINGS = [
 
 export function ContactForm() {
   const { locale } = useLang();
+  const isArabic = locale === "ar";
   const [mode, setMode] = useState<ContactMode>("feedback");
   const [rating, setRating] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -56,8 +57,8 @@ export function ContactForm() {
 
   if (submittedMode) {
     return (
-      <Card>
-        <CardContent className="flex flex-col gap-4 py-8">
+      <Card dir={isArabic ? "rtl" : "ltr"} lang={locale} className={cn(isArabic && "font-arabic")}>
+        <CardContent className={cn("flex flex-col gap-4 py-8", isArabic && "items-end text-right")}>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
             <CheckCircle2 className="h-6 w-6" />
           </div>
@@ -91,10 +92,14 @@ export function ContactForm() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div
+      dir={isArabic ? "rtl" : "ltr"}
+      lang={locale}
+      className={cn("grid gap-6 lg:grid-cols-[1.2fr_0.8fr]", isArabic && "font-arabic")}
+    >
       <Card>
-        <CardHeader>
-          <div className="flex flex-wrap gap-2">
+        <CardHeader className={cn(isArabic && "text-right")}>
+          <div className={cn("flex flex-wrap gap-2", isArabic && "justify-end")}>
             {([
               {
                 mode: "feedback",
@@ -114,7 +119,8 @@ export function ContactForm() {
                 type="button"
                 onClick={() => setMode(nextMode)}
                 className={cn(
-                  "flex min-w-[180px] flex-1 items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
+                  "flex min-w-[180px] flex-1 items-start gap-3 rounded-2xl border px-4 py-3 transition-colors",
+                  isArabic ? "text-right" : "text-left",
                   mode === nextMode
                     ? "border-[var(--primary)] bg-[var(--primary)]/8"
                     : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)]/30"
@@ -146,7 +152,7 @@ export function ContactForm() {
                 : "Client-only for now. Use this to simulate a support request flow."}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className={cn(isArabic && "text-right")}>
           <form className="space-y-4" onSubmit={handleSubmit}>
             {mode === "feedback" && (
               <div className="space-y-2">
@@ -191,9 +197,12 @@ export function ContactForm() {
                 <Input
                   id="contact-email"
                   type="email"
+                  dir={isArabic ? "rtl" : "ltr"}
+                  lang={locale}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={locale === "ar" ? "بريدك@مثال.كوم" : "you@example.com"}
+                  className={cn(isArabic && "text-right")}
                   required
                 />
               </div>
@@ -206,9 +215,12 @@ export function ContactForm() {
                   <Input
                     id="contact-mobile"
                     type="tel"
+                    dir={isArabic ? "rtl" : "ltr"}
+                    lang={locale}
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value)}
                     placeholder="+974 5555 5555"
+                    className={cn(isArabic && "text-right")}
                   />
                 </div>
               )}
@@ -220,6 +232,8 @@ export function ContactForm() {
               </label>
               <Textarea
                 id="contact-message"
+                dir={isArabic ? "rtl" : "ltr"}
+                lang={locale}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder={
@@ -231,6 +245,7 @@ export function ContactForm() {
                       ? "صف المشكلة وما الذي توقعته وما الذي حدث بدلًا من ذلك."
                       : "Describe the issue, what you expected, and what happened instead."
                 }
+                className={cn(isArabic && "text-right")}
                 required
               />
             </div>
@@ -242,9 +257,9 @@ export function ContactForm() {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      <div className={cn("space-y-4", isArabic && "text-right")}>
         <Card>
-          <CardHeader>
+          <CardHeader className={cn(isArabic && "text-right")}>
             <CardTitle>{locale === "ar" ? "ماذا تتوقع" : "What to expect"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-[var(--muted-foreground)]">
@@ -255,7 +270,7 @@ export function ContactForm() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className={cn(isArabic && "text-right")}>
             <CardTitle>{locale === "ar" ? "أفضل الملاحظات تكون محددة" : "Best notes are specific"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-[var(--muted-foreground)]">

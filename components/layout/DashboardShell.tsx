@@ -9,12 +9,14 @@ interface DashboardShellProps {
   children: React.ReactNode;
   rightColumn?: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }
 
 export function DashboardShell({
   children,
   rightColumn,
   className,
+  contentClassName,
 }: DashboardShellProps) {
   return (
     <div className={cn("min-h-screen bg-[var(--background)]", className)}>
@@ -33,7 +35,8 @@ export function DashboardShell({
           <div
             className={cn(
               "mx-auto w-full px-4 py-6",
-              rightColumn ? "max-w-3xl" : "max-w-2xl"
+              rightColumn ? "max-w-3xl" : "max-w-2xl",
+              contentClassName
             )}
           >
             {children}
