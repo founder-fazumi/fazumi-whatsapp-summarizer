@@ -1,5 +1,6 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { DashboardBanner } from "@/components/dashboard/DashboardBanner";
+import { UpgradingBanner } from "@/components/dashboard/UpgradingBanner";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { CalendarWidget } from "@/components/widgets/CalendarWidget";
 import { TodoWidget } from "@/components/widgets/TodoWidget";
@@ -19,7 +20,12 @@ const RIGHT_COLUMN = (
   </>
 );
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ upgraded?: string }>;
+}) {
+  const { upgraded } = await searchParams;
   // Fetch session + profile + today's usage server-side
   let userName: string | null = null;
   let plan = "free";
@@ -60,6 +66,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>
+      {upgraded === "1" && <UpgradingBanner />}
       <DashboardBanner
         userName={userName}
         plan={plan}

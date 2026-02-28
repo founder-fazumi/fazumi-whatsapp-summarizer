@@ -2,7 +2,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { BillingPlansPanel } from "@/components/billing/BillingPlansPanel";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CreditCard, Check } from "lucide-react";
+import { CreditCard, Check, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
 import type { Profile } from "@/lib/supabase/types";
@@ -48,6 +48,7 @@ export default async function BillingPage() {
   let trialExpiresAt: string | null = null;
   let portalUrl: string | null = null;
   let periodEnd: string | null = null;
+  let isPastDue = false;
 
   try {
     const supabase = await createClient();
@@ -65,7 +66,7 @@ export default async function BillingPage() {
           .from("subscriptions")
           .select("ls_subscription_id, status, current_period_end")
           .eq("user_id", user.id)
-          .in("status", ["active", "cancelled"])
+          .in("status", ["active", "cancelled", "past_due"])
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle<{
@@ -78,6 +79,7 @@ export default async function BillingPage() {
       plan = profile?.plan ?? "free";
       trialExpiresAt = profile?.trial_expires_at ?? null;
       periodEnd = sub?.current_period_end ?? null;
+      isPastDue = sub?.status === "past_due";
 
       if (sub?.ls_subscription_id) {
         portalUrl = await getCustomerPortalUrl(sub.ls_subscription_id);
@@ -102,6 +104,27 @@ export default async function BillingPage() {
   return (
     <DashboardShell contentClassName="max-w-6xl">
       <div className="space-y-4">
+        {isPastDue && (
+          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              <LocalizedText
+                en="Your last payment failed. Please update your payment method in the customer portal to avoid losing access."
+                ar="فشل آخر دفع. يرجى تحديث طريقة الدفع في بوابة العملاء لتجنب فقدان الوصول."
+              />
+              {portalUrl && (
+                <a
+                  href={portalUrl}
+                  className="ml-2 font-semibold underline underline-offset-2"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <LocalizedText en="Update payment →" ar="تحديث الدفع ←" />
+                </a>
+              )}
+            </p>
+          </div>
+        )}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">

@@ -158,6 +158,19 @@ async function routeEvent(
       break;
     }
 
+    case "subscription_payment_success": {
+      // Recurring payment succeeded — refresh period end and keep status active
+      await admin
+        .from("subscriptions")
+        .update({
+          status: "active",
+          current_period_end: attrs.renews_at ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("ls_subscription_id", lsId);
+      break;
+    }
+
     case "subscription_expired": {
       await admin
         .from("subscriptions")
