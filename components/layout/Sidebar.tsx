@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -9,32 +8,23 @@ import {
   History,
   Calendar,
   CheckSquare,
-  BookOpen,
-  ChevronRight,
-  ChevronDown,
   HelpCircle,
   Settings,
   ArrowUpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { useLang } from "@/lib/context/LangContext";
+import { t } from "@/lib/i18n";
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  active?: boolean;
-  hasChevron?: "right" | "down";
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { href: "#", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/", label: "Summarize", icon: MessageSquareText, active: true, hasChevron: "right" },
-  { href: "#", label: "History", icon: History },
-  { href: "#", label: "Calendar", icon: Calendar, hasChevron: "down" },
-  { href: "#", label: "To-Do", icon: CheckSquare },
-  { href: "#", label: "Resources", icon: BookOpen, hasChevron: "down" },
-];
+const NAV_ITEMS = [
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/summarize", labelKey: "nav.summarize",  icon: MessageSquareText },
+  { href: "/history",   labelKey: "nav.history",    icon: History },
+  { href: "/calendar",  labelKey: "nav.calendar",   icon: Calendar },
+  { href: "/settings",  labelKey: "nav.settings",   icon: Settings },
+  { href: "/help",      labelKey: "nav.resources",  icon: HelpCircle },
+] as const;
 
 interface SidebarProps {
   className?: string;
@@ -43,6 +33,12 @@ interface SidebarProps {
 
 export function Sidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const { locale } = useLang();
+
+  function isActive(href: string) {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(href);
+  }
 
   return (
     <aside
@@ -70,32 +66,38 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       {/* ── Navigation ───────────────────────────── */}
       <nav className="flex-1 overflow-y-auto px-3 py-2">
         <ul className="space-y-0.5">
-          {NAV_ITEMS.map(({ href, label, icon: Icon, active, hasChevron }) => {
-            const isActive = active || pathname === href;
+          {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
+            const active = isActive(href);
             return (
-              <li key={label}>
+              <li key={href}>
                 <Link
                   href={href}
                   onClick={onNavigate}
                   className={cn(
                     "flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-sm font-medium transition-colors",
-                    isActive
+                    active
                       ? "bg-[var(--primary)] text-white shadow-sm"
                       : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  {hasChevron === "right" && (
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                  )}
-                  {hasChevron === "down" && (
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-                  )}
+                  <span className="flex-1">{t(labelKey, locale)}</span>
                 </Link>
               </li>
             );
           })}
+
+          {/* To-Do — placeholder */}
+          <li>
+            <button
+              disabled
+              title="Coming soon"
+              className="flex w-full items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-sm font-medium text-[var(--muted-foreground)] opacity-50 cursor-not-allowed"
+            >
+              <CheckSquare className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{t("nav.todo", locale)}</span>
+            </button>
+          </li>
         </ul>
       </nav>
 
@@ -104,13 +106,16 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         <div className="flex items-center gap-2 mb-2">
           <span className="text-sm">🥇</span>
           <span className="text-xs font-semibold text-[var(--foreground)]">Free Plan</span>
-          <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">8 / 10 used</span>
+          <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">Trial active</span>
         </div>
-        <Progress value={8} max={10} className="h-1.5 mb-2.5" />
-        <button className="w-full flex items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] text-white text-xs font-semibold py-1.5 hover:bg-[var(--primary-hover)] transition-colors shadow-sm">
+        <Progress value={3} max={7} className="h-1.5 mb-2.5" />
+        <Link
+          href="/billing"
+          className="w-full flex items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] text-white text-xs font-semibold py-1.5 hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
+        >
           <ArrowUpCircle className="h-3.5 w-3.5" />
-          Upgrade
-        </button>
+          {t("nav.upgrade", locale)}
+        </Link>
       </div>
 
       {/* ── Founder access card ──────────────────── */}
@@ -135,11 +140,15 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
       {/* ── Help & Feedback footer ───────────────── */}
       <div className="px-4 py-3 border-t border-[var(--sidebar-border)]">
-        <button className="flex w-full items-center gap-2 rounded-[var(--radius)] px-2 py-1.5 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+        <Link
+          href="/help"
+          onClick={onNavigate}
+          className="flex w-full items-center gap-2 rounded-[var(--radius)] px-2 py-1.5 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+        >
           <HelpCircle className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">Help &amp; Feedback</span>
+          <span className="flex-1 text-left">{t("nav.help", locale)}</span>
           <Settings className="h-3.5 w-3.5 shrink-0 opacity-60" />
-        </button>
+        </Link>
       </div>
     </aside>
   );
