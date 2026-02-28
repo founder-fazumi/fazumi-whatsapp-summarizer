@@ -14,6 +14,7 @@ create table if not exists public.subscriptions (
 alter table public.subscriptions enable row level security;
 
 -- Users can read their own subscription; writes are service-role only
+drop policy if exists "subscriptions: own select" on public.subscriptions;
 create policy "subscriptions: own select"
   on public.subscriptions for select
   using (auth.uid() = user_id);

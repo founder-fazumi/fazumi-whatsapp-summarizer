@@ -18,14 +18,17 @@ create table if not exists public.summaries (
 -- RLS: users can only see and modify their own rows
 alter table public.summaries enable row level security;
 
+drop policy if exists "summaries: own select" on public.summaries;
 create policy "summaries: own select"
   on public.summaries for select
   using (auth.uid() = user_id and deleted_at is null);
 
+drop policy if exists "summaries: own insert" on public.summaries;
 create policy "summaries: own insert"
   on public.summaries for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "summaries: own update" on public.summaries;
 create policy "summaries: own update"
   on public.summaries for update
   using (auth.uid() = user_id);

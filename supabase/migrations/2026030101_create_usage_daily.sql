@@ -14,6 +14,7 @@ create table if not exists public.usage_daily (
 -- Row-level security
 alter table public.usage_daily enable row level security;
 
+drop policy if exists "usage_daily: own rows read" on public.usage_daily;
 create policy "usage_daily: own rows read"
   on public.usage_daily for select
   using (auth.uid() = user_id);
