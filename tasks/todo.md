@@ -1059,3 +1059,135 @@ Manual smoke (run after each slice):
 1. Open `http://localhost:3000` — landing renders, no console errors
 2. Click each changed button/route — confirm expected behaviour
 3. Arabic mode (EN/AR toggle) — no layout breaks
+
+---
+
+## Milestone: Lemon Squeezy Webhooks — Hardening + UI
+
+> Spec: [specs/payments-lemon-squeezy-webhooks.md](../specs/payments-lemon-squeezy-webhooks.md)
+> Context: Core webhook handler exists and is ~90% correct. These tasks close the remaining gaps.
+> Codex order: WH1+WH2 together (migration + code), then WH3+WH4+WH5 as one slice.
+
+### WH Slice 1 (WH1 + WH2) — Idempotency for Founder orders
+
+#### WH1 — Migration: UNIQUE constraint on subscriptions.ls_order_id [Codex]
+**Why:** `order_created` currently uses `insert` (not upsert). If LS retries the webhook, a duplicate Founder `subscriptions` row is inserted. A UNIQUE constraint on `ls_order_id` enables safe upsert.
+**File:** Create `supabase/migrations/20260401_subscriptions_order_id_unique.sql`
+```sql
+ALTER TABLE public.subscriptions
+  ADD CONSTRAINT subscriptions_ls_order_id_unique UNIQUE (ls_order_id);
+```
+**Acceptance:**
+- [ ] Migration file exists at correct path with correct SQL
+- [ ] No other migration files changed
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### WH2 — Fix order_created: insert → upsert [Codex]
+**Why:** After WH1 adds the unique constraint, the `else { insert }` branch in `upsertSubscription()` must change to `upsert` so a replayed `order_created` webhook updates the existing row instead of throwing a unique violation.
+**File:** `app/api/webhooks/lemonsqueezy/route.ts`
+**Change:** In `upsertSubscription()`, replace the `else` branch (currently lines 204-206):
+```typescript
+// Before
+} else {
+  await admin.from("subscriptions").insert(record);
+}
+// After
+} else {
+  await admin
+    .from("subscriptions")
+    .upsert(record, { onConflict: "ls_order_id" });
+}
+```
+**Acceptance:**
+- [ ] `upsertSubscription()` uses `upsert` for both subscription and order cases
+- [ ] No other logic in the file changed
+- [ ] `pnpm lint && pnpm typecheck` pass
+- [ ] Commit both WH1 + WH2 together: `fix: idempotent order_created — unique ls_order_id constraint`
+
+---
+
+### WH Slice 2 (WH3 + WH4 + WH5) — Payment success + UI states
+
+#### WH3 — Add subscription_payment_success handler [Codex]
+**Why:** This event fires on every successful recurring renewal. Currently unhandled (falls through to `default: log`). Needed to recover from `past_due` state and keep `current_period_end` accurate.
+**File:** `app/api/webhooks/lemonsqueezy/route.ts`
+**Change:** Add a new `case` inside the `switch(event)` block, immediately BEFORE `default:`:
+```typescript
+case "subscription_payment_success": {
+  await admin
+    .from("subscriptions")
+    .update({
+      status: "active",
+      current_period_end: attrs.renews_at ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("ls_subscription_id", lsId);
+  // Defensive re-set: ensure profiles.plan stays correct after recovery
+  const variantId = String(attrs.variant_id);
+  const planType = getPlanType(variantId);
+  if (planType && userId) {
+    await setPlan(admin, userId, planType);
+  }
+  break;
+}
+```
+**Acceptance:**
+- [ ] `subscription_payment_success` case present in switch statement
+- [ ] `subscriptions.status` set to `"active"` and `current_period_end` updated
+- [ ] `setPlan()` only called when `planType` resolves (not null)
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### WH4 — Dashboard: ?upgraded=1 processing banner [Codex]
+**Why:** After LS checkout, user redirects to `/dashboard?upgraded=1`. Webhook arrives seconds later. Without a banner, user sees their old "Free" plan and assumes payment failed.
+**File:** `app/dashboard/page.tsx` — add a `"use client"` banner component (new `components/dashboard/UpgradeBanner.tsx` is acceptable)
+**Behaviour:**
+- Read `useSearchParams()` for `upgraded=1` on mount
+- If present: show dismissible green/teal banner: "Payment received — your plan will activate shortly. Refresh the page if your plan badge doesn't update."
+- Auto-dismiss after 8 seconds
+- Manual dismiss via × button
+- Clean up URL: `router.replace('/dashboard', { scroll: false })` after reading param
+- No API call — client-side only
+- Bilingual: AR: "تم استلام الدفع — سيتم تفعيل خطتك قريبًا. أعد تحميل الصفحة إذا لم تتحدث."
+**Acceptance:**
+- [ ] Visiting `/dashboard?upgraded=1` shows the processing banner
+- [ ] Banner auto-dismisses after 8 seconds
+- [ ] Manual dismiss (× button) works
+- [ ] URL is cleaned up to `/dashboard` after reading param
+- [ ] Banner does not appear on `/dashboard` without the `?upgraded=1` param
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### WH5 — Billing page: past_due warning [Codex]
+**Why:** `subscription_updated` already stores `status = "past_due"` in DB. The billing page must surface this so the user knows their access is at risk.
+**File:** `app/billing/page.tsx`
+**Change:** The page already fetches `subscription.status`. If `subscription?.status === "past_due"`, render an amber warning card above the features list:
+- EN: "Your last payment failed. Update your payment method to keep your access."
+- AR: "فشل آخر دفع. يرجى تحديث طريقة الدفع للحفاظ على وصولك."
+- If `portalUrl` is available: include a "Manage billing →" link that opens the LS portal
+- Style: amber card matching the existing `limit-reached` amber banner pattern
+**Acceptance:**
+- [ ] User with `subscriptions.status = "past_due"` sees amber warning on `/billing`
+- [ ] Warning includes "Manage billing →" link when `portalUrl` is set
+- [ ] Warning not shown for `active`, `cancelled`, or `expired` status
+- [ ] Bilingual (EN + AR)
+- [ ] `pnpm lint && pnpm typecheck` pass
+- [ ] Commit all three (WH3 + WH4 + WH5): `feat: payment-success handler + upgrade banner + past_due warning`
+
+---
+
+### WH Verification
+
+```bash
+pnpm lint && pnpm typecheck
+```
+
+Manual (no E2E checkout needed):
+1. Invalid signature test: `curl` with wrong `x-signature` header → expect HTTP 400
+2. Processing banner: visit `http://localhost:3000/dashboard?upgraded=1` → see banner → wait 8s → auto-dismiss
+3. Past due test (SQL): `UPDATE subscriptions SET status='past_due' WHERE user_id='<id>'` → visit `/billing` → see amber warning
+4. Signature + valid event: use `openssl dgst -sha256 -hmac "$SECRET"` to generate valid sig → `curl` POST → expect HTTP 200 + DB updated
