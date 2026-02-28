@@ -22,10 +22,12 @@ create table if not exists public.profiles (
 -- Row-level security
 alter table public.profiles enable row level security;
 
+drop policy if exists "profiles: own row read" on public.profiles;
 create policy "profiles: own row read"
   on public.profiles for select
   using (auth.uid() = id);
 
+drop policy if exists "profiles: own row update" on public.profiles;
 create policy "profiles: own row update"
   on public.profiles for update
   using (auth.uid() = id);
