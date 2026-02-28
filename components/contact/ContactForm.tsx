@@ -29,13 +29,16 @@ export function ContactForm() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [message, setMessage] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
   const submitLabel = useMemo(
     () =>
-      mode === "feedback"
-        ? locale === "ar" ? "إرسال الملاحظات" : "Send feedback"
-        : locale === "ar" ? "إرسال طلب الدعم" : "Send support request",
-    [locale, mode]
+      submitted
+        ? locale === "ar" ? "✓ تم فتح تطبيق البريد" : "✓ Opening your email app…"
+        : mode === "feedback"
+          ? locale === "ar" ? "إرسال الملاحظات" : "Send feedback"
+          : locale === "ar" ? "إرسال طلب الدعم" : "Send support request",
+    [locale, mode, submitted]
   );
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -62,6 +65,8 @@ export function ContactForm() {
     ].filter((value): value is string => value !== null);
 
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodySections.join("\n"))}`;
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 4000);
   }
 
   return (
@@ -223,7 +228,7 @@ export function ContactForm() {
               />
             </div>
 
-            <Button type="submit" className="w-full sm:w-auto">
+            <Button type="submit" className="w-full sm:w-auto" disabled={submitted}>
               {submitLabel}
             </Button>
           </form>

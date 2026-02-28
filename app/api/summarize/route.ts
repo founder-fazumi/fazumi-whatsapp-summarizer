@@ -248,33 +248,12 @@ export async function POST(req: NextRequest) {
   try {
     const summary = await summarizeChat(text, langPref);
 
-    // ── Consume post-trial free allowance once summarization succeeds, even if later persistence fails. ──
     let savedId: string | null = null;
     if (authedUserId) {
-      let persistError: unknown = null;
-      let lifetimeError: unknown = null;
-
-      try {
-        savedId = await saveSummary(authedUserId, summary, text.length);
-        await incrementUsage(authedUserId, usageDateKey ?? getUtcDateKey());
-      } catch (err) {
-        persistError = err;
-      }
-
+      savedId = await saveSummary(authedUserId, summary, text.length);
+      await incrementUsage(authedUserId, usageDateKey ?? getUtcDateKey());
       if (shouldIncrementLifetimeFree) {
-        try {
-          await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
-        } catch (err) {
-          lifetimeError = err;
-        }
-      }
-
-      if (persistError) {
-        throw persistError;
-      }
-
-      if (lifetimeError) {
-        throw lifetimeError;
+        await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
       }
     }
 
