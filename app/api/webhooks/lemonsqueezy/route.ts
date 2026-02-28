@@ -196,13 +196,15 @@ async function upsertSubscription(admin: AdminClient, row: SubscriptionRow) {
     updated_at: new Date().toISOString(),
   };
 
-  // Upsert on ls_subscription_id when present (subscriptions); otherwise insert (one-time orders)
+  // Upsert on ls_subscription_id when present; otherwise upsert on ls_order_id for one-time orders.
   if (row.lsSubscriptionId) {
     await admin
       .from("subscriptions")
       .upsert(record, { onConflict: "ls_subscription_id" });
   } else {
-    await admin.from("subscriptions").insert(record);
+    await admin
+      .from("subscriptions")
+      .upsert(record, { onConflict: "ls_order_id" });
   }
 }
 

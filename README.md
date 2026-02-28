@@ -97,6 +97,8 @@ curl http://localhost:3000/api/dev/env-check
 
 If any env booleans are `false`, fix your `.env.local` values and retry.
 
+Dev-only: replay a signed Lemon Squeezy webhook payload later with the `curl` example in `specs/payments-lemon-squeezy-webhooks.md`.
+
 ## Dev Testing Accounts
 
 Create the local test users with one request while `pnpm dev` is running:
