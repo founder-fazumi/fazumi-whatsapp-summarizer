@@ -34,7 +34,6 @@ const COPY = {
   usageToday: { en: "Usage today", ar: "استخدام اليوم" },
   upgradeUsage: { en: "Upgrade to continue", ar: "قم بالترقية للمتابعة" },
   timeSaved: { en: "Time Saved", ar: "الوقت الموفَّر" },
-  streak: { en: "Streak", ar: "الاستمرارية" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 function planBadge(plan: string, trialExpiresAt?: string | null) {
@@ -65,7 +64,6 @@ export function DashboardBanner({
   const STATS = [
     { icon: "📋", label: t("dash.summaries", locale), value: usageLabel },
     { icon: "⏱️", label: pick(COPY.timeSaved, locale), value: locale === "ar" ? `${formatNumber(summariesUsed * 4)} دقيقة` : `${formatNumber(summariesUsed * 4)} min` },
-    { icon: "🔥", label: pick(COPY.streak, locale), value: locale === "ar" ? `${formatNumber(0)} أيام` : `${formatNumber(0)} days` },
   ];
 
   return (

@@ -123,3 +123,9 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Consequences:** All components updated. New components must import `formatNumber`, `formatPrice`, or `formatDate` from `lib/format.ts`.
 
 ---
+
+## D013 — Trial limit: unlimited → 3 summaries/day
+**Date:** March 2026
+**Context:** CLAUDE.md originally said "unlimited during trial". Product review determined 3/day during the 7-day trial balances demo value vs abuse risk.
+**Decision:** Free trial = 3 summaries/day for 7 days. Post-trial free = 3 lifetime total. Paid = 50/day.
+**Consequences:** `lib/limits.ts` LIMITS.trial = 3. CLAUDE.md updated. Dashboard + summarize page derive limit correctly via getDailyLimit().

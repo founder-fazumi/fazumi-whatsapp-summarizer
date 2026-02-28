@@ -177,7 +177,7 @@ Create these skills locally (each as `.claude/skills/<name>/SKILL.md`) and keep 
 - User setting for output language: EN or AR.
 
 ### Pricing & Limits (Server-Enforced)
-- Free: 7-day free trial + fallback 3 lifetime summaries for no-card users.
+- Free: 7-day free trial (3 summaries/day) + fallback 3 lifetime summaries for no-card users after trial.
 - Paid: $9.99/mo, $99.99/yr.
 - Founder: $149 one-time, 200 seats max, includes 1 year future top tier, no refund.
 - Paid limits: 50 summaries/day; 200 summaries/month.

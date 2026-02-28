@@ -41,7 +41,6 @@ const COPY = {
   },
   statsSummary: { en: "Today's Summaries", ar: "ملخصات اليوم" },
   statsTime: { en: "Time Saved", ar: "الوقت الموفَّر" },
-  statsStreak: { en: "Streak", ar: "الاستمرارية" },
   pasteTitle: { en: "Paste school messages here", ar: "الصق رسائل المدرسة هنا" },
   pasteDescription: {
     en: "I will extract tasks, dates, and announcements. Only the summary is saved, never your raw chat.",
@@ -137,11 +136,6 @@ export default function SummarizePage() {
       icon: "⏱️",
       label: pick(COPY.statsTime, locale),
       value: locale === "ar" ? `${formatNumber(summariesUsedToday * 4)} دقيقة` : `${formatNumber(summariesUsedToday * 4)} min`,
-    },
-    {
-      icon: "🔥",
-      label: pick(COPY.statsStreak, locale),
-      value: locale === "ar" ? `${formatNumber(0)} أيام` : `${formatNumber(0)} days`,
     },
   ];
 
