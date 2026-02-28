@@ -219,7 +219,9 @@ export function TopBar({ className }: TopBarProps) {
         aria-label={pick(COPY.toggleLang, locale)}
       >
         <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-        {locale === "en" ? "EN" : "AR"}
+        <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
+        <span className="text-[var(--muted-foreground)] mx-0.5">/</span>
+        <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
       </button>
 
       {/* User pill with dropdown */}

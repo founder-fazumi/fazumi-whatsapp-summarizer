@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Globe } from "lucide-react";
+import { Globe, Moon, Sun } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
+import { useTheme } from "@/lib/context/ThemeContext";
 import { createClient } from "@/lib/supabase/client";
 import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
@@ -23,6 +24,7 @@ const COPY = {
 
 export function Nav({ isLoggedIn = false }: NavProps) {
   const { locale, setLocale } = useLang();
+  const { theme, toggleTheme } = useTheme();
   const [loggedIn, setLoggedIn] = useState(isLoggedIn);
 
   useEffect(() => {
@@ -77,6 +79,14 @@ export function Nav({ isLoggedIn = false }: NavProps) {
           >
             {pick(COPY.about, locale)}
           </Link>
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="hidden sm:flex rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
           <button
             type="button"
             onClick={() => setLocale(locale === "en" ? "ar" : "en")}
@@ -84,7 +94,9 @@ export function Nav({ isLoggedIn = false }: NavProps) {
             aria-label={pick(COPY.toggle, locale)}
           >
             <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-            {locale === "en" ? "EN" : "AR"}
+            <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
+            <span className="text-[var(--muted-foreground)] mx-0.5">/</span>
+            <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
           </button>
 
           {loggedIn ? (

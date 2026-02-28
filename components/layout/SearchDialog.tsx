@@ -42,10 +42,12 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setQuery(""); }}>
       {/* Search input */}
-      <div className="flex items-center gap-2 border-b border-[var(--border)] -mx-4 -mt-4 px-4 py-3">
+      <div dir={locale === "ar" ? "rtl" : "ltr"} lang={locale} className="flex items-center gap-2 border-b border-[var(--border)] -mx-4 -mt-4 px-4 py-3">
         <Search className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
         <input
           autoFocus
+          dir={locale === "ar" ? "rtl" : "ltr"}
+          lang={locale}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -55,7 +57,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
       </div>
 
       {/* Navigation links */}
-      <div className="mt-3">
+      <div dir={locale === "ar" ? "rtl" : "ltr"} lang={locale} className="mt-3">
         <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
           {locale === "ar" ? "الانتقال إلى" : "Navigate to"}
         </p>
