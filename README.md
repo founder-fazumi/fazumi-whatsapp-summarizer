@@ -28,6 +28,23 @@ pnpm install
 pnpm dev
 ```
 
+## Dev server lock error
+
+If Next.js dev shows `Runtime AbortError: Lock broken by another request with the 'steal' option.`, switch to the webpack dev server. The default `pnpm dev` script already uses webpack for local stability.
+
+```powershell
+# Stop the dev server
+# Ctrl+C
+
+# Clear the cache if needed
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+
+# Start the dev server
+pnpm dev
+```
+
+`pnpm dev:webpack` is also available if you want to call the webpack dev script explicitly.
+
 ### 5. Open in Chrome
 ```
 http://localhost:3000
