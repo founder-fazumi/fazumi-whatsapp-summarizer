@@ -49,18 +49,25 @@ const COPY = {
     ar: "سأستخرج المهام والتواريخ والإعلانات. يتم حفظ الملخص فقط، وليس نص المحادثة الخام.",
   },
   placeholder: {
-    en: "Paste WhatsApp messages here…\n\nExample:\nTeacher: Don't forget — homework due Friday!\nParent: What chapters?\nTeacher: Chapters 4–6, math test Monday.",
-    ar: "الصق رسائل واتساب هنا…\n\nمثال:\nالمعلمة: لا تنسوا — الواجب مستحق يوم الجمعة!\nولي أمر: ما هي الفصول؟\nالمعلمة: الفصول 4-6، واختبار الرياضيات يوم الاثنين.",
+    en: "Paste your WhatsApp, Telegram, or school group chat here…",
+    ar: "الصق محادثتك من واتساب أو تيليغرام هنا…",
   },
   tipLabel: { en: "Tip:", ar: "نصيحة:" },
   tipBody: {
     en: "Export your WhatsApp chat without media and paste the text here. Works best with 20-500 messages.",
     ar: "صدّر محادثة واتساب بدون وسائط والصق النص هنا. يعمل بأفضل شكل مع 20-500 رسالة.",
   },
-  upload: { en: "Upload file", ar: "رفع ملف" },
-  uploadSoon: {
-    en: "Upload .txt or .zip export (coming soon)",
-    ar: "رفع تصدير .txt أو .zip (قريبًا)",
+  upload: {
+    en: "Upload .txt or .zip (text only)",
+    ar: "رفع .txt أو .zip (نص فقط)",
+  },
+  uploadHelper: {
+    en: "Zip media files are ignored.",
+    ar: "ملفات الوسائط في الضغط يتم تجاهلها.",
+  },
+  textTooLong: {
+    en: "Text exceeds 30,000 characters. Please shorten it.",
+    ar: "النص يتجاوز 30,000 حرف. يرجى تقصيره.",
   },
   useSample: { en: "Use Sample", ar: "استخدم نموذجًا" },
   auto: { en: "Auto", ar: "تلقائي" },
@@ -333,31 +340,38 @@ export default function SummarizePage() {
                 </TabsList>
 
                 <TabsContent value="whatsapp">
-                  <div className="relative">
-                    <Textarea
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder={pick(COPY.placeholder, locale)}
-                      rows={10}
-                      disabled={loading}
-                      className={cn(
-                        "pr-24",
-                        isOverLimit && "border-[var(--destructive)] focus-visible:ring-[var(--destructive)]"
-                      )}
-                    />
-                    <div
-                      className={cn(
-                        "absolute bottom-2.5 right-3 rounded-full border px-2 py-1 text-[11px] tabular-nums shadow-[var(--shadow-xs)]",
-                        isOverLimit
-                          ? "border-[var(--destructive)] bg-[var(--destructive-soft)] font-semibold text-[var(--destructive)]"
-                          : remaining < 3000
-                            ? "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)]"
-                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
-                      )}
-                    >
-                      {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Textarea
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={pick(COPY.placeholder, locale)}
+                        rows={10}
+                        disabled={loading}
+                        className={cn(
+                          "pr-24",
+                          isOverLimit && "border-[var(--destructive)] focus-visible:ring-[var(--destructive)]"
+                        )}
+                      />
+                      <div
+                        className={cn(
+                          "absolute bottom-2.5 right-3 rounded-full border px-2 py-1 text-[11px] tabular-nums shadow-[var(--shadow-xs)]",
+                          isOverLimit
+                            ? "border-[var(--destructive)] bg-[var(--destructive-soft)] font-semibold text-[var(--destructive)]"
+                            : remaining < 3000
+                              ? "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)]"
+                              : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
+                        )}
+                      >
+                        {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
+                      </div>
                     </div>
+                    {isOverLimit && (
+                      <p className="text-sm text-[var(--destructive)]">
+                        {pick(COPY.textTooLong, locale)}
+                      </p>
+                    )}
                   </div>
                 </TabsContent>
               </Tabs>
@@ -370,18 +384,23 @@ export default function SummarizePage() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled
-                  className="gap-1.5 text-xs"
-                  title={pick(COPY.uploadSoon, locale)}
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  {pick(COPY.upload, locale)}
-                </Button>
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="space-y-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="gap-1.5 text-xs"
+                    title={pick(COPY.upload, locale)}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {pick(COPY.upload, locale)}
+                  </Button>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    {pick(COPY.uploadHelper, locale)}
+                  </p>
+                </div>
                 <Button
                   type="button"
                   variant="ghost"
