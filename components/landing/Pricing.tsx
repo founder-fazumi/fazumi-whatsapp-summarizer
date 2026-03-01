@@ -216,7 +216,7 @@ export function Pricing({
             <div
               key={plan.id}
               className={cn(
-                "relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] border bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-sm)]",
+                "relative flex flex-col rounded-[var(--radius-xl)] border bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-sm)]",
                 plan.featured
                   ? "border-[var(--primary)] shadow-[var(--shadow-md)]"
                   : "border-[var(--border)]",
