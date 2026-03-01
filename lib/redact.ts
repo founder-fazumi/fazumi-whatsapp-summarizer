@@ -8,6 +8,12 @@ const SENSITIVE_KEY_TOKENS = [
   "payload",
   "content",
   "chat",
+  "file",
+  "upload",
+  "transcript",
+  "whatsapp",
+  "telegram",
+  "facebook",
 ] as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

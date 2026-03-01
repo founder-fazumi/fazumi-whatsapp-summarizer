@@ -172,6 +172,12 @@ Dev-only: use `pnpm webhook:replay` and [`scripts/webhooks/README.md`](scripts/w
 7. Confirm Sentry receives a test error:
    - Server-side: send a webhook request with a bad `x-signature` and confirm Sentry records the `INVALID_SIGNATURE` error for `/api/webhooks/lemonsqueezy`.
    - Browser test: in DevTools on any page with `SENTRY_DSN` configured, run `setTimeout(() => { throw new Error("Sentry smoke test"); }, 0)` and confirm the issue appears in Sentry.
+8. Confirm structured logs are safe:
+   - Trigger a summarize request and inspect server stdout (Vercel Functions logs or `pnpm dev` terminal).
+   - Log lines should be minified JSON with no raw chat text. Any user input fields should appear as `"[REDACTED]"`.
+9. Optional — Vercel log drain:
+   - In the Vercel dashboard, configure a Log Drain (Settings → Log Drains) to forward structured JSON logs to your observability backend (e.g., Datadog, Logtail, Axiom).
+   - See [Vercel Log Drains documentation](https://vercel.com/docs/observability/log-drains) for setup steps. Do not paste drain tokens into the codebase.
 
 ## Dev Testing Accounts
 
