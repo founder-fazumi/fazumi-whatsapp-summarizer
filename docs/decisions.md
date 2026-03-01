@@ -129,3 +129,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Context:** CLAUDE.md originally said "unlimited during trial". Product review determined 3/day during the 7-day trial balances demo value vs abuse risk.
 **Decision:** Free trial = 3 summaries/day for 7 days. Post-trial free = 3 lifetime total. Paid = 50/day.
 **Consequences:** `lib/limits.ts` LIMITS.trial = 3. CLAUDE.md updated. Dashboard + summarize page derive limit correctly via getDailyLimit().
+
+---
+
+## D014 — Icon system: lucide-react everywhere, no emoji
+**Date:** March 2026
+**Context:** Emoji characters were used as inline icons throughout the app (🦊 logo, 📋 stats, 📅 dates, ✅ actions, 📭 empty states, etc.). Emoji render inconsistently across OS/font stacks and look unprofessional in a paid product.
+**Decision:** Replace all emoji with lucide-react icons (already installed, v0.575.0). Use existing brand image assets from `public/brand/` for the Fazumi logo mark. Create two shared components: `components/shared/BrandLogo.tsx` (logo image wrapper) and `components/shared/EmptyState.tsx` (reusable empty state pattern). `SECTION_META.icon` in `SummaryDisplay` changes from `string` to `React.ComponentType`. No new icon library is added.
+**Consequences:** All new components must use lucide-react for icons. Never use emoji as UI icons. Brand logo placements must use `<BrandLogo>`. Empty states must use `<EmptyState>`.

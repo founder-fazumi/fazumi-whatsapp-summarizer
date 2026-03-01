@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Search, Clock, FileText } from "lucide-react";
+import { Search, Clock, FileText, Inbox } from "lucide-react";
 import type { SummaryRow } from "@/app/history/page";
 import { useLang } from "@/lib/context/LangContext";
 import { formatDate, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 function relativeTime(iso: string, locale: "en" | "ar"): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -61,9 +62,12 @@ export function HistoryList({ summaries }: Props) {
 
       {/* List */}
       {filtered.length === 0 ? (
-        <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">
-          {locale === "ar" ? "لا توجد نتائج." : "No results."}
-        </p>
+        <EmptyState
+          icon={Inbox}
+          title={locale === "ar" ? "لا توجد نتائج." : "No results."}
+          body={locale === "ar" ? `لا يوجد ما يطابق "${query}"` : `Nothing matched "${query}"`}
+          className="py-8"
+        />
       ) : (
         <div className="divide-y divide-[var(--border)] rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
           {filtered.map((s) => (
