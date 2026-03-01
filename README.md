@@ -1,34 +1,64 @@
-# Fazumi — WhatsApp Summary in Seconds
+# FAZUMI
 
-Turn messy school WhatsApp chats into structured summaries: key dates, action items, and questions — instantly.
+<p align="center">
+  <img src="public/brand/mascot/mascot-waving.png.png" alt="Fazumi fox mascot" width="120" />
+</p>
 
-## Local Development (Windows)
+> Miss-nothing school comms.
 
-### 1. Prerequisites
-- Node.js 18+ installed
-- pnpm: `npm install -g pnpm`
-- An OpenAI API key from [platform.openai.com](https://platform.openai.com)
+![Fazumi Messaging](assets/readme/undraw-messaging.svg)
 
-### 2. Set up environment
+FAZUMI turns messy school WhatsApp chats into structured summaries, saved history, and clear usage limits without storing raw chat text.
+
+## What It Does
+
+- Paste or upload WhatsApp text.
+- Turn long school comms into a 6-section structured summary.
+- Save successful summaries to `/history` for later lookup.
+- Enforce trial, daily, and lifetime limits on the server.
+- Keep raw chat text out of storage.
+
+## Quickstart (Windows)
+
+1. Confirm you are in the repo root (the folder that contains [`package.json`](package.json)).
+2. Copy the local env template:
+
+```powershell
+Copy-Item .env.local.example .env.local
 ```
-# Copy the example file
-copy .env.local.example .env.local
 
-# Edit .env.local and add your OpenAI key:
-# OPENAI_API_KEY=sk-your-key-here
+3. Fill in the env vars you need from [`.env.local.example`](.env.local.example):
+
+```text
+OPENAI_API_KEY
+OPENAI_MODEL
+NEXT_PUBLIC_APP_URL
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+LEMONSQUEEZY_API_KEY
+LEMONSQUEEZY_WEBHOOK_SECRET
+LEMONSQUEEZY_STORE_ID
+NEXT_PUBLIC_LS_MONTHLY_VARIANT
+NEXT_PUBLIC_LS_ANNUAL_VARIANT
+NEXT_PUBLIC_LS_FOUNDER_VARIANT
 ```
 
-### 3. Install dependencies
-```
+4. Install dependencies:
+
+```powershell
 pnpm install
 ```
 
-### 4. Run the development server
-```
+5. Start the development server:
+
+```powershell
 pnpm dev
 ```
 
-## Dev server lock error
+6. Open `http://localhost:3000` and paste WhatsApp chat text into the summarizer.
+
+## Dev Server Lock Error
 
 If Next.js dev shows `Runtime AbortError: Lock broken by another request with the 'steal' option.`, switch to the webpack dev server. The default `pnpm dev` script already uses webpack for local stability.
 
@@ -45,50 +75,37 @@ pnpm dev
 
 `pnpm dev:webpack` is also available if you want to call the webpack dev script explicitly.
 
-### 5. Open in Chrome
-```
-http://localhost:3000
-```
-
-Paste any WhatsApp chat text into the text area and click **Summarize Now ✨**.
-
----
-
 ## View in VS Code
-Open the VS Code **Simple Browser** panel:
-- Press `Ctrl+Shift+P` → type `Simple Browser` → enter `http://localhost:3000`
 
-Or just open Chrome at `http://localhost:3000` — the app is mobile-first and works in any browser.
+Open the VS Code Simple Browser panel:
 
----
+- Press `Ctrl+Shift+P`
+- Run `Simple Browser`
+- Enter `http://localhost:3000`
+
+You can also open the app directly in Chrome.
 
 ## Project Structure
-```
-fazumi-whatsapp-summarizer/
-├── app/
-│   ├── api/summarize/route.ts   # POST endpoint → OpenAI → JSON summary
-│   ├── globals.css              # Tailwind v4 + CSS vars
-│   ├── layout.tsx               # Root layout + metadata
-│   └── page.tsx                 # Homepage: paste UI + results
-├── lib/
-│   ├── ai/summarize.ts          # OpenAI prompt + response parsing
-│   └── utils.ts                 # cn() utility
-├── services/wa-bot/             # Archived WhatsApp bot (not part of MVP)
-├── docs/decisions.md            # Architecture decisions
-├── tasks/todo.md                # MVP checklist
-└── .env.local.example           # Env var template
-```
 
----
+- [`app/`](app/) - Next.js App Router pages, layouts, and API routes
+- [`lib/`](lib/) - AI, formatting, limits, and shared helpers
+- [`components/`](components/) - UI and dashboard components
+- [`public/brand/`](public/brand/) - Fazumi brand logo and mascot assets
+- [`scripts/webhooks/`](scripts/webhooks/) - Lemon Squeezy replay fixtures and docs
+- [`scripts/webhooks/verify.sql`](scripts/webhooks/verify.sql) - SQL checks for webhook verification
+- [`docs/decisions.md`](docs/decisions.md) - architecture decisions
+- [`tasks/todo.md`](tasks/todo.md) - active implementation checklist
+- [`assets/readme/`](assets/readme/) - README-only illustration assets
 
-## Checks (run before committing)
-```
+## Checks Before Committing
+
+```powershell
 pnpm lint
 pnpm typecheck
 pnpm test
 ```
 
-## Webhooks Verification (Dev)
+## Webhook Replay (Dev)
 
 Canonical env var names:
 
@@ -116,7 +133,7 @@ pnpm dev
 pnpm webhook:replay
 ```
 
-Then run `scripts/webhooks/verify.sql` in the Supabase SQL editor.
+Then run [`scripts/webhooks/verify.sql`](scripts/webhooks/verify.sql) in the Supabase SQL editor.
 
 For recurring webhook checks:
 
@@ -127,16 +144,18 @@ pnpm webhook:replay subscription_updated_active
 
 Idempotency test: replay `order_created_founder` twice, then confirm `order_test_founder_001` still has exactly one row in `subscriptions`.
 
+For more detail, see [`scripts/webhooks/README.md`](scripts/webhooks/README.md).
+
 ## Debug
 
-```bash
-curl http://localhost:3000/api/health
-curl http://localhost:3000/api/dev/env-check
+```powershell
+Invoke-WebRequest http://localhost:3000/api/health
+Invoke-WebRequest http://localhost:3000/api/dev/env-check
 ```
 
 If any env booleans are `false`, fix your `.env.local` values and retry.
 
-Dev-only: use `pnpm webhook:replay` and `scripts/webhooks/README.md` instead of the older manual `curl` flow.
+Dev-only: use `pnpm webhook:replay` and [`scripts/webhooks/README.md`](scripts/webhooks/README.md) instead of the older manual curl flow.
 
 ## Dev Testing Accounts
 
@@ -164,7 +183,7 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -Cont
 
 `plan: "free"` resets the account to an active 7-day trial for local testing. Paid plans clear the trial date.
 
-## Smoke Checks — Accounts + Limits
+## Smoke Checks - Accounts + Limits
 
 1. **Signup + login**
    - Sign up or log in with Google and confirm a row exists in `public.profiles`
@@ -187,18 +206,21 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -Cont
    - Inspect the latest `summaries` row and confirm only structured summary fields are stored
    - Confirm the original pasted chat text does not appear in the database
 
----
+## Summary Output Format
 
-## Summary Output Format (always in this order)
-1. **TL;DR** — 2-3 sentence summary
-2. **Important Dates** — date + time + location
-3. **Action Items / To-Do** — things parents/students need to do
-4. **People / Classes** — teachers, people, subjects mentioned
-5. **Links & Attachments** — URLs and file references
-6. **Questions to Ask** — suggested questions for the teacher/school
-
----
+1. **TL;DR** - 2-3 sentence summary
+2. **Important Dates** - date + time + location
+3. **Action Items / To-Do** - things parents/students need to do
+4. **People / Classes** - teachers, people, subjects mentioned
+5. **Links & Attachments** - URLs and file references
+6. **Questions to Ask** - suggested questions for the teacher/school
 
 ## Privacy
+
 - No raw chat text is ever stored or logged.
 - Summaries are processed in memory via OpenAI and returned directly to the browser.
+
+## License / Credits
+
+- README hero illustration: [unDraw "Messaging"](https://undraw.co/search/messaging) under the [unDraw license](https://undraw.co/license).
+- Fazumi fox mascot and brand assets are existing in-repo project assets under [`public/brand/`](public/brand/).
