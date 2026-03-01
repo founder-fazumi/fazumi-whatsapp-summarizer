@@ -304,6 +304,12 @@ async function routeEvent(
       if (error) {
         throw new Error(`Could not refresh subscription period: ${error.message}`);
       }
+      // Defensive re-set: restore plan if it drifted to "free" during past_due
+      const variantId = String(attrs.variant_id);
+      const planType = getPlanType(variantId);
+      if (planType && userId) {
+        await setPlan(admin, userId, planType);
+      }
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,
