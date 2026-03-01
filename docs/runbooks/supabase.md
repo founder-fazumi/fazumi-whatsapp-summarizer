@@ -31,6 +31,20 @@ Timestamp format: `YYYYMMDD` (8 digits) + sequence if multiple on same day.
 
 All migrations must be idempotent (`CREATE TABLE IF NOT EXISTS`, `DROP POLICY IF EXISTS` before `CREATE POLICY`).
 
+## Migration drift: use --include-all
+
+Canonical commands for this repo:
+
+```powershell
+supabase migration list
+supabase db push --dry-run --include-all
+supabase db push --include-all
+```
+
+This repo has legacy short-version migration entries that can make a bare `supabase db push --dry-run` disagree with the real apply path. Use `--include-all` for the pre-deploy check and the actual push.
+
+Prefer fixing drift via the Supabase SQL editor only when required. Do not repeatedly run `supabase migration repair` blindly.
+
 ---
 
 ## RLS policies (expected)

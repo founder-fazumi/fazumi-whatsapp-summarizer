@@ -19,7 +19,7 @@
 ## P1 — All users broken
 
 1. Check Vercel deployment status → look for failed deploy
-2. Check `/api/health` → if `{ ok: false }` or 500, env var likely missing
+2. Check `/api/health` → if `envConfigured` is `false` or the route returns 500, core env is likely missing; if only `env.lemonsqueezy` is `false`, billing is degraded but summarize/sign-in can still work
 3. Check Supabase status: https://status.supabase.com
 4. Check OpenAI status: https://status.openai.com
 5. If Vercel deploy broke it → rollback immediately (see `docs/runbooks/deploy.md`)

@@ -109,6 +109,8 @@ pnpm typecheck
 pnpm test
 ```
 
+Supabase deploy note: see [`docs/runbooks/supabase.md`](docs/runbooks/supabase.md). In this repo, `supabase db push --include-all` is the canonical pre-deploy check/apply flow.
+
 ## Webhook Replay (Dev)
 
 Canonical env var names:
@@ -169,7 +171,7 @@ Invoke-WebRequest http://localhost:3000/api/health
 Invoke-WebRequest http://localhost:3000/api/dev/env-check
 ```
 
-If `/api/health` returns `envConfigured: false`, or `/api/dev/env-check` shows any env booleans as `false`, fix your `.env.local` values and retry.
+`/api/health` returns booleans only: `env.supabase`, `env.openai`, `env.lemonsqueezy`, plus `envConfigured` for core app readiness. If `env.supabase`, `env.openai`, or `envConfigured` is `false`, fix your `.env.local` values and retry. `env.lemonsqueezy: false` means billing/webhooks are not ready, but summarize/history can still run.
 
 Dev-only: use `pnpm webhook:replay` and [`scripts/webhooks/README.md`](scripts/webhooks/README.md) instead of the older manual curl flow.
 
@@ -180,7 +182,7 @@ Dev-only: use `pnpm webhook:replay` and [`scripts/webhooks/README.md`](scripts/w
 3. Summarize one chat and confirm the request succeeds without exposing raw chat text in server logs.
 4. Open `/history` and confirm the new summary is listed and the detail page loads.
 5. Replay a local Lemon Squeezy webhook with `pnpm webhook:replay` and confirm the status change is reflected in server logs.
-6. Check `GET /api/health` and confirm it returns `{ ok: true, timestamp, envConfigured: true }` in the target environment.
+6. Check `GET /api/health` and confirm it returns boolean-only readiness fields with `env.supabase: true`, `env.openai: true`, and `envConfigured: true`. `env.lemonsqueezy` should be `true` only where billing/webhooks are expected to work.
 7. Confirm Sentry receives a test error:
    - Server-side: send a webhook request with a bad `x-signature` and confirm Sentry records the `INVALID_SIGNATURE` error for `/api/webhooks/lemonsqueezy`.
    - Browser test: in DevTools on any page with `SENTRY_DSN` configured, run `setTimeout(() => { throw new Error("Sentry smoke test"); }, 0)` and confirm the issue appears in Sentry.

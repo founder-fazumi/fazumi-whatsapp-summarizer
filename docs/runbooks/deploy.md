@@ -33,7 +33,7 @@ Monitor build at: Vercel Dashboard → Deployments
 ```powershell
 # Health check
 Invoke-WebRequest https://fazumi.app/api/health
-# Expected: { ok: true, envConfigured: true, timestamp: "...", app: "fazumi" }
+# Expected: { ok: true, app: "fazumi-web", env: { supabase: true, openai: true, lemonsqueezy: true|false }, envConfigured: true, timestamp: "..." }
 ```
 
 Then run manual smoke: `/`, `/pricing`, `/login`, `/dashboard`, `/api/health`
