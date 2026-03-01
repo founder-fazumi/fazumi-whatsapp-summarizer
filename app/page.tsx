@@ -42,11 +42,17 @@ export default async function LandingPage() {
       <main>
         <Hero />
         <SocialProof />
-        <HowItWorks />
+        <div id="how-it-works" className="scroll-mt-24">
+          <HowItWorks />
+        </div>
         <Testimonials />
-        <Pricing />
+        <div id="pricing" className="scroll-mt-24">
+          <Pricing />
+        </div>
         <CheckoutTeaser />
-        <FAQ />
+        <div id="faq" className="scroll-mt-24">
+          <FAQ />
+        </div>
         <Newsletter />
       </main>
     </div>

@@ -110,7 +110,7 @@ export function Pricing({
   isLoggedIn = false,
   currentPlan,
   embedded = false,
-  sectionId = "pricing",
+  sectionId,
 }: PricingProps) {
   const { locale } = useLang();
   const [billing, setBilling] = useState<Billing>(() => (currentPlan === "monthly" ? "monthly" : "yearly"));
@@ -127,7 +127,7 @@ export function Pricing({
     <section
       id={sectionId}
       className={cn(
-        "page-section scroll-mt-24 bg-[var(--page-layer)]",
+        "page-section bg-[var(--page-layer)]",
         embedded && "surface-panel-elevated px-4 py-10 sm:px-6"
       )}
     >

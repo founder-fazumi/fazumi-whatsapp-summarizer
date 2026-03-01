@@ -55,7 +55,7 @@ export function HowItWorks() {
   const [open, setOpen] = useState(false);
 
   return (
-    <section id="how-it-works" className="page-section scroll-mt-24 bg-[var(--page-layer)]">
+    <section className="page-section bg-[var(--page-layer)]">
       <div className="page-shell">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
