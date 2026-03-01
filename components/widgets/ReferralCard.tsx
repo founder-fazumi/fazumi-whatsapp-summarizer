@@ -17,7 +17,7 @@ export function ReferralCard() {
   const { locale } = useLang();
 
   return (
-    <Card className="bg-gradient-to-br from-[var(--accent-cream)]/20 to-[var(--card)]">
+    <Card className="hero-backdrop overflow-hidden bg-[var(--surface-elevated)]">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-1.5 text-sm">
           <Gift className="h-4 w-4 text-[var(--primary)]" />
@@ -28,11 +28,11 @@ export function ReferralCard() {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center justify-center rounded-[var(--radius)] bg-[var(--accent-cream)]/30 py-3">
+        <div className="flex items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] py-3">
           <Image src="/brand/mascot/mascot-waving.png.png" alt="" width={80} height={80} className="object-contain" />
         </div>
 
-        <div className="rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--card)] px-3 py-2 text-center font-mono text-xs text-[var(--muted-foreground)]">
+        <div className="rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center font-mono text-xs text-[var(--muted-foreground)]">
           fazumi.com/ref/your-code
         </div>
         <Button variant="outline" size="sm" className="w-full text-xs" disabled>

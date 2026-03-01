@@ -49,7 +49,7 @@ export function HistoryList({ summaries }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={locale === "ar" ? "ابحث في الملخصات…" : "Search summaries…"}
-          className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] py-2.5 pl-9 pr-4 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+          className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface-elevated)] py-2.5 pl-9 pr-4 text-sm text-[var(--foreground)] shadow-[var(--shadow-xs)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 focus:ring-offset-[var(--background)]"
         />
       </div>
 
@@ -69,17 +69,17 @@ export function HistoryList({ summaries }: Props) {
           className="py-8"
         />
       ) : (
-        <div className="divide-y divide-[var(--border)] rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
+        <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           {filtered.map((s) => (
             <Link
               key={s.id}
               href={`/history/${s.id}`}
               className={cn(
-                "flex items-start gap-3 px-4 py-3.5 transition-colors",
-                "hover:bg-[var(--bg-2)] first:rounded-t-[var(--radius-lg)] last:rounded-b-[var(--radius-lg)]"
+                "flex items-start gap-3 border-b border-[var(--border)] px-4 py-4 transition-colors last:border-b-0",
+                "hover:bg-[var(--surface-muted)]"
               )}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10 mt-0.5">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--primary-soft)]">
                 <FileText className="h-4 w-4 text-[var(--primary)]" />
               </div>
               <div className="flex-1 min-w-0">
@@ -92,7 +92,7 @@ export function HistoryList({ summaries }: Props) {
                   {relativeTime(s.created_at, locale)}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="rounded-full border border-[var(--border)] px-1.5 py-px font-medium">
+                  <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-1.5 py-px font-medium">
                     {LANG_LABEL[s.lang_detected] ?? s.lang_detected.toUpperCase()}
                   </span>
                   <span>

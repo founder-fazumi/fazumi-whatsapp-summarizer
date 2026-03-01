@@ -21,9 +21,9 @@ interface EmptyStateProps {
  */
 export function EmptyState({ icon: Icon, title, body, cta, className }: EmptyStateProps) {
   return (
-    <div className={cn("flex flex-col items-center justify-center py-24 gap-4 text-center", className)}>
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--muted)]">
-        <Icon className="h-6 w-6 text-[var(--muted-foreground)]" />
+    <div className={cn("surface-panel-muted flex flex-col items-center justify-center gap-4 px-6 py-16 text-center", className)}>
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)]">
+        <Icon className="h-6 w-6 text-[var(--primary)]" />
       </span>
       <div className="space-y-1">
         <p className="text-base font-semibold text-[var(--foreground)]">{title}</p>
@@ -34,7 +34,7 @@ export function EmptyState({ icon: Icon, title, body, cta, className }: EmptySta
         return (
           <Link
             href={cta.href}
-            className="mt-2 inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white hover:bg-[var(--primary-hover)] transition-colors"
+            className="mt-2 inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
           >
             {CtaIcon && <CtaIcon className="h-4 w-4" />}
             {cta.label}

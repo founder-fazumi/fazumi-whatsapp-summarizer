@@ -122,45 +122,47 @@ export function FAQ() {
   const current = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
-    <section id="faq" className="bg-[var(--bg-2)] py-16">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6">
-        <div className="mb-10 text-center">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[var(--primary)]">
-            {pick(COPY.eyebrow, locale)}
-          </p>
-          <h2 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
-            {pick(COPY.title, locale)}
-          </h2>
-          <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-            {pick(COPY.subtitle, locale)}
-          </p>
-        </div>
+    <section id="faq" className="page-section bg-[var(--page-layer)]">
+      <div className="page-shell">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-10 text-center">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[var(--primary)]">
+              {pick(COPY.eyebrow, locale)}
+            </p>
+            <h2 className="text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
+              {pick(COPY.title, locale)}
+            </h2>
+            <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+              {pick(COPY.subtitle, locale)}
+            </p>
+          </div>
 
-        <div className="mb-6 flex flex-wrap justify-center gap-2">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "border-[var(--primary)] bg-[var(--primary)] text-white"
-                  : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--foreground)] hover:text-[var(--foreground)]"
-              )}
-            >
-              {pick(tab.label, locale)}
-            </button>
-          ))}
-        </div>
+          <div className="mb-6 flex flex-wrap justify-center gap-2">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "rounded-full border px-4 py-2 text-sm font-medium shadow-[var(--shadow-xs)] transition-colors",
+                  activeTab === tab.id
+                    ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                    : "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted-foreground)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
+                )}
+              >
+                {pick(tab.label, locale)}
+              </button>
+            ))}
+          </div>
 
-        <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--card)] px-5 shadow-[var(--shadow-card)]">
-          {current.items.map((item) => (
-            <AccordionItem
-              key={item.question.en}
-              question={pick(item.question, locale)}
-              answer={pick(item.answer, locale)}
-            />
-          ))}
+          <div className="surface-panel px-5">
+            {current.items.map((item) => (
+              <AccordionItem
+                key={item.question.en}
+                question={pick(item.question, locale)}
+                answer={pick(item.answer, locale)}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>

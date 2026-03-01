@@ -39,9 +39,9 @@ const COPY = {
 } satisfies Record<string, LocalizedCopy<string>>;
 
 function planBadge(plan: string, trialExpiresAt?: string | null) {
-  if (["monthly", "annual", "founder"].includes(plan)) return { labelKey: "pro", color: "bg-[var(--primary)] text-white" };
-  if (trialExpiresAt && new Date(trialExpiresAt) > new Date()) return { labelKey: "freeTrial", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" };
-  return { labelKey: "free", color: "bg-[var(--muted)] text-[var(--muted-foreground)]" };
+  if (["monthly", "annual", "founder"].includes(plan)) return { labelKey: "pro", color: "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" };
+  if (trialExpiresAt && new Date(trialExpiresAt) > new Date()) return { labelKey: "freeTrial", color: "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning-foreground)]" };
+  return { labelKey: "free", color: "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]" };
 }
 
 export function DashboardBanner({
@@ -69,15 +69,15 @@ export function DashboardBanner({
   ];
 
   return (
-    <Card className="mb-5 overflow-hidden border-0 bg-gradient-to-br from-[var(--mint-wash)]/30 via-[var(--card-tint)] to-[var(--bg-2)]">
-      <CardContent className="py-5 px-6">
+    <Card className="hero-backdrop mb-5 overflow-hidden border-[var(--border)] bg-[var(--surface-elevated)]">
+      <CardContent className="px-6 py-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-xl font-bold text-[var(--foreground)] leading-snug">
                 {t("dash.greeting", locale)}, {userName ?? pick(COPY.there, locale)}
               </h1>
-              <span className={`hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${badge.color}`}>
+              <span className={`hidden sm:inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${badge.color}`}>
                 {pick(COPY[badge.labelKey as keyof typeof COPY], locale)}
               </span>
             </div>
@@ -85,7 +85,7 @@ export function DashboardBanner({
               {pick(COPY.subtitle, locale)}
             </p>
 
-            <div className="mt-3 space-y-1.5">
+            <div className="surface-panel mt-4 px-4 py-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[var(--muted-foreground)]">
                   {pick(COPY.usageToday, locale)}
@@ -94,11 +94,11 @@ export function DashboardBanner({
                   {usageLabel}
                 </span>
               </div>
-              <Progress value={progressValue} max={progressMax} className="h-1.5" />
+              <Progress value={progressValue} max={progressMax} className="mt-2 h-1.5" />
             </div>
 
             {isTrialActive && !isPaid && (
-              <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+              <p className="mt-3 text-xs text-[var(--muted-foreground)]">
                 {locale === "ar"
                   ? `متبقٍ ${formatNumber(daysLeft)} ${t("dash.trial.days", locale)}`
                   : `${formatNumber(daysLeft)} ${t("dash.trial.days", locale)}`}
@@ -125,7 +125,7 @@ export function DashboardBanner({
             {showUpgrade && (
               <Link
                 href="/billing"
-                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-white hover:bg-[var(--primary-hover)] transition-colors"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-3.5 py-2 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
                 <ArrowUpCircle className="h-3.5 w-3.5" />
                 {t("dash.upgrade", locale)}
@@ -133,8 +133,7 @@ export function DashboardBanner({
             )}
           </div>
 
-          {/* Mascot */}
-          <div className="hidden sm:flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20">
+          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] sm:flex">
             <BrandLogo size="lg" />
           </div>
         </div>

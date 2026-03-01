@@ -40,17 +40,17 @@ export default function StatusPage() {
       title={{ en: "System Status", ar: "حالة النظام" }}
       description={{ en: "A simple placeholder snapshot of the core product surfaces while a fuller status workflow is still being built.", ar: "لقطة مبدئية بسيطة لواجهات المنتج الأساسية بينما ما زال سير عمل الحالة الكامل قيد البناء." }}
     >
-      <Card className="mb-4 border-emerald-200 bg-emerald-50">
+      <Card className="status-success mb-4 border bg-[var(--success-soft)]">
         <CardContent className="flex items-center justify-between gap-4 py-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--success-foreground)]">
               <LocalizedText en="Current state" ar="الحالة الحالية" />
             </p>
-            <h2 className="mt-1 text-2xl font-semibold text-emerald-950">
+            <h2 className="mt-1 text-2xl font-semibold text-[var(--success-foreground)]">
               <LocalizedText en="All core services operational" ar="جميع الخدمات الأساسية تعمل" />
             </h2>
           </div>
-          <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+          <span className="rounded-full bg-[var(--success)] px-3 py-1 text-xs font-semibold text-white">
             <LocalizedText en="No active incident" ar="لا توجد حادثة نشطة" />
           </span>
         </CardContent>

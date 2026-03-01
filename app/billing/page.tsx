@@ -12,7 +12,7 @@ const PLAN_LABELS: Record<string, { name: { en: string; ar: string }; price: str
   free:    { name: { en: "Free", ar: "مجاني" },          price: formatPrice(0),       color: "text-[var(--muted-foreground)]" },
   monthly: { name: { en: "Pro Monthly", ar: "Pro شهري" }, price: `${formatPrice(9.99, 2)}/mo`, color: "text-[var(--primary)]" },
   annual:  { name: { en: "Pro Annual", ar: "Pro سنوي" },  price: `${formatPrice(99.99, 2)}/yr`, color: "text-[var(--primary)]" },
-  founder: { name: { en: "Founder LTD", ar: "المؤسس" },   price: formatPrice(149),     color: "text-emerald-600" },
+  founder: { name: { en: "Founder LTD", ar: "المؤسس" },   price: formatPrice(149),     color: "text-[var(--accent-fox-deep)]" },
 };
 
 const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
@@ -105,7 +105,7 @@ export default async function BillingPage() {
     <DashboardShell contentClassName="max-w-6xl">
       <div className="space-y-4">
         {isPastDue && (
-          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-300">
+          <div className="status-destructive flex items-start gap-3 rounded-[var(--radius-lg)] border px-4 py-3 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>
               <LocalizedText
@@ -125,7 +125,7 @@ export default async function BillingPage() {
             </p>
           </div>
         )}
-        <Card>
+        <Card className="bg-[var(--surface-elevated)]">
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary)]/10">
@@ -143,7 +143,7 @@ export default async function BillingPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             {/* Current plan */}
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-2)] p-4">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
               <p className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
                 <LocalizedText en="Current plan" ar="الخطة الحالية" />
               </p>
@@ -153,7 +153,7 @@ export default async function BillingPage() {
               <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">{planInfo.price}</p>
 
               {isTrialActive && trialDaysLeft !== null && (
-                <p className="mt-2 text-xs text-amber-600 font-medium">
+                <p className="mt-2 text-xs font-medium text-[var(--warning)]">
                   <LocalizedText
                     en={`Free trial. ${formatNumber(trialDaysLeft)} day${trialDaysLeft !== 1 ? "s" : ""} remaining`}
                     ar={`فترة تجريبية. متبقٍ ${formatNumber(trialDaysLeft)} يوم`}
@@ -173,7 +173,7 @@ export default async function BillingPage() {
               <ul className="mt-3 space-y-1.5">
                 {features.map((f) => (
                   <li key={f.en} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
-                    <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    <Check className="h-3.5 w-3.5 shrink-0 text-[var(--success)]" />
                     <LocalizedText en={f.en} ar={f.ar} />
                   </li>
                 ))}

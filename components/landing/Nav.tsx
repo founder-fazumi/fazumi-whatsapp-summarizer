@@ -122,12 +122,12 @@ export function Nav({ isLoggedIn = false }: NavProps) {
   );
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+    <nav className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--glass-surface)] backdrop-blur-xl">
+      <div className="page-shell flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5">
           <BrandLogo size="sm" />
           <span className="font-bold text-base text-[var(--foreground)]">Fazumi</span>
-          <span className="hidden sm:inline-block rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--primary)]">
+          <span className="hidden rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 text-[10px] font-semibold text-[var(--primary)] shadow-[var(--shadow-xs)] sm:inline-block">
             {pick(COPY.beta, locale)}
           </span>
         </Link>
@@ -168,7 +168,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
 
           {loggedIn ? (
             <GoToAppButton
-              className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
+              className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
             >
               {pick(COPY.dashboard, locale)} →
             </GoToAppButton>
@@ -182,7 +182,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
               </Link>
               <Link
                 href="/login?tab=signup"
-                className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
+                className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
                 {t("auth.signup", locale)}
               </Link>

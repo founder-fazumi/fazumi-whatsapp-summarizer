@@ -55,7 +55,7 @@ export function DropdownMenu({ trigger, items, align = "right", className }: Dro
       {open && (
         <div
           className={cn(
-            "absolute top-full z-50 mt-1.5 min-w-[180px] rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] py-1 shadow-[var(--shadow-card)]",
+            "absolute top-full z-50 mt-2 min-w-[200px] rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--popover)] py-1.5 shadow-[var(--shadow-card)]",
             align === "right" ? "right-0" : "left-0"
           )}
           role="menu"
@@ -66,10 +66,10 @@ export function DropdownMenu({ trigger, items, align = "right", className }: Dro
             }
 
             const itemCls = cn(
-              "flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors",
+              "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-sm transition-colors",
               item.danger
-                ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                : "text-[var(--foreground)] hover:bg-[var(--muted)]"
+                ? "text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+                : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
             );
 
             if (item.href) {

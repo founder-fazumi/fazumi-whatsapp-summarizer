@@ -69,7 +69,7 @@ export default async function SummaryDetailPage({ params }: PageProps) {
   return (
     <DashboardShell>
       {/* Back + meta bar */}
-      <Card className="mb-4">
+      <Card className="mb-4 bg-[var(--surface-elevated)]">
         <CardHeader className="py-3 px-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
@@ -96,7 +96,7 @@ export default async function SummaryDetailPage({ params }: PageProps) {
             <div className="flex items-center gap-2">
               <Link
                 href="/summarize"
-                className="text-xs text-[var(--primary)] hover:underline"
+                className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--primary)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
               >
                 <LocalizedText en="Summarize again →" ar="لخّص مرة أخرى ←" />
               </Link>

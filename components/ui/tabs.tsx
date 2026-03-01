@@ -37,7 +37,7 @@ const TabsList = React.forwardRef<
     ref={ref}
     role="tablist"
     className={cn(
-      "inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--muted)] p-1",
+      "inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-xs)]",
       className
     )}
     {...props}
@@ -62,12 +62,12 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
         disabled={disabled}
         onClick={() => !disabled && ctx.onValueChange(value)}
         className={cn(
-          "inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+          "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]",
           "disabled:pointer-events-none disabled:opacity-40",
           isActive
-            ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
-            : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
+            ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[var(--shadow-xs)]"
+            : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]",
           className
         )}
         {...props}

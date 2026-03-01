@@ -65,9 +65,9 @@ export function Footer() {
     <footer
       dir={locale === "ar" ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("border-t border-[var(--border)] bg-[var(--card)] py-12", locale === "ar" && "font-arabic")}
+      className={cn("border-t border-[var(--border)] bg-[var(--page-layer)] py-12", locale === "ar" && "font-arabic")}
     >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <div className="page-shell">
         <div className="mb-10 grid grid-cols-2 gap-8 md:grid-cols-4">
           <div className="col-span-2 md:col-span-1">
             <div className="mb-3 flex items-center gap-2">
@@ -111,11 +111,12 @@ export function Footer() {
             © {year} Fazumi. {pick(COPY.rights, locale)}
           </p>
           <div className="flex items-center gap-4">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--primary)]/10 px-2.5 py-0.5 text-[10px] font-semibold text-[var(--primary)]">
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 text-[10px] font-semibold text-[var(--primary)] shadow-[var(--shadow-xs)]">
               <ShieldCheck className="h-3 w-3" /> {pick(COPY.privacy, locale)}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-semibold text-amber-700">
-              🇶🇦 {pick(COPY.gcc, locale)}
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent-fox-deep)] shadow-[var(--shadow-xs)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-fox)]" />
+              {pick(COPY.gcc, locale)}
             </span>
           </div>
         </div>

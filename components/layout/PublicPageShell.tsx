@@ -31,17 +31,17 @@ export function PublicPageShell({
       className={cn("min-h-screen bg-[var(--background)]", isArabic && "font-arabic")}
     >
       <Nav />
-      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
-        <div className={cn("mb-8 max-w-3xl", isArabic && "text-right", className)}>
+      <main className="page-shell page-section-tight">
+        <div className={cn("hero-backdrop surface-panel-elevated relative mb-8 overflow-hidden px-[var(--card-padding-lg)] py-[var(--card-padding-lg)]", isArabic && "text-right", className)}>
           {eyebrow && (
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">
               {pick(eyebrow, locale)}
             </p>
           )}
-          <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
+          <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-[var(--text-strong)] sm:text-4xl">
             {pick(title, locale)}
           </h1>
-          <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
             {pick(description, locale)}
           </p>
         </div>

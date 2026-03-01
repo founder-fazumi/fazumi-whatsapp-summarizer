@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { Sparkles, Upload, X, Lightbulb, Lock } from "lucide-react";
 import JSZip from "jszip";
 import type { SummaryResult } from "@/lib/ai/summarize";
@@ -239,178 +240,186 @@ export function Hero() {
     <section
       dir={isRtl ? "rtl" : "ltr"}
       lang={locale}
-      className={cn(
-        "relative overflow-hidden bg-gradient-to-b from-[var(--mint-wash)]/20 via-[var(--background)] to-[var(--background)] pt-16 pb-12",
-        isRtl && "font-arabic"
-      )}
+      className={cn("page-section-tight relative overflow-hidden", isRtl && "font-arabic")}
     >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-[var(--primary)]/5 blur-3xl" />
-        <div className="absolute top-20 right-0 h-60 w-60 rounded-full bg-[var(--accent-fox)]/5 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto max-w-3xl px-4 sm:px-6">
-        <div className="mb-8 text-center">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--primary)]/20 bg-[var(--primary)]/8 px-3 py-1 text-xs font-semibold text-[var(--primary)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
-            {pick(COPY.badge, locale)}
+      <div className="page-shell">
+        <div className="hero-backdrop surface-panel-elevated relative overflow-hidden px-[var(--card-padding-lg)] py-10 sm:py-12">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-24 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-[var(--primary-soft)] blur-3xl" />
+            <div className="absolute bottom-0 right-0 h-48 w-48 rounded-full bg-[var(--accent-cream)] blur-3xl opacity-70" />
           </div>
-          <h1 className="text-3xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
-            {pick(COPY.titleLineOne, locale)}
-            <span className="block text-[var(--primary)]">
-              {pick(COPY.titleLineTwo, locale)}
-            </span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[var(--muted-foreground)] sm:text-lg">
-            {pick(COPY.subtitle, locale)}
-          </p>
-        </div>
+          <Image
+            src="/brand/mascot/mascot-reading.png.png"
+            alt=""
+            width={196}
+            height={196}
+            className="pointer-events-none absolute bottom-0 right-6 hidden w-40 opacity-40 dark:opacity-25 lg:block"
+          />
 
-        <div className="shine-wrap">
-          <div className="shine-inner overflow-hidden rounded-[calc(var(--radius-xl)-2px)]">
-            <form onSubmit={handleSubmit}>
-              <div className="relative">
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={loading}
-                  rows={9}
-                  placeholder={pick(COPY.placeholder, locale)}
-                  className={cn(
-                    "w-full resize-none border-0 bg-[var(--card)] px-4 pt-4 pb-10 text-sm leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]",
-                    isOverLimit && "bg-red-50"
-                  )}
-                />
-                <div
-                  className={cn(
-                    "absolute bottom-2.5 right-3 rounded-md px-1.5 py-0.5 text-[11px] tabular-nums pointer-events-none",
-                    isOverLimit
-                      ? "bg-red-100 font-semibold text-red-600"
-                      : remaining < 3000
-                        ? "bg-amber-100 text-amber-600"
-                        : "bg-[var(--muted)] text-[var(--muted-foreground)]"
-                  )}
-                >
-                  {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
-                </div>
+          <div className="relative mx-auto max-w-3xl">
+            <div className="mb-8 text-center">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--primary)] shadow-[var(--shadow-xs)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
+                {pick(COPY.badge, locale)}
               </div>
+              <h1 className="text-3xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
+                {pick(COPY.titleLineOne, locale)}
+                <span className="block text-[var(--primary)]">
+                  {pick(COPY.titleLineTwo, locale)}
+                </span>
+              </h1>
+              <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[var(--muted-foreground)] sm:text-lg">
+                {pick(COPY.subtitle, locale)}
+              </p>
+            </div>
 
-              <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border)] bg-[var(--card)] px-3 py-2.5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt,.zip"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={loading}
-                  className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--background)] px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  {pick(COPY.upload, locale)}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setText(getSampleChat(langPref, locale));
-                    setUploadWarn(null);
-                  }}
-                  disabled={loading}
-                  className="rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
-                >
-                  {pick(COPY.useSample, locale)}
-                </button>
-
-                {text && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setText("");
-                      setSummary(null);
-                      setError(null);
-                      setUploadWarn(null);
-                    }}
-                    disabled={loading}
-                    className="rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                    aria-label={locale === "ar" ? "مسح النص" : "Clear text"}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-
-                <div className="ml-auto flex items-center gap-0.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--muted)] p-0.5">
-                  {(["auto", "en", "ar"] as LangPref[]).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setLangPref(value)}
+            <div className="shine-wrap">
+              <div className="shine-inner overflow-hidden rounded-[calc(var(--radius-xl)-1px)]">
+                <form onSubmit={handleSubmit}>
+                  <div className="relative">
+                    <textarea
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      disabled={loading}
+                      rows={9}
+                      placeholder={pick(COPY.placeholder, locale)}
                       className={cn(
-                        "rounded px-2 py-1 text-xs font-medium transition-colors",
-                        langPref === value
-                          ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
-                          : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        "w-full resize-none border-0 bg-transparent px-5 pt-5 pb-11 text-sm leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]",
+                        isOverLimit && "bg-[var(--destructive-soft)]"
+                      )}
+                    />
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute bottom-3 right-3 rounded-full border px-2 py-1 text-[11px] tabular-nums shadow-[var(--shadow-xs)]",
+                        isOverLimit
+                          ? "border-[var(--destructive)] bg-[var(--destructive-soft)] font-semibold text-[var(--destructive)]"
+                          : remaining < 3000
+                            ? "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)]"
+                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
                       )}
                     >
-                      {pick(OUTPUT_LABELS[value], locale)}
+                      {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.zip"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={loading}
+                      className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {pick(COPY.upload, locale)}
                     </button>
-                  ))}
-                </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setText(getSampleChat(langPref, locale));
+                        setUploadWarn(null);
+                      }}
+                      disabled={loading}
+                      className="rounded-full px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                    >
+                      {pick(COPY.useSample, locale)}
+                    </button>
+
+                    {text && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setText("");
+                          setSummary(null);
+                          setError(null);
+                          setUploadWarn(null);
+                        }}
+                        disabled={loading}
+                        className="rounded-full px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+                        aria-label={locale === "ar" ? "مسح النص" : "Clear text"}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+
+                    <div className="ml-auto flex items-center gap-0.5 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-xs)]">
+                      {(["auto", "en", "ar"] as LangPref[]).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setLangPref(value)}
+                          className={cn(
+                            "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                            langPref === value
+                              ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[var(--shadow-xs)]"
+                              : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+                          )}
+                        >
+                          {pick(OUTPUT_LABELS[value], locale)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </form>
               </div>
-            </form>
-          </div>
-        </div>
+            </div>
 
-        {uploadWarn && (
-          <div className="mt-2 flex items-center gap-2 rounded-[var(--radius)] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-            {uploadWarn}
-          </div>
-        )}
-
-        <div className="mt-4 space-y-2">
-          <Button
-            size="lg"
-            className="w-full gap-2 text-base"
-            disabled={loading || !text.trim() || isOverLimit}
-            onClick={() => void handleSubmit()}
-          >
-            {loading ? (
-              <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                {pick(COPY.summarizing, locale)}
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-5 w-5" />
-                {pick(COPY.summarize, locale)}
-              </>
+            {uploadWarn && (
+              <div className="status-warning mt-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-xs">
+                <Lightbulb className="h-3.5 w-3.5 shrink-0" />
+                {uploadWarn}
+              </div>
             )}
-          </Button>
-          <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-[var(--muted-foreground)]">
-            <Lock className="h-3 w-3" />
-            {pick(COPY.privacy, locale)}
-            <span className="text-[var(--muted-foreground)]/60">·</span>
-            <kbd className="rounded border border-[var(--border)] bg-[var(--muted)] px-1 font-mono text-[10px]">Ctrl</kbd>
-            <kbd className="rounded border border-[var(--border)] bg-[var(--muted)] px-1 font-mono text-[10px]">↵</kbd>
-          </p>
+
+            <div className="mt-4 space-y-2">
+              <Button
+                size="lg"
+                className="w-full gap-2 text-base shadow-[var(--shadow-lg)]"
+                disabled={loading || !text.trim() || isOverLimit}
+                onClick={() => void handleSubmit()}
+              >
+                {loading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    {pick(COPY.summarizing, locale)}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5" />
+                    {pick(COPY.summarize, locale)}
+                  </>
+                )}
+              </Button>
+              <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-[var(--muted-foreground)]">
+                <Lock className="h-3 w-3" />
+                {pick(COPY.privacy, locale)}
+                <span className="text-[var(--muted-foreground)]/60">·</span>
+                <kbd className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 font-mono text-[10px] shadow-[var(--shadow-xs)]">Ctrl</kbd>
+                <kbd className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 font-mono text-[10px] shadow-[var(--shadow-xs)]">↵</kbd>
+              </p>
+            </div>
+
+            {error && (
+              <div className="status-destructive mt-4 rounded-[var(--radius)] border px-4 py-3 text-sm">
+                {error}
+              </div>
+            )}
+
+            {summary && (
+              <div ref={summaryRef} className="mt-8">
+                <SummaryDisplay summary={summary} outputLang={outputLang} actionMode="gated" />
+              </div>
+            )}
+          </div>
         </div>
-
-        {error && (
-          <div className="mt-4 rounded-[var(--radius)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {summary && (
-          <div ref={summaryRef} className="mt-8">
-            <SummaryDisplay summary={summary} outputLang={outputLang} actionMode="gated" />
-          </div>
-        )}
       </div>
     </section>
   );

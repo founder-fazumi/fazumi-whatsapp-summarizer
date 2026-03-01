@@ -70,34 +70,33 @@ export function CheckoutTeaser() {
     <section
       dir={isArabic ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("py-12 bg-[var(--background)]", isArabic && "font-arabic")}
+      className={cn("page-section-tight", isArabic && "font-arabic")}
     >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 space-y-6">
-        <div className="relative overflow-hidden rounded-[var(--radius-xl)] bg-gradient-to-r from-[var(--primary)] to-[var(--primary-hover)] px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-[var(--shadow-card)]">
-          <div className="pointer-events-none absolute right-0 top-0 h-full w-64 bg-white/5 [clip-path:polygon(30%_0,100%_0,100%_100%,0%_100%)]" />
+      <div className="page-shell space-y-6">
+        <div className="hero-backdrop surface-panel-elevated relative flex flex-col items-start justify-between gap-4 px-6 py-6 sm:flex-row sm:items-center">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <ArrowUpCircle className="h-5 w-5 text-white" />
-              <p className="text-white font-bold text-sm">{pick(COPY.bannerTitle, locale)}</p>
+              <ArrowUpCircle className="h-5 w-5 text-[var(--primary)]" />
+              <p className="text-sm font-bold text-[var(--text-strong)]">{pick(COPY.bannerTitle, locale)}</p>
             </div>
-            <p className="text-white/80 text-xs leading-relaxed">{pick(COPY.bannerBody, locale)}</p>
+            <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">{pick(COPY.bannerBody, locale)}</p>
           </div>
           <Link
             href="/pricing"
-            className="shrink-0 rounded-[var(--radius)] bg-white px-5 py-2.5 text-sm font-bold text-[var(--primary)] hover:bg-white/90 transition-colors disabled:opacity-80 disabled:cursor-not-allowed whitespace-nowrap"
+            className="shrink-0 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] whitespace-nowrap"
           >
             {pick(COPY.bannerCta, locale)}
           </Link>
         </div>
 
-        <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-card)]">
+        <div className="surface-panel px-6 py-6">
           <div className="flex items-center gap-2 mb-5">
             <CreditCard className="h-5 w-5 text-[var(--primary)]" />
             <h3 className="font-bold text-sm text-[var(--foreground)]">{pick(COPY.title, locale)}</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] p-4">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-xs)]">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">{pick(COPY.monthly, locale)}</p>
               <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
                 $9.99<span className="text-sm font-medium text-[var(--muted-foreground)]">{pick(COPY.monthlySuffix, locale)}</span>
@@ -106,13 +105,13 @@ export function CheckoutTeaser() {
               <CheckoutButton
                 variantId={process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? ""}
                 isLoggedIn={false}
-                className="mt-4 w-full rounded-[var(--radius)] bg-[var(--primary)] py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--primary-hover)]"
+                className="mt-4 w-full rounded-[var(--radius)] bg-[var(--primary)] py-3 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
                 {pick(COPY.monthlyCta, locale)}
               </CheckoutButton>
             </div>
 
-            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] p-4">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-xs)]">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">{pick(COPY.founder, locale)}</p>
               <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
                 $149<span className="text-sm font-medium text-[var(--muted-foreground)]"> {pick(COPY.founderSuffix, locale)}</span>
@@ -121,7 +120,7 @@ export function CheckoutTeaser() {
               <CheckoutButton
                 variantId={process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? ""}
                 isLoggedIn={false}
-                className="mt-4 w-full rounded-[var(--radius)] border border-[var(--primary)] py-3 text-sm font-bold text-[var(--primary)] transition-colors hover:bg-[var(--primary)]/5"
+                className="mt-4 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] py-3 text-sm font-bold text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
               >
                 {pick(COPY.founderCta, locale)}
               </CheckoutButton>

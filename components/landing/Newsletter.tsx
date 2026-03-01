@@ -28,62 +28,63 @@ export function Newsletter() {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
-    // Simulate submit — replace with real API call
     await new Promise((r) => setTimeout(r, 800));
     setSubmitted(true);
     setLoading(false);
   }
 
   return (
-    <section className="py-16 bg-[var(--bg-2)]">
-      <div className="mx-auto max-w-xl px-4 sm:px-6 text-center">
-        <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)]/10 mb-4">
-          <Mail className="h-5 w-5 text-[var(--primary)]" />
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)] mb-2">
-          {pick(COPY.title, locale)}
-        </h2>
-        <p className="text-sm text-[var(--muted-foreground)] mb-8">
-          {pick(COPY.subtitle, locale)}
-        </p>
-
-        {submitted ? (
-          <div className="flex items-center justify-center gap-2 rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--card)] py-5 px-6 shadow-[var(--shadow-card)]">
-            <CheckCircle2 className="h-5 w-5 text-[var(--primary)]" />
-            <p className="text-sm font-semibold text-[var(--foreground)]">
-              {pick(COPY.success, locale)}
-            </p>
+    <section className="page-section-tight bg-[var(--page-layer)]">
+      <div className="page-shell">
+        <div className="hero-backdrop surface-panel-elevated mx-auto max-w-xl px-[var(--card-padding-lg)] py-[var(--card-padding-lg)] text-center">
+          <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)]/10">
+            <Mail className="h-5 w-5 text-[var(--primary)]" />
           </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col sm:flex-row gap-2"
-          >
-            <div className="relative flex-1">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)]" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={pick(COPY.placeholder, locale)}
-                className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] pl-9 pr-4 py-2.5 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-colors placeholder:text-[var(--muted-foreground)]"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {loading ? pick(COPY.loading, locale) : pick(COPY.button, locale)}
-              {!loading && <ArrowRight className="h-3.5 w-3.5" />}
-            </button>
-          </form>
-        )}
+          <h2 className="mb-2 text-2xl font-bold text-[var(--foreground)] sm:text-3xl">
+            {pick(COPY.title, locale)}
+          </h2>
+          <p className="mb-8 text-sm text-[var(--muted-foreground)]">
+            {pick(COPY.subtitle, locale)}
+          </p>
 
-        <p className="mt-4 text-[11px] text-[var(--muted-foreground)]">
-          {pick(COPY.privacy, locale)}
-        </p>
+          {submitted ? (
+            <div className="surface-panel flex items-center justify-center gap-2 px-6 py-5">
+              <CheckCircle2 className="h-5 w-5 text-[var(--primary)]" />
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                {pick(COPY.success, locale)}
+              </p>
+            </div>
+          ) : (
+            <form
+              onSubmit={handleSubmit}
+              className="flex flex-col gap-2 sm:flex-row"
+            >
+              <div className="relative flex-1">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)]" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={pick(COPY.placeholder, locale)}
+                  className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] pl-9 pr-4 text-sm text-[var(--foreground)] shadow-[var(--shadow-xs)] outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 focus:ring-offset-[var(--background)]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-70 whitespace-nowrap"
+              >
+                {loading ? pick(COPY.loading, locale) : pick(COPY.button, locale)}
+                {!loading && <ArrowRight className="h-3.5 w-3.5" />}
+              </button>
+            </form>
+          )}
+
+          <p className="mt-4 text-[11px] text-[var(--muted-foreground)]">
+            {pick(COPY.privacy, locale)}
+          </p>
+        </div>
       </div>
     </section>
   );

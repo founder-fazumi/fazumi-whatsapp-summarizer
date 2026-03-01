@@ -128,7 +128,7 @@ export function TopBar({ className }: TopBarProps) {
     <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
       <SheetTrigger asChild>
         <button
-          className="flex md:hidden items-center justify-center rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+          className="flex items-center justify-center rounded-full border border-transparent p-2 text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] md:hidden"
           aria-label={pick(COPY.openMenu, locale)}
         >
           <Menu className="h-5 w-5" />
@@ -144,7 +144,7 @@ export function TopBar({ className }: TopBarProps) {
       onClick={() => setSearchOpen(true)}
       dir={isArabic ? "rtl" : "ltr"}
       className={cn(
-        "flex flex-1 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 max-w-md text-left hover:border-[var(--primary)]/40 transition-colors",
+        "flex max-w-xl flex-1 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3.5 py-2 text-left shadow-[var(--shadow-xs)] hover:border-[var(--border-strong)] hover:bg-[var(--surface)]",
         isArabic && "text-right"
       )}
     >
@@ -152,7 +152,7 @@ export function TopBar({ className }: TopBarProps) {
       <span className="flex-1 text-sm text-[var(--muted-foreground)]">
         {t("topbar.search", locale)}
       </span>
-      <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] text-[var(--muted-foreground)] bg-[var(--muted)] rounded px-1.5 py-0.5 font-mono">
+      <kbd className="hidden items-center gap-0.5 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 font-mono text-[10px] text-[var(--muted-foreground)] sm:flex">
         ⌘K
       </kbd>
     </button>
@@ -160,7 +160,7 @@ export function TopBar({ className }: TopBarProps) {
   const brandLink = (
     <Link
       href="/dashboard"
-      className="hidden md:flex items-center justify-center rounded-md p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+      className="hidden items-center justify-center rounded-full border border-transparent p-2 text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] md:flex"
       aria-label={pick(COPY.dashboard, locale)}
     >
       <LayoutDashboard className="h-5 w-5" />
@@ -170,14 +170,14 @@ export function TopBar({ className }: TopBarProps) {
     <div className="relative">
       <button
         onClick={() => setNotifOpen((o) => !o)}
-        className="relative rounded-full p-2 text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+        className="relative rounded-full border border-transparent p-2 text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
         aria-label={t("topbar.notif", locale)}
       >
         <Bell className="h-4.5 w-4.5" />
         {notifications.length > 0 && (
           <span
             className={cn(
-              "absolute top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none",
+              "absolute top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--destructive)] text-[9px] font-bold text-white leading-none",
               "right-1"
             )}
           >
@@ -191,12 +191,12 @@ export function TopBar({ className }: TopBarProps) {
           dir={isArabic ? "rtl" : "ltr"}
           lang={locale}
           className={cn(
-            "fixed left-4 right-4 top-[3.75rem] z-50 w-auto overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] sm:absolute sm:top-full sm:mt-1.5 sm:w-72 sm:left-auto sm:right-auto",
+            "fixed left-4 right-4 top-[4.25rem] z-50 w-auto overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--popover)] shadow-[var(--shadow-lg)] sm:absolute sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:w-80",
             "sm:right-0",
             isArabic && "font-arabic"
           )}
         >
-          <div className={cn("flex items-center justify-between border-b border-[var(--border)] px-3 py-2", isArabic && "text-right")}>
+          <div className={cn("flex items-center justify-between border-b border-[var(--border)] px-4 py-3", isArabic && "text-right")}>
             <span className="text-xs font-semibold text-[var(--foreground)]">
               {t("topbar.notif", locale)}
             </span>
@@ -210,17 +210,19 @@ export function TopBar({ className }: TopBarProps) {
           <ul>
             {notifications.length === 0 ? (
               <li className="px-3 py-4 text-sm">
+                <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3">
                 <p className="font-semibold text-[var(--foreground)]">{pick(COPY.emptyNotifTitle, locale)}</p>
                 <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
                   {pick(COPY.emptyNotifBody, locale)}
                 </p>
+                </div>
               </li>
             ) : (
               notifications.map((notification) => (
                 <li
                   key={notification.id}
                   className={cn(
-                    "flex items-start gap-2.5 border-b border-[var(--border)] px-3 py-2.5 text-sm last:border-0 hover:bg-[var(--muted)]",
+                    "flex items-start gap-2.5 border-b border-[var(--border)] px-4 py-3 text-sm last:border-0 hover:bg-[var(--surface-muted)]",
                     isArabic && "flex-row-reverse text-right"
                   )}
                 >
@@ -250,14 +252,14 @@ export function TopBar({ className }: TopBarProps) {
       <button
         type="button"
         onClick={toggleTheme}
-        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-1 text-xs font-medium hover:bg-[var(--muted)] transition-colors"
+        className="hidden items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs font-medium shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)] sm:flex"
         aria-label={theme === "dark" ? pick(COPY.lightMode, locale) : pick(COPY.darkMode, locale)}
       >
-        <span className={cn("rounded-full p-1 transition-colors", theme === "light" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
+        <span className={cn("rounded-full p-1 transition-colors", theme === "light" ? "bg-[var(--surface-muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
           <Sun className="h-3.5 w-3.5" />
         </span>
         <span className="text-[var(--muted-foreground)]">·</span>
-        <span className={cn("rounded-full p-1 transition-colors", theme === "dark" ? "bg-[var(--muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
+        <span className={cn("rounded-full p-1 transition-colors", theme === "dark" ? "bg-[var(--surface-muted)] text-[var(--foreground)]" : "text-[var(--muted-foreground)]")}>
           <Moon className="h-3.5 w-3.5" />
         </span>
       </button>
@@ -266,7 +268,7 @@ export function TopBar({ className }: TopBarProps) {
         type="button"
         disabled
         suppressHydrationWarning
-        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-1 text-xs font-medium"
+        className="hidden items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs font-medium shadow-[var(--shadow-xs)] sm:flex"
         aria-label="Theme toggle"
       >
         <span className="rounded-full p-1 text-[var(--muted-foreground)]">
@@ -284,7 +286,7 @@ export function TopBar({ className }: TopBarProps) {
       <button
         type="button"
         onClick={() => setLocale(locale === "en" ? "ar" : "en")}
-        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
+        className="hidden items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)] sm:flex"
         aria-label={pick(COPY.toggleLang, locale)}
       >
         <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
@@ -297,7 +299,7 @@ export function TopBar({ className }: TopBarProps) {
         type="button"
         disabled
         suppressHydrationWarning
-        className="hidden sm:flex items-center gap-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]"
+        className="hidden items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)] sm:flex"
         aria-label="Language toggle"
       >
         <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
@@ -314,7 +316,7 @@ export function TopBar({ className }: TopBarProps) {
       trigger={
         <button
           className={cn(
-            "hidden sm:flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] py-1 hover:bg-[var(--muted)] transition-colors",
+            "hidden items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] py-1 shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)] sm:flex",
             "pl-1 pr-2.5"
           )}
         >
@@ -346,7 +348,7 @@ export function TopBar({ className }: TopBarProps) {
         dir="ltr"
         className={cn(
           "sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-[var(--border)]",
-          "bg-[var(--background)]/95 backdrop-blur-sm px-4",
+          "bg-[var(--glass-surface)] px-4 shadow-[var(--shadow-xs)] backdrop-blur-xl",
           className
         )}
       >

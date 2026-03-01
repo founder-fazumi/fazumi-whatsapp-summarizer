@@ -8,7 +8,7 @@ import { pick, type LocalizedCopy } from "@/lib/i18n";
 const STEPS = [
   {
     icon: ClipboardPaste,
-    color: "bg-blue-100 text-blue-600",
+    color: "bg-[var(--surface-muted)] text-[var(--primary)]",
     step: "01",
     title: { en: "Paste your chat", ar: "الصق المحادثة" },
     desc: {
@@ -28,7 +28,7 @@ const STEPS = [
   },
   {
     icon: CheckCircle2,
-    color: "bg-amber-100 text-amber-600",
+    color: "bg-[var(--accent-cream)] text-[var(--accent-fox-deep)]",
     step: "03",
     title: { en: "Act on it", ar: "اتخذ الإجراء" },
     desc: {
@@ -55,8 +55,8 @@ export function HowItWorks() {
   const [open, setOpen] = useState(false);
 
   return (
-    <section id="how-it-works" className="py-16 bg-[var(--bg-2)]">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+    <section id="how-it-works" className="page-section bg-[var(--page-layer)]">
+      <div className="page-shell">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
             {pick(COPY.eyebrow, locale)}
@@ -69,19 +69,19 @@ export function HowItWorks() {
           </p>
         </div>
 
-        <div className="relative mx-auto max-w-2xl rounded-[var(--radius-xl)] overflow-hidden border border-[var(--border)] shadow-[var(--shadow-card)] mb-12 cursor-pointer group"
+        <div className="hero-backdrop surface-panel-elevated relative mx-auto mb-12 max-w-2xl overflow-hidden cursor-pointer group"
           onClick={() => setOpen(true)}
         >
-          <div className="aspect-video bg-gradient-to-br from-[var(--primary)]/20 via-[var(--mint-wash)]/30 to-[var(--accent-cream)]/20 flex items-center justify-center">
+          <div className="flex aspect-video items-center justify-center">
             <div className="text-center">
-              <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary)] shadow-lg group-hover:scale-110 transition-transform">
+              <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary)] shadow-[var(--shadow-lg)] group-hover:scale-110 transition-transform">
                 <Play className="h-7 w-7 text-white fill-white ml-1" />
               </div>
               <p className="text-sm font-semibold text-[var(--foreground)]">{pick(COPY.watch, locale)}</p>
               <p className="text-xs text-[var(--muted-foreground)] mt-1">{pick(COPY.see, locale)}</p>
             </div>
           </div>
-          <div className="absolute top-3 left-3 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
+          <div className="absolute left-4 top-4 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent-fox-deep)] shadow-[var(--shadow-xs)]">
             ● {pick(COPY.demo, locale)}
           </div>
         </div>
@@ -90,7 +90,7 @@ export function HowItWorks() {
           {STEPS.map(({ icon: Icon, color, step, title, desc }) => (
             <div
               key={step}
-              className="rounded-[var(--radius-xl)] bg-[var(--card)] border border-[var(--border)] p-6 shadow-[var(--shadow-card)]"
+              className="surface-panel px-6 py-6"
             >
               <div className="flex items-start gap-4">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color}`}>
@@ -111,11 +111,11 @@ export function HowItWorks() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative w-full max-w-3xl rounded-[var(--radius-xl)] overflow-hidden shadow-2xl"
+            className="relative w-full max-w-3xl overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] shadow-[var(--shadow-lg)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="aspect-video bg-black">
@@ -128,7 +128,7 @@ export function HowItWorks() {
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 hover:bg-white/40 transition-colors"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-black/25 hover:bg-black/40"
             >
               <X className="h-4 w-4 text-white" />
             </button>

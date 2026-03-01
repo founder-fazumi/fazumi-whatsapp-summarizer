@@ -75,8 +75,7 @@ export default async function DashboardPage({
         summariesLimit={summariesLimit}
       />
 
-      {/* Quick action card */}
-      <Card>
+      <Card className="bg-[var(--surface-elevated)]">
         <CardHeader>
           <CardTitle>
             <LocalizedText en="Ready to summarize?" ar="هل أنت مستعد للتلخيص؟" />
@@ -91,7 +90,7 @@ export default async function DashboardPage({
           </p>
           <Link
             href="/summarize"
-            className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
           >
             <Sparkles className="h-4 w-4" />
             <LocalizedText en="Go to Summarize" ar="اذهب إلى التلخيص" />

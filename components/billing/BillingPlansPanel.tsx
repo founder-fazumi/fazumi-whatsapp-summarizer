@@ -32,7 +32,7 @@ export function BillingPlansPanel({
             href={portalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-medium transition-colors hover:bg-[var(--bg-2)]"
+            className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2 text-sm font-medium shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
           >
             <LocalizedText en="Manage subscription" ar="إدارة الاشتراك" />
             <ExternalLink className="h-3.5 w-3.5" />
@@ -42,7 +42,7 @@ export function BillingPlansPanel({
         <button
           type="button"
           onClick={() => setShowPlans(true)}
-          className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[var(--primary-hover)]"
+          className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
         >
           <LocalizedText en="View plans" ar="عرض الخطط" />
           <ExternalLink className="h-4 w-4" />

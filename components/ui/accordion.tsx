@@ -17,7 +17,7 @@ export function AccordionItem({ question, answer, defaultOpen = false }: Accordi
     <div className="border-b border-[var(--border)] last:border-0">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-4 py-4 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:text-[var(--primary)]"
+        className="flex w-full items-center justify-between gap-4 rounded-[var(--radius)] py-4 text-start text-sm font-medium text-[var(--foreground)] hover:text-[var(--primary)]"
         aria-expanded={open}
       >
         <span>{question}</span>

@@ -126,9 +126,9 @@ export function Pricing({
   return (
     <section
       id={sectionId}
-      className={cn("bg-[var(--bg-2)] py-16", embedded && "rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--bg-2)] px-4 py-8 sm:px-5")}
+      className={cn("page-section bg-[var(--page-layer)]", embedded && "surface-panel-elevated px-4 py-8 sm:px-5")}
     >
-      <div className={cn("mx-auto max-w-6xl px-4 sm:px-6", embedded && "max-w-none px-0 sm:px-0")}>
+      <div className={cn("page-shell", embedded && "max-w-none px-0")}>
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
             {locale === "ar" ? "الأسعار" : "Pricing"}
@@ -140,7 +140,7 @@ export function Pricing({
             {locale === "ar" ? "ابدأ مجانًا ثم قم بالترقية عندما يناسبك." : "Start free. Upgrade when you love it."}
           </p>
 
-          <div className="inline-flex items-center mt-6 gap-1 rounded-full border border-[var(--border)] bg-[var(--card)] p-1">
+          <div className="mt-6 inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-xs)]">
             {(["monthly", "yearly"] as Billing[]).map((b) => (
               <button
                 key={b}
@@ -148,15 +148,15 @@ export function Pricing({
                 className={cn(
                   "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                   billing === b
-                    ? "bg-[var(--primary)] text-white shadow-sm"
-                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
                 )}  
               >
                 {b === "monthly"
                   ? locale === "ar" ? "شهري" : "Monthly"
                   : locale === "ar" ? "سنوي" : "Yearly"}
                 {b === "yearly" && (
-                  <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">
+                  <span className="ml-1.5 rounded-full bg-[var(--primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--primary)]">
                     -17%
                   </span>
                 )}
@@ -173,23 +173,23 @@ export function Pricing({
             <div
               key={plan.id}
               className={cn(
-                "relative rounded-[var(--radius-xl)] border p-6 flex flex-col shadow-[var(--shadow-card)]",
+                "relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] border bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)]",
                 plan.featured
-                  ? "border-[var(--primary)] bg-[var(--primary)] text-white"
-                  : "border-[var(--border)] bg-[var(--card)]",
-                isCurrentPlan && currentPlanId !== "founder" && (plan.featured ? "ring-2 ring-white/80 ring-offset-2 ring-offset-[var(--bg-2)]" : "ring-2 ring-[var(--primary)]"),
-                isCurrentPlan && currentPlanId === "founder" && "border-amber-300 ring-2 ring-amber-300 shadow-[0_18px_45px_rgba(245,158,11,0.18)]"
+                  ? "border-[var(--primary)] shadow-[var(--shadow-lg)]"
+                  : "border-[var(--border)]",
+                isCurrentPlan && currentPlanId !== "founder" && "ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--page-layer)]",
+                isCurrentPlan && currentPlanId === "founder" && "border-[var(--accent-fox)] ring-2 ring-[var(--accent-fox)] ring-offset-2 ring-offset-[var(--page-layer)]"
               )}
             >
               {isCurrentPlan && (
                 <div
                   className={cn(
-                    "absolute right-4 top-4 rounded-full px-2.5 py-1 text-[10px] font-bold",
+                    "absolute right-4 top-4 rounded-full border px-2.5 py-1 text-[10px] font-bold",
                     plan.featured
-                      ? "bg-white text-[var(--primary)]"
+                      ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
                       : plan.id === "founder"
-                        ? "bg-amber-400 text-amber-900"
-                        : "bg-[var(--primary)]/10 text-[var(--primary)]"
+                        ? "border-[var(--accent-fox)] bg-[var(--accent-cream)] text-[var(--accent-fox-deep)]"
+                        : "border-[var(--border)] bg-[var(--surface)] text-[var(--primary)]"
                   )}
                 >
                   {locale === "ar" ? "الخطة الحالية" : "Current plan"}
@@ -198,10 +198,10 @@ export function Pricing({
 
               {plan.badge && (
                 <div className={cn(
-                  "absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[10px] font-bold whitespace-nowrap",
+                  "absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-bold shadow-[var(--shadow-xs)]",
                   plan.featured
-                    ? "bg-white text-[var(--primary)]"
-                    : "bg-amber-400 text-amber-900"
+                    ? "bg-[var(--primary)] text-white"
+                    : "bg-[var(--accent-cream)] text-[var(--accent-fox-deep)]"
                 )}>
                   {pick(plan.badge, locale)}
                 </div>
@@ -209,37 +209,37 @@ export function Pricing({
 
               {"founderBadge" in plan && plan.founderBadge && (
                 <div className="mb-3 flex items-center gap-1.5">
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">
+                  <Star className="h-4 w-4 fill-[var(--accent-fox)] text-[var(--accent-fox)]" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--accent-fox-deep)]">
                     {locale === "ar" ? "داعم مؤسس" : "Founding Supporter"}
                   </span>
                 </div>
               )}
 
               <div className="mb-4">
-                <h3 className={cn("font-bold text-base", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
+                <h3 className="text-base font-bold text-[var(--foreground)]">
                   {pick(plan.name, locale)}
                 </h3>
-                <p className={cn("text-xs mt-0.5", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>
+                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
                   {pick(plan.description, locale)}
                 </p>
               </div>
 
               <div className="mb-5">
                 {plan.id === "free" ? (
-                  <p className={cn("text-3xl font-bold", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
+                  <p className="text-3xl font-bold text-[var(--foreground)]">
                     {pick(plan.name, locale)}
                   </p>
                 ) : plan.id === "founder" ? (
                   <div>
-                    <p className={cn("text-3xl font-bold", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
+                    <p className="text-3xl font-bold text-[var(--foreground)]">
                       {formatPrice(149)}
                     </p>
-                    <p className={cn("text-xs", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>
+                    <p className="text-xs text-[var(--muted-foreground)]">
                       {locale === "ar" ? "دفعة واحدة · مدى الحياة" : "one-time · lifetime"}
                     </p>
                     {"seatsLeft" in plan && (
-                      <p className="mt-1 text-[10px] font-semibold text-amber-600">
+                      <p className="mt-1 text-[10px] font-semibold text-[var(--accent-fox-deep)]">
                         {locale === "ar"
                           ? `${formatNumber(plan.seatsLeft)} مقعدًا متبقيًا`
                           : `${formatNumber(plan.seatsLeft)} seats remaining`}
@@ -248,12 +248,12 @@ export function Pricing({
                   </div>
                 ) : plan.id === "monthly" ? (
                   <div>
-                    <p className={cn("text-3xl font-bold", plan.featured ? "text-white" : "text-[var(--foreground)]")}>
+                    <p className="text-3xl font-bold text-[var(--foreground)]">
                       {formatPrice(billing === "yearly" ? plan.yearlyMonthlyPrice : plan.monthlyPrice, 2)}
-                      <span className={cn("text-sm font-normal ml-1", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>/mo</span>
+                      <span className="ml-1 text-sm font-normal text-[var(--muted-foreground)]">/mo</span>
                     </p>
                     {billing === "yearly" && (
-                      <p className={cn("text-[11px]", plan.featured ? "text-white/70" : "text-[var(--muted-foreground)]")}>
+                      <p className="text-[11px] text-[var(--muted-foreground)]">
                         {locale === "ar"
                           ? `${formatPrice(plan.annualPrice, 2)} تُحصّل سنويًا`
                           : `${formatPrice(plan.annualPrice, 2)} billed annually`}
@@ -268,10 +268,10 @@ export function Pricing({
                   className={cn(
                     "mb-5 flex w-full items-center justify-center rounded-[var(--radius)] py-2.5 text-sm font-semibold",
                     plan.featured
-                      ? "bg-white/15 text-white"
+                      ? "bg-[var(--primary-soft)] text-[var(--primary)]"
                       : plan.id === "founder"
-                        ? "bg-amber-100 text-amber-900"
-                        : "bg-[var(--primary)]/10 text-[var(--primary)]"
+                        ? "bg-[var(--accent-cream)] text-[var(--accent-fox-deep)]"
+                        : "bg-[var(--surface-muted)] text-[var(--primary)]"
                   )}
                 >
                   {locale === "ar" ? "الخطة الحالية" : "Current plan"}
@@ -280,8 +280,7 @@ export function Pricing({
                 <Link
                   href={isLoggedIn ? "/summarize" : "/login"}
                   className={cn(
-                    "mb-5 w-full rounded-[var(--radius)] py-2.5 text-sm font-semibold transition-colors text-center block",
-                    "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
+                    "mb-5 block w-full rounded-[var(--radius)] bg-[var(--primary)] py-2.5 text-center text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
                   )}
                 >
                   {pick(plan.ctaText, locale)}
@@ -299,10 +298,10 @@ export function Pricing({
                   className={cn(
                     "mb-5 w-full rounded-[var(--radius)] py-2.5 text-sm font-semibold transition-colors",
                     plan.featured
-                      ? "bg-white text-[var(--primary)] hover:bg-white/90"
+                      ? "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
                       : plan.id === "founder"
-                        ? "bg-amber-400 text-amber-900 hover:bg-amber-300"
-                        : "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]",
+                        ? "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
+                        : "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]",
                     "disabled:opacity-70 disabled:cursor-not-allowed"
                   )}
                 >
@@ -313,8 +312,8 @@ export function Pricing({
               <ul className="space-y-2 flex-1">
                 {plan.features.map((feature) => (
                   <li key={feature.en} className="flex items-start gap-2 text-xs">
-                    <Check className={cn("h-4 w-4 shrink-0 mt-0.5", plan.featured ? "text-white" : "text-[var(--primary)]")} />
-                    <span className={plan.featured ? "text-white/90" : "text-[var(--foreground)]"}>
+                    <Check className={cn("mt-0.5 h-4 w-4 shrink-0", plan.id === "founder" ? "text-[var(--accent-fox-deep)]" : "text-[var(--primary)]")} />
+                    <span className="text-[var(--foreground)]">
                       {pick(feature, locale)}
                     </span>
                   </li>

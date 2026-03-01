@@ -59,7 +59,7 @@ function StarRating({ count }: { count: number }) {
   return (
     <div className="flex gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className={i < count ? "text-amber-400" : "text-[var(--border)]"}>★</span>
+        <span key={i} className={i < count ? "text-[var(--accent-fox)]" : "text-[var(--border)]"}>★</span>
       ))}
     </div>
   );
@@ -72,12 +72,12 @@ function TestimonialCard({ name, role, quote, stars }: typeof TESTIMONIALS[0]) {
     <div
       dir={locale === "ar" ? "rtl" : "ltr"}
       lang={locale}
-      className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] mb-4"
+      className="surface-panel mb-4 px-5 py-5"
     >
       <StarRating count={stars} />
       <p className="mt-3 text-sm text-[var(--foreground)] leading-relaxed">&ldquo;{pick(quote, locale)}&rdquo;</p>
       <div className="mt-3 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)]/10 text-sm font-bold text-[var(--primary)]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary-soft)] text-sm font-bold text-[var(--primary)]">
           {name[0]}
         </div>
         <div>
@@ -118,8 +118,8 @@ export function Testimonials() {
   const col3 = TESTIMONIALS.slice(8, 12);
 
   return (
-    <section className="py-16 bg-[var(--background)] overflow-hidden">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+    <section className="page-section overflow-hidden">
+      <div className="page-shell">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
             <LocalizedText en="Testimonials" ar="آراء العملاء" />

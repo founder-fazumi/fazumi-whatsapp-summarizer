@@ -102,7 +102,7 @@ export function CalendarWidget() {
         <div className="flex items-center justify-between">
           <button
             onClick={prev}
-            className="rounded-md p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]"
+            className="rounded-full p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -116,7 +116,7 @@ export function CalendarWidget() {
                 setViewMonth(today.getMonth());
                 setViewYear(today.getFullYear());
               }}
-              className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]"
+              className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-[10px] font-medium text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
             >
               {pick(COPY.today, locale)}
             </button>
@@ -124,7 +124,7 @@ export function CalendarWidget() {
 
           <button
             onClick={next}
-            className="rounded-md p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]"
+            className="rounded-full p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -152,7 +152,7 @@ export function CalendarWidget() {
                     "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium leading-none",
                     isToday(day)
                       ? "bg-[var(--primary)] font-bold text-white"
-                      : "cursor-default text-[var(--foreground)] hover:bg-[var(--muted)]"
+                      : "cursor-default text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
                   )}
                 >
                   {formatNumber(day)}
@@ -175,7 +175,7 @@ export function CalendarWidget() {
           </p>
 
           {calendarItems.length === 0 ? (
-            <div className="rounded-[var(--radius)] bg-[var(--muted)] px-3 py-3">
+            <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3">
               <p className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.emptyTitle, locale)}</p>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
                 {pick(COPY.emptyBody, locale)}

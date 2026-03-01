@@ -274,8 +274,8 @@ export default function SummarizePage() {
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>
       <div dir={isRtl ? "rtl" : "ltr"} lang={locale} className={cn(isRtl && "font-arabic")}>
-        <Card className="mb-5 overflow-hidden border-0 bg-gradient-to-br from-[var(--mint-wash)]/30 via-[var(--card-tint)] to-[var(--bg-2)]">
-          <CardContent className="px-6 py-5">
+        <Card className="hero-backdrop mb-5 overflow-hidden bg-[var(--surface-elevated)]">
+          <CardContent className="px-6 py-6">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <h1 className="text-xl font-bold leading-snug text-[var(--foreground)]">
@@ -305,14 +305,14 @@ export default function SummarizePage() {
                 </div>
               </div>
 
-              <div className="hidden sm:flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20">
+              <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] sm:flex">
                 <BrandLogo size="lg" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-[var(--surface-elevated)]">
           <CardHeader>
             <CardTitle>{pick(COPY.pasteTitle, locale)}</CardTitle>
             <CardDescription>{pick(COPY.pasteDescription, locale)}</CardDescription>
@@ -343,17 +343,17 @@ export default function SummarizePage() {
                       disabled={loading}
                       className={cn(
                         "pr-24",
-                        isOverLimit && "border-red-400 focus-visible:ring-red-400"
+                        isOverLimit && "border-[var(--destructive)] focus-visible:ring-[var(--destructive)]"
                       )}
                     />
                     <div
                       className={cn(
-                        "absolute bottom-2.5 right-3 rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
+                        "absolute bottom-2.5 right-3 rounded-full border px-2 py-1 text-[11px] tabular-nums shadow-[var(--shadow-xs)]",
                         isOverLimit
-                          ? "bg-red-100 font-semibold text-red-600"
+                          ? "border-[var(--destructive)] bg-[var(--destructive-soft)] font-semibold text-[var(--destructive)]"
                           : remaining < 3000
-                            ? "bg-amber-100 text-amber-600"
-                            : "bg-[var(--muted)] text-[var(--muted-foreground)]"
+                            ? "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)]"
+                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
                       )}
                     >
                       {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
@@ -362,8 +362,8 @@ export default function SummarizePage() {
                 </TabsContent>
               </Tabs>
 
-              <div className="flex items-start gap-2 rounded-[var(--radius)] bg-[var(--muted)] px-3 py-2">
-                <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+              <div className="flex items-start gap-2 rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-2.5">
+                <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--warning)]" />
                 <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
                   <strong className="text-[var(--foreground)]">{pick(COPY.tipLabel, locale)}</strong>{" "}
                   {pick(COPY.tipBody, locale)}
@@ -392,17 +392,17 @@ export default function SummarizePage() {
                 >
                   {pick(COPY.useSample, locale)}
                 </Button>
-                <div className="ml-auto flex items-center gap-1 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--muted)] p-1">
+                <div className="ml-auto flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-xs)]">
                   {(["auto", "en", "ar"] as LangPref[]).map((value) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => setLangPref(value)}
                       className={cn(
-                        "rounded-sm px-2.5 py-1 text-xs font-medium transition-colors",
+                        "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                         langPref === value
-                          ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
-                          : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                          ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[var(--shadow-xs)]"
+                          : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
                       )}
                     >
                       {pick(OUTPUT_LABELS[value], locale)}
@@ -415,7 +415,7 @@ export default function SummarizePage() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="w-full gap-2"
+                  className="w-full gap-2 shadow-[var(--shadow-lg)]"
                   disabled={loading || !text.trim() || isOverLimit}
                 >
                   {loading ? (
@@ -439,22 +439,22 @@ export default function SummarizePage() {
         </Card>
 
         {error && (
-          <div className="mt-4 rounded-[var(--radius-lg)] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="status-destructive mt-4 rounded-[var(--radius-lg)] border px-4 py-3 text-sm">
             {error}
           </div>
         )}
 
         {limitReached && (
-          <div className="mt-4 flex items-start gap-3 rounded-[var(--radius-lg)] border border-amber-200 bg-amber-50 px-4 py-4">
-            <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div className="status-warning mt-4 flex items-start gap-3 rounded-[var(--radius-lg)] border px-4 py-4">
+            <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-amber-900">{pick(COPY.limitTitle, locale)}</p>
-              <p className="mt-0.5 text-sm text-amber-700">
+              <p className="text-sm font-semibold">{pick(COPY.limitTitle, locale)}</p>
+              <p className="mt-0.5 text-sm">
                 {pick(limitCode === "LIFETIME_CAP" ? COPY.limitBodyLifetime : COPY.limitBodyDaily, locale)}
               </p>
               <a
                 href="/billing"
-                className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-[var(--primary-hover)]"
+                className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
                 <ArrowUpCircle className="h-3.5 w-3.5" />
                 {pick(COPY.upgrade, locale)}
@@ -466,7 +466,7 @@ export default function SummarizePage() {
         {summary && (
           <div ref={summaryRef} className="mt-5">
             {savedId && (
-              <div className="mb-3 flex items-center gap-2 rounded-[var(--radius)] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              <div className="status-success mb-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-sm">
                 <Check className="h-4 w-4 shrink-0" />
                 <span>{pick(COPY.saved, locale)}</span>
                 <a

@@ -194,11 +194,11 @@ function SectionCard({
       : !Array.isArray(value) || value.length === 0;
 
   return (
-    <Card>
+    <Card className="overflow-hidden bg-[var(--surface-elevated)]">
       <button
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "w-full flex items-center gap-2.5 rounded-t-[var(--radius-xl)] px-5 py-3.5 hover:bg-[var(--muted)] transition-colors",
+          "flex w-full items-center gap-2.5 rounded-t-[var(--radius-xl)] px-[var(--card-padding)] py-4 hover:bg-[var(--surface-muted)]",
           isRtl ? "text-right" : "text-left"
         )}
         aria-expanded={open}
@@ -208,7 +208,7 @@ function SectionCard({
           {label}
         </span>
         {isEmpty && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--muted)] text-[var(--muted-foreground)]">
+          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
             {copy.empty}
           </span>
         )}
@@ -227,7 +227,7 @@ function SectionCard({
           dir={isRtl ? "rtl" : "ltr"}
           lang={isRtl ? "ar" : "en"}
           className={cn(
-            "pt-1 pb-4",
+            "border-t border-[var(--border)] pt-4 pb-5",
             isRtl && "font-arabic text-right"
           )}
         >
@@ -300,16 +300,15 @@ export function SummaryDisplay({
     <div
       dir={isRtl ? "rtl" : "ltr"}
       lang={isRtl ? "ar" : "en"}
-      className={cn("space-y-3", isRtl && "font-arabic text-right")}
+      className={cn("space-y-4", isRtl && "font-arabic text-right")}
     >
-      {/* ── Latest Summary header ─────────────────── */}
-      <div className="flex items-center justify-between px-1">
+      <div className="surface-panel-muted flex items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-[var(--primary)]" />
           <h2 className="font-semibold text-sm text-[var(--foreground)]">
             {copy.latestSummary}
           </h2>
-          <span className="flex items-center gap-1 rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--primary)]">
+          <span className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--primary)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
             {copy.justNow}
           </span>
@@ -319,8 +318,7 @@ export function SummaryDisplay({
         </span>
       </div>
 
-      {/* ── Quick action pills ────────────────────── */}
-      <div className="flex gap-2 flex-wrap px-1">
+      <div className="flex flex-wrap gap-2">
         {ACTIONS.map(({ key, icon: Icon }) => {
           const label =
             key === "calendar"
@@ -334,7 +332,7 @@ export function SummaryDisplay({
               key={key}
               type="button"
               onClick={() => handleActionClick(key)}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={actionMode === "disabled"}
               title={actionMode === "disabled" ? copy.comingSoon : undefined}
             >
@@ -355,8 +353,7 @@ export function SummaryDisplay({
         />
       ))}
 
-      {/* ── Was this helpful? ─────────────────────── */}
-      <div className="flex items-center justify-between rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-3">
+      <div className="surface-panel flex items-center justify-between px-4 py-3">
         <p className="text-xs font-medium text-[var(--foreground)]">
           {copy.helpful}
         </p>
@@ -367,7 +364,7 @@ export function SummaryDisplay({
               "rounded-full p-1.5 transition-colors",
               helpful === "up"
                 ? "bg-[var(--primary)] text-white"
-                : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+                : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
             )}
             aria-label="Thumbs up"
           >
@@ -378,8 +375,8 @@ export function SummaryDisplay({
             className={cn(
               "rounded-full p-1.5 transition-colors",
               helpful === "down"
-                ? "bg-red-500 text-white"
-                : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+                ? "bg-[var(--destructive)] text-white"
+                : "text-[var(--muted-foreground)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
             )}
             aria-label="Thumbs down"
           >
@@ -388,8 +385,8 @@ export function SummaryDisplay({
         </div>
       </div>
 
-      <p className="flex items-center justify-center gap-1 text-center text-xs text-[var(--muted-foreground)] pt-1">
-        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+      <p className="flex items-center justify-center gap-1 pt-1 text-center text-xs text-[var(--muted-foreground)]">
+        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[var(--success)]" />
         {copy.noStorage}
       </p>
 

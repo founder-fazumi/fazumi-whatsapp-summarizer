@@ -34,13 +34,13 @@ export function DeleteSummaryButton({ summaryId }: Props) {
         <button
           onClick={handleDelete}
           disabled={loading}
-          className="rounded px-2 py-1 text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+          className="rounded-[var(--radius-sm)] bg-[var(--destructive)] px-2.5 py-1.5 text-xs font-semibold text-white hover:brightness-95 disabled:opacity-50"
         >
           {loading ? (locale === "ar" ? "جارٍ الحذف…" : "Deleting…") : (locale === "ar" ? "نعم، احذف" : "Yes, delete")}
         </button>
         <button
           onClick={() => setConfirming(false)}
-          className="rounded px-2 py-1 text-xs border border-[var(--border)] hover:bg-[var(--bg-2)] transition-colors"
+          className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1.5 text-xs hover:bg-[var(--surface-muted)]"
         >
           {locale === "ar" ? "إلغاء" : "Cancel"}
         </button>
@@ -51,7 +51,7 @@ export function DeleteSummaryButton({ summaryId }: Props) {
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="flex items-center gap-1 rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 transition-colors"
+      className="flex items-center gap-1 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
     >
       <Trash2 className="h-3.5 w-3.5" />
       {locale === "ar" ? "حذف" : "Delete"}

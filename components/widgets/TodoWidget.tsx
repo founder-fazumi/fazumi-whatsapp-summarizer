@@ -31,7 +31,7 @@ export function TodoWidget() {
       </CardHeader>
       <CardContent className="space-y-2 pb-3">
         {todoItems.length === 0 ? (
-          <div className="rounded-[var(--radius)] bg-[var(--muted)] px-3 py-3">
+          <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3">
             <p className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.emptyTitle, locale)}</p>
             <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
               {pick(COPY.emptyBody, locale)}
@@ -41,7 +41,7 @@ export function TodoWidget() {
           todoItems.map((item) => (
             <div
               key={item.id}
-              className="flex items-start gap-2 rounded-[var(--radius)] px-2 py-1.5 transition-colors hover:bg-[var(--muted)]"
+              className="flex items-start gap-2 rounded-[var(--radius)] px-2.5 py-2 transition-colors hover:bg-[var(--surface-muted)]"
             >
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
               <div className="min-w-0 flex-1">

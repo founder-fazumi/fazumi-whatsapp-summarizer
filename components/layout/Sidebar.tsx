@@ -58,27 +58,27 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-full flex-col bg-[var(--sidebar)] border-r border-[var(--sidebar-border)]",
+        "flex h-full flex-col bg-[var(--sidebar)] text-[var(--sidebar-foreground)] backdrop-blur-xl",
         className
       )}
     >
-      {/* ── Logo ─────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-5 py-5">
+      <div className="border-b border-[var(--sidebar-border)] px-5 py-5">
+      <div className="flex items-center gap-3">
         <BrandLogo size="md" />
         <div>
           <span className="block font-bold text-base leading-tight text-[var(--foreground)]">
             Fazumi
           </span>
-          <span className="flex items-center gap-1 text-[10px] leading-tight text-[var(--primary)] font-medium mt-0.5">
+          <span className="mt-0.5 flex items-center gap-1 text-[10px] font-medium leading-tight text-[var(--primary)]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
             {pick(COPY.brandSub, locale)}
           </span>
         </div>
       </div>
+      </div>
 
-      {/* ── Navigation ───────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2">
-        <ul className="space-y-0.5">
+      <nav className="flex-1 overflow-y-auto px-4 py-4">
+        <ul className="space-y-1">
           {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
             const active = isActive(href);
             return (
@@ -87,10 +87,10 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                   href={href}
                   onClick={onNavigate}
                   className={cn(
-                    "flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-[var(--radius)] px-3.5 py-2.5 text-sm font-medium transition-colors",
                     active
-                      ? "bg-[var(--primary)] text-white shadow-sm"
-                      : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                      ? "bg-[var(--primary-soft)] text-[var(--text-strong)] shadow-[var(--shadow-xs)]"
+                      : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -105,7 +105,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             <button
               disabled
               title={pick(COPY.soon, locale)}
-              className="flex w-full items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-sm font-medium text-[var(--muted-foreground)] opacity-50 cursor-not-allowed"
+              className="flex w-full cursor-not-allowed items-center gap-3 rounded-[var(--radius)] px-3.5 py-2.5 text-sm font-medium text-[var(--muted-foreground)] opacity-50"
             >
               <CheckSquare className="h-4 w-4 shrink-0" />
               <span className="flex-1">{t("nav.todo", locale)}</span>
@@ -114,49 +114,48 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* ── Plan section ─────────────────────────── */}
-      <div className="px-4 py-3 border-t border-[var(--sidebar-border)]">
+      <div className="border-t border-[var(--sidebar-border)] px-4 py-4">
+        <div className="surface-panel-muted px-4 py-4">
         <div className="flex items-center gap-2 mb-2">
-          <Zap className="h-4 w-4 text-amber-500" />
+          <Zap className="h-4 w-4 text-[var(--primary)]" />
           <span className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.freePlan, locale)}</span>
           <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">{pick(COPY.trialActive, locale)}</span>
         </div>
         <Progress value={3} max={7} className="h-1.5 mb-2.5" />
         <Link
           href="/billing"
-          className="w-full flex items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] text-white text-xs font-semibold py-1.5 hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
+          className="flex w-full items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] py-2 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
         >
           <ArrowUpCircle className="h-3.5 w-3.5" />
           {t("nav.upgrade", locale)}
         </Link>
       </div>
+      </div>
 
-      {/* ── Founder access card ──────────────────── */}
-      <div className="px-4 py-3">
-        <div className="rounded-[var(--radius)] bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-3">
-          <p className="flex items-center gap-1 text-xs font-bold text-amber-800 dark:text-amber-300 mb-1.5">
-            <Star className="h-3.5 w-3.5 text-amber-500" /> {pick(COPY.premium, locale)} ›
+      <div className="px-4 pb-4">
+        <div className="surface-panel px-4 py-4">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[var(--accent-fox-deep)]">
+            <Star className="h-3.5 w-3.5 text-[var(--accent-fox)]" /> {pick(COPY.premium, locale)} ›
           </p>
-          <ul className="space-y-1 text-[10px] text-amber-700 dark:text-amber-400">
+          <ul className="space-y-1.5 text-[10px] text-[var(--muted-foreground)]">
             <li className="flex items-center gap-1.5">
-              <Check className="h-3 w-3 shrink-0 text-amber-500" /> {pick(COPY.unlimited, locale)}
+              <Check className="h-3 w-3 shrink-0 text-[var(--primary)]" /> {pick(COPY.unlimited, locale)}
             </li>
             <li className="flex items-center gap-1.5">
-              <Check className="h-3 w-3 shrink-0 text-amber-500" /> {pick(COPY.calendar, locale)}
+              <Check className="h-3 w-3 shrink-0 text-[var(--primary)]" /> {pick(COPY.calendar, locale)}
             </li>
             <li className="flex items-center gap-1.5">
-              <Check className="h-3 w-3 shrink-0 text-amber-500" /> {pick(COPY.priority, locale)}
+              <Check className="h-3 w-3 shrink-0 text-[var(--primary)]" /> {pick(COPY.priority, locale)}
             </li>
           </ul>
         </div>
       </div>
 
-      {/* ── Help & Feedback footer ───────────────── */}
-      <div className="px-4 py-3 border-t border-[var(--sidebar-border)]">
+      <div className="border-t border-[var(--sidebar-border)] px-4 py-3">
         <Link
           href="/help"
           onClick={onNavigate}
-          className="flex w-full items-center gap-2 rounded-[var(--radius)] px-2 py-1.5 text-xs text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+          className="flex w-full items-center gap-2 rounded-[var(--radius)] px-2 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
         >
           <HelpCircle className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-start">{t("nav.help", locale)}</span>

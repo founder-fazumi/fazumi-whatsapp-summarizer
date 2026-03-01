@@ -21,7 +21,7 @@ export function UpgradingBanner() {
   }, [router]);
 
   return (
-    <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-300">
+    <div className="status-warning mb-4 flex items-center gap-3 rounded-[var(--radius-lg)] border px-4 py-3 text-sm">
       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
       <p>
         <LocalizedText

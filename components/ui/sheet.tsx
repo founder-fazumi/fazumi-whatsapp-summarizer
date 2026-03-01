@@ -59,7 +59,7 @@ function SheetContent({ side = "left", className, children, ...props }: SheetCon
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-[var(--overlay)] backdrop-blur-sm"
         onClick={() => ctx.onOpenChange(false)}
         aria-hidden="true"
       />
@@ -68,15 +68,15 @@ function SheetContent({ side = "left", className, children, ...props }: SheetCon
         role="dialog"
         aria-modal="true"
         className={cn(
-          "fixed top-0 z-50 h-full w-[280px] bg-[var(--sidebar)] shadow-xl transition-transform",
-          side === "left" ? "left-0" : "right-0",
+          "fixed top-0 z-50 h-full w-[280px] bg-[var(--sidebar)] shadow-[var(--shadow-lg)] backdrop-blur",
+          side === "left" ? "left-0 border-r border-[var(--sidebar-border)]" : "right-0 border-l border-[var(--sidebar-border)]",
           className
         )}
         {...props}
       >
         <button
           onClick={() => ctx.onOpenChange(false)}
-          className="absolute right-4 top-4 rounded-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          className="absolute right-4 top-4 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           aria-label="Close menu"
         >
           <X className="h-5 w-5" />
