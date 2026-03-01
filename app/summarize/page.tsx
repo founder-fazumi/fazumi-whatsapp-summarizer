@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Sparkles, Lightbulb, ArrowUpCircle, Check, FileText, Clock, MessageSquare, Send, ThumbsUp } from "lucide-react";
@@ -11,7 +12,7 @@ import { CalendarWidget } from "@/components/widgets/CalendarWidget";
 import { TodoWidget } from "@/components/widgets/TodoWidget";
 import { ReferralCard } from "@/components/widgets/ReferralCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLang } from "@/lib/context/LangContext";
@@ -85,19 +86,16 @@ const COPY = {
     en: "Something went wrong. Please try again.",
     ar: "حدث خطأ ما. حاول مرة أخرى.",
   },
-  limitTitle: {
-    en: "You've reached your summary limit",
-    ar: "لقد وصلت إلى حد الملخصات",
-  },
   limitBodyDaily: {
-    en: "You've reached today's limit. Try again tomorrow or upgrade to Pro for a higher daily limit.",
-    ar: "لقد وصلت إلى الحد اليومي. حاول غدًا أو قم بالترقية إلى Pro للحصول على حد يومي أعلى.",
+    en: "You've reached today's limit. Your history is still available.",
+    ar: "وصلت إلى حد اليوم. سجلك لا يزال متاحاً.",
   },
   limitBodyLifetime: {
-    en: "All free summaries have been used. Subscribe to Pro to continue summarizing.",
-    ar: "تم استخدام جميع الملخصات المجانية. اشترك في Pro للمتابعة.",
+    en: "You've used your 3 free summaries. Upgrade to continue.",
+    ar: "استخدمت ملخصاتك الثلاث المجانية. قم بالترقية للمتابعة.",
   },
-  upgrade: { en: "Upgrade to Pro", ar: "الترقية إلى Pro" },
+  upgrade: { en: "Upgrade", ar: "ترقية" },
+  viewHistory: { en: "View history", ar: "عرض السجل" },
   saved: { en: "Saved to history", ar: "تم الحفظ في السجل" },
   view: { en: "View", ar: "عرض" },
 } satisfies Record<string, LocalizedCopy<string>>;
@@ -466,18 +464,27 @@ export default function SummarizePage() {
         {limitReached && (
           <div className="status-warning mt-4 flex items-start gap-3 rounded-[var(--radius-lg)] border px-4 py-4">
             <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold">{pick(COPY.limitTitle, locale)}</p>
-              <p className="mt-0.5 text-sm">
+            <div className="flex-1">
+              <p className="text-sm font-medium">
                 {pick(limitCode === "LIFETIME_CAP" ? COPY.limitBodyLifetime : COPY.limitBodyDaily, locale)}
               </p>
-              <a
-                href="/billing"
-                className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
-              >
-                <ArrowUpCircle className="h-3.5 w-3.5" />
-                {pick(COPY.upgrade, locale)}
-              </a>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {limitCode === "LIFETIME_CAP" && (
+                  <Link
+                    href="/pricing"
+                    className={buttonVariants({ size: "sm" })}
+                  >
+                    <ArrowUpCircle className="h-3.5 w-3.5" />
+                    {pick(COPY.upgrade, locale)}
+                  </Link>
+                )}
+                <Link
+                  href="/history"
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  {pick(COPY.viewHistory, locale)}
+                </Link>
+              </div>
             </div>
           </div>
         )}
