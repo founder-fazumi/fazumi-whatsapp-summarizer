@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap } from "lucide-react";
+import {
+  ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap,
+  AlignLeft, Calendar, Users, Link2, HelpCircle, ShieldCheck,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
@@ -16,14 +20,14 @@ type ActionKey = "calendar" | "todo" | "export";
 
 const SECTION_META: Record<
   string,
-  { en: string; ar: string; icon: string }
+  { en: string; ar: string; icon: LucideIcon }
 > = {
-  tldr:             { en: "TL;DR",                    ar: "الخلاصة",               icon: "📋" },
-  important_dates:  { en: "Important Dates",           ar: "المواعيد المهمة",       icon: "📅" },
-  action_items:     { en: "Action Items / To-Do",      ar: "الإجراءات المطلوبة",    icon: "✅" },
-  people_classes:   { en: "People / Classes",          ar: "الأشخاص / المواد",      icon: "👥" },
-  links:            { en: "Links & Attachments",       ar: "الروابط والمرفقات",     icon: "🔗" },
-  questions:        { en: "Questions to Ask",          ar: "أسئلة للمعلم / المدرسة", icon: "❓" },
+  tldr:             { en: "TL;DR",                    ar: "الخلاصة",               icon: AlignLeft   },
+  important_dates:  { en: "Important Dates",           ar: "المواعيد المهمة",       icon: Calendar    },
+  action_items:     { en: "Action Items / To-Do",      ar: "الإجراءات المطلوبة",    icon: ListChecks  },
+  people_classes:   { en: "People / Classes",          ar: "الأشخاص / المواد",      icon: Users       },
+  links:            { en: "Links & Attachments",       ar: "الروابط والمرفقات",     icon: Link2       },
+  questions:        { en: "Questions to Ask",          ar: "أسئلة للمعلم / المدرسة", icon: HelpCircle },
 };
 
 const SECTION_ORDER = [
@@ -199,7 +203,7 @@ function SectionCard({
         )}
         aria-expanded={open}
       >
-        <span className="text-base shrink-0">{meta.icon}</span>
+        {(() => { const Icon = meta.icon; return <Icon className="h-4 w-4 shrink-0 text-[var(--primary)]" />; })()}
         <span className="flex-1 text-sm font-semibold text-[var(--card-foreground)]">
           {label}
         </span>
@@ -384,8 +388,9 @@ export function SummaryDisplay({
         </div>
       </div>
 
-      <p className="text-center text-xs text-[var(--muted-foreground)] pt-1">
-        ✅ {copy.noStorage}
+      <p className="flex items-center justify-center gap-1 text-center text-xs text-[var(--muted-foreground)] pt-1">
+        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+        {copy.noStorage}
       </p>
 
       <Dialog
