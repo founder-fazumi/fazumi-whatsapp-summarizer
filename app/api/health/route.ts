@@ -2,22 +2,23 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-function getEnvStatus() {
-  return {
-    supabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
-    supabaseAnon: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-    serviceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    openai: Boolean(process.env.OPENAI_API_KEY),
-  };
+function hasRequiredEnv() {
+  return Boolean(
+    process.env.OPENAI_API_KEY &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    process.env.LEMONSQUEEZY_WEBHOOK_SECRET &&
+    process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT
+  );
 }
 
 export async function GET() {
   return NextResponse.json(
     {
       ok: true,
-      ts: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
       app: "fazumi-web",
-      env: getEnvStatus(),
+      envConfigured: hasRequiredEnv(),
     },
     { status: 200 }
   );

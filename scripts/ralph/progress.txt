@@ -27,3 +27,8 @@ S010 = PENDING  # Referral system
 # Lemon Squeezy env naming is standardized around canonical names with a legacy webhook-secret fallback so local replay and production config resolve the same values.
 # Files: app/api/webhooks/lemonsqueezy/route.ts, scripts/webhooks/replay-lemonsqueezy.js, scripts/webhooks/README.md, README.md, .env.local.example
 # Pattern: when env names drift, keep one canonical name in docs and accept a narrow legacy alias only at the boundary that reads the value.
+
+# 2026-03-01
+# Reliability bolt-ons added: Sentry error monitoring for App Router, structured JSON server logs for summarize/webhook routes, and a tighter health response plus deploy smoke checklist.
+# Files: app/api/summarize/route.ts, app/api/webhooks/lemonsqueezy/route.ts, app/api/health/route.ts, app/global-error.tsx, instrumentation.ts, instrumentation-client.ts, sentry.server.config.ts, sentry.edge.config.ts, lib/logger.ts, lib/sentry.ts, next.config.ts, README.md, .env.local.example
+# Pattern: for pre-production observability, keep capture payloads intentionally sparse by hashing identifiers, redacting content-like keys, and logging route-safe metadata only.
