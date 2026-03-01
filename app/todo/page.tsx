@@ -1,6 +1,6 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
-import { TodoWidget } from "@/components/widgets/TodoWidget";
+import { TodoList } from "@/components/widgets/TodoList";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function TodoPage() {
@@ -19,7 +19,7 @@ export default function TodoPage() {
           </CardDescription>
         </CardHeader>
       </Card>
-      <TodoWidget />
+      <TodoList />
     </DashboardShell>
   );
 }
