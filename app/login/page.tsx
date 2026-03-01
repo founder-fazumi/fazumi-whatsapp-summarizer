@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Chrome } from "lucide-react";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -146,9 +147,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary)] text-2xl shadow-sm">
-            🦊
-          </div>
+          <BrandLogo size="lg" />
           <span className="text-xl font-bold text-[var(--foreground)]">Fazumi</span>
           <span className="text-sm text-[var(--muted-foreground)]">
             {locale === "ar" ? "ملخصات محادثات المدرسة فورًا" : "School chat summaries, instantly"}

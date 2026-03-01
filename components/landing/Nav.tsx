@@ -9,6 +9,7 @@ import { useMounted } from "@/lib/hooks/useMounted";
 import { createClient } from "@/lib/supabase/client";
 import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 
 interface NavProps {
   isLoggedIn?: boolean;
@@ -124,9 +125,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
     <nav className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--primary)] text-white text-base leading-none">
-            🦊
-          </div>
+          <BrandLogo size="sm" />
           <span className="font-bold text-base text-[var(--foreground)]">Fazumi</span>
           <span className="hidden sm:inline-block rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--primary)]">
             {pick(COPY.beta, locale)}

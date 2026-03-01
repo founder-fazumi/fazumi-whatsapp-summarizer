@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
 import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { formatNumber } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 
 const LINKS = [
   {
@@ -69,9 +71,7 @@ export function Footer() {
         <div className="mb-10 grid grid-cols-2 gap-8 md:grid-cols-4">
           <div className="col-span-2 md:col-span-1">
             <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)] text-base font-bold text-white select-none">
-                🦊
-              </span>
+              <BrandLogo size="sm" />
               <span className="text-sm font-bold text-[var(--foreground)]">Fazumi</span>
             </div>
             <p className="max-w-[180px] text-xs leading-relaxed text-[var(--muted-foreground)]">
@@ -112,7 +112,7 @@ export function Footer() {
           </p>
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1 rounded-full bg-[var(--primary)]/10 px-2.5 py-0.5 text-[10px] font-semibold text-[var(--primary)]">
-              🔒 {pick(COPY.privacy, locale)}
+              <ShieldCheck className="h-3 w-3" /> {pick(COPY.privacy, locale)}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-semibold text-amber-700">
               🇶🇦 {pick(COPY.gcc, locale)}
