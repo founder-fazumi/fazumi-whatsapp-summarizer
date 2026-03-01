@@ -1292,3 +1292,171 @@ console.error(JSON.stringify({
 | **Feature flags** (PostHog or LaunchDarkly) | After MVP, when A/B testing pricing or onboarding flows | Premature before first 100 paying users |
 | **Wasp / OpenSaaS migration** | Never — rewrite risk too high (see D015) | Revisit only if Next.js App Router itself becomes untenable |
 | **SuperTokens auth migration** | Never unless Supabase Auth has a critical blocker (see D015) | Supabase Auth handles Google + email; no gap |
+
+---
+
+## Launch Week Slices (Codex) — Target: Saturday 7 March 2026
+
+> Spec: `specs/launch-mvp-2026-03-07.md`
+> Rule: 1–3 items per slice. Codex implements one slice per run. Claude reviews after each.
+
+---
+
+### Slice L1 — Clickability audit + dead link fixes
+
+**Files likely touched:** `components/landing/Nav.tsx`, `components/landing/Footer.tsx`, any component with `href="#"` or `disabled` CTAs without reason.
+
+**Tasks:**
+- [ ] **L1-A** Grep for `href="#"` and `disabled` across `app/` and `components/` — replace each with a real route, an anchor, or a `title="Coming soon"` tooltip. No silent dead ends.
+- [ ] **L1-B** Verify anchor scroll targets exist: `#how-it-works`, `#pricing`, `#faq` — if missing, add `id` attributes to the correct section elements.
+- [ ] **L1-C** Mobile nav: confirm hamburger opens + all nav links navigate (close menu on click).
+
+**Verification:**
+```powershell
+pnpm lint && pnpm typecheck && pnpm build
+# Manual: click every nav/footer link on / and /pricing
+# Mobile: 375px viewport, verify hamburger works
+```
+
+**Acceptance:**
+- [ ] `grep -rn 'href="#"' app/ components/` → 0 results (or each has a `title=` tooltip)
+- [ ] All section anchors resolve on scroll
+- [ ] Mobile nav opens and closes correctly
+- [ ] `pnpm build` exits 0
+
+---
+
+### Slice L2 — Ingestion UX polish + copy
+
+**Files likely touched:** `app/summarize/page.tsx`, `components/SummaryDisplay.tsx`, ingestion copy strings.
+
+**Tasks:**
+- [ ] **L2-A** Textarea placeholder: update to "Paste your WhatsApp, Telegram, or school group chat here…" (EN) / "الصق محادثتك من واتساب أو تيليغرام هنا…" (AR).
+- [ ] **L2-B** Over-limit validation: if `text.length > 30_000`, show inline error "Text exceeds 30,000 characters." and disable the Summarize button — **no API call**.
+- [ ] **L2-C** File upload button label: "Upload .txt or .zip (text only)" — add a small note under it: "Zip media files are ignored."
+
+**Verification:**
+```powershell
+pnpm lint && pnpm typecheck && pnpm build
+# Manual: paste 30,001 chars → error shows, button disabled
+# Manual: file upload label reads correctly in EN and AR
+```
+
+**Acceptance:**
+- [ ] Placeholder text matches spec in both locales
+- [ ] 30,001-char input → inline error, button disabled, no network call
+- [ ] Upload button shows "text only" note
+- [ ] `pnpm build` exits 0
+
+---
+
+### Slice L3 — Summary correctness + limits banners
+
+**Files likely touched:** `app/api/summarize/route.ts`, `lib/limits.ts`, `app/summarize/page.tsx`, `components/` limit banner components.
+
+**Tasks:**
+- [ ] **L3-A** Confirm `LIMITS.trial === 3` in `lib/limits.ts`. If not, fix it.
+- [ ] **L3-B** Daily cap banner (402 DAILY_CAP response): show amber banner using voice.md snippet LB1 — "You've reached today's limit. Your history is still available."
+- [ ] **L3-C** Lifetime cap banner (402 LIFETIME_CAP response): show amber banner using voice.md snippet LB2 + "Upgrade to continue" CTA.
+
+**Verification:**
+```powershell
+pnpm lint && pnpm typecheck && pnpm build
+# Manual: SQL: DELETE FROM usage_daily WHERE user_id='<trial-user-id>'
+# Summarize 3x → all succeed. 4th → amber banner with correct copy.
+```
+
+**Acceptance:**
+- [ ] `LIMITS.trial === 3`
+- [ ] DAILY_CAP 402 → amber banner with LB1 copy (bilingual)
+- [ ] LIFETIME_CAP 402 → amber banner with LB2 copy + upgrade link (bilingual)
+- [ ] `/history` loads after cap hit
+- [ ] `pnpm build` exits 0
+
+---
+
+### Slice L4 — UI consistency (spacing + typography + emoji removal)
+
+**Files likely touched:** Landing page components, dashboard components, any file with emoji decorations.
+
+**Tasks:**
+- [ ] **L4-A** Replace remaining emoji used as decoration (not in user content) with lucide icons or remove them. Run: `grep -rn "🎉\|✨\|🚀\|💡\|📋\|🗓\|✅\|❌" app/ components/` — address each result.
+- [ ] **L4-B** Section gaps on landing: ensure consistent `py-16` or `py-24` between sections (no section with `py-6` when neighbours use `py-20`).
+- [ ] **L4-C** Card `rounded` consistency: audit all `<Card>` and card-like divs — standardize to `rounded-xl` unless a specific design reason.
+
+**Verification:**
+```powershell
+pnpm lint && pnpm typecheck && pnpm build
+# Playwright snapshot: / in light + dark mode, 375px + 1280px
+```
+
+**Acceptance:**
+- [ ] Emoji grep returns 0 decorative emoji (user-generated content is exempt)
+- [ ] No section gap inconsistency > 2x on landing
+- [ ] `pnpm build` exits 0
+
+---
+
+### Slice L5 — Brand voice + microcopy integration
+
+**Files likely touched:** Any component with user-visible copy; check against `docs/brand/voice.md`.
+
+**Tasks:**
+- [ ] **L5-A** Replace any banned copy found by: `grep -rn "revolutionary\|game.changing\|supercharge\|powerful AI\|seamlessly\|effortlessly" app/ components/`
+- [ ] **L5-B** Update empty state copy to use voice.md ES1/ES2/ES3 snippets (EN + AR).
+- [ ] **L5-C** Update all limit banners to use voice.md LB1/LB2/LB3 snippets exactly (EN + AR). No exclamation marks in limit banners.
+
+**Verification:**
+```powershell
+pnpm lint && pnpm typecheck && pnpm build
+# Grep check: grep -rn "revolutionary|game-changing|supercharge|powerful AI" app/ components/
+# Result must be 0
+```
+
+**Acceptance:**
+- [ ] Banned phrase grep: 0 results
+- [ ] Empty states match voice.md snippets
+- [ ] Limit banners match voice.md LB1/LB2/LB3 exactly
+- [ ] `pnpm build` exits 0
+
+---
+
+### Slice L6 — Production readiness verification
+
+**Files likely touched:** `.env.local.example`, `docs/runbooks/deploy.md`, `README.md`.
+
+**Tasks:**
+- [ ] **L6-A** `.env.local.example`: confirm ALL required keys are listed with comments. Add any missing: `NEXT_PUBLIC_APP_URL`, `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
+- [ ] **L6-B** `docs/runbooks/deploy.md`: confirm pre-deploy checklist matches current `pnpm lint && pnpm typecheck && pnpm test && pnpm build` sequence and references `/api/health` expected shape `{ ok: true, env: { supabase, openai, lemonsqueezy }, envConfigured: true }`.
+- [ ] **L6-C** `pnpm build` exits 0, `pnpm webhook:replay:payment-success` → HTTP 200 locally.
+
+**Verification:**
+```powershell
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+pnpm dev  # then in second terminal:
+pnpm webhook:replay:payment-success
+# Expect: HTTP 200 in output
+```
+
+**Acceptance:**
+- [ ] `.env.local.example` has all 14 required vars with comments
+- [ ] `docs/runbooks/deploy.md` pre-deploy sequence matches
+- [ ] `pnpm build` exits 0
+- [ ] Webhook replay returns HTTP 200
+
+---
+
+### Final Launch Gate (Claude — Thursday 6 March)
+
+Before approving Saturday launch:
+```powershell
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+Manual smoke (using qa-smoke-tests skill checklist):
+- [ ] Public routes: `/`, `/pricing`, `/about`, `/login`, `/api/health`
+- [ ] Auth: sign in → dashboard → history → sign out
+- [ ] Summarize: paste → summary → saved badge → history
+- [ ] Limit: 4th trial summary → 402 + banner
+- [ ] Billing: plan badge correct; past_due amber warning visible (SQL test)
+- [ ] RTL: Arabic mode, all copy in Arabic, digits 0–9, no overflow
+- [ ] Mobile: 375px, no overflow, nav works
