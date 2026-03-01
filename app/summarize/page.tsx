@@ -49,15 +49,7 @@ const COPY = {
     en: "I will extract tasks, dates, and announcements. Only the summary is saved, never your raw chat.",
     ar: "سأستخرج المهام والتواريخ والإعلانات. يتم حفظ الملخص فقط، وليس نص المحادثة الخام.",
   },
-  placeholder: {
-    en: "Paste your WhatsApp, Telegram, or school group chat here…",
-    ar: "الصق محادثتك من واتساب أو تيليغرام هنا…",
-  },
   tipLabel: { en: "Tip:", ar: "نصيحة:" },
-  tipBody: {
-    en: "Export your WhatsApp chat without media and paste the text here. Works best with 20-500 messages.",
-    ar: "صدّر محادثة واتساب بدون وسائط والصق النص هنا. يعمل بأفضل شكل مع 20-500 رسالة.",
-  },
   upload: {
     en: "Upload .txt or .zip (text only)",
     ar: "رفع .txt أو .zip (نص فقط)",
@@ -116,6 +108,36 @@ const PLATFORM_LABELS = {
   facebook: { en: "Facebook", ar: "فيسبوك" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
+const PLATFORM_PLACEHOLDER: Record<string, LocalizedCopy<string>> = {
+  whatsapp: {
+    en: "Paste your WhatsApp chat export here…",
+    ar: "الصق تصدير محادثة واتساب هنا…",
+  },
+  telegram: {
+    en: "Paste your Telegram messages here…",
+    ar: "الصق رسائل تيليجرام هنا…",
+  },
+  facebook: {
+    en: "Paste your Facebook Messenger messages here…",
+    ar: "الصق رسائل فيسبوك ماسنجر هنا…",
+  },
+};
+
+const PLATFORM_TIP: Record<string, LocalizedCopy<string>> = {
+  whatsapp: {
+    en: "Export chat from WhatsApp: Open chat → ⋮ → More → Export Chat → Without Media. Works best with 20–500 messages.",
+    ar: "صدّر من واتساب: افتح المحادثة ← ⋮ ← المزيد ← تصدير المحادثة ← بدون وسائط.",
+  },
+  telegram: {
+    en: "Export from Telegram Desktop: Open chat → ⋮ → Export Chat History → Format: Plain Text.",
+    ar: "صدّر من تيليجرام سطح المكتب: افتح المحادثة ← ⋮ ← تصدير سجل المحادثة ← صيغة: نص عادي.",
+  },
+  facebook: {
+    en: "Download from Facebook: Settings → Your Information → Download Your Information → Messages → Plain Text.",
+    ar: "نزّل من فيسبوك: الإعدادات ← معلوماتك ← تنزيل معلوماتك ← الرسائل ← نص عادي.",
+  },
+};
+
 export default function SummarizePage() {
   const router = useRouter();
   const { locale } = useLang();
@@ -133,6 +155,7 @@ export default function SummarizePage() {
   const [bannerUserName, setBannerUserName] = useState<string | null>(null);
   const [summariesUsedToday, setSummariesUsedToday] = useState(0);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const charCount = text.length;
   const remaining = MAX_CHARS - charCount;
@@ -214,6 +237,56 @@ export default function SummarizePage() {
       e.preventDefault();
       if (!text.trim() || loading || isOverLimit) return;
       void handleSubmit(e as unknown as React.FormEvent);
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    e.target.value = "";
+    setError(null);
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError(locale === "ar" ? "حجم الملف يتجاوز 10 ميغابايت." : "File exceeds 10 MB limit.");
+      return;
+    }
+
+    try {
+      if (file.name.endsWith(".txt")) {
+        const content = await file.text();
+        setText(content.slice(0, MAX_CHARS));
+      } else if (file.name.endsWith(".zip")) {
+        const JSZip = (await import("jszip")).default;
+        const zip = await JSZip.loadAsync(file);
+        const textParts: string[] = [];
+        let hasMedia = false;
+
+        await Promise.all(
+          Object.values(zip.files).map(async (entry) => {
+            if (entry.dir) return;
+            if (entry.name.match(/\.(txt|TXT)$/)) {
+              const content = await entry.async("string");
+              textParts.push(content);
+            } else {
+              hasMedia = true;
+            }
+          })
+        );
+
+        if (hasMedia) {
+          setError(locale === "ar" ? "تم تجاهل ملفات الوسائط في الضغط." : "Zip media files were ignored. Text extracted.");
+        }
+        if (textParts.length === 0) {
+          setError(locale === "ar" ? "لم يُعثر على ملفات نصية في الضغط." : "No text files found in the zip.");
+          return;
+        }
+        setText(textParts.join("\n").slice(0, MAX_CHARS));
+      } else {
+        setError(locale === "ar" ? "نوع الملف غير مدعوم. استخدم .txt أو .zip." : "Unsupported file type. Use .txt or .zip.");
+      }
+    } catch {
+      setError(locale === "ar" ? "تعذّر قراءة الملف." : "Could not read the file.");
     }
   }
 
@@ -348,7 +421,7 @@ export default function SummarizePage() {
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={pick(COPY.placeholder, locale)}
+                        placeholder={pick(PLATFORM_PLACEHOLDER[platform] ?? PLATFORM_PLACEHOLDER.whatsapp, locale)}
                         rows={10}
                         disabled={loading}
                         className={cn(
@@ -384,7 +457,7 @@ export default function SummarizePage() {
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={pick(COPY.placeholder, locale)}
+                        placeholder={pick(PLATFORM_PLACEHOLDER[platform] ?? PLATFORM_PLACEHOLDER.whatsapp, locale)}
                         rows={10}
                         disabled={loading}
                         className={cn(
@@ -420,7 +493,7 @@ export default function SummarizePage() {
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={pick(COPY.placeholder, locale)}
+                        placeholder={pick(PLATFORM_PLACEHOLDER[platform] ?? PLATFORM_PLACEHOLDER.whatsapp, locale)}
                         rows={10}
                         disabled={loading}
                         className={cn(
@@ -454,19 +527,26 @@ export default function SummarizePage() {
                 <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--warning)]" />
                 <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
                   <strong className="text-[var(--foreground)]">{pick(COPY.tipLabel, locale)}</strong>{" "}
-                  {pick(COPY.tipBody, locale)}
+                  {pick(PLATFORM_TIP[platform] ?? PLATFORM_TIP.whatsapp, locale)}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-start gap-3">
                 <div className="space-y-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.zip"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled
                     className="gap-1.5 text-xs"
-                    title={pick(COPY.upload, locale)}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading}
                   >
                     <Upload className="h-3.5 w-3.5" />
                     {pick(COPY.upload, locale)}

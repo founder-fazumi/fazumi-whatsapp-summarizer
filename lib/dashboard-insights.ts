@@ -286,16 +286,14 @@ export function buildDashboardInsights(
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
     .slice(0, MAX_TODO_ITEMS);
 
-  const notifications = calendarItems
-    .filter((item) => {
-      if (!item.isoDate) {
-        return true;
-      }
+  const todayKey = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  )
+    .toISOString()
+    .slice(0, 10);
 
-      const itemTime = new Date(item.isoDate).getTime();
-      const todayTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0)).getTime();
-      return itemTime >= todayTime;
-    })
+  const notifications = calendarItems
+    .filter((item) => item.dateKey === todayKey)
     .slice(0, MAX_NOTIFICATIONS)
     .map((item) => ({
       id: `notification:${item.id}`,

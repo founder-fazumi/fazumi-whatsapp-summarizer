@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/summarize", labelKey: "nav.summarize",  icon: MessageSquareText },
   { href: "/history",   labelKey: "nav.history",    icon: History },
   { href: "/calendar",  labelKey: "nav.calendar",   icon: Calendar },
+  { href: "/todo",      labelKey: "nav.todo",       icon: CheckSquare },
   { href: "/settings",  labelKey: "nav.settings",   icon: Settings },
   { href: "/help",      labelKey: "nav.resources",  icon: HelpCircle },
 ] as const;
@@ -144,18 +145,6 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               </li>
             );
           })}
-
-          {/* To-Do — placeholder */}
-          <li>
-            <button
-              disabled
-              title={pick(COPY.soon, locale)}
-              className="flex w-full cursor-not-allowed items-center gap-3 rounded-[var(--radius)] px-3.5 py-2.5 text-sm font-medium text-[var(--muted-foreground)] opacity-50"
-            >
-              <CheckSquare className="h-4 w-4 shrink-0" />
-              <span className="flex-1">{t("nav.todo", locale)}</span>
-            </button>
-          </li>
         </ul>
       </nav>
 
