@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Search, Bell, Globe, Moon, Sun, Menu,
+  Search, Bell, Globe, Moon, Sun, Menu, Calendar,
   LayoutDashboard, User, CreditCard, Settings, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -224,7 +224,7 @@ export function TopBar({ className }: TopBarProps) {
                     isArabic && "flex-row-reverse text-right"
                   )}
                 >
-                  <span className="mt-0.5 shrink-0 text-base">📅</span>
+                  <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
                   <div className="min-w-0 flex-1">
                     <span className="block leading-snug text-[var(--foreground)]">{notification.label}</span>
                     {notification.isoDate && (

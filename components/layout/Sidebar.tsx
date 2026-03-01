@@ -11,11 +11,15 @@ import {
   HelpCircle,
   Settings,
   ArrowUpCircle,
+  Zap,
+  Star,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 
 const NAV_ITEMS = [
   { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
@@ -60,9 +64,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     >
       {/* ── Logo ─────────────────────────────────── */}
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)] text-white text-xl shadow-sm shrink-0">
-          🦊
-        </div>
+        <BrandLogo size="md" />
         <div>
           <span className="block font-bold text-base leading-tight text-[var(--foreground)]">
             Fazumi
@@ -115,7 +117,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       {/* ── Plan section ─────────────────────────── */}
       <div className="px-4 py-3 border-t border-[var(--sidebar-border)]">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm">🥇</span>
+          <Zap className="h-4 w-4 text-amber-500" />
           <span className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.freePlan, locale)}</span>
           <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">{pick(COPY.trialActive, locale)}</span>
         </div>
@@ -132,18 +134,18 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       {/* ── Founder access card ──────────────────── */}
       <div className="px-4 py-3">
         <div className="rounded-[var(--radius)] bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-3">
-          <p className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1.5">
-            ★ {pick(COPY.premium, locale)} ›
+          <p className="flex items-center gap-1 text-xs font-bold text-amber-800 dark:text-amber-300 mb-1.5">
+            <Star className="h-3.5 w-3.5 text-amber-500" /> {pick(COPY.premium, locale)} ›
           </p>
           <ul className="space-y-1 text-[10px] text-amber-700 dark:text-amber-400">
             <li className="flex items-center gap-1.5">
-              <span className="text-amber-500">✓</span> {pick(COPY.unlimited, locale)}
+              <Check className="h-3 w-3 shrink-0 text-amber-500" /> {pick(COPY.unlimited, locale)}
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="text-amber-500">✓</span> {pick(COPY.calendar, locale)}
+              <Check className="h-3 w-3 shrink-0 text-amber-500" /> {pick(COPY.calendar, locale)}
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="text-amber-500">✓</span> {pick(COPY.priority, locale)}
+              <Check className="h-3 w-3 shrink-0 text-amber-500" /> {pick(COPY.priority, locale)}
             </li>
           </ul>
         </div>
