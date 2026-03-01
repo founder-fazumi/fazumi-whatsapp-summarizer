@@ -243,7 +243,7 @@ export function Hero() {
       className={cn("relative overflow-hidden py-20 md:py-28", isRtl && "font-arabic")}
     >
       <div className="page-shell">
-        <div className="hero-backdrop surface-panel-elevated relative overflow-hidden px-[var(--card-padding-lg)] py-10 sm:py-12">
+        <div className="hero-backdrop surface-panel-elevated relative overflow-hidden px-[var(--card-padding-lg)] py-10 shadow-[var(--shadow-md)] sm:py-12">
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div className="absolute -top-24 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-[var(--primary-soft)] blur-3xl" />
             <div className="absolute bottom-0 right-0 h-48 w-48 rounded-full bg-[var(--accent-cream)] blur-3xl opacity-70" />
@@ -381,8 +381,7 @@ export function Hero() {
 
             <div className="mt-4 space-y-2">
               <Button
-                size="lg"
-                className="w-full gap-2 text-base shadow-[var(--shadow-lg)]"
+                className="h-10 w-full gap-2 rounded-xl px-5 font-medium shadow-[var(--shadow-sm)]"
                 disabled={loading || !text.trim() || isOverLimit}
                 onClick={() => void handleSubmit()}
               >

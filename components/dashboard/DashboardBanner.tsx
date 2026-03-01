@@ -69,7 +69,7 @@ export function DashboardBanner({
   ];
 
   return (
-    <Card className="hero-backdrop mb-5 overflow-hidden border-[var(--border)] bg-[var(--surface-elevated)]">
+    <Card className="hero-backdrop mb-5 overflow-hidden border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-md)]">
       <CardContent className="px-6 py-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -85,7 +85,7 @@ export function DashboardBanner({
               {pick(COPY.subtitle, locale)}
             </p>
 
-            <div className="surface-panel mt-4 px-4 py-3">
+            <div className="surface-panel mt-4 px-4 py-3 shadow-[var(--shadow-sm)]">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[var(--muted-foreground)]">
                   {pick(COPY.usageToday, locale)}
@@ -125,7 +125,7 @@ export function DashboardBanner({
             {showUpgrade && (
               <Link
                 href="/billing"
-                className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-3.5 py-2 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
+                className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
                 <ArrowUpCircle className="h-3.5 w-3.5" />
                 {t("dash.upgrade", locale)}
@@ -133,7 +133,7 @@ export function DashboardBanner({
             )}
           </div>
 
-          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] sm:flex">
+          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] sm:flex">
             <BrandLogo size="lg" />
           </div>
         </div>

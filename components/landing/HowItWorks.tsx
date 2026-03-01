@@ -69,7 +69,7 @@ export function HowItWorks() {
           </p>
         </div>
 
-        <div className="hero-backdrop surface-panel-elevated relative mx-auto mb-12 max-w-2xl overflow-hidden cursor-pointer group"
+        <div className="hero-backdrop surface-panel-elevated relative mx-auto mb-12 max-w-2xl cursor-pointer overflow-hidden shadow-[var(--shadow-md)] group"
           onClick={() => setOpen(true)}
         >
           <div className="flex aspect-video items-center justify-center">
@@ -90,7 +90,7 @@ export function HowItWorks() {
           {STEPS.map(({ icon: Icon, color, step, title, desc }) => (
             <div
               key={step}
-              className="surface-panel px-6 py-6"
+              className="surface-panel px-6 py-6 shadow-[var(--shadow-sm)]"
             >
               <div className="flex items-start gap-4">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color}`}>
@@ -100,7 +100,7 @@ export function HowItWorks() {
                   <p className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase tracking-widest mb-0.5">
                     {pick(COPY.step, locale)} {step}
                   </p>
-                  <h3 className="text-sm font-bold text-[var(--foreground)] mb-1">{pick(title, locale)}</h3>
+                  <h3 className="mb-1 text-xl font-bold leading-tight text-[var(--foreground)]">{pick(title, locale)}</h3>
                   <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">{pick(desc, locale)}</p>
                 </div>
               </div>

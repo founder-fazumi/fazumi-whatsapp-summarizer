@@ -128,7 +128,7 @@ export function Pricing({
       id={sectionId}
       className={cn(
         embedded
-          ? "surface-panel-elevated px-4 py-10 sm:px-6"
+          ? "surface-panel-elevated px-4 py-10 shadow-[var(--shadow-md)] sm:px-6"
           : "bg-[var(--page-layer)] py-16 md:py-24"
       )}
     >
@@ -177,9 +177,9 @@ export function Pricing({
             <div
               key={plan.id}
               className={cn(
-                "relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] border bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)]",
+                "relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] border bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-sm)]",
                 plan.featured
-                  ? "border-[var(--primary)] shadow-[var(--shadow-lg)]"
+                  ? "border-[var(--primary)] shadow-[var(--shadow-md)]"
                   : "border-[var(--border)]",
                 isCurrentPlan && currentPlanId !== "founder" && "ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--page-layer)]",
                 isCurrentPlan && currentPlanId === "founder" && "border-[var(--accent-fox)] ring-2 ring-[var(--accent-fox)] ring-offset-2 ring-offset-[var(--page-layer)]"
@@ -221,7 +221,7 @@ export function Pricing({
               )}
 
               <div className="mb-4">
-                <h3 className="text-base font-bold text-[var(--foreground)]">
+                <h3 className="text-xl font-bold leading-tight text-[var(--foreground)]">
                   {pick(plan.name, locale)}
                 </h3>
                 <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
@@ -284,7 +284,7 @@ export function Pricing({
                 <Link
                   href={isLoggedIn ? "/summarize" : "/login"}
                   className={cn(
-                    "mb-5 block w-full rounded-[var(--radius)] bg-[var(--primary)] py-2.5 text-center text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
+                    "mb-5 inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--primary)] px-5 text-center text-sm font-medium text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
                   )}
                 >
                   {pick(plan.ctaText, locale)}
@@ -300,7 +300,7 @@ export function Pricing({
                   }
                   isLoggedIn={isLoggedIn}
                   className={cn(
-                    "mb-5 w-full rounded-[var(--radius)] py-2.5 text-sm font-semibold transition-colors",
+                    "mb-5 inline-flex h-10 w-full items-center justify-center rounded-xl px-5 text-sm font-medium transition-colors",
                     plan.featured
                       ? "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
                       : plan.id === "founder"
