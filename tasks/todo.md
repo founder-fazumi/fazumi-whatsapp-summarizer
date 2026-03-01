@@ -1307,9 +1307,9 @@ console.error(JSON.stringify({
 **Files likely touched:** `components/landing/Nav.tsx`, `components/landing/Footer.tsx`, any component with `href="#"` or `disabled` CTAs without reason.
 
 **Tasks:**
-- [ ] **L1-A** Grep for `href="#"` and `disabled` across `app/` and `components/` — replace each with a real route, an anchor, or a `title="Coming soon"` tooltip. No silent dead ends.
-- [ ] **L1-B** Verify anchor scroll targets exist: `#how-it-works`, `#pricing`, `#faq` — if missing, add `id` attributes to the correct section elements.
-- [ ] **L1-C** Mobile nav: confirm hamburger opens + all nav links navigate (close menu on click).
+- [x] **L1-A** Grep for `href="#"` and `disabled` across `app/` and `components/` — replace each with a real route, an anchor, or a `title="Coming soon"` tooltip. No silent dead ends.
+- [x] **L1-B** Verify anchor scroll targets exist: `#how-it-works`, `#pricing`, `#faq` — if missing, add `id` attributes to the correct section elements.
+- [x] **L1-C** Mobile nav: confirm hamburger opens + all nav links navigate (close menu on click).
 
 **Verification:**
 ```powershell
