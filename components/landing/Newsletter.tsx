@@ -34,7 +34,7 @@ export function Newsletter() {
   }
 
   return (
-    <section className="page-section-tight bg-[var(--page-layer)]">
+    <section className="bg-[var(--page-layer)] py-16 md:py-24">
       <div className="page-shell">
         <div className="hero-backdrop surface-panel-elevated mx-auto max-w-xl px-[var(--card-padding-lg)] py-[var(--card-padding-lg)] text-center">
           <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)]/10">

@@ -116,7 +116,7 @@ export default async function BillingPage() {
     <DashboardShell contentClassName="max-w-6xl">
       <div className="space-y-4">
         {isPastDue && (
-          <div className="status-destructive flex items-start gap-3 rounded-[var(--radius-lg)] border px-4 py-3 text-sm">
+          <div className="status-destructive flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-3 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="space-y-1">
               <p>
@@ -163,7 +163,7 @@ export default async function BillingPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             {/* Current plan */}
-            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
+            <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
               <p className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
                 <LocalizedText en="Current plan" ar="الخطة الحالية" />
               </p>

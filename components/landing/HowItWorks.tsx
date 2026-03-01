@@ -55,7 +55,7 @@ export function HowItWorks() {
   const [open, setOpen] = useState(false);
 
   return (
-    <section className="page-section bg-[var(--page-layer)]">
+    <section className="bg-[var(--page-layer)] py-16 md:py-24">
       <div className="page-shell">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">

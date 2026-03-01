@@ -133,7 +133,7 @@ export function DashboardBanner({
             )}
           </div>
 
-          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] sm:flex">
+          <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] sm:flex">
             <BrandLogo size="lg" />
           </div>
         </div>

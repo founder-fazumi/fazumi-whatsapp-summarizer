@@ -70,7 +70,7 @@ export function CheckoutTeaser() {
     <section
       dir={isArabic ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("page-section-tight", isArabic && "font-arabic")}
+      className={cn("py-16 md:py-24", isArabic && "font-arabic")}
     >
       <div className="page-shell space-y-6">
         <div className="hero-backdrop surface-panel-elevated relative flex flex-col items-start justify-between gap-4 px-6 py-6 sm:flex-row sm:items-center">
@@ -96,7 +96,7 @@ export function CheckoutTeaser() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-xs)]">
+            <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-xs)]">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">{pick(COPY.monthly, locale)}</p>
               <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
                 $9.99<span className="text-sm font-medium text-[var(--muted-foreground)]">{pick(COPY.monthlySuffix, locale)}</span>
@@ -111,7 +111,7 @@ export function CheckoutTeaser() {
               </CheckoutButton>
             </div>
 
-            <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-xs)]">
+            <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-xs)]">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">{pick(COPY.founder, locale)}</p>
               <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
                 $149<span className="text-sm font-medium text-[var(--muted-foreground)]"> {pick(COPY.founderSuffix, locale)}</span>

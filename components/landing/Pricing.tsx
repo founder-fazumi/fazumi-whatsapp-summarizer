@@ -127,8 +127,9 @@ export function Pricing({
     <section
       id={sectionId}
       className={cn(
-        "page-section bg-[var(--page-layer)]",
-        embedded && "surface-panel-elevated px-4 py-10 sm:px-6"
+        embedded
+          ? "surface-panel-elevated px-4 py-10 sm:px-6"
+          : "bg-[var(--page-layer)] py-16 md:py-24"
       )}
     >
       <div className={cn("page-shell", embedded && "max-w-none px-0")}>

@@ -49,7 +49,7 @@ export function SocialProof() {
     <section
       dir={isArabic ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("page-section-tight", isArabic && "font-arabic")}
+      className={cn("py-16 md:py-24", isArabic && "font-arabic")}
     >
       <div className="page-shell">
         <div className="surface-panel-elevated px-[var(--card-padding-lg)] py-8">
@@ -64,7 +64,7 @@ export function SocialProof() {
 
           <div className="grid grid-cols-2 gap-6 text-center md:grid-cols-4">
             {stats.map(({ value, label }) => (
-              <div key={label.en} className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-4 py-5 shadow-[var(--shadow-xs)]">
+              <div key={label.en} className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-4 py-5 shadow-[var(--shadow-xs)]">
                 <p className="text-2xl font-bold text-[var(--primary)]">{value}</p>
                 <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                   {pick(label, locale)}

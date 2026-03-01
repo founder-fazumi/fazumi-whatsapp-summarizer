@@ -118,7 +118,7 @@ export function Testimonials() {
   const col3 = TESTIMONIALS.slice(8, 12);
 
   return (
-    <section className="page-section overflow-hidden">
+    <section className="overflow-hidden py-16 md:py-24">
       <div className="page-shell">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">

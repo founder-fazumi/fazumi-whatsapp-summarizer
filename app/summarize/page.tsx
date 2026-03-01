@@ -310,7 +310,7 @@ export default function SummarizePage() {
                 </div>
               </div>
 
-              <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] sm:flex">
+              <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] sm:flex">
                 <BrandLogo size="lg" />
               </div>
             </div>
@@ -456,13 +456,13 @@ export default function SummarizePage() {
         </Card>
 
         {error && (
-          <div className="status-destructive mt-4 rounded-[var(--radius-lg)] border px-4 py-3 text-sm">
+          <div className="status-destructive mt-4 rounded-[var(--radius-xl)] border px-4 py-3 text-sm">
             {error}
           </div>
         )}
 
         {limitReached && (
-          <div className="status-warning mt-4 flex items-start gap-3 rounded-[var(--radius-lg)] border px-4 py-4">
+          <div className="status-warning mt-4 flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-4">
             <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium">

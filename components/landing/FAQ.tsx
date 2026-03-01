@@ -122,7 +122,7 @@ export function FAQ() {
   const current = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
-    <section className="page-section bg-[var(--page-layer)]">
+    <section className="bg-[var(--page-layer)] py-16 md:py-24">
       <div className="page-shell">
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">

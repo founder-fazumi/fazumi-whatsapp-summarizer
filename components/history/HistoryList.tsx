@@ -69,7 +69,7 @@ export function HistoryList({ summaries }: Props) {
           className="py-8"
         />
       ) : (
-        <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
+        <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           {filtered.map((s) => (
             <Link
               key={s.id}

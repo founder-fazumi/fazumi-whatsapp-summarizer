@@ -240,7 +240,7 @@ export function Hero() {
     <section
       dir={isRtl ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("page-section-tight relative overflow-hidden", isRtl && "font-arabic")}
+      className={cn("relative overflow-hidden py-20 md:py-28", isRtl && "font-arabic")}
     >
       <div className="page-shell">
         <div className="hero-backdrop surface-panel-elevated relative overflow-hidden px-[var(--card-padding-lg)] py-10 sm:py-12">
