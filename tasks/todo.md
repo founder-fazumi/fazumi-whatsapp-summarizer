@@ -1191,3 +1191,104 @@ Manual (no E2E checkout needed):
 2. Processing banner: visit `http://localhost:3000/dashboard?upgraded=1` → see banner → wait 8s → auto-dismiss
 3. Past due test (SQL): `UPDATE subscriptions SET status='past_due' WHERE user_id='<id>'` → visit `/billing` → see amber warning
 4. Signature + valid event: use `openssl dgst -sha256 -hmac "$SECRET"` to generate valid sig → `curl` POST → expect HTTP 200 + DB updated
+
+---
+
+## Pre-Production Reliability
+
+> **Scope:** Small, additive bolt-ons only. No new frameworks. No rewrites.
+> Stack stays: Next.js App Router + Supabase + Lemon Squeezy (see D015).
+> Complete these before first paid user goes live.
+
+### MON1 — Add error monitoring (Highlight.io or Sentry) [Codex]
+**Why:** Silent failures in `/api/summarize` and `/api/webhooks/lemonsqueezy` are invisible without it.
+
+**Constraints (non-negotiable):**
+- Must NOT capture request bodies that contain chat text — configure `ignoreUrls` or `networkBodyKeysToIgnore` to exclude `/api/summarize` body payloads.
+- Must NOT log raw user content in breadcrumbs or custom events.
+- Only capture: error messages, stack traces, route names, status codes.
+
+**Recommended option:** Highlight.io (`@highlight-run/next`) — has native Next.js App Router support and client+server coverage in one SDK.
+
+**Files to change:**
+- `app/layout.tsx` — wrap with `<HighlightInit />` client component (Highlight pattern)
+- `app/api/summarize/route.ts` — call `H.consumeError(error)` in the catch block
+- `app/api/webhooks/lemonsqueezy/route.ts` — call `H.consumeError(error)` on HMAC failure and unhandled event errors
+- `.env.local.example` — add `NEXT_PUBLIC_HIGHLIGHT_PROJECT_ID=`
+
+**Acceptance:**
+- [ ] Error monitoring SDK installed + initialized
+- [ ] No raw chat content captured (verify in Highlight session replay settings)
+- [ ] Summarize API errors surface in Highlight dashboard
+- [ ] Webhook HMAC failures surface in Highlight dashboard
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### MON2 — Structured error logging for webhook + summarize failures [Codex]
+**Why:** Even without a monitoring SDK, webhook silently returning 500 on edge cases is unacceptable pre-launch. Add `console.error` calls with structured JSON so Vercel log drain / Datadog can parse them.
+
+**Pattern to follow:**
+```typescript
+// On webhook failure
+console.error(JSON.stringify({
+  source: "webhook/lemonsqueezy",
+  event,
+  lsId,
+  error: String(err),
+  ts: new Date().toISOString(),
+}));
+
+// On summarize failure
+console.error(JSON.stringify({
+  source: "api/summarize",
+  userId,
+  error: String(err),
+  ts: new Date().toISOString(),
+}));
+```
+**Note:** Never log `text` (the raw chat paste) or any field derived from it.
+
+**Files:** `app/api/webhooks/lemonsqueezy/route.ts`, `app/api/summarize/route.ts`
+
+**Acceptance:**
+- [ ] Both routes log structured JSON on error (not raw `console.error(err)`)
+- [ ] No `text`, `body`, or chat-derived content in any log line
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+### MON3 — Health endpoint + deployment smoke checklist [Claude — verify only]
+**Why:** `/api/health` already exists. Confirm it covers all critical dependencies before go-live.
+
+**Health endpoint should confirm:**
+- `OPENAI_API_KEY` is set (boolean, do not echo value)
+- `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set
+- `LEMONSQUEEZY_WEBHOOK_SECRET` is set
+- `NEXT_PUBLIC_LS_MONTHLY_VARIANT` is set (non-empty)
+
+**Deployment smoke checklist (run after each Vercel deploy):**
+1. `GET /api/health` → all booleans `true`
+2. `GET /` → landing renders, no JS errors in console
+3. `POST /api/summarize` (with test JWT) → 200 + valid JSON structure
+4. `POST /api/webhooks/lemonsqueezy` with wrong signature → 400
+5. `/dashboard` → correct plan badge shown for test accounts
+6. Arabic locale → RTL layout correct, no layout breaks
+
+**Acceptance:**
+- [ ] `/api/health` returns all required env checks
+- [ ] Deployment smoke checklist documented in README or a `scripts/smoke/` file
+
+---
+
+## Backlog (do not commit to these now)
+
+> These are worth knowing about but should NOT be built until MVP revenue is stable and the trigger is clear.
+
+| Item | Trigger to adopt | Notes |
+|------|-----------------|-------|
+| **Workflow engine** (Trigger.dev or Inngest) | If `/api/summarize` needs retries or async queuing (e.g. ZIP processing, bulk export) | Current synchronous Vercel function is fine for paste-first flow |
+| **Dub.co attribution links** | When running paid acquisition (Google/Meta ads, influencer links) | Not needed until ad spend begins; referral code system covers organic |
+| **Feature flags** (PostHog or LaunchDarkly) | After MVP, when A/B testing pricing or onboarding flows | Premature before first 100 paying users |
+| **Wasp / OpenSaaS migration** | Never — rewrite risk too high (see D015) | Revisit only if Next.js App Router itself becomes untenable |
+| **SuperTokens auth migration** | Never unless Supabase Auth has a critical blocker (see D015) | Supabase Auth handles Google + email; no gap |

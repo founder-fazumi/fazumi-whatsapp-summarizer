@@ -137,3 +137,12 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Context:** Emoji characters were used as inline icons throughout the app (🦊 logo, 📋 stats, 📅 dates, ✅ actions, 📭 empty states, etc.). Emoji render inconsistently across OS/font stacks and look unprofessional in a paid product.
 **Decision:** Replace all emoji with lucide-react icons (already installed, v0.575.0). Use existing brand image assets from `public/brand/` for the Fazumi logo mark. Create two shared components: `components/shared/BrandLogo.tsx` (logo image wrapper) and `components/shared/EmptyState.tsx` (reusable empty state pattern). `SECTION_META.icon` in `SummaryDisplay` changes from `string` to `React.ComponentType`. No new icon library is added.
 **Consequences:** All new components must use lucide-react for icons. Never use emoji as UI icons. Brand logo placements must use `<BrandLogo>`. Empty states must use `<EmptyState>`.
+
+---
+
+## D015 — Keep current stack; reject Wasp/OpenSaaS and SuperTokens
+**Date:** March 2026
+**Context:** Evaluated alternative SaaS frameworks (Wasp, OpenSaaS) and auth libraries (SuperTokens) as potential accelerators. Both categories require meaningful rewrite effort: Wasp generates its own file structure incompatible with the current App Router layout; SuperTokens replaces Supabase Auth and would require migrating existing sessions and profiles.
+**Decision:** Do NOT adopt Wasp, OpenSaaS, or SuperTokens. Keep the current stack exactly as-is: Next.js App Router + Supabase Auth/DB + Lemon Squeezy payments. All three are already integrated and working.
+**Rationale:** The rewrite cost exceeds any DX gain at this stage. Time-to-ship is the constraint. Any framework migration is a pre-launch distraction.
+**Consequences:** Future infra additions must be additive bolt-ons (monitoring SDK, edge function, etc.), not framework replacements. Revisit only after MVP revenue is stable.
