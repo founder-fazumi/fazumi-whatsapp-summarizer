@@ -1355,9 +1355,9 @@ pnpm lint && pnpm typecheck && pnpm build
 **Files likely touched:** `app/api/summarize/route.ts`, `lib/limits.ts`, `app/summarize/page.tsx`, `components/` limit banner components.
 
 **Tasks:**
-- [ ] **L3-A** Confirm `LIMITS.trial === 3` in `lib/limits.ts`. If not, fix it.
-- [ ] **L3-B** Daily cap banner (402 DAILY_CAP response): show amber banner using voice.md snippet LB1 — "You've reached today's limit. Your history is still available."
-- [ ] **L3-C** Lifetime cap banner (402 LIFETIME_CAP response): show amber banner using voice.md snippet LB2 + "Upgrade to continue" CTA.
+- [x] **L3-A** Confirm `LIMITS.trial === 3` in `lib/limits.ts`. If not, fix it.
+- [x] **L3-B** Daily cap banner (402 DAILY_CAP response): show amber banner using voice.md snippet LB1 — "You've reached today's limit. Your history is still available."
+- [x] **L3-C** Lifetime cap banner (402 LIFETIME_CAP response): show amber banner using voice.md snippet LB2 + "Upgrade to continue" CTA.
 
 **Verification:**
 ```powershell
