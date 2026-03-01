@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpCircle } from "lucide-react";
+import { ArrowUpCircle, FileText, Clock } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
@@ -61,9 +63,9 @@ export function DashboardBanner({
     ? `${formatNumber(summariesUsed)}/${formatNumber(summariesLimit)}`
     : pick(COPY.upgradeUsage, locale);
 
-  const STATS = [
-    { icon: "📋", label: t("dash.summaries", locale), value: usageLabel },
-    { icon: "⏱️", label: pick(COPY.timeSaved, locale), value: locale === "ar" ? `${formatNumber(summariesUsed * 4)} دقيقة` : `${formatNumber(summariesUsed * 4)} min` },
+  const STATS: { icon: LucideIcon; label: string; value: string }[] = [
+    { icon: FileText, label: t("dash.summaries", locale), value: usageLabel },
+    { icon: Clock, label: pick(COPY.timeSaved, locale), value: locale === "ar" ? `${formatNumber(summariesUsed * 4)} دقيقة` : `${formatNumber(summariesUsed * 4)} min` },
   ];
 
   return (
@@ -73,7 +75,7 @@ export function DashboardBanner({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-xl font-bold text-[var(--foreground)] leading-snug">
-                {t("dash.greeting", locale)}, {userName ?? pick(COPY.there, locale)} 👋
+                {t("dash.greeting", locale)}, {userName ?? pick(COPY.there, locale)}
               </h1>
               <span className={`hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${badge.color}`}>
                 {pick(COPY[badge.labelKey as keyof typeof COPY], locale)}
@@ -105,12 +107,12 @@ export function DashboardBanner({
 
             {/* Stats row */}
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-              {STATS.map(({ icon, label, value }, i) => (
+              {STATS.map(({ icon: Icon, label, value }, i) => (
                 <div key={label} className="flex items-center gap-1.5">
                   {i > 0 && (
                     <span className="hidden sm:block w-px h-4 bg-[var(--border)] mr-3" />
                   )}
-                  <span className="text-sm">{icon}</span>
+                  <Icon className="h-4 w-4 text-[var(--primary)]" />
                   <div>
                     <span className="text-xs font-medium text-[var(--muted-foreground)]">{label}</span>
                     <span className="ml-1.5 text-sm font-bold text-[var(--foreground)]">{value}</span>
@@ -132,8 +134,8 @@ export function DashboardBanner({
           </div>
 
           {/* Mascot */}
-          <div className="hidden sm:flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-5xl select-none">
-            🦊
+          <div className="hidden sm:flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20">
+            <BrandLogo size="lg" />
           </div>
         </div>
       </CardContent>

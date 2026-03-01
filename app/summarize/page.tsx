@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Sparkles, Lightbulb, ArrowUpCircle, Check } from "lucide-react";
+import { Upload, Sparkles, Lightbulb, ArrowUpCircle, Check, FileText, Clock, MessageSquare, Send, ThumbsUp } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
@@ -19,6 +20,7 @@ import { formatNumber } from "@/lib/format";
 import { emitDashboardInsightsRefresh } from "@/lib/hooks/useDashboardInsights";
 import { getUtcDateKey } from "@/lib/limits";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { getSampleChat, type SampleLangPref } from "@/lib/sampleChats";
 import { cn } from "@/lib/utils";
 
@@ -126,14 +128,14 @@ export default function SummarizePage() {
   const charCount = text.length;
   const remaining = MAX_CHARS - charCount;
   const isOverLimit = charCount > MAX_CHARS;
-  const stats = [
+  const stats: { icon: LucideIcon; label: string; value: string }[] = [
     {
-      icon: "📋",
+      icon: FileText,
       label: pick(COPY.statsSummary, locale),
       value: locale === "ar" ? `${formatNumber(summariesUsedToday)} اليوم` : `${formatNumber(summariesUsedToday)} today`,
     },
     {
-      icon: "⏱️",
+      icon: Clock,
       label: pick(COPY.statsTime, locale),
       value: locale === "ar" ? `${formatNumber(summariesUsedToday * 4)} دقيقة` : `${formatNumber(summariesUsedToday * 4)} min`,
     },
@@ -277,19 +279,19 @@ export default function SummarizePage() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <h1 className="text-xl font-bold leading-snug text-[var(--foreground)]">
-                  {pick(COPY.greeting, locale)}{bannerUserName ? `, ${bannerUserName}` : ""} 👋
+                  {pick(COPY.greeting, locale)}{bannerUserName ? `, ${bannerUserName}` : ""}
                 </h1>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                   {pick(COPY.bannerSub, locale)}
                 </p>
 
                 <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-                  {stats.map(({ icon, label, value }, index) => (
+                  {stats.map(({ icon: Icon, label, value }, index) => (
                     <div key={label} className="flex items-center gap-1.5">
                       {index > 0 && (
                         <span className="mr-3 hidden h-4 w-px bg-[var(--border)] sm:block" />
                       )}
-                      <span className="text-sm">{icon}</span>
+                      <Icon className="h-4 w-4 text-[var(--primary)]" />
                       <div>
                         <span className="text-xs font-medium text-[var(--muted-foreground)]">
                           {label}
@@ -303,8 +305,8 @@ export default function SummarizePage() {
                 </div>
               </div>
 
-              <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-[var(--primary)]/20 bg-[var(--primary)]/10 text-5xl select-none sm:flex">
-                🦊
+              <div className="hidden sm:flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20">
+                <BrandLogo size="lg" />
               </div>
             </div>
           </CardContent>
@@ -320,13 +322,13 @@ export default function SummarizePage() {
               <Tabs value={platform} onValueChange={setPlatform}>
                 <TabsList>
                   <TabsTrigger value="whatsapp">
-                    <span>💬</span> {pick(PLATFORM_LABELS.whatsapp, locale)}
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.whatsapp, locale)}
                   </TabsTrigger>
                   <TabsTrigger value="telegram" disabled>
-                    <span>✈️</span> {pick(PLATFORM_LABELS.telegram, locale)}
+                    <Send className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.telegram, locale)}
                   </TabsTrigger>
                   <TabsTrigger value="facebook" disabled>
-                    <span>👍</span> {pick(PLATFORM_LABELS.facebook, locale)}
+                    <ThumbsUp className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.facebook, locale)}
                   </TabsTrigger>
                 </TabsList>
 
