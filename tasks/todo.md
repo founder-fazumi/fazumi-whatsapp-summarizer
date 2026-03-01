@@ -1426,9 +1426,9 @@ pnpm lint && pnpm typecheck && pnpm build
 **Files likely touched:** `.env.local.example`, `docs/runbooks/deploy.md`, `README.md`.
 
 **Tasks:**
-- [ ] **L6-A** `.env.local.example`: confirm ALL required keys are listed with comments. Add any missing: `NEXT_PUBLIC_APP_URL`, `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
-- [ ] **L6-B** `docs/runbooks/deploy.md`: confirm pre-deploy checklist matches current `pnpm lint && pnpm typecheck && pnpm test && pnpm build` sequence and references `/api/health` expected shape `{ ok: true, env: { supabase, openai, lemonsqueezy }, envConfigured: true }`.
-- [ ] **L6-C** `pnpm build` exits 0, `pnpm webhook:replay:payment-success` → HTTP 200 locally.
+- [x] **L6-A** `.env.local.example`: confirm ALL required keys are listed with comments. Add any missing: `NEXT_PUBLIC_APP_URL`, `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
+- [x] **L6-B** `docs/runbooks/deploy.md`: confirm pre-deploy checklist matches current `pnpm lint && pnpm typecheck && pnpm test && pnpm build` sequence and references `/api/health` expected shape `{ ok: true, env: { supabase, openai, lemonsqueezy }, envConfigured: true }`.
+- [x] **L6-C** `pnpm build` exits 0, `pnpm webhook:replay:payment-success` → HTTP 200 locally.
 
 **Verification:**
 ```powershell
