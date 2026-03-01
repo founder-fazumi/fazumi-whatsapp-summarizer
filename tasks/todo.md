@@ -1331,9 +1331,9 @@ pnpm lint && pnpm typecheck && pnpm build
 **Files likely touched:** `app/summarize/page.tsx`, `components/SummaryDisplay.tsx`, ingestion copy strings.
 
 **Tasks:**
-- [ ] **L2-A** Textarea placeholder: update to "Paste your WhatsApp, Telegram, or school group chat here…" (EN) / "الصق محادثتك من واتساب أو تيليغرام هنا…" (AR).
-- [ ] **L2-B** Over-limit validation: if `text.length > 30_000`, show inline error "Text exceeds 30,000 characters." and disable the Summarize button — **no API call**.
-- [ ] **L2-C** File upload button label: "Upload .txt or .zip (text only)" — add a small note under it: "Zip media files are ignored."
+- [x] **L2-A** Textarea placeholder: update to "Paste your WhatsApp, Telegram, or school group chat here…" (EN) / "الصق محادثتك من واتساب أو تيليغرام هنا…" (AR).
+- [x] **L2-B** Over-limit validation: if `text.length > 30_000`, show inline error "Text exceeds 30,000 characters." and disable the Summarize button — **no API call**.
+- [x] **L2-C** File upload button label: "Upload .txt or .zip (text only)" — add a small note under it: "Zip media files are ignored."
 
 **Verification:**
 ```powershell
