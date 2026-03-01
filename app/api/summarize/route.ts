@@ -1,12 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { summarizeChat, type LangPref, type SummaryResult } from "@/lib/ai/summarize";
+import { captureRouteException } from "@/lib/sentry";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
 import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
 import type { Profile, UsageDaily } from "@/lib/supabase/types";
+import { createRouteLogger, getRequestId, hashIdentifier } from "@/lib/logger";
 
 const MAX_CHARS = 30_000;
+export const runtime = "nodejs";
 
 // Simple in-memory rate limiter: max 5 requests per IP per minute
 const ipRequestMap = new Map<string, { count: number; resetAt: number }>();
@@ -30,7 +33,12 @@ function makeTitle(tldr: string): string {
   return first.length > 60 ? first.slice(0, 57) + "…" : first;
 }
 
-class PersistError extends Error {}
+class PersistError extends Error {
+  constructor(message: string, readonly code: string) {
+    super(message);
+    this.name = "PersistError";
+  }
+}
 
 function getAdminClient() {
   const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -43,16 +51,10 @@ function getAdminClient() {
   return createAdminClient(adminUrl, adminKey);
 }
 
-function logLimitDebug(code: "DAILY_CAP" | "LIFETIME_CAP", details: Record<string, string | number>) {
-  if (process.env.NODE_ENV !== "production") {
-    console.info("[/api/summarize] limit", { code, ...details });
-  }
-}
-
 async function saveSummary(userId: string, summary: SummaryResult, charCount: number): Promise<string> {
   const admin = getAdminClient();
   if (!admin) {
-    throw new PersistError("Summary storage is not configured.");
+    throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
   const { data, error } = await admin.from("summaries").insert({
@@ -69,7 +71,7 @@ async function saveSummary(userId: string, summary: SummaryResult, charCount: nu
   }).select("id").single<{ id: string }>();
 
   if (error || !data?.id) {
-    throw new PersistError("Could not save summary.");
+    throw new PersistError("Could not save summary.", "SUMMARY_SAVE_FAILED");
   }
 
   return data.id;
@@ -78,7 +80,7 @@ async function saveSummary(userId: string, summary: SummaryResult, charCount: nu
 async function incrementUsage(userId: string, dateKey: string): Promise<void> {
   const admin = getAdminClient();
   if (!admin) {
-    throw new PersistError("Summary storage is not configured.");
+    throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
   const { data: existing, error: readError } = await admin
@@ -89,7 +91,7 @@ async function incrementUsage(userId: string, dateKey: string): Promise<void> {
     .maybeSingle<Pick<UsageDaily, "summaries_used">>();
 
   if (readError) {
-    throw new PersistError("Could not read daily usage.");
+    throw new PersistError("Could not read daily usage.", "USAGE_READ_FAILED");
   }
 
   const newCount = (existing?.summaries_used ?? 0) + 1;
@@ -100,14 +102,14 @@ async function incrementUsage(userId: string, dateKey: string): Promise<void> {
   );
 
   if (writeError) {
-    throw new PersistError("Could not update daily usage.");
+    throw new PersistError("Could not update daily usage.", "USAGE_WRITE_FAILED");
   }
 }
 
 async function incrementLifetimeFreeUsage(userId: string, lifetimeFreeUsed: number): Promise<void> {
   const admin = getAdminClient();
   if (!admin) {
-    throw new PersistError("Summary storage is not configured.");
+    throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
   const { error } = await admin
@@ -116,7 +118,7 @@ async function incrementLifetimeFreeUsage(userId: string, lifetimeFreeUsed: numb
     .eq("id", userId);
 
   if (error) {
-    throw new PersistError("Could not update lifetime usage.");
+    throw new PersistError("Could not update lifetime usage.", "LIFETIME_USAGE_WRITE_FAILED");
   }
 }
 
@@ -129,12 +131,21 @@ function getClientIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  const route = "/api/summarize";
+  const requestId = getRequestId(req.headers);
+  const logger = createRouteLogger({ route, requestId });
+  const requestStartedAt = Date.now();
+  logger.info("request.start");
+
   // ── Auth + plan limit check (authenticated users) ──────────────────────
   let authedUserId: string | null = null;
   let tierKey = "free";
   let lifetimeFreeUsed = 0;
   let shouldIncrementLifetimeFree = false;
   let usageDateKey: string | null = null;
+  let charCount = 0;
+  let openAiDurationMs: number | null = null;
+  let savedId: string | null = null;
 
   try {
     const supabase = await createClient();
@@ -172,8 +183,9 @@ export async function POST(req: NextRequest) {
       if (tierKey === "free") {
         // Post-trial free: enforce lifetime cap
         if (lifetimeFreeUsed >= FREE_LIFETIME_CAP) {
-          logLimitDebug("LIFETIME_CAP", {
+          logger.warn("limit.hit", {
             userId: user.id,
+            errorCode: "LIFETIME_CAP",
             dateKey: today,
             lifetimeFreeUsed,
           });
@@ -183,8 +195,9 @@ export async function POST(req: NextRequest) {
           );
         }
       } else if (usedToday >= dailyLimit) {
-        logLimitDebug("DAILY_CAP", {
+        logger.warn("limit.hit", {
           userId: user.id,
+          errorCode: "DAILY_CAP",
           dateKey: today,
           tierKey,
           usedToday,
@@ -196,7 +209,11 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-  } catch {
+  } catch (error) {
+    logger.warn("auth.lookup_failed", {
+      errorCode: "AUTH_LOOKUP_FAILED",
+      error: error instanceof Error ? error.message : String(error),
+    });
     // Supabase not configured — fall through to anonymous IP rate limit
   }
 
@@ -204,6 +221,10 @@ export async function POST(req: NextRequest) {
   if (!authedUserId) {
     const ip = getClientIp(req);
     if (!checkRateLimit(ip)) {
+      logger.warn("limit.hit", {
+        errorCode: "ANON_RATE_LIMIT",
+        ipHash: hashIdentifier(ip),
+      });
       return NextResponse.json(
         { error: "Too many requests. Please wait a moment and try again." },
         { status: 429 }
@@ -215,17 +236,25 @@ export async function POST(req: NextRequest) {
   try {
     body = (await req.json()) as { text?: string; lang_pref?: string };
   } catch {
+    logger.warn("request.rejected", { errorCode: "INVALID_JSON" });
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
   const text = typeof body.text === "string" ? body.text.trim() : "";
+  charCount = text.length;
   if (!text) {
+    logger.warn("request.rejected", { userId: authedUserId, errorCode: "EMPTY_TEXT" });
     return NextResponse.json(
       { error: "Please provide some chat text to summarize." },
       { status: 400 }
     );
   }
   if (text.length > MAX_CHARS) {
+    logger.warn("request.rejected", {
+      userId: authedUserId,
+      charCount,
+      errorCode: "TEXT_TOO_LONG",
+    });
     return NextResponse.json(
       {
         error: `Text is too long. Maximum is ${formatNumber(MAX_CHARS)} characters. You provided ${formatNumber(text.length)}.`,
@@ -234,6 +263,11 @@ export async function POST(req: NextRequest) {
     );
   }
   if (text.length < 20) {
+    logger.warn("request.rejected", {
+      userId: authedUserId,
+      charCount,
+      errorCode: "TEXT_TOO_SHORT",
+    });
     return NextResponse.json(
       { error: "Text is too short to summarize. Please paste more content." },
       { status: 400 }
@@ -246,28 +280,87 @@ export async function POST(req: NextRequest) {
     : "auto";
 
   try {
+    logger.info("openai.start", {
+      userId: authedUserId,
+      charCount,
+      langPref,
+    });
+    const openAiStartedAt = Date.now();
     const summary = await summarizeChat(text, langPref);
+    openAiDurationMs = Date.now() - openAiStartedAt;
+    logger.info("openai.success", {
+      userId: authedUserId,
+      charCount,
+      langPref,
+      langDetected: summary.lang_detected ?? "en",
+      openAiDurationMs,
+    });
 
-    let savedId: string | null = null;
     if (authedUserId) {
-      savedId = await saveSummary(authedUserId, summary, text.length);
+      savedId = await saveSummary(authedUserId, summary, charCount);
+      logger.info("db.summary_saved", {
+        userId: authedUserId,
+        summaryId: savedId,
+        charCount,
+      });
+
       await incrementUsage(authedUserId, usageDateKey ?? getUtcDateKey());
+      logger.info("db.usage_updated", {
+        userId: authedUserId,
+        summaryId: savedId,
+        dateKey: usageDateKey ?? getUtcDateKey(),
+      });
+
       if (shouldIncrementLifetimeFree) {
         await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
+        logger.info("db.lifetime_free_updated", {
+          userId: authedUserId,
+          summaryId: savedId,
+          lifetimeFreeUsed: lifetimeFreeUsed + 1,
+        });
       }
     }
 
+    logger.info("request.success", {
+      userId: authedUserId,
+      summaryId: savedId,
+      charCount,
+      openAiDurationMs,
+      durationMs: Date.now() - requestStartedAt,
+    });
     return NextResponse.json({ summary, savedId });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "An unexpected error occurred.";
+    const errorCode =
+      err instanceof PersistError ? err.code :
+      message.includes("OPENAI_API_KEY") ? "OPENAI_NOT_CONFIGURED" :
+      "SUMMARY_FAILED";
+    const statusCode = message.includes("OPENAI_API_KEY") ? 503 : 500;
+
+    logger.error("request.failed", {
+      userId: authedUserId,
+      summaryId: savedId,
+      charCount: charCount || undefined,
+      openAiDurationMs: openAiDurationMs ?? undefined,
+      durationMs: Date.now() - requestStartedAt,
+      errorCode,
+      error: message,
+    });
+    await captureRouteException(err, {
+      route,
+      requestId,
+      userId: authedUserId,
+      summaryId: savedId,
+      errorCode,
+      statusCode,
+      charCount: charCount || undefined,
+      openAiDurationMs: openAiDurationMs ?? undefined,
+    });
 
     if (err instanceof PersistError) {
-      console.error("[/api/summarize] Persist error:", message);
       return NextResponse.json({ error: message }, { status: 500 });
     }
-
-    console.error("[/api/summarize] Error:", message);
 
     if (message.includes("OPENAI_API_KEY")) {
       return NextResponse.json(
