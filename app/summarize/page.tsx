@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Sparkles, Lightbulb, ArrowUpCircle, Check, FileText, Clock, MessageSquare, Send, ThumbsUp } from "lucide-react";
+import { Upload, Sparkles, Lightbulb, ArrowUpCircle, Check, FileText, Clock, MessageSquare, Send, MessageCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { DashboardShell } from "@/components/layout/DashboardShell";
@@ -333,15 +333,87 @@ export default function SummarizePage() {
                   <TabsTrigger value="whatsapp">
                     <MessageSquare className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.whatsapp, locale)}
                   </TabsTrigger>
-                  <TabsTrigger value="telegram" disabled title={locale === "ar" ? "تيليجرام قريبًا" : "Telegram coming soon"}>
+                  <TabsTrigger value="telegram">
                     <Send className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.telegram, locale)}
                   </TabsTrigger>
-                  <TabsTrigger value="facebook" disabled title={locale === "ar" ? "فيسبوك قريبًا" : "Facebook coming soon"}>
-                    <ThumbsUp className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.facebook, locale)}
+                  <TabsTrigger value="facebook">
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.facebook, locale)}
                   </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="whatsapp">
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Textarea
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={pick(COPY.placeholder, locale)}
+                        rows={10}
+                        disabled={loading}
+                        className={cn(
+                          "pr-24",
+                          isOverLimit && "border-[var(--destructive)] focus-visible:ring-[var(--destructive)]"
+                        )}
+                      />
+                      <div
+                        className={cn(
+                          "absolute bottom-2.5 right-3 rounded-full border px-2 py-1 text-[11px] tabular-nums shadow-[var(--shadow-xs)]",
+                          isOverLimit
+                            ? "border-[var(--destructive)] bg-[var(--destructive-soft)] font-semibold text-[var(--destructive)]"
+                            : remaining < 3000
+                              ? "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)]"
+                              : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
+                        )}
+                      >
+                        {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
+                      </div>
+                    </div>
+                    {isOverLimit && (
+                      <p className="text-sm text-[var(--destructive)]">
+                        {pick(COPY.textTooLong, locale)}
+                      </p>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="telegram">
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Textarea
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={pick(COPY.placeholder, locale)}
+                        rows={10}
+                        disabled={loading}
+                        className={cn(
+                          "pr-24",
+                          isOverLimit && "border-[var(--destructive)] focus-visible:ring-[var(--destructive)]"
+                        )}
+                      />
+                      <div
+                        className={cn(
+                          "absolute bottom-2.5 right-3 rounded-full border px-2 py-1 text-[11px] tabular-nums shadow-[var(--shadow-xs)]",
+                          isOverLimit
+                            ? "border-[var(--destructive)] bg-[var(--destructive-soft)] font-semibold text-[var(--destructive)]"
+                            : remaining < 3000
+                              ? "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)]"
+                              : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
+                        )}
+                      >
+                        {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
+                      </div>
+                    </div>
+                    {isOverLimit && (
+                      <p className="text-sm text-[var(--destructive)]">
+                        {pick(COPY.textTooLong, locale)}
+                      </p>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="facebook">
                   <div className="space-y-2">
                     <div className="relative">
                       <Textarea
