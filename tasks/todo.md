@@ -1380,9 +1380,9 @@ pnpm lint && pnpm typecheck && pnpm build
 **Files likely touched:** Landing page components, dashboard components, any file with emoji decorations.
 
 **Tasks:**
-- [ ] **L4-A** Replace remaining emoji used as decoration (not in user content) with lucide icons or remove them. Run: `grep -rn "🎉\|✨\|🚀\|💡\|📋\|🗓\|✅\|❌" app/ components/` — address each result.
-- [ ] **L4-B** Section gaps on landing: ensure consistent `py-16` or `py-24` between sections (no section with `py-6` when neighbours use `py-20`).
-- [ ] **L4-C** Card `rounded` consistency: audit all `<Card>` and card-like divs — standardize to `rounded-xl` unless a specific design reason.
+- [x] **L4-A** Replace remaining emoji used as decoration (not in user content) with lucide icons or remove them. Run: `grep -rn "🎉\|✨\|🚀\|💡\|📋\|🗓\|✅\|❌" app/ components/` — address each result.
+- [x] **L4-B** Section gaps on landing: ensure consistent `py-16` or `py-24` between sections (no section with `py-6` when neighbours use `py-20`).
+- [x] **L4-C** Card `rounded` consistency: audit all `<Card>` and card-like divs — standardize to `rounded-xl` unless a specific design reason.
 
 **Verification:**
 ```powershell
