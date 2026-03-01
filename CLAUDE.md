@@ -126,62 +126,25 @@ Official guide: https://code.claude.com/docs/en/skills (read first)
 - No skill may instruct committing secrets, running unknown shell scripts, or disabling security tools.
 - Block pushes if any `.env*` file is staged/tracked.
 
-### Skills to add for building + shipping FAZUMI (high leverage)
-Create these skills locally (each as `.claude/skills/<name>/SKILL.md`) and keep them short + operational:
+### Active skills index (invoke with `/skill-name`)
 
-1) /prd-to-tasks (Ralph loop)
-- Input: feature/PRD/story
-- Output: update `/tasks/todo.md` with checklist + acceptance criteria + smallest shippable steps
-- Enforce: one story per iteration, verify, commit
+All skills live in `.claude/skills/<name>/SKILL.md`. Skills are loaded progressively — only metadata
+at startup, full body when triggered. Reference files (Level 3) are loaded on demand.
 
-2) /nextjs-app-router-implementer
-- Next.js App Router patterns, server/client boundaries, API routes, env handling, error boundaries
-- Must keep repo runnable with `pnpm dev` after each change
+| Skill | Purpose | Key triggers | References |
+|---|---|---|---|
+| `/repo-onboarding` | Repo orientation, key files, local dev setup, workflow | “repo overview”, “where is”, “how do I start” | This CLAUDE.md + docs/decisions.md |
+| `/frontend-dev` | UI pages, components, RTL, Tailwind CSS vars, shadcn | “make UI”, “layout”, “build page”, “RTL”, “create component” | references/rtl-guide.md |
+| `/backend-dev` | API routes, Supabase clients, RLS, usage limits | “API”, “Supabase”, “RLS”, “migration”, “route handler” | references/supabase-patterns.md, references/billing-structure.md |
+| `/payments-entitlements` | LS checkout, webhooks, plan lifecycle, billing UI | “billing”, “Lemon Squeezy”, “webhook”, “upgrade”, “past_due” | docs/runbooks/payments.md |
+| `/vercel-deploy-release` | Deploy to Vercel, env vars, rollback, CI | “deploy”, “release”, “Vercel”, “env vars”, “build failed” | docs/runbooks/deploy.md |
+| `/debugging-triage` | Systematic triage of errors, broken flows, RLS issues | “debug”, “error”, “broken”, “500”, “why is”, “not working” | docs/runbooks/incident-response.md |
+| `/qa-smoke-tests` | Manual + Playwright smoke before release | “smoke test”, “QA”, “before release”, “verify everything” | docs/runbooks/supabase.md |
+| `/ui-ux` | Landing conversion, microcopy, onboarding flow | “copy”, “UX”, “conversion”, “landing”, “CTA”, “microcopy” | — |
 
-3) /supabase-schema-rls
-- Writes Supabase migrations + RLS policies
-- Ensures “user sees only own rows”
-- Includes quick verification queries and a rollback note
-
-4) /auth-social-login
-- Supabase Auth Google/Apple setup checklist
-- Redirect URLs (local + prod) checklist
-- Post-login routing rules (landing vs dashboard)
-
-5) /lemonsqueezy-billing-webhooks
-- Webhook verification checklist + implementation steps
-- Update plan status in DB
-- Local test plan + failure handling
-
-6) /ui-match-screenshot
-- When a screenshot is provided: produce a “diff list” vs current UI, then implement
-- Use FAZUMI palette tokens + spacing/typography rules
-- No improvisation: must match the target screenshot layout
-
-7) /rtl-arabic-i18n
-- Enforce `dir="rtl"` + `lang="ar"` + Arabic font when Arabic
-- UI language toggle EN/AR (global)
-- Output language rules: Auto-detect + translate when needed
-- RTL-safe lists/cards/accordions rules
-
-8) /qa-verify-before-commit
-- Runs `pnpm lint`, `pnpm typecheck`, `pnpm test`
-- Adds a manual smoke checklist (open /, summarize, Arabic RTL, etc.)
-- Refuses to mark “done” without proof
-
-9) /security-secrets-guard
-- Checks `.gitignore` contains `.env*`
-- Checks `git status` for secrets before commit/push
-- Adds a “stop and alert” rule if secrets are detected
-
-10) /deploy-vercel-ci
-- GitHub Actions checks + Vercel deploy expectations
-- “main must always be green” rule
-- Adds minimal CI config and verification steps
-
-### Optional (only if explicitly enabled)
-- /github-mcp-ops:
-  Use GitHub MCP server for issues/PRs/changelog automation. Only enable after confirming credentials and permissions.
+**How to invoke:** Type `/` in Claude Code to see available skills, or mention a trigger phrase and
+the skill activates automatically. For side-effect skills (`/vercel-deploy-release`), invocation is
+explicit only — they will not trigger automatically.
 
 ---
 
@@ -195,7 +158,7 @@ Three MCP servers are configured in `.claude/settings.json` (project-local):
 ### When to use each
 - **Supabase MCP:** Read-only spot-checks — `list_tables`, `execute_sql` for SELECT queries, `get_logs`. Use for verifying schema, checking a summary row exists, or confirming RLS is live. Never use `apply_migration` or write tools without explicit senior approval.
 - **GitHub MCP:** Creating issues or PRs only when explicitly requested. Normal pushes use `git push` directly. Do not use to bulk-read private repo data.
-- **Playwright MCP:** End-to-end smoke flows against `http://localhost:3000`. Safe to use for any manual verification step. Do not run against production without explicit approval.
+- **Playwright MCP:** End-to-end smoke flows against `http://localhost:3000`. Key routes to verify: `/`, `/login`, `/pricing`, `/summarize`, `/dashboard`, `/history`, `/billing`. Do not run against production without explicit approval. See `/qa-smoke-tests` for the full checklist.
 
 ### Hard rules
 1. **Read-only by default for Supabase MCP.** The `--read-only` flag is set in config. Do not remove it without senior approval.
