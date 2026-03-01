@@ -1,6 +1,19 @@
-import { LocalizedText } from "@/components/i18n/LocalizedText";
+"use client";
+
+import { useLang } from "@/lib/context/LangContext";
+import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
+
+const COPY = {
+  headline: {
+    en: "Trusted by parents across GCC schools",
+    ar: "موثوق به من أولياء الأمور في مدارس الخليج",
+  },
+} satisfies Record<string, LocalizedCopy<string>>;
 
 export function SocialProof() {
+  const { locale } = useLang();
+  const isArabic = locale === "ar";
   const stats = [
     {
       value: "12,500+",
@@ -33,14 +46,20 @@ export function SocialProof() {
   ];
 
   return (
-    <section className="page-section-tight">
+    <section
+      dir={isArabic ? "rtl" : "ltr"}
+      lang={locale}
+      className={cn("page-section-tight", isArabic && "font-arabic")}
+    >
       <div className="page-shell">
         <div className="surface-panel-elevated px-[var(--card-padding-lg)] py-8">
-          <p className="mb-6 text-center text-sm font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
-            <LocalizedText
-              en="Trusted by parents across GCC schools"
-              ar="موثوق به من أولياء الأمور في مدارس الخليج"
-            />
+          <p
+            className={cn(
+              "mb-6 text-sm font-semibold tracking-widest text-[var(--muted-foreground)]",
+              isArabic ? "text-right" : "text-center uppercase"
+            )}
+          >
+            {pick(COPY.headline, locale)}
           </p>
 
           <div className="grid grid-cols-2 gap-6 text-center md:grid-cols-4">
@@ -48,7 +67,7 @@ export function SocialProof() {
               <div key={label.en} className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-4 py-5 shadow-[var(--shadow-xs)]">
                 <p className="text-2xl font-bold text-[var(--primary)]">{value}</p>
                 <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                  <LocalizedText en={label.en} ar={label.ar} />
+                  {pick(label, locale)}
                 </p>
               </div>
             ))}

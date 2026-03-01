@@ -122,7 +122,7 @@ export function FAQ() {
   const current = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
-    <section id="faq" className="page-section bg-[var(--page-layer)]">
+    <section id="faq" className="page-section scroll-mt-24 bg-[var(--page-layer)]">
       <div className="page-shell">
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">

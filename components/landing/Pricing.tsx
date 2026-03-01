@@ -126,7 +126,10 @@ export function Pricing({
   return (
     <section
       id={sectionId}
-      className={cn("page-section bg-[var(--page-layer)]", embedded && "surface-panel-elevated px-4 py-8 sm:px-5")}
+      className={cn(
+        "page-section scroll-mt-24 bg-[var(--page-layer)]",
+        embedded && "surface-panel-elevated px-4 py-10 sm:px-6"
+      )}
     >
       <div className={cn("page-shell", embedded && "max-w-none px-0")}>
         <div className="text-center mb-10">

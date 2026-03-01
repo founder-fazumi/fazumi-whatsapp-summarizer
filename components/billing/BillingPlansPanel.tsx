@@ -50,7 +50,7 @@ export function BillingPlansPanel({
       </div>
 
       {showPlans && (
-        <div ref={plansRef}>
+        <div ref={plansRef} className="scroll-mt-24 pt-2">
           <Pricing isLoggedIn={isLoggedIn} currentPlan={plan} embedded sectionId="billing-plans" />
         </div>
       )}

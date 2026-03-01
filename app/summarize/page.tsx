@@ -324,10 +324,10 @@ export default function SummarizePage() {
                   <TabsTrigger value="whatsapp">
                     <MessageSquare className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.whatsapp, locale)}
                   </TabsTrigger>
-                  <TabsTrigger value="telegram" disabled>
+                  <TabsTrigger value="telegram" disabled title={locale === "ar" ? "تيليجرام قريبًا" : "Telegram coming soon"}>
                     <Send className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.telegram, locale)}
                   </TabsTrigger>
-                  <TabsTrigger value="facebook" disabled>
+                  <TabsTrigger value="facebook" disabled title={locale === "ar" ? "فيسبوك قريبًا" : "Facebook coming soon"}>
                     <ThumbsUp className="h-3.5 w-3.5 shrink-0" /> {pick(PLATFORM_LABELS.facebook, locale)}
                   </TabsTrigger>
                 </TabsList>

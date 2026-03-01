@@ -11,6 +11,7 @@ const COPY = {
   title: { en: "Share Fazumi with another parent", ar: "شارك Fazumi مع ولي أمر آخر" },
   subtitle: { en: "You both get +1 free summary", ar: "تحصلان معًا على +1 ملخص مجاني" },
   button: { en: "Copy Link (coming soon)", ar: "نسخ الرابط (قريبًا)" },
+  buttonTooltip: { en: "Referral links coming soon", ar: "روابط الإحالة قريبًا" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 export function ReferralCard() {
@@ -35,7 +36,13 @@ export function ReferralCard() {
         <div className="rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center font-mono text-xs text-[var(--muted-foreground)]">
           fazumi.com/ref/your-code
         </div>
-        <Button variant="outline" size="sm" className="w-full text-xs" disabled>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full text-xs"
+          disabled
+          title={pick(COPY.buttonTooltip, locale)}
+        >
           {pick(COPY.button, locale)}
         </Button>
       </CardContent>
