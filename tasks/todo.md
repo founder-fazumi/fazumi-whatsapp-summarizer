@@ -1402,9 +1402,9 @@ pnpm lint && pnpm typecheck && pnpm build
 **Files likely touched:** Any component with user-visible copy; check against `docs/brand/voice.md`.
 
 **Tasks:**
-- [ ] **L5-A** Replace any banned copy found by: `grep -rn "revolutionary\|game.changing\|supercharge\|powerful AI\|seamlessly\|effortlessly" app/ components/`
-- [ ] **L5-B** Update empty state copy to use voice.md ES1/ES2/ES3 snippets (EN + AR).
-- [ ] **L5-C** Update all limit banners to use voice.md LB1/LB2/LB3 snippets exactly (EN + AR). No exclamation marks in limit banners.
+- [x] **L5-A** Replace any banned copy found by: `grep -rn "revolutionary\|game.changing\|supercharge\|powerful AI\|seamlessly\|effortlessly" app/ components/`
+- [x] **L5-B** Update empty state copy to use voice.md ES1/ES2/ES3 snippets (EN + AR).
+- [x] **L5-C** Update all limit banners to use voice.md LB1/LB2/LB3 snippets exactly (EN + AR). No exclamation marks in limit banners.
 
 **Verification:**
 ```powershell
