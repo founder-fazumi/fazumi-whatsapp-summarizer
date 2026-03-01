@@ -16,6 +16,7 @@
     "webhook:replay:sub-active": "node scripts/webhooks/replay-lemonsqueezy.js subscription_updated_active"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.40.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.98.0",
     "class-variance-authority": "^0.7.1",
