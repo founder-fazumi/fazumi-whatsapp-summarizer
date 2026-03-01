@@ -17,8 +17,8 @@ const COPY = {
     ar: "أنت على الخطة المجانية. تبقّت 3 ملخصات. قم بالترقية للحصول على وصول غير محدود ومزامنة التقويم والإخراج العربي.",
   },
   bannerCta: {
-    en: "Upgrade now",
-    ar: "قم بالترقية الآن",
+    en: "Upgrade to continue",
+    ar: "قم بالترقية للمتابعة",
   },
   title: {
     en: "Complete your upgrade",
@@ -37,7 +37,7 @@ const COPY = {
     ar: "ملخصات غير محدودة، وإخراج عربي، وتنظيم جاهز للتقويم لأسابيع المدرسة المزدحمة.",
   },
   monthlyCta: {
-    en: "Choose Monthly",
+    en: "Choose monthly",
     ar: "اختر الشهري",
   },
   founder: {
@@ -53,12 +53,12 @@ const COPY = {
     ar: "وصول لمرة واحدة للداعمين الأوائل الذين يريدون الخطة المميزة بدون فاتورة متكررة.",
   },
   founderCta: {
-    en: "Choose Founder",
+    en: "Choose founder",
     ar: "اختر المؤسس",
   },
   trust: {
     en: "Secured by Lemon Squeezy · 7-day money-back on monthly & annual · Founder is final",
-    ar: "الدفع مؤمّن عبر Lemon Squeezy · ضمان استرداد لمدة 7 أيام على الشهري والسنوي · خطة المؤسس نهائية",
+    ar: "مدفوعات آمنة عبر Lemon Squeezy · استرداد 7 أيام للاشتراكات · الأسعار المؤسسية نهائية",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 

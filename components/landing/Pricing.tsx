@@ -45,11 +45,46 @@ interface FounderPlan extends BasePlan {
 
 type Plan = FreePlan | MonthlyPlan | FounderPlan;
 
+const COPY = {
+  eyebrow: { en: "Pricing", ar: "الأسعار" },
+  title: { en: "Simple, transparent pricing", ar: "أسعار واضحة وبسيطة" },
+  subtitle: {
+    en: "Start free. Upgrade when you need more summaries.",
+    ar: "ابدأ مجانًا. قم بالترقية عندما تحتاج إلى ملخصات أكثر.",
+  },
+  monthlyToggle: { en: "Monthly", ar: "شهري" },
+  yearlyToggle: { en: "Yearly", ar: "سنوي" },
+  currentPlan: { en: "Current plan", ar: "الخطة الحالية" },
+  foundingSupporter: { en: "Founding Supporter", ar: "داعم مؤسس" },
+  founderBilling: { en: "one-time · lifetime", ar: "دفعة واحدة · مدى الحياة" },
+  refundNote: {
+    en: "7-day money-back on monthly and annual. Founder is final.",
+    ar: "استرداد 7 أيام للاشتراكات الشهرية والسنوية. المؤسس نهائي.",
+  },
+} satisfies Record<string, LocalizedCopy<string>>;
+
+function getSeatsRemainingCopy(count: string): LocalizedCopy<string> {
+  return {
+    en: `${count} seats remaining`,
+    ar: `${count} مقعدًا متبقيًا`,
+  };
+}
+
+function getBilledAnnuallyCopy(amount: string): LocalizedCopy<string> {
+  return {
+    en: `${amount} billed annually`,
+    ar: `${amount} تُحصّل سنويًا`,
+  };
+}
+
 const PLANS: Plan[] = [
   {
     id: "free",
     name: { en: "Free", ar: "مجاني" },
-    description: { en: "7-day full access, then 3 lifetime summaries", ar: "وصول كامل لمدة 7 أيام ثم 3 ملخصات مدى الحياة" },
+    description: {
+      en: "7 days free. Then 3 lifetime summaries.",
+      ar: "7 أيام مجانًا. ثم 3 ملخصات مدى الحياة.",
+    },
     badge: null,
     featured: false,
     ctaText: { en: "Start free", ar: "ابدأ مجانًا" },
@@ -67,7 +102,10 @@ const PLANS: Plan[] = [
     monthlyPrice: 9.99,
     annualPrice: 99.99,
     yearlyMonthlyPrice: 8.33,
-    description: { en: "Unlimited summaries with flexible billing", ar: "ملخصات غير محدودة مع فوترة مرنة" },
+    description: {
+      en: "50 summaries a day. 200 each month.",
+      ar: "50 ملخصًا يوميًا. 200 كل شهر.",
+    },
     badge: { en: "Most popular", ar: "الأكثر شيوعًا" },
     featured: true,
     ctaText: { en: "Get started", ar: "ابدأ الآن" },
@@ -82,7 +120,10 @@ const PLANS: Plan[] = [
   {
     id: "founder",
     name: { en: "Founder", ar: "المؤسس" },
-    description: { en: "One-time lifetime access. 200 seats only.", ar: "وصول مدى الحياة بدفعة واحدة. 200 مقعد فقط." },
+    description: {
+      en: "One payment. Lifetime access. 200 seats.",
+      ar: "دفعة واحدة. وصول مدى الحياة. 200 مقعد.",
+    },
     badge: { en: "Founding Supporter", ar: "داعم مؤسس" },
     featured: false,
     founderBadge: true,
@@ -135,13 +176,13 @@ export function Pricing({
       <div className={cn("page-shell", embedded && "max-w-none px-0")}>
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">
-            {locale === "ar" ? "الأسعار" : "Pricing"}
+            {pick(COPY.eyebrow, locale)}
           </p>
           <h2 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)]">
-            {locale === "ar" ? "أسعار واضحة وبسيطة" : "Simple, transparent pricing"}
+            {pick(COPY.title, locale)}
           </h2>
           <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-            {locale === "ar" ? "ابدأ مجانًا ثم قم بالترقية عندما يناسبك." : "Start free. Upgrade when you love it."}
+            {pick(COPY.subtitle, locale)}
           </p>
 
           <div className="mt-6 inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-xs)]">
@@ -154,11 +195,9 @@ export function Pricing({
                   billing === b
                     ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
-                )}  
+                )}
               >
-                {b === "monthly"
-                  ? locale === "ar" ? "شهري" : "Monthly"
-                  : locale === "ar" ? "سنوي" : "Yearly"}
+                {pick(b === "monthly" ? COPY.monthlyToggle : COPY.yearlyToggle, locale)}
                 {b === "yearly" && (
                   <span className="ml-1.5 rounded-full bg-[var(--primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--primary)]">
                     -17%
@@ -196,7 +235,7 @@ export function Pricing({
                         : "border-[var(--border)] bg-[var(--surface)] text-[var(--primary)]"
                   )}
                 >
-                  {locale === "ar" ? "الخطة الحالية" : "Current plan"}
+                  {pick(COPY.currentPlan, locale)}
                 </div>
               )}
 
@@ -215,7 +254,7 @@ export function Pricing({
                 <div className="mb-3 flex items-center gap-1.5">
                   <Star className="h-4 w-4 fill-[var(--accent-fox)] text-[var(--accent-fox)]" />
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--accent-fox-deep)]">
-                    {locale === "ar" ? "داعم مؤسس" : "Founding Supporter"}
+                    {pick(COPY.foundingSupporter, locale)}
                   </span>
                 </div>
               )}
@@ -240,13 +279,11 @@ export function Pricing({
                       {formatPrice(149)}
                     </p>
                     <p className="text-xs text-[var(--muted-foreground)]">
-                      {locale === "ar" ? "دفعة واحدة · مدى الحياة" : "one-time · lifetime"}
+                      {pick(COPY.founderBilling, locale)}
                     </p>
                     {"seatsLeft" in plan && (
                       <p className="mt-1 text-[10px] font-semibold text-[var(--accent-fox-deep)]">
-                        {locale === "ar"
-                          ? `${formatNumber(plan.seatsLeft)} مقعدًا متبقيًا`
-                          : `${formatNumber(plan.seatsLeft)} seats remaining`}
+                        {pick(getSeatsRemainingCopy(formatNumber(plan.seatsLeft)), locale)}
                       </p>
                     )}
                   </div>
@@ -258,9 +295,7 @@ export function Pricing({
                     </p>
                     {billing === "yearly" && (
                       <p className="text-[11px] text-[var(--muted-foreground)]">
-                        {locale === "ar"
-                          ? `${formatPrice(plan.annualPrice, 2)} تُحصّل سنويًا`
-                          : `${formatPrice(plan.annualPrice, 2)} billed annually`}
+                        {pick(getBilledAnnuallyCopy(formatPrice(plan.annualPrice, 2)), locale)}
                       </p>
                     )}
                   </div>
@@ -278,7 +313,7 @@ export function Pricing({
                         : "bg-[var(--surface-muted)] text-[var(--primary)]"
                   )}
                 >
-                  {locale === "ar" ? "الخطة الحالية" : "Current plan"}
+                  {pick(COPY.currentPlan, locale)}
                 </div>
               ) : plan.id === "free" ? (
                 <Link
@@ -329,9 +364,7 @@ export function Pricing({
         </div>
 
         <p className="mt-6 text-center text-xs text-[var(--muted-foreground)]">
-          {locale === "ar"
-            ? "ضمان استرداد لمدة 7 أيام على الخطط الشهرية والسنوية. خطة المؤسس بيع نهائي بلا استرداد."
-            : "7-day money-back guarantee on monthly and annual plans. Founder plan is final sale — no refunds."}
+          {pick(COPY.refundNote, locale)}
         </p>
       </div>
     </section>

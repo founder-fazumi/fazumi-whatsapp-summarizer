@@ -23,16 +23,16 @@ const COPY = {
     ar: "يستخدمه 12,500 من أولياء الأمور في مدارس الخليج",
   },
   titleLineOne: {
-    en: "Your school group chats,",
-    ar: "محادثات المدرسة الجماعية،",
+    en: "Turn school group chats",
+    ar: "حوّل محادثات مجموعات المدرسة",
   },
   titleLineTwo: {
-    en: "summarized in 10 seconds",
-    ar: "ملخصة خلال 10 ثوانٍ",
+    en: "into clear summaries",
+    ar: "إلى ملخصات واضحة",
   },
   subtitle: {
-    en: "Paste a WhatsApp export, get dates, to-dos, and announcements in English or Arabic.",
-    ar: "الصق تصدير واتساب لتحصل على التواريخ والمهام والإعلانات بالعربية أو الإنجليزية.",
+    en: "Paste a school group chat. Get a clear summary in seconds.",
+    ar: "الصق محادثة مجموعة مدرسة. احصل على ملخص واضح خلال ثوانٍ.",
   },
   placeholder: {
     en: "Paste your WhatsApp school group messages here…\n\nExample:\nTeacher: Math test on Monday — chapters 4, 5, 6.\nParent: Is there homework due?\nTeacher: Field trip forms must be in by Wednesday.",
@@ -98,7 +98,18 @@ const COPY = {
     en: "Something went wrong. Please try again.",
     ar: "حدث خطأ ما. حاول مرة أخرى.",
   },
+  clearText: {
+    en: "Clear text",
+    ar: "مسح النص",
+  },
 } satisfies Record<string, LocalizedCopy<string>>;
+
+function getIgnoredMediaCopy(count: number): LocalizedCopy<string> {
+  return {
+    en: `${formatNumber(count)} media file${count > 1 ? "s" : ""} ignored. Text only.`,
+    ar: `تم تجاهل ${formatNumber(count)} ملف وسائط. النص فقط.`,
+  };
+}
 
 const OUTPUT_LABELS: Record<LangPref, LocalizedCopy<string>> = {
   auto: COPY.auto,
@@ -164,11 +175,7 @@ export function Hero() {
         } else {
           setText(extracted.slice(0, MAX_CHARS));
           if (mediaCount > 0) {
-            setUploadWarn(
-              locale === "ar"
-                ? `تم تجاهل ${formatNumber(mediaCount)} ملف وسائط. النص فقط.`
-                : `${formatNumber(mediaCount)} media file${mediaCount > 1 ? "s" : ""} ignored. Text only.`
-            );
+            setUploadWarn(pick(getIgnoredMediaCopy(mediaCount), locale));
           }
         }
       } catch {
@@ -344,7 +351,7 @@ export function Hero() {
                         }}
                         disabled={loading}
                         className="rounded-full px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
-                        aria-label={locale === "ar" ? "مسح النص" : "Clear text"}
+                        aria-label={pick(COPY.clearText, locale)}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
