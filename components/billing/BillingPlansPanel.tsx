@@ -31,7 +31,7 @@ export function BillingPlansPanel({
           <a
             href={portalUrl}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noreferrer noopener"
             className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2 text-sm font-medium shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
           >
             <LocalizedText en="Manage subscription" ar="إدارة الاشتراك" />

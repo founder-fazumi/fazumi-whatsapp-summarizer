@@ -47,6 +47,7 @@ export default async function BillingPage() {
   let plan = "free";
   let trialExpiresAt: string | null = null;
   let portalUrl: string | null = null;
+  let pastDuePortalUrl: string | null = null;
   let periodEnd: string | null = null;
   let isPastDue = false;
 
@@ -64,7 +65,9 @@ export default async function BillingPage() {
           .single<Pick<Profile, "plan" | "trial_expires_at">>(),
         supabase
           .from("subscriptions")
-          .select("ls_subscription_id, status, current_period_end")
+          .select(
+            "ls_subscription_id, status, current_period_end, ls_customer_portal_url, ls_update_payment_method_url"
+          )
           .eq("user_id", user.id)
           .in("status", ["active", "cancelled", "past_due"])
           .order("created_at", { ascending: false })
@@ -73,6 +76,8 @@ export default async function BillingPage() {
             ls_subscription_id: string | null;
             status: string;
             current_period_end: string | null;
+            ls_customer_portal_url: string | null;
+            ls_update_payment_method_url: string | null;
           }>(),
       ]);
 
@@ -80,9 +85,15 @@ export default async function BillingPage() {
       trialExpiresAt = profile?.trial_expires_at ?? null;
       periodEnd = sub?.current_period_end ?? null;
       isPastDue = sub?.status === "past_due";
+      portalUrl = sub?.ls_customer_portal_url ?? sub?.ls_update_payment_method_url ?? null;
+      pastDuePortalUrl = sub?.ls_update_payment_method_url ?? sub?.ls_customer_portal_url ?? null;
 
-      if (sub?.ls_subscription_id) {
+      if (!portalUrl && sub?.ls_subscription_id) {
         portalUrl = await getCustomerPortalUrl(sub.ls_subscription_id);
+      }
+
+      if (!pastDuePortalUrl) {
+        pastDuePortalUrl = portalUrl;
       }
     }
   } catch {
@@ -107,22 +118,31 @@ export default async function BillingPage() {
         {isPastDue && (
           <div className="status-destructive flex items-start gap-3 rounded-[var(--radius-lg)] border px-4 py-3 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>
-              <LocalizedText
-                en="Your last payment failed. Please update your payment method in the customer portal to avoid losing access."
-                ar="فشل آخر دفع. يرجى تحديث طريقة الدفع في بوابة العملاء لتجنب فقدان الوصول."
-              />
-              {portalUrl && (
+            <div className="space-y-1">
+              <p>
+                <LocalizedText
+                  en="Your last payment failed. Please update your payment method in the customer portal to avoid losing access."
+                  ar="فشل آخر دفع. يرجى تحديث طريقة الدفع في بوابة العملاء لتجنب فقدان الوصول."
+                />
+              </p>
+              {pastDuePortalUrl ? (
                 <a
-                  href={portalUrl}
-                  className="ml-2 font-semibold underline underline-offset-2"
+                  href={pastDuePortalUrl}
+                  className="font-semibold underline underline-offset-2"
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noreferrer noopener"
                 >
                   <LocalizedText en="Update payment →" ar="تحديث الدفع ←" />
                 </a>
+              ) : (
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  <LocalizedText
+                    en="Portal link unavailable — try again in a minute (we refresh after webhook updates)."
+                    ar="رابط البوابة غير متاح حاليًا — حاول مرة أخرى بعد دقيقة (نحدّثه بعد تحديثات webhook)."
+                  />
+                </p>
               )}
-            </p>
+            </div>
           </div>
         )}
         <Card className="bg-[var(--surface-elevated)]">

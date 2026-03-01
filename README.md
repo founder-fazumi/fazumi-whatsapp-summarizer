@@ -121,6 +121,18 @@ Canonical env var names:
 - `NEXT_PUBLIC_APP_URL`
 - `OPENAI_API_KEY`
 
+Where to find the local replay values:
+
+- `LEMONSQUEEZY_WEBHOOK_SECRET` and `LEMONSQUEEZY_API_KEY`: Lemon Squeezy -> Settings -> API / Webhooks
+- `NEXT_PUBLIC_LS_MONTHLY_VARIANT`, `NEXT_PUBLIC_LS_ANNUAL_VARIANT`, `NEXT_PUBLIC_LS_FOUNDER_VARIANT`: Lemon Squeezy -> Products -> open each variant
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: Supabase -> Settings -> API
+
+Billing / webhooks notes:
+
+- Portal links on `/billing` come from webhook `attributes.urls.*` values stored on the subscription row.
+- These signed links expire after about 24 hours; later webhook updates refresh them automatically.
+- `LEMONSQUEEZY_API_KEY` is optional unless you add a manual portal-URL refresh flow later.
+
 Legacy alias `LEMON_SIGNING_SECRET` is supported, but prefer `LEMONSQUEEZY_WEBHOOK_SECRET`.
 
 `pnpm webhook:replay` uses these env vars directly:

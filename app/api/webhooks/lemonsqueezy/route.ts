@@ -20,6 +20,10 @@ interface LsSubscriptionAttributes {
   status: string;
   renews_at?: string;
   ends_at?: string;
+  urls?: {
+    customer_portal?: string;
+    update_payment_method?: string;
+  };
 }
 
 interface LsOrderAttributes {
@@ -188,6 +192,7 @@ async function routeEvent(
   const { data: entity } = payload;
   const attrs = entity.attributes;
   const lsId = entity.id;
+  const portalUrls = getSubscriptionPortalUrls(attrs.urls);
 
   switch (event) {
     case "order_created": {
@@ -236,6 +241,7 @@ async function routeEvent(
         planType,
         status: "active",
         currentPeriodEnd: attrs.renews_at ?? null,
+        ...portalUrls,
       });
       await setPlan(admin, userId, planType);
       logger.info("webhook.status_changed", {
@@ -254,6 +260,7 @@ async function routeEvent(
         .update({
           status: attrs.status,
           current_period_end: attrs.renews_at ?? attrs.ends_at ?? null,
+          ...toSubscriptionUrlColumns(portalUrls),
           updated_at: new Date().toISOString(),
         })
         .eq("ls_subscription_id", lsId);
@@ -275,6 +282,7 @@ async function routeEvent(
         .update({
           status: "cancelled",
           current_period_end: attrs.ends_at ?? attrs.renews_at ?? null,
+          ...toSubscriptionUrlColumns(portalUrls),
           updated_at: new Date().toISOString(),
         })
         .eq("ls_subscription_id", lsId);
@@ -298,6 +306,7 @@ async function routeEvent(
         .update({
           status: "active",
           current_period_end: attrs.renews_at ?? null,
+          ...toSubscriptionUrlColumns(portalUrls),
           updated_at: new Date().toISOString(),
         })
         .eq("ls_subscription_id", lsId);
@@ -322,7 +331,11 @@ async function routeEvent(
     case "subscription_expired": {
       const { error } = await admin
         .from("subscriptions")
-        .update({ status: "expired", updated_at: new Date().toISOString() })
+        .update({
+          status: "expired",
+          ...toSubscriptionUrlColumns(portalUrls),
+          updated_at: new Date().toISOString(),
+        })
         .eq("ls_subscription_id", lsId);
       if (error) {
         throw new Error(`Could not expire subscription: ${error.message}`);
@@ -357,6 +370,8 @@ interface SubscriptionRow {
   planType: string;
   status: string;
   currentPeriodEnd: string | null;
+  customerPortalUrl?: string;
+  updatePaymentMethodUrl?: string;
 }
 
 async function upsertSubscription(admin: AdminClient, row: SubscriptionRow) {
@@ -367,6 +382,7 @@ async function upsertSubscription(admin: AdminClient, row: SubscriptionRow) {
     plan_type: row.planType,
     status: row.status,
     current_period_end: row.currentPeriodEnd,
+    ...toSubscriptionUrlColumns(row),
     updated_at: new Date().toISOString(),
   };
 
@@ -386,6 +402,31 @@ async function upsertSubscription(admin: AdminClient, row: SubscriptionRow) {
       throw new Error(`Could not upsert founder order: ${error.message}`);
     }
   }
+}
+
+function getSubscriptionPortalUrls(urls?: LsSubscriptionAttributes["urls"]) {
+  return {
+    customerPortalUrl:
+      typeof urls?.customer_portal === "string" && urls.customer_portal.length > 0
+        ? urls.customer_portal
+        : undefined,
+    updatePaymentMethodUrl:
+      typeof urls?.update_payment_method === "string" && urls.update_payment_method.length > 0
+        ? urls.update_payment_method
+        : undefined,
+  };
+}
+
+function toSubscriptionUrlColumns(urls: {
+  customerPortalUrl?: string;
+  updatePaymentMethodUrl?: string;
+}) {
+  return {
+    ...(urls.customerPortalUrl ? { ls_customer_portal_url: urls.customerPortalUrl } : {}),
+    ...(urls.updatePaymentMethodUrl
+      ? { ls_update_payment_method_url: urls.updatePaymentMethodUrl }
+      : {}),
+  };
 }
 
 async function setPlan(admin: AdminClient, userId: string, plan: string) {
