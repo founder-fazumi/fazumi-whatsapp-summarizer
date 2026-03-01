@@ -41,11 +41,11 @@ export default async function HistoryPage() {
       <DashboardShell>
         <EmptyState
           icon={Inbox}
-          title={<LocalizedText en="No summaries yet" ar="لا توجد ملخصات بعد" />}
+          title={<LocalizedText en="No summaries yet. Paste a group chat to get started." ar="لا توجد ملخصات بعد. الصق محادثة للبدء." />}
           body={
             <LocalizedText
-              en="Summaries you generate will be saved here automatically. Your raw chat text is never stored."
-              ar="سيتم حفظ الملخصات التي تنشئها هنا تلقائيًا. لا يتم حفظ نص المحادثة الخام أبدًا."
+              en="Your history will appear here."
+              ar="سيظهر سجلك هنا."
             />
           }
           cta={{

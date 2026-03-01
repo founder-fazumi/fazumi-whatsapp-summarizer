@@ -94,6 +94,10 @@ const COPY = {
     en: "You've used your 3 free summaries. Upgrade to continue.",
     ar: "استخدمت ملخصاتك الثلاث المجانية. قم بالترقية للمتابعة.",
   },
+  limitBodyTrialEnded: {
+    en: "Your free trial has ended.",
+    ar: "انتهت فترة التجربة المجانية.",
+  },
   upgrade: { en: "Upgrade", ar: "ترقية" },
   viewHistory: { en: "View history", ar: "عرض السجل" },
   saved: { en: "Saved to history", ar: "تم الحفظ في السجل" },

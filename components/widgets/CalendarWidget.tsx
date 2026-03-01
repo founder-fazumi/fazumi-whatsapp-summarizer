@@ -28,10 +28,10 @@ const MONTH_NAMES: Record<"en" | "ar", string[]> = {
 const COPY = {
   today: { en: "Today", ar: "اليوم" },
   upcoming: { en: "Important Dates", ar: "المواعيد المهمة" },
-  emptyTitle: { en: "No dates yet", ar: "لا توجد مواعيد بعد" },
+  emptyTitle: { en: "Nothing here yet.", ar: "لا يوجد شيء هنا بعد." },
   emptyBody: {
-    en: "Summaries with extracted dates will appear here automatically.",
-    ar: "ستظهر هنا تلقائيًا الملخصات التي تحتوي على تواريخ مستخرجة.",
+    en: "Nothing here yet.",
+    ar: "لا يوجد شيء هنا بعد.",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 

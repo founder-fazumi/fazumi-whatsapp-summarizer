@@ -9,10 +9,10 @@ import { useDashboardInsights } from "@/lib/hooks/useDashboardInsights";
 
 const COPY = {
   title: { en: "To-Do", ar: "المهام" },
-  emptyTitle: { en: "No action items yet", ar: "لا توجد مهام بعد" },
+  emptyTitle: { en: "Nothing here yet.", ar: "لا يوجد شيء هنا بعد." },
   emptyBody: {
-    en: "When summaries include action items, they will show up here automatically.",
-    ar: "عندما تتضمن الملخصات مهامًا مطلوبة، ستظهر هنا تلقائيًا.",
+    en: "Nothing here yet.",
+    ar: "لا يوجد شيء هنا بعد.",
   },
   fromSummary: { en: "From recent summary", ar: "من ملخص حديث" },
 } satisfies Record<string, LocalizedCopy<string>>;

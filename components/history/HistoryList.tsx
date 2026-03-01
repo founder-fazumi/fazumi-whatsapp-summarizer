@@ -64,8 +64,8 @@ export function HistoryList({ summaries }: Props) {
       {filtered.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title={locale === "ar" ? "لا توجد نتائج." : "No results."}
-          body={locale === "ar" ? `لا يوجد ما يطابق "${query}"` : `Nothing matched "${query}"`}
+          title={locale === "ar" ? "لا يوجد شيء هنا بعد." : "Nothing here yet."}
+          body={locale === "ar" ? "سيظهر سجلك هنا." : "Your history will appear here."}
           className="py-8"
         />
       ) : (

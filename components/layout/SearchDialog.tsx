@@ -80,7 +80,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
           ))}
           {filtered.length === 0 && (
             <li className="py-4 text-center text-sm text-[var(--muted-foreground)]">
-              {isArabic ? `لا توجد نتائج لـ "${query}"` : `No results for "${query}"`}
+              {isArabic ? "لا يوجد شيء هنا بعد." : "Nothing here yet."}
             </li>
           )}
         </ul>

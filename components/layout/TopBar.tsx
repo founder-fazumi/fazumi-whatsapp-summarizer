@@ -33,10 +33,10 @@ const COPY = {
   free: { en: "Free", ar: "مجاني" },
   pro: { en: "Pro", ar: "احترافي" },
   user: { en: "User", ar: "المستخدم" },
-  emptyNotifTitle: { en: "No upcoming dates yet", ar: "لا توجد مواعيد قادمة بعد" },
+  emptyNotifTitle: { en: "Nothing here yet.", ar: "لا يوجد شيء هنا بعد." },
   emptyNotifBody: {
-    en: "Important dates from your summaries will appear here.",
-    ar: "ستظهر هنا التواريخ المهمة المستخرجة من ملخصاتك.",
+    en: "Nothing here yet.",
+    ar: "لا يوجد شيء هنا بعد.",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 
