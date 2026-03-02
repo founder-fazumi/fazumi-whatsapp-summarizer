@@ -414,6 +414,14 @@ export default function SummarizePage() {
                   </TabsTrigger>
                 </TabsList>
 
+                <div className="flex items-start gap-1.5 rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-2.5">
+                  <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
+                  <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                    <strong className="text-[var(--foreground)]">{pick(COPY.tipLabel, locale)}</strong>{" "}
+                    {pick(PLATFORM_TIP[platform] ?? PLATFORM_TIP.whatsapp, locale)}
+                  </p>
+                </div>
+
                 <TabsContent value="whatsapp">
                   <div className="space-y-2">
                     <div className="relative">
@@ -522,14 +530,6 @@ export default function SummarizePage() {
                   </div>
                 </TabsContent>
               </Tabs>
-
-              <div className="flex items-start gap-2 rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-2.5">
-                <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--warning)]" />
-                <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                  <strong className="text-[var(--foreground)]">{pick(COPY.tipLabel, locale)}</strong>{" "}
-                  {pick(PLATFORM_TIP[platform] ?? PLATFORM_TIP.whatsapp, locale)}
-                </p>
-              </div>
 
               <div className="flex flex-wrap items-start gap-3">
                 <div className="space-y-1">

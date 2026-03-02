@@ -194,7 +194,7 @@ function SectionCard({
       : !Array.isArray(value) || value.length === 0;
 
   return (
-    <Card className="overflow-hidden bg-[var(--surface-elevated)]">
+    <div>
       <button
         onClick={() => setOpen((o) => !o)}
         className={cn(
@@ -257,7 +257,7 @@ function SectionCard({
           )}
         </CardContent>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -344,14 +344,18 @@ export function SummaryDisplay({
       </div>
 
       {/* ── Section cards ─────────────────────────── */}
-      {SECTION_ORDER.map((key) => (
-        <SectionCard
-          key={key}
-          sectionKey={key}
-          summary={summary}
-          outputLang={outputLang}
-        />
-      ))}
+      <Card className="overflow-hidden bg-[var(--surface-elevated)]">
+        {SECTION_ORDER.map((key, index) => (
+          <div key={key}>
+            {index > 0 && <div className="border-t border-[var(--border)]" />}
+            <SectionCard
+              sectionKey={key}
+              summary={summary}
+              outputLang={outputLang}
+            />
+          </div>
+        ))}
+      </Card>
 
       <div className="surface-panel flex items-center justify-between px-4 py-3">
         <p className="text-xs font-medium text-[var(--foreground)]">
