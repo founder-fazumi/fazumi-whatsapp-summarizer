@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 type Tab = "login" | "signup";
 const IS_DEV_EMAIL_SIGNUP = process.env.NODE_ENV !== "production";
+type OAuthProvider = "google" | "apple";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,39 +27,118 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [redirectPath, setRedirectPath] = useState("/dashboard");
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Create Supabase client once (module-scope equivalent in component)
   const supabase = createClient();
 
-  async function handleGoogleAuth() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get("tab");
+    const nextParam = params.get("next");
+
+    if (requestedTab === "login" || requestedTab === "signup") {
+      setTab(requestedTab);
+    }
+
+    setRedirectPath(nextParam && nextParam.startsWith("/") ? nextParam : "/dashboard");
+    setAuthError(params.get("error"));
+  }, []);
+
+  useEffect(() => {
+    if (authError === "auth_failed") {
+      setError(
+        locale === "ar"
+          ? "تعذر إكمال تسجيل الدخول عبر المزوّد. حاول مرة أخرى."
+          : "Could not complete the provider sign-in. Please try again."
+      );
+      setSuccess(null);
+    }
+  }, [authError, locale]);
+
+  function buildCallbackUrl() {
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    if (redirectPath.startsWith("/")) {
+      callbackUrl.searchParams.set("next", redirectPath);
+    }
+    return callbackUrl.toString();
+  }
+
+  function getProviderUnavailableMessage(provider: OAuthProvider) {
+    if (locale === "ar") {
+      return provider === "google"
+        ? "تسجيل الدخول عبر Google غير مفعّل في إعدادات Supabase لهذا المشروع."
+        : "تسجيل الدخول عبر Apple غير مفعّل في إعدادات Supabase لهذا المشروع.";
+    }
+
+    return provider === "google"
+      ? "Google sign-in is not enabled in Supabase for this project."
+      : "Apple sign-in is not enabled in Supabase for this project.";
+  }
+
+  async function startOAuth(provider: OAuthProvider) {
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+    setSuccess(null);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: buildCallbackUrl(),
+        skipBrowserRedirect: true,
       },
     });
+
     if (error) {
       setError(error.message);
       setLoading(false);
+      return;
     }
-    // On success: browser redirects to Google — no further action needed
+
+    if (data?.url) {
+      const preflight = await fetch("/api/auth/oauth-preflight", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: data.url, provider }),
+      });
+
+      if (!preflight.ok) {
+        const payload = (await preflight.json().catch(() => null)) as { code?: string } | null;
+
+        if (payload?.code === "provider_not_enabled") {
+          setError(getProviderUnavailableMessage(provider));
+        } else {
+          setError(
+            locale === "ar"
+              ? "تعذر بدء تسجيل الدخول عبر المزوّد."
+              : "Could not start the provider sign-in."
+          );
+        }
+        setLoading(false);
+        return;
+      }
+
+      window.location.assign(data.url);
+      return;
+    }
+
+    setError(
+      locale === "ar"
+        ? "تعذر بدء تسجيل الدخول عبر المزوّد."
+        : "Could not start the provider sign-in."
+    );
+    setLoading(false);
+  }
+
+  async function handleGoogleAuth() {
+    await startOAuth("google");
   }
 
   async function handleAppleAuth() {
-    setLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "apple",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    }
+    await startOAuth("apple");
   }
 
   async function handleEmailLogin(e: React.FormEvent) {
@@ -72,7 +152,7 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     } else {
-      router.push("/dashboard");
+      router.push(redirectPath);
     }
     setLoading(false);
   }
@@ -119,7 +199,7 @@ export default function LoginPage() {
           return;
         }
 
-        router.push("/dashboard");
+        router.push(redirectPath);
         return;
       }
 
@@ -128,7 +208,7 @@ export default function LoginPage() {
         password,
         options: {
           data: { full_name: trimmedName },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: buildCallbackUrl(),
         },
       });
 

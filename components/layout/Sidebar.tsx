@@ -19,8 +19,9 @@ import {
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
+import { formatNumber } from "@/lib/format";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
-import { getTierKey } from "@/lib/limits";
+import { FREE_LIFETIME_CAP, getTierKey, getUtcDateKey } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/client";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 
@@ -43,6 +44,8 @@ const COPY = {
   unlimited: { en: "Unlimited summaries", ar: "ملخصات غير محدودة" },
   calendar: { en: "Calendar sync", ar: "مزامنة التقويم" },
   priority: { en: "Priority support", ar: "دعم أولوية" },
+  usedToday: { en: "Used today", ar: "استخدام اليوم" },
+  usedFree: { en: "Free summaries used", ar: "الملخصات المجانية المستخدمة" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 interface SidebarProps {
@@ -54,6 +57,11 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { locale } = useLang();
   const [tierKey, setTierKey] = useState<string | null>(null);
+  const [usageProgress, setUsageProgress] = useState({
+    label: "usedToday" as "usedToday" | "usedFree",
+    value: 0,
+    max: FREE_LIFETIME_CAP,
+  });
 
   useEffect(() => {
     let active = true;
@@ -71,18 +79,46 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("plan, trial_expires_at")
-          .eq("id", user.id)
-          .maybeSingle<{ plan: string | null; trial_expires_at: string | null }>();
+        const today = getUtcDateKey();
+        const [{ data: profile, error: profileError }, { data: usage }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("plan, trial_expires_at, lifetime_free_used")
+            .eq("id", user.id)
+            .maybeSingle<{ plan: string | null; trial_expires_at: string | null; lifetime_free_used: number | null }>(),
+          supabase
+            .from("usage_daily")
+            .select("summaries_used")
+            .eq("user_id", user.id)
+            .eq("date", today)
+            .maybeSingle<{ summaries_used: number }>(),
+        ]);
 
         if (active) {
-          setTierKey(getTierKey(profile?.plan, profile?.trial_expires_at));
+          const nextTierKey = profileError ? null : getTierKey(profile?.plan, profile?.trial_expires_at);
+          setTierKey(nextTierKey);
+          setUsageProgress(
+            nextTierKey === "trial"
+              ? {
+                  label: "usedToday",
+                  value: Math.min(usage?.summaries_used ?? 0, 3),
+                  max: 3,
+                }
+              : {
+                  label: "usedFree",
+                  value: Math.min(profile?.lifetime_free_used ?? 0, FREE_LIFETIME_CAP),
+                  max: FREE_LIFETIME_CAP,
+                }
+          );
         }
       } catch {
         if (active) {
-          setTierKey("free");
+          setTierKey(null);
+          setUsageProgress({
+            label: "usedToday",
+            value: 0,
+            max: FREE_LIFETIME_CAP,
+          });
         }
       }
     }
@@ -95,6 +131,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   }, []);
 
   const showUpsellCards = tierKey === "free" || tierKey === "trial";
+  const usageDisplay = `${formatNumber(usageProgress.value)}/${formatNumber(usageProgress.max)}`;
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -151,7 +188,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       {showUpsellCards && (
         <>
           <div className="border-t border-[var(--sidebar-border)] px-4 py-4">
-            <div className="surface-panel-muted px-4 py-4">
+            <div className="surface-panel-muted px-4 py-4" data-testid="sidebar-upsell-card">
               <div className="mb-2 flex items-center gap-2">
                 <Zap className="h-4 w-4 text-[var(--primary)]" />
                 <span className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.freePlan, locale)}</span>
@@ -159,7 +196,11 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                   <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">{pick(COPY.trialActive, locale)}</span>
                 )}
               </div>
-              <Progress value={3} max={7} className="mb-2.5 h-1.5" />
+              <div className="mb-2 flex items-center justify-between gap-3 text-[10px] text-[var(--muted-foreground)]">
+                <span>{pick(COPY[usageProgress.label], locale)}</span>
+                <span data-testid="sidebar-usage-label">{usageDisplay}</span>
+              </div>
+              <Progress value={usageProgress.value} max={usageProgress.max} className="mb-2.5 h-1.5" />
               <Link
                 href="/billing"
                 className="flex w-full items-center justify-center gap-1.5 rounded-[var(--radius)] bg-[var(--primary)] py-2 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"

@@ -21,25 +21,32 @@ export default async function SummaryDetailPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: row } = await supabase
-    .from("summaries")
-    .select("*")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single<{
-      id: string;
-      title: string;
-      tldr: string;
-      important_dates: string[];
-      action_items: string[];
-      people_classes: string[];
-      links: string[];
-      questions: string[];
-      char_count: number;
-      lang_detected: string;
-      created_at: string;
-    }>();
+  const [{ data: row }, { data: profile }] = await Promise.all([
+    supabase
+      .from("summaries")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .single<{
+        id: string;
+        title: string;
+        tldr: string;
+        important_dates: string[];
+        action_items: string[];
+        people_classes: string[];
+        links: string[];
+        questions: string[];
+        char_count: number;
+        lang_detected: string;
+        created_at: string;
+      }>(),
+    supabase
+      .from("profiles")
+      .select("plan")
+      .eq("id", user.id)
+      .maybeSingle<{ plan: string | null }>(),
+  ]);
 
   if (!row) notFound();
 
@@ -65,6 +72,7 @@ export default async function SummaryDetailPage({ params }: PageProps) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   })}k`;
+  const actionMode = ["monthly", "annual", "founder"].includes(profile?.plan ?? "") ? "active" : "gated";
 
   return (
     <DashboardShell>
@@ -109,7 +117,7 @@ export default async function SummaryDetailPage({ params }: PageProps) {
         </CardContent>
       </Card>
 
-      <SummaryDisplay summary={summary} outputLang={outputLang} />
+      <SummaryDisplay summary={summary} outputLang={outputLang} actionMode={actionMode} />
     </DashboardShell>
   );
 }

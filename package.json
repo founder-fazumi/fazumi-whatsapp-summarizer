@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'No tests yet — OK' && exit 0",
+    "test": "playwright test",
+    "test:e2e": "playwright test",
     "webhook:replay": "node scripts/webhooks/replay-lemonsqueezy.js",
     "webhook:replay:order": "node scripts/webhooks/replay-lemonsqueezy.js order_created_founder",
     "webhook:replay:payment-success": "node scripts/webhooks/replay-lemonsqueezy.js subscription_payment_success",
@@ -30,6 +31,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

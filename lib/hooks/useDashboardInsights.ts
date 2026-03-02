@@ -6,6 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 
 const SUMMARY_SAVED_EVENT = "fazumi-summary-saved";
 
+// Module-level stale-while-revalidate cache so navigating between pages
+// instantly shows the last-known data while a background refresh runs.
+let _cache: DashboardInsights | null = null;
+
 export function emitDashboardInsightsRefresh() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(SUMMARY_SAVED_EVENT));
@@ -13,7 +17,7 @@ export function emitDashboardInsightsRefresh() {
 }
 
 export function useDashboardInsights(refreshKey?: number): DashboardInsights {
-  const [insights, setInsights] = useState<DashboardInsights>(EMPTY_DASHBOARD_INSIGHTS);
+  const [insights, setInsights] = useState<DashboardInsights>(_cache ?? EMPTY_DASHBOARD_INSIGHTS);
 
   useEffect(() => {
     let mounted = true;
@@ -44,7 +48,9 @@ export function useDashboardInsights(refreshKey?: number): DashboardInsights {
         }
 
         if (mounted) {
-          setInsights(buildDashboardInsights((data as SummaryInsightRow[] | null) ?? []));
+          const result = buildDashboardInsights((data as SummaryInsightRow[] | null) ?? []);
+          _cache = result;
+          setInsights(result);
         }
       } catch {
         if (mounted) setInsights(EMPTY_DASHBOARD_INSIGHTS);

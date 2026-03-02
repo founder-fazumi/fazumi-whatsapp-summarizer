@@ -169,8 +169,8 @@ export function Pricing({
       id={sectionId}
       className={cn(
         embedded
-          ? "surface-panel-elevated px-4 py-10 shadow-[var(--shadow-md)] sm:px-6"
-          : "bg-[var(--page-layer)] py-16 md:py-24"
+          ? "surface-panel-elevated scroll-mt-24 px-4 pt-6 pb-10 shadow-[var(--shadow-md)] sm:px-6"
+          : "scroll-mt-24 bg-[var(--page-layer)] pt-16 pb-16 md:pt-20 md:pb-24"
       )}
     >
       <div className={cn("page-shell", embedded && "max-w-none px-0")}>
@@ -208,7 +208,7 @@ export function Pricing({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 pt-3 lg:grid-cols-3">
           {PLANS.map((plan) => {
             const isCurrentPlan = currentPlanId === plan.id;
 

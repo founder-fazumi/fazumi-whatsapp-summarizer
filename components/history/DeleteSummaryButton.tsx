@@ -14,13 +14,23 @@ export function DeleteSummaryButton({ summaryId }: Props) {
   const { locale } = useLang();
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleDelete() {
     setLoading(true);
+    setError(null);
     try {
-      await fetch(`/api/summaries/${summaryId}`, { method: "DELETE" });
+      const response = await fetch(`/api/summaries/${summaryId}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error ?? "Could not delete summary.");
+      }
+
       router.push("/history");
       router.refresh();
+    } catch {
+      setError(locale === "ar" ? "تعذر حذف الملخص. حاول مرة أخرى." : "Could not delete the summary. Try again.");
     } finally {
       setLoading(false);
       setConfirming(false);
@@ -49,12 +59,17 @@ export function DeleteSummaryButton({ summaryId }: Props) {
   }
 
   return (
-    <button
-      onClick={() => setConfirming(true)}
-      className="flex items-center gap-1 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
-    >
-      <Trash2 className="h-3.5 w-3.5" />
-      {locale === "ar" ? "حذف" : "Delete"}
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={() => setConfirming(true)}
+        className="flex items-center gap-1 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        {locale === "ar" ? "حذف" : "Delete"}
+      </button>
+      {error && (
+        <p className="text-xs text-[var(--destructive)]">{error}</p>
+      )}
+    </div>
   );
 }

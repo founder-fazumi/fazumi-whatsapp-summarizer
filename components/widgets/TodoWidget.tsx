@@ -20,6 +20,11 @@ type TodoPreview = {
   created_at: string;
 };
 
+// Module-level stale-while-revalidate cache so navigating between pages
+// instantly shows the last-known data while a background refresh runs.
+let _cachedItems: TodoPreview[] = [];
+let _cachedCount = 0;
+
 const COPY = {
   title: { en: "To-Do", ar: "المهام" },
   emptyTitle: { en: "Nothing here yet.", ar: "لا يوجد شيء هنا بعد." },
@@ -34,8 +39,8 @@ type TodoSupabase = ReturnType<typeof createClient>;
 
 export function TodoWidget() {
   const { locale } = useLang();
-  const [todoItems, setTodoItems] = useState<TodoPreview[]>([]);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [todoItems, setTodoItems] = useState<TodoPreview[]>(_cachedItems);
+  const [pendingCount, setPendingCount] = useState(_cachedCount);
 
   useEffect(() => {
     let active = true;
@@ -87,8 +92,12 @@ export function TodoWidget() {
         return;
       }
 
-      setTodoItems((data ?? []) as TodoPreview[]);
-      setPendingCount(count ?? 0);
+      const items = (data ?? []) as TodoPreview[];
+      const total = count ?? 0;
+      _cachedItems = items;
+      _cachedCount = total;
+      setTodoItems(items);
+      setPendingCount(total);
     }
 
     void loadTodos();

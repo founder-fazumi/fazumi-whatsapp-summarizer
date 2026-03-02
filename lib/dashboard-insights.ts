@@ -210,7 +210,7 @@ function parseNumericDate(text: string, now: Date): Date | null {
   return resolveYear(monthIndex, day, now, year);
 }
 
-function parseDateFromLabel(label: string, now: Date): Date | null {
+export function parseDateFromLabel(label: string, now: Date): Date | null {
   return parseNumericDate(label, now) ?? parseMonthNameDate(label, now);
 }
 

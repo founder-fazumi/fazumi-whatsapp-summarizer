@@ -128,6 +128,7 @@ export default async function BillingPage() {
               {pastDuePortalUrl ? (
                 <a
                   href={pastDuePortalUrl}
+                  data-testid="billing-update-payment"
                   className="font-semibold underline underline-offset-2"
                   target="_blank"
                   rel="noreferrer noopener"
@@ -167,7 +168,7 @@ export default async function BillingPage() {
               <p className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
                 <LocalizedText en="Current plan" ar="الخطة الحالية" />
               </p>
-              <p className={`mt-1 text-2xl font-bold ${planInfo.color}`}>
+              <p data-testid="billing-current-plan" className={`mt-1 text-2xl font-bold ${planInfo.color}`}>
                 <LocalizedText en={planInfo.name.en} ar={planInfo.name.ar} />
               </p>
               <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">{planInfo.price}</p>

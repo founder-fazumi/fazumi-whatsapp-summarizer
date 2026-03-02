@@ -30,6 +30,7 @@ export function BillingPlansPanel({
         {portalUrl && (
           <a
             href={portalUrl}
+            data-testid="billing-manage-subscription"
             target="_blank"
             rel="noreferrer noopener"
             className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2 text-sm font-medium shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"

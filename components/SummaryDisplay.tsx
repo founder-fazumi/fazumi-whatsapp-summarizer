@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap,
@@ -8,15 +9,19 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { buttonVariants } from "@/components/ui/button";
+import { parseDateFromLabel } from "@/lib/dashboard-insights";
 import { formatNumber } from "@/lib/format";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 type OutputLang = "en" | "ar";
-type ActionMode = "disabled" | "gated" | "coming-soon";
+type ActionMode = "disabled" | "gated" | "coming-soon" | "active";
 type ActionKey = "calendar" | "todo" | "export";
+
+const TODOS_CHANGED_EVENT = "fazumi-todos-changed";
 
 const SECTION_META: Record<
   string,
@@ -102,6 +107,12 @@ const UI_COPY = {
     nothingMentioned: "Nothing mentioned",
     soonTitle: "Feature coming soon",
     soonBody: "This action is reserved for paid plans and is still being finished.",
+    calendarEmptyTitle: "No calendar-ready dates",
+    calendarEmptyBody: "This summary does not include any dates I can turn into a calendar file yet.",
+    todoEmptyTitle: "No action items found",
+    todoEmptyBody: "This summary does not include any to-do items yet.",
+    actionErrorTitle: "Could not complete this action",
+    actionErrorBody: "Please try again in a moment.",
     close: "Close",
   },
   ar: {
@@ -122,6 +133,12 @@ const UI_COPY = {
     nothingMentioned: "لا يوجد شيء مذكور",
     soonTitle: "الميزة قيد الإعداد",
     soonBody: "هذه الميزة مخصصة للخطط المدفوعة وما زالت قيد الإكمال.",
+    calendarEmptyTitle: "لا توجد تواريخ جاهزة للتقويم",
+    calendarEmptyBody: "لا يحتوي هذا الملخص على تواريخ أستطيع تحويلها إلى ملف تقويم بعد.",
+    todoEmptyTitle: "لا توجد مهام",
+    todoEmptyBody: "لا يحتوي هذا الملخص على عناصر مهام بعد.",
+    actionErrorTitle: "تعذر إكمال هذا الإجراء",
+    actionErrorBody: "حاول مرة أخرى بعد قليل.",
     close: "إغلاق",
   },
 } as const;
@@ -172,7 +189,89 @@ function downloadSummaryExport(contents: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function SectionCard({
+function escapeIcsText(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\r?\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function formatIcsDate(value: Date): string {
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
+}
+
+function formatIcsTimestamp(value: Date): string {
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  const hours = String(value.getUTCHours()).padStart(2, "0");
+  const minutes = String(value.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(value.getUTCSeconds()).padStart(2, "0");
+  return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+}
+
+function buildCalendarExport(summary: SummaryResult): string | null {
+  const now = new Date();
+  const events = summary.important_dates
+    .map((label, index) => {
+      const parsed = parseDateFromLabel(label, now);
+      if (!parsed) {
+        return null;
+      }
+
+      const start = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+      const end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 1);
+
+      return [
+        "BEGIN:VEVENT",
+        `UID:${formatIcsDate(start)}-${index}@fazumi.app`,
+        `DTSTAMP:${formatIcsTimestamp(now)}`,
+        `DTSTART;VALUE=DATE:${formatIcsDate(start)}`,
+        `DTEND;VALUE=DATE:${formatIcsDate(end)}`,
+        `SUMMARY:${escapeIcsText(label)}`,
+        `DESCRIPTION:${escapeIcsText(summary.tldr)}`,
+        "END:VEVENT",
+      ].join("\r\n");
+    })
+    .filter((event): event is string => Boolean(event));
+
+  if (events.length === 0) {
+    return null;
+  }
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Fazumi//Summary Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+}
+
+function downloadCalendarExport(contents: string) {
+  const blob = new Blob([contents], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `fazumi-summary-${new Date().toISOString().slice(0, 10)}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function normalizeTodoLabel(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function SectionBlock({
   sectionKey,
   summary,
   outputLang,
@@ -181,7 +280,6 @@ function SectionCard({
   summary: SummaryResult;
   outputLang: OutputLang;
 }) {
-  const [open, setOpen] = useState(true);
   const meta = SECTION_META[sectionKey];
   const label = meta[outputLang];
   const isRtl = outputLang === "ar";
@@ -194,70 +292,54 @@ function SectionCard({
       : !Array.isArray(value) || value.length === 0;
 
   return (
-    <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
+    <section
+      dir={isRtl ? "rtl" : "ltr"}
+      lang={isRtl ? "ar" : "en"}
+      className={cn("px-4 py-4 sm:px-5", isRtl && "font-arabic text-right")}
+    >
+      <div
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-t-[var(--radius-xl)] px-[var(--card-padding)] py-4 hover:bg-[var(--surface-muted)]",
-          isRtl ? "text-right" : "text-left"
+          "mb-3 flex items-center gap-2 text-[11px] font-semibold text-[var(--muted-foreground)]",
+          isRtl && "flex-row-reverse"
         )}
-        aria-expanded={open}
       >
-        {(() => { const Icon = meta.icon; return <Icon className="h-4 w-4 shrink-0 text-[var(--primary)]" />; })()}
-        <span className="flex-1 text-sm font-semibold text-[var(--card-foreground)]">
-          {label}
-        </span>
+        {(() => {
+          const Icon = meta.icon;
+          return <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />;
+        })()}
+        <span>{label}</span>
         {isEmpty && (
-          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
+          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
             {copy.empty}
           </span>
         )}
-        <span
-          className={cn(
-            "text-[var(--muted-foreground)] text-xs transition-transform duration-200",
-            open ? "rotate-180" : ""
-          )}
-        >
-          ▾
-        </span>
-      </button>
+      </div>
 
-      {open && (
-        <CardContent
-          dir={isRtl ? "rtl" : "ltr"}
-          lang={isRtl ? "ar" : "en"}
-          className={cn(
-            "border-t border-[var(--border)] pt-4 pb-5",
-            isRtl && "font-arabic text-right"
-          )}
-        >
-          {isEmpty ? (
-            <p className="text-sm text-[var(--muted-foreground)] italic">
-              {copy.nothingMentioned}
-            </p>
-          ) : sectionKey === "tldr" ? (
-            <p className="text-sm leading-relaxed text-[var(--card-foreground)]">
-              {String(value)}
-            </p>
-          ) : (
-            <ul className={cn("space-y-2", isRtl ? "pr-2" : "pl-2")}>
-              {(value as string[]).map((item, i) => (
-                <li
-                  key={i}
-                  className={cn(
-                    "flex gap-2 text-sm text-[var(--card-foreground)]",
-                    isRtl && "flex-row-reverse text-right"
-                  )}
-                >
-                  <span className="mt-1 shrink-0 text-[var(--primary)] leading-none">•</span>
-                  <span className="leading-relaxed">{item}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
+      {isEmpty ? (
+        <p className="text-sm italic text-[var(--muted-foreground)]">
+          {copy.nothingMentioned}
+        </p>
+      ) : sectionKey === "tldr" ? (
+        <p className="text-sm leading-7 text-[var(--card-foreground)]">
+          {String(value)}
+        </p>
+      ) : (
+        <ul className="space-y-2.5">
+          {(value as string[]).map((item, i) => (
+            <li
+              key={i}
+              className={cn(
+                "flex gap-2.5 text-sm text-[var(--card-foreground)]",
+                isRtl && "flex-row-reverse text-right"
+              )}
+            >
+              <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+              <span className="leading-7">{item}</span>
+            </li>
+          ))}
+        </ul>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -274,16 +356,24 @@ export function SummaryDisplay({
   actionMode = "disabled",
   upgradeHref = "/pricing",
 }: SummaryDisplayProps) {
+  const router = useRouter();
   const [helpful, setHelpful] = useState<"up" | "down" | null>(null);
   const [dialogVariant, setDialogVariant] = useState<"upgrade" | "soon" | null>(null);
+  const [infoDialog, setInfoDialog] = useState<{ title: string; body: string } | null>(null);
+  const [pendingAction, setPendingAction] = useState<ActionKey | null>(null);
   const [showSharePanel, setShowSharePanel] = useState(false);
   const [copiedTarget, setCopiedTarget] = useState<"fb" | null>(null);
   const copy = UI_COPY[outputLang];
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
 
-  function handleActionClick(actionKey: ActionKey) {
+  async function handleActionClick(actionKey: ActionKey) {
+    if (actionKey !== "export") {
+      setShowSharePanel(false);
+    }
+
     if (actionMode === "gated") {
+      setInfoDialog(null);
       setDialogVariant("upgrade");
       return;
     }
@@ -294,12 +384,120 @@ export function SummaryDisplay({
     }
 
     if (actionMode === "coming-soon") {
+      setInfoDialog(null);
       setDialogVariant("soon");
+      return;
+    }
+
+    if (actionMode !== "active") {
+      return;
     }
 
     if (actionKey === "export") {
       setShowSharePanel(true);
       return;
+    }
+
+    if (actionKey === "calendar") {
+      const calendarExport = buildCalendarExport(summary);
+
+      if (!calendarExport) {
+        setDialogVariant(null);
+        setInfoDialog({
+          title: copy.calendarEmptyTitle,
+          body: copy.calendarEmptyBody,
+        });
+        return;
+      }
+
+      downloadCalendarExport(calendarExport);
+      return;
+    }
+
+    const actionItems = summary.action_items
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (actionItems.length === 0) {
+      setDialogVariant(null);
+      setInfoDialog({
+        title: copy.todoEmptyTitle,
+        body: copy.todoEmptyBody,
+      });
+      return;
+    }
+
+    let supabase: ReturnType<typeof createClient>;
+
+    try {
+      supabase = createClient();
+    } catch {
+      setDialogVariant(null);
+      setInfoDialog({
+        title: copy.actionErrorTitle,
+        body: copy.actionErrorBody,
+      });
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setInfoDialog(null);
+        setDialogVariant("upgrade");
+        return;
+      }
+
+      setPendingAction("todo");
+
+      const { data: existingItems, error: existingError } = await supabase
+        .from("user_todos")
+        .select("label, sort_order")
+        .eq("user_id", user.id);
+
+      if (existingError) {
+        throw existingError;
+      }
+
+      const existingLabels = new Set(
+        ((existingItems ?? []) as { label: string; sort_order: number }[]).map((item) => normalizeTodoLabel(item.label))
+      );
+      const nextSortOrder = ((existingItems ?? []) as { label: string; sort_order: number }[])
+        .reduce((highest, item) => Math.max(highest, item.sort_order), -1) + 1;
+      const rows = actionItems
+        .filter((label) => !existingLabels.has(normalizeTodoLabel(label)))
+        .map((label, index) => ({
+          user_id: user.id,
+          label,
+          source: "summary" as const,
+          sort_order: nextSortOrder + index,
+          done: false,
+        }));
+
+      if (rows.length > 0) {
+        const { error: insertError } = await supabase.from("user_todos").insert(rows);
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
+      }
+
+      router.push("/todo");
+    } catch {
+      setDialogVariant(null);
+      setInfoDialog({
+        title: copy.actionErrorTitle,
+        body: copy.actionErrorBody,
+      });
+    } finally {
+      setPendingAction(null);
     }
   }
 
@@ -307,203 +505,237 @@ export function SummaryDisplay({
     <div
       dir={isRtl ? "rtl" : "ltr"}
       lang={isRtl ? "ar" : "en"}
-      className={cn("space-y-4", isRtl && "font-arabic text-right")}
+      className={cn("space-y-3", isRtl && "font-arabic text-right")}
     >
-      <div className="surface-panel-muted flex items-center justify-between gap-3 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4 text-[var(--primary)]" />
-          <h2 className="font-semibold text-sm text-[var(--foreground)]">
-            {copy.latestSummary}
-          </h2>
-          <span className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--primary)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
-            {copy.justNow}
+      <Card className="overflow-hidden bg-[var(--surface-elevated)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)]/60 px-4 py-3 sm:px-5">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-[var(--primary)]" />
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">
+              {copy.latestSummary}
+            </h2>
+            <span className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--primary)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
+              {copy.justNow}
+            </span>
+          </div>
+          <span className="text-xs text-[var(--muted-foreground)]">
+            {formattedCharCount} {copy.chars}
           </span>
         </div>
-        <span className="text-xs text-[var(--muted-foreground)]">
-          {formattedCharCount} {copy.chars}
-        </span>
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {ACTIONS.map(({ key, icon: Icon }) => {
-          const label =
-            key === "calendar"
-              ? copy.addToCalendar
-              : key === "todo"
-                ? copy.addToTodo
-                : copy.export;
+        <div className="border-b border-[var(--border)] px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap gap-2">
+            {ACTIONS.map(({ key, icon: Icon }) => {
+              const label =
+                key === "calendar"
+                  ? copy.addToCalendar
+                  : key === "todo"
+                    ? copy.addToTodo
+                    : copy.export;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={`summary-action-${key}`}
+                  onClick={() => {
+                    void handleActionClick(key);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={actionMode === "disabled" || pendingAction !== null}
+                  title={actionMode === "disabled" ? copy.comingSoon : undefined}
+                >
+                  <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {showSharePanel && (() => {
+          const exportText = buildPlainTextExport(summary, outputLang, copy.nothingMentioned);
+          const short = exportText.slice(0, 1500);
+          const waUrl = `https://wa.me/?text=${encodeURIComponent(short)}`;
+          const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
+          const isTruncated = exportText.length > 1500;
+          const truncatedCount = formatNumber(1500);
+          const truncatedNote =
+            outputLang === "ar"
+              ? `يتم إرسال أول ${truncatedCount} حرف`
+              : `Only the first ${truncatedCount} chars are sent`;
+
+          function handleCopyFb() {
+            navigator.clipboard.writeText(exportText).catch(() => {});
+            setCopiedTarget("fb");
+            setTimeout(() => setCopiedTarget((curr) => (curr === "fb" ? null : curr)), 2000);
+          }
 
           return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleActionClick(key)}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3.5 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={actionMode === "disabled"}
-              title={actionMode === "disabled" ? copy.comingSoon : undefined}
-            >
-              <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
-              {label}
-            </button>
+            <div data-testid="summary-share-panel" className="border-b border-[var(--border)] bg-[var(--surface)]/60 px-4 py-3 sm:px-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="summary-download-export"
+                  onClick={() => downloadSummaryExport(exportText)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+                >
+                  <Download className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  {outputLang === "ar" ? "تحميل .txt" : "Download .txt"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.open(waUrl, "_blank", "noopener,noreferrer")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+                >
+                  {outputLang === "ar" ? "واتساب" : "WhatsApp"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.open(tgUrl, "_blank", "noopener,noreferrer")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+                >
+                  {outputLang === "ar" ? "تيليجرام" : "Telegram"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyFb}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+                >
+                  {copiedTarget === "fb"
+                    ? (outputLang === "ar" ? "تم النسخ ✓" : "Copied ✓")
+                    : (outputLang === "ar" ? "نسخ للفيسبوك" : "Copy for Facebook")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSharePanel(false)}
+                  className="ml-auto rounded-lg border border-transparent px-2 py-1 text-xs font-medium text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+                  aria-label={outputLang === "ar" ? "إغلاق" : "Close share panel"}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {isTruncated && (
+                <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
+                  {truncatedNote}
+                </p>
+              )}
+            </div>
           );
-        })}
-      </div>
+        })()}
 
-      {/* ── Share panel ───────────────────────── */}
-      {showSharePanel && (() => {
-        const exportText = buildPlainTextExport(summary, outputLang, copy.nothingMentioned);
-        const short = exportText.slice(0, 1500);
-        const waUrl = `https://wa.me/?text=${encodeURIComponent(short)}`;
-        const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
-        const isTruncated = exportText.length > 1500;
-        const truncatedNote = outputLang === "ar" ? " (أول ١٥٠٠ حرف)" : " (first 1,500 chars)";
-
-        function handleCopyFb() {
-          navigator.clipboard.writeText(exportText).catch(() => {});
-          setCopiedTarget("fb");
-          setTimeout(() => setCopiedTarget((curr) => (curr === "fb" ? null : curr)), 2000);
-        }
-
-        return (
-          <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 shadow-[var(--shadow-xs)]">
-            {/* Download .txt */}
-            <button
-              type="button"
-              onClick={() => downloadSummaryExport(exportText)}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
-            >
-              <Download className="h-3.5 w-3.5 text-[var(--primary)]" />
-              {outputLang === "ar" ? "تحميل .txt" : "Download .txt"}
-            </button>
-
-            {/* WhatsApp */}
-            <button
-              type="button"
-              onClick={() => window.open(waUrl, "_blank", "noopener,noreferrer")}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
-            >
-              {outputLang === "ar" ? `واتساب${isTruncated ? truncatedNote : ""}` : `WhatsApp${isTruncated ? truncatedNote : ""}`}
-            </button>
-
-            {/* Telegram */}
-            <button
-              type="button"
-              onClick={() => window.open(tgUrl, "_blank", "noopener,noreferrer")}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
-            >
-              {outputLang === "ar" ? `تيليجرام${isTruncated ? truncatedNote : ""}` : `Telegram${isTruncated ? truncatedNote : ""}`}
-            </button>
-
-            {/* Copy for Facebook */}
-            <button
-              type="button"
-              onClick={handleCopyFb}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
-            >
-              {copiedTarget === "fb"
-                ? (outputLang === "ar" ? "تم النسخ ✓" : "Copied ✓")
-                : (outputLang === "ar" ? "نسخ للفيسبوك" : "Copy for Facebook")}
-            </button>
-
-            {/* Dismiss */}
-            <button
-              type="button"
-              onClick={() => setShowSharePanel(false)}
-              className="ml-auto rounded-full p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
-              aria-label={outputLang === "ar" ? "إغلاق" : "Close share panel"}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        );
-      })()}
-
-      {/* ── Section cards ─────────────────────────── */}
-      <Card className="overflow-hidden bg-[var(--surface-elevated)]">
-        {SECTION_ORDER.map((key, index) => (
-          <div key={key}>
-            {index > 0 && <div className="border-t border-[var(--border)]" />}
-            <SectionCard
+        <div className="divide-y divide-[var(--border)]">
+          {SECTION_ORDER.map((key) => (
+            <SectionBlock
+              key={key}
               sectionKey={key}
               summary={summary}
               outputLang={outputLang}
             />
+          ))}
+        </div>
+        <div className="border-t border-[var(--border)] bg-[var(--surface)]/60 px-4 py-3 sm:px-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-medium text-[var(--foreground)]">
+              {copy.helpful}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setHelpful("up")}
+                className={cn(
+                  "rounded-full p-1.5 transition-colors",
+                  helpful === "up"
+                    ? "bg-[var(--primary)] text-white"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
+                )}
+                aria-label="Thumbs up"
+              >
+                <ThumbsUp className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setHelpful("down")}
+                className={cn(
+                  "rounded-full p-1.5 transition-colors",
+                  helpful === "down"
+                    ? "bg-[var(--destructive)] text-white"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
+                )}
+                aria-label="Thumbs down"
+              >
+                <ThumbsDown className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        ))}
+          <p className="mt-2 flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[var(--success)]" />
+            {copy.noStorage}
+          </p>
+        </div>
       </Card>
 
-      <div className="surface-panel flex items-center justify-between px-4 py-3">
-        <p className="text-xs font-medium text-[var(--foreground)]">
-          {copy.helpful}
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setHelpful("up")}
-            className={cn(
-              "rounded-full p-1.5 transition-colors",
-              helpful === "up"
-                ? "bg-[var(--primary)] text-white"
-                : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
-            )}
-            aria-label="Thumbs up"
-          >
-            <ThumbsUp className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setHelpful("down")}
-            className={cn(
-              "rounded-full p-1.5 transition-colors",
-              helpful === "down"
-                ? "bg-[var(--destructive)] text-white"
-                : "text-[var(--muted-foreground)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
-            )}
-            aria-label="Thumbs down"
-          >
-            <ThumbsDown className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      <p className="flex items-center justify-center gap-1 pt-1 text-center text-xs text-[var(--muted-foreground)]">
-        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[var(--success)]" />
-        {copy.noStorage}
-      </p>
-
       <Dialog
-        open={dialogVariant !== null}
+        open={dialogVariant !== null || infoDialog !== null}
         onOpenChange={(open) => {
-          if (!open) setDialogVariant(null);
+          if (!open) {
+            setDialogVariant(null);
+            setInfoDialog(null);
+          }
         }}
-        title={dialogVariant === "upgrade" ? copy.subscribeTitle : copy.soonTitle}
+        title={infoDialog?.title ?? (dialogVariant === "upgrade" ? copy.subscribeTitle : copy.soonTitle)}
       >
-        <div
-          dir={isRtl ? "rtl" : "ltr"}
-          lang={isRtl ? "ar" : "en"}
-          className={cn("space-y-4", isRtl && "font-arabic text-right")}
-        >
-          <p className="text-sm leading-6 text-[var(--muted-foreground)]">
-            {dialogVariant === "upgrade" ? copy.subscribeBody : copy.soonBody}
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {dialogVariant === "upgrade" && (
-              <Link
-                href={upgradeHref}
+        {infoDialog ? (
+          <div
+            dir={isRtl ? "rtl" : "ltr"}
+            lang={isRtl ? "ar" : "en"}
+            className={cn("space-y-4", isRtl && "font-arabic text-right")}
+          >
+            <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+              {infoDialog.body}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setInfoDialog(null)}
                 className={cn(buttonVariants({ variant: "default" }))}
-                onClick={() => setDialogVariant(null)}
               >
-                {copy.upgradeCta}
-              </Link>
-            )}
-            <button
-              type="button"
-              onClick={() => setDialogVariant(null)}
-              className={cn(buttonVariants({ variant: dialogVariant === "upgrade" ? "outline" : "default" }))}
-            >
-              {dialogVariant === "upgrade" ? copy.later : copy.close}
-            </button>
+                {copy.close}
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            dir={isRtl ? "rtl" : "ltr"}
+            lang={isRtl ? "ar" : "en"}
+            className={cn("space-y-4", isRtl && "font-arabic text-right")}
+          >
+            <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+              {dialogVariant === "upgrade" ? copy.subscribeBody : copy.soonBody}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {dialogVariant === "upgrade" && (
+                <Link
+                  href={upgradeHref}
+                  className={cn(buttonVariants({ variant: "default" }))}
+                  onClick={() => setDialogVariant(null)}
+                >
+                  {copy.upgradeCta}
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setDialogVariant(null)}
+                className={cn(buttonVariants({ variant: dialogVariant === "upgrade" ? "outline" : "default" }))}
+              >
+                {dialogVariant === "upgrade" ? copy.later : copy.close}
+              </button>
+            </div>
+          </div>
+        )}
       </Dialog>
     </div>
   );

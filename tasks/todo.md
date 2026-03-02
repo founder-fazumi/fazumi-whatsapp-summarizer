@@ -1460,3 +1460,355 @@ Manual smoke (using qa-smoke-tests skill checklist):
 - [ ] Billing: plan badge correct; past_due amber warning visible (SQL test)
 - [ ] RTL: Arabic mode, all copy in Arabic, digits 0–9, no overflow
 - [ ] Mobile: 375px, no overflow, nav works
+
+---
+
+## Milestone: MVP Core UX — Summary Card / Export Share / History Delete / Demo Blur / Tip Placement
+
+> Rule: 1–3 items per Codex slice. Codex implements one slice per run, Claude reviews.
+> Hard rules: no architecture changes, no new services, no raw chat storage, Arabic RTL must continue working.
+> After every slice: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`
+
+---
+
+### Slice MV1 — Single summary card + tip placement under source tabs [Codex]
+
+**Why:** Summary output currently renders 6 separate shadcn `<Card>` components (one per section). Product requires ONE card with sections inside. Tip currently lives inside each `<TabsContent>` (below the textarea); it must move to directly below the `<TabsList>` (above the textarea).
+
+#### MV1-A — Merge 6 section cards into one card
+
+**File:** `components/SummaryDisplay.tsx`
+
+**Current structure (lines 564–572):**
+```tsx
+{SECTION_ORDER.map((key) => (
+  <SectionCard key={key} sectionKey={key} summary={summary} outputLang={outputLang} />
+))}
+```
+Each `SectionCard` wraps its content in `<Card className="overflow-hidden bg-[var(--surface-elevated)]">`.
+
+**Target structure:**
+1. Rename `SectionCard` → `SectionRow` (or keep the name, just remove the `<Card>` wrapper).
+2. Replace the 6-card render with a single `<Card>` containing all `SectionRow` components separated by `<div className="border-t border-[var(--border)]" />`.
+3. The `SectionRow` button header keeps its click-to-expand behaviour; only the outer `<Card>` wrapper moves.
+4. The existing `surface-panel-muted` header strip ("Latest Summary · Just now") stays ABOVE the single card as-is.
+5. The `surface-panel` feedback row (thumbs up/down) stays BELOW the card as-is.
+
+**Resulting DOM:**
+```
+surface-panel-muted   ← "Latest Summary" header (unchanged)
+actions row           ← 3 buttons (unchanged)
+<Card>
+  SectionRow: TL;DR
+  <divider />
+  SectionRow: Important Dates
+  <divider />
+  SectionRow: Action Items
+  <divider />
+  SectionRow: People / Classes
+  <divider />
+  SectionRow: Links
+  <divider />
+  SectionRow: Questions
+</Card>
+surface-panel         ← feedback row (unchanged)
+```
+
+**Acceptance:**
+- [ ] Summary result renders as exactly 1 card, not 6
+- [ ] Each section is still collapsible (click header to expand/collapse)
+- [ ] Dividers appear between sections but NOT before the first or after the last
+- [ ] RTL layout preserved (`isRtl` classes still apply)
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+---
+
+#### MV1-B — Move platform tip above textarea
+
+**File:** `app/summarize/page.tsx`
+
+**Current:** Each `<TabsContent value="whatsapp|telegram|facebook">` block contains a tip `<div>` near the BOTTOM of the content (after the textarea, around line 530). This means the tip shows below the chat box.
+
+**Target:** The tip must appear ONCE, directly below `</TabsList>` and before the first `<TabsContent>`. Remove the tip from inside all three `<TabsContent>` blocks.
+
+**Exact change:**
+1. Find the closing `</TabsList>` tag.
+2. Immediately after it, add:
+```tsx
+<div className="flex items-start gap-1.5 rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-2.5">
+  <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
+  <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+    <strong className="text-[var(--foreground)]">{pick(COPY.tipLabel, locale)}</strong>{" "}
+    {pick(PLATFORM_TIP[platform] ?? PLATFORM_TIP.whatsapp, locale)}
+  </p>
+</div>
+```
+3. Remove the existing tip `<div>` from inside each `<TabsContent>` block (whatsapp, telegram, facebook — 3 occurrences). The tip `<div>` starts with the Lightbulb icon and ends with the closing `</div>` of that hint block.
+
+**Acceptance:**
+- [ ] Tip renders below the source tabs, above the textarea, for all 3 platforms
+- [ ] Tip updates when switching between WhatsApp / Telegram / Facebook tabs
+- [ ] No tip rendered inside any `<TabsContent>` block
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+**Commit after MV1:** `feat: single summary card + tip below source tabs`
+
+---
+
+### Slice MV2 — Export → share options (WA / Telegram / clipboard) [Codex]
+
+**Why:** Clicking Export currently triggers an immediate `.txt` download. Users need to share summaries via WhatsApp, Telegram, or Facebook without attaching a file.
+
+**File:** `components/SummaryDisplay.tsx`
+
+**Changes:**
+
+1. Add state: `const [showSharePanel, setShowSharePanel] = useState(false);`
+
+2. Change `handleActionClick` for `"export"` case: instead of immediately calling `downloadSummaryExport(...)`, set `setShowSharePanel(true)`.
+
+3. Below the actions row (after the `</div>` that wraps the 3 action buttons), add a conditional share panel:
+```tsx
+{showSharePanel && (() => {
+  const exportText = buildPlainTextExport(summary, outputLang, copy.nothingMentioned);
+  const short = exportText.slice(0, 1500); // safe for URL-encoded share
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(short)}`;
+  const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
+
+  function copyAndToast(msg: string) {
+    navigator.clipboard.writeText(exportText).catch(() => {});
+    // show a brief inline toast via state
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 shadow-[var(--shadow-xs)]">
+      {/* Download .txt */}
+      <button type="button" onClick={() => downloadSummaryExport(exportText)}
+        className="...pill button...">
+        <Download className="h-3.5 w-3.5" /> {outputLang === "ar" ? "تحميل .txt" : "Download .txt"}
+      </button>
+      {/* WhatsApp */}
+      <button type="button" onClick={() => window.open(waUrl, "_blank")}
+        className="...pill button...">
+        {outputLang === "ar" ? "واتساب" : "WhatsApp"}
+      </button>
+      {/* Telegram */}
+      <button type="button" onClick={() => window.open(tgUrl, "_blank")}
+        className="...pill button...">
+        {outputLang === "ar" ? "تيليجرام" : "Telegram"}
+      </button>
+      {/* Facebook — clipboard only (FB share API doesn't allow pre-filled text) */}
+      <button type="button" onClick={() => { copyAndToast("fb"); }}
+        className="...pill button...">
+        {outputLang === "ar" ? "نسخ للفيسبوك" : "Copy for Facebook"}
+      </button>
+      {/* Dismiss */}
+      <button type="button" onClick={() => setShowSharePanel(false)}
+        className="ml-auto rounded-full p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+})()}
+```
+
+4. Add `X` to the lucide import list.
+
+5. Add `copiedTarget` state (`"wb" | "tg" | "fb" | null`) for a brief inline "Copied!" label next to the Facebook button. Auto-clear after 2 s with `setTimeout`.
+
+6. If `exportText.length > 1500`, the WA/TG buttons still open but the URL carries only the first 1500 chars. No additional fallback needed — WhatsApp/Telegram will truncate gracefully. Add a `*` note: `"(first 1,500 chars sent)"`.
+
+**Acceptance:**
+- [x] Clicking Export reveals the share panel (does NOT immediately download)
+- [x] "Download .txt" downloads the full text file
+- [x] "WhatsApp" opens `wa.me/?text=…` in new tab
+- [x] "Telegram" opens `t.me/share/url?text=…` in new tab
+- [x] "Copy for Facebook" copies to clipboard; button briefly shows "Copied ✓"
+- [x] "×" dismisses the share panel
+- [x] `pnpm lint && pnpm typecheck` pass
+
+**Commit after MV2:** `feat: export share panel — WA / Telegram / clipboard` ✅ `086193e`
+
+---
+
+### Slice MV3 — History: "Delete all" + server-side delete guard [Codex]
+
+**Why:** Users can delete individual summaries from the list (just shipped), but there is no "Delete all" bulk action. Also: the history page server-fetches on load but `HistoryList` holds a local copy — after a delete, a page refresh correctly shows the updated list (server re-fetches with `deleted_at IS NULL`). Verify this works; add bulk delete.
+
+#### MV3-A — Add `DELETE /api/summaries` bulk route
+
+**File:** `app/api/summaries/route.ts` (new file — currently only `app/api/summaries/[id]/route.ts` exists)
+
+```typescript
+// app/api/summaries/route.ts
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function DELETE() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { error } = await supabase
+    .from("summaries")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("user_id", user.id)
+    .is("deleted_at", null);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+```
+
+**Acceptance:**
+- [ ] `DELETE /api/summaries` soft-deletes all non-deleted rows for the authenticated user
+- [ ] Returns 401 for unauthenticated requests
+
+---
+
+#### MV3-B — Add "Delete all" UI to HistoryList
+
+**File:** `components/history/HistoryList.tsx`
+
+1. Add state: `const [deletingAll, setDeletingAll] = useState(false);`
+2. Add `async function handleDeleteAll()`:
+   - Calls `fetch("/api/summaries", { method: "DELETE" })`
+   - On success: `setLocalSummaries([])`
+3. Add a "Delete all" button above the list, right-aligned, visible only when `localSummaries.length > 0`:
+```tsx
+<div className="flex items-center justify-between">
+  <p className="text-xs text-[var(--muted-foreground)]">
+    {/* count line already here */}
+  </p>
+  {localSummaries.length > 0 && (
+    <button
+      type="button"
+      onClick={() => void handleDeleteAll()}
+      disabled={deletingAll}
+      className="text-xs text-[var(--destructive)] hover:underline underline-offset-4 disabled:opacity-50"
+    >
+      {locale === "ar" ? "حذف الكل" : "Delete all"}
+    </button>
+  )}
+</div>
+```
+4. No confirmation dialog — single click, consistent with the existing single-row delete (which also doesn't have a confirm modal).
+
+**Acceptance:**
+- [ ] "Delete all" button appears above list when summaries exist
+- [ ] Clicking "Delete all" removes all rows locally + calls `DELETE /api/summaries`
+- [ ] After page refresh, list is empty (server re-fetches with `deleted_at IS NULL`)
+- [ ] Button hidden when list is empty
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+**Commit after MV3:** `feat: delete-all summaries — bulk route + UI`
+
+---
+
+### Slice MV4 — Landing demo with blur gate + post-signup carry-through [Codex]
+
+**Why:** Non-signed-in users on the landing page can't experience the product. A demo summarize flow on the hero lets them see a result, with the bottom 70% blurred and a "Sign up free to see full summary" overlay. The demo result is stored in `sessionStorage` (not the raw chat). After signup, the result is displayed in full on `/summarize`.
+
+#### MV4-A — Demo API route (no auth, IP rate-limited)
+
+**File:** `app/api/demo/summarize/route.ts` (new file)
+
+```typescript
+import { type NextRequest, NextResponse } from "next/server";
+import { summarizeChat } from "@/lib/ai/summarize";
+
+export const runtime = "nodejs";
+
+// 1 demo per IP per 2 minutes
+const ipMap = new Map<string, number>();
+
+export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const now = Date.now();
+  const last = ipMap.get(ip) ?? 0;
+  if (now - last < 2 * 60 * 1000) {
+    return NextResponse.json({ error: "Please wait before trying again." }, { status: 429 });
+  }
+  ipMap.set(ip, now);
+
+  let body: { text?: string; lang_pref?: string };
+  try { body = (await req.json()) as { text?: string; lang_pref?: string }; }
+  catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+  if (!text || text.length < 20) return NextResponse.json({ error: "Too short." }, { status: 400 });
+  if (text.length > 10_000) return NextResponse.json({ error: "Max 10,000 characters for demo." }, { status: 400 });
+
+  const validLangPrefs = ["auto", "en", "ar"];
+  const langPref = validLangPrefs.includes(body.lang_pref ?? "") ? (body.lang_pref as "auto" | "en" | "ar") : "auto";
+
+  try {
+    const summary = await summarizeChat(text, langPref);
+    // Never store raw text. Return structured summary only.
+    return NextResponse.json({ summary });
+  } catch {
+    return NextResponse.json({ error: "Could not generate demo summary." }, { status: 500 });
+  }
+}
+```
+
+**Acceptance:**
+- [ ] `POST /api/demo/summarize` returns `{ summary }` without auth
+- [ ] Rate-limited to 1 request per IP per 2 minutes (429 otherwise)
+- [ ] Max input 10,000 chars (shorter than the paid limit of 30,000)
+- [ ] Raw chat text is never saved
+
+---
+
+#### MV4-B — Landing hero demo form with blur gate
+
+**File:** `components/landing/Hero.tsx` (or equivalent hero component; check `app/page.tsx` for the import)
+
+1. Add a `DemoForm` client component (`components/landing/DemoForm.tsx`):
+   - `"use client"` at top
+   - State: `text`, `loading`, `demoSummary`, `error`
+   - Textarea (10 rows, max 10,000 chars, placeholder: `"Paste a school WhatsApp message to try Fazumi…"` / AR equivalent)
+   - "Try Fazumi free" button → calls `POST /api/demo/summarize`
+   - On success: store result in `sessionStorage.setItem("fazumi_demo_summary", JSON.stringify(summary))` then `setDemoSummary(summary)`
+
+2. When `demoSummary` is set, render the result below the form:
+   - Show TL;DR section fully (visible)
+   - Remaining 5 sections wrapped in `<div className="relative">`:
+     - Inner content: render sections but hidden (`pointer-events-none opacity-30`)
+     - Overlay: `<div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-transparent via-[var(--background)]/80 to-[var(--background)] backdrop-blur-[2px]">`
+     - Inside overlay: CTA text + "Sign up free" button → `href="/login"`
+     - CTA: EN: "Sign up free to save this summary and unlock full results" / AR equivalent
+
+3. After successful signup (handled by Supabase Auth + existing `/auth/callback` flow), redirect to `/summarize`. On `/summarize` page mount, check `sessionStorage.getItem("fazumi_demo_summary")` — if present, read the result, clear sessionStorage, and display the full summary via `setSummary(parsed)` without making an API call. (Add this to the existing `SummarizePage` `useEffect`.)
+
+**Files changed:** `components/landing/DemoForm.tsx` (new), `components/landing/Hero.tsx` (import + render `<DemoForm />`), `app/summarize/page.tsx` (sessionStorage check on mount)
+
+**Acceptance:**
+- [ ] Landing page shows the demo form below/inside the hero
+- [ ] Submitting with < 20 chars shows an inline error
+- [ ] On success: TL;DR visible, other 5 sections blurred, "Sign up free" overlay CTA
+- [ ] sessionStorage key `"fazumi_demo_summary"` is set after demo (never includes raw chat)
+- [ ] After signup + redirect to `/summarize`, the full summary appears without a new API call
+- [ ] sessionStorage cleared after reading on `/summarize`
+- [ ] Arabic RTL works throughout
+- [ ] `pnpm lint && pnpm typecheck` pass
+
+**Commit after MV4:** `feat: landing demo form + blur gate + post-signup summary carry-through`
+
+---
+
+### MV verification checklist (Claude runs after all 4 slices)
+
+```powershell
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+
+Manual smoke:
+- [ ] `/summarize` → generate summary → ONE card with 6 collapsible sections
+- [ ] Tip shows below source tabs, above textarea; updates on tab switch
+- [ ] Export → share panel → WA/TG open new tab; FB copies; Download works
+- [ ] `/history` → "Delete all" removes all rows; page refresh confirms empty
+- [ ] `/` → paste demo chat → TL;DR visible, rest blurred, CTA overlay
+- [ ] Sign up from demo CTA → redirected to `/summarize` → full summary shown
+- [ ] 4th logged-in free summary → 402 LIFETIME_CAP + "Upgrade" CTA (not "Sign up")
+- [ ] RTL: switch to Arabic, verify all new UI copy in Arabic, no layout breaks

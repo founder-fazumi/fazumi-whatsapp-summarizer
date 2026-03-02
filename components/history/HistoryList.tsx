@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Clock, FileText, Inbox, Link2, Trash2 } from "lucide-react";
 import type { SummaryRow } from "@/app/history/page";
 import { useLang } from "@/lib/context/LangContext";
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function HistoryList({ summaries }: Props) {
+  const router = useRouter();
   const { locale } = useLang();
   const [query, setQuery] = useState("");
   const [localSummaries, setLocalSummaries] = useState(summaries);
@@ -35,6 +37,11 @@ export function HistoryList({ summaries }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalSummaries(summaries);
+  }, [summaries]);
 
   const filtered = query.trim()
     ? localSummaries.filter(
@@ -46,9 +53,22 @@ export function HistoryList({ summaries }: Props) {
 
   async function handleDelete(id: string) {
     setDeletingId(id);
+    setActionError(null);
+    const previousSummaries = localSummaries;
+    setLocalSummaries((current) => current.filter((s) => s.id !== id));
+
     try {
-      await fetch(`/api/summaries/${id}`, { method: "DELETE" });
-      setLocalSummaries((current) => current.filter((s) => s.id !== id));
+      const response = await fetch(`/api/summaries/${id}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error ?? "Could not delete summary.");
+      }
+
+      router.refresh();
+    } catch {
+      setLocalSummaries(previousSummaries);
+      setActionError(locale === "ar" ? "تعذر حذف الملخص. حاول مرة أخرى." : "Could not delete the summary. Try again.");
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -64,9 +84,22 @@ export function HistoryList({ summaries }: Props) {
 
   async function handleDeleteAll() {
     setDeletingAll(true);
+    setActionError(null);
+    const previousSummaries = localSummaries;
+    setLocalSummaries([]);
+
     try {
-      await fetch("/api/summaries", { method: "DELETE" });
-      setLocalSummaries([]);
+      const response = await fetch("/api/summaries", { method: "DELETE" });
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error ?? "Could not delete summaries.");
+      }
+
+      router.refresh();
+    } catch {
+      setLocalSummaries(previousSummaries);
+      setActionError(locale === "ar" ? "تعذر حذف السجل. حاول مرة أخرى." : "Could not delete the history. Try again.");
     } finally {
       setDeletingAll(false);
     }
@@ -74,6 +107,12 @@ export function HistoryList({ summaries }: Props) {
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <div className="status-destructive rounded-[var(--radius)] border px-3 py-2 text-xs">
+          {actionError}
+        </div>
+      )}
+
       {/* Search bar */}
       <div className="relative">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -98,6 +137,7 @@ export function HistoryList({ summaries }: Props) {
             type="button"
             onClick={() => void handleDeleteAll()}
             disabled={deletingAll}
+            data-testid="history-delete-all"
             className="text-xs text-[var(--destructive)] hover:underline underline-offset-4 disabled:opacity-50"
           >
             {locale === "ar" ? "حذف الكل" : "Delete all"}
@@ -123,6 +163,7 @@ export function HistoryList({ summaries }: Props) {
             return (
               <div
                 key={s.id}
+                data-testid="history-row"
                 className={cn(
                   "group relative flex items-start gap-3 border-b border-[var(--border)] px-4 py-4 transition-colors last:border-b-0",
                   "hover:bg-[var(--surface-muted)]"
@@ -131,6 +172,7 @@ export function HistoryList({ summaries }: Props) {
                 {/* Full-row link for navigation (behind action buttons) */}
                 <Link
                   href={`/history/${s.id}`}
+                  data-testid="history-row-link"
                   className="absolute inset-0"
                   aria-label={s.title}
                   tabIndex={-1}
@@ -169,6 +211,7 @@ export function HistoryList({ summaries }: Props) {
                     <button
                       type="button"
                       onClick={() => handleShare(s.id)}
+                      aria-label={locale === "ar" ? "نسخ الرابط" : "Copy link"}
                       title={locale === "ar" ? "نسخ الرابط" : "Copy link"}
                       className="rounded-full p-1 text-[var(--muted-foreground)] opacity-0 transition-all group-hover:opacity-100 hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
                     >
@@ -184,6 +227,7 @@ export function HistoryList({ summaries }: Props) {
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteId(s.id)}
+                        aria-label={locale === "ar" ? "حذف" : "Delete"}
                         title={locale === "ar" ? "حذف" : "Delete"}
                         className="rounded-full p-1 text-[var(--muted-foreground)] opacity-0 transition-all group-hover:opacity-100 hover:bg-[var(--surface-muted)] hover:text-[var(--destructive)]"
                       >

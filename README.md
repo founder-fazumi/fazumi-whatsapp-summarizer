@@ -109,6 +109,27 @@ pnpm typecheck
 pnpm test
 ```
 
+## How To Run Tests
+
+First-time Playwright browser install:
+
+```powershell
+pnpm install
+pnpm exec playwright install chromium
+```
+
+Run the smoke suite:
+
+```powershell
+pnpm test
+```
+
+Run one spec file:
+
+```powershell
+pnpm exec playwright test e2e\app-smoke.spec.ts
+```
+
 Supabase deploy note: see [`docs/runbooks/supabase.md`](docs/runbooks/supabase.md). In this repo, `supabase db push --include-all` is the canonical pre-deploy check/apply flow.
 
 ## Webhook Replay (Dev)

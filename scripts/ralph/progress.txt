@@ -32,3 +32,8 @@ S010 = PENDING  # Referral system
 # Reliability bolt-ons added: Sentry error monitoring for App Router, structured JSON server logs for summarize/webhook routes, and a tighter health response plus deploy smoke checklist.
 # Files: app/api/summarize/route.ts, app/api/webhooks/lemonsqueezy/route.ts, app/api/health/route.ts, app/global-error.tsx, instrumentation.ts, instrumentation-client.ts, sentry.server.config.ts, sentry.edge.config.ts, lib/logger.ts, lib/sentry.ts, next.config.ts, README.md, .env.local.example
 # Pattern: for pre-production observability, keep capture payloads intentionally sparse by hashing identifiers, redacting content-like keys, and logging route-safe metadata only.
+
+# 2026-03-02
+# OAuth flow hardened: login now preserves `next` through Google/Apple and email callback URLs, uses an explicit browser redirect from the returned provider URL, and the auth callback normalizes the post-login destination across proxied hosts.
+# Files: app/login/page.tsx, app/auth/callback/route.ts, tasks/lessons.md
+# Pattern: when an auth flow crosses origins, always carry a sanitized relative return path through the callback and do not rely on implicit provider redirects alone.

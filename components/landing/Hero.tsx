@@ -1,16 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, Upload, X, Lightbulb, Lock } from "lucide-react";
 import JSZip from "jszip";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
-import { Button } from "@/components/ui/button";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { getSampleChat, type SampleLangPref } from "@/lib/sampleChats";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const MAX_CHARS = 30_000;
@@ -20,7 +20,7 @@ type LangPref = SampleLangPref;
 const COPY = {
   badge: {
     en: "Used by 12,500 parents in GCC schools",
-    ar: "يستخدمه 12,500 من أولياء الأمور في مدارس الخليج",
+    ar: "موثوق به من أولياء الأمور في مدارس الخليج",
   },
   titleLineOne: {
     en: "Turn school group chats",
@@ -35,8 +35,8 @@ const COPY = {
     ar: "الصق محادثة مجموعة مدرسة. احصل على ملخص واضح خلال ثوانٍ.",
   },
   placeholder: {
-    en: "Paste your WhatsApp school group messages here…\n\nExample:\nTeacher: Math test on Monday — chapters 4, 5, 6.\nParent: Is there homework due?\nTeacher: Field trip forms must be in by Wednesday.",
-    ar: "الصق رسائل مجموعة المدرسة من واتساب هنا…\n\nمثال:\nالمعلمة: اختبار الرياضيات يوم الاثنين ويشمل الوحدات 4 و5 و6.\nولي أمر: هل هناك واجب منزلي؟\nالمعلمة: يجب تسليم استمارات الرحلة يوم الأربعاء.",
+    en: "Paste your WhatsApp school group messages here...\n\nExample:\nTeacher: Math test on Monday - chapters 4, 5, 6.\nParent: Is there homework due?\nTeacher: Field trip forms must be in by Wednesday.",
+    ar: "الصق رسائل مجموعة المدرسة من واتساب هنا...\n\nمثال:\nالمعلمة: اختبار الرياضيات يوم الاثنين ويشمل الوحدات 4 و5 و6.\nولي أمر: هل هناك واجب منزلي؟\nالمعلمة: يجب تسليم استمارات الرحلة يوم الأربعاء.",
   },
   upload: {
     en: "Upload .txt / .zip",
@@ -51,24 +51,12 @@ const COPY = {
     ar: "الصق ولخّص",
   },
   summarizing: {
-    en: "Summarizing…",
-    ar: "جارٍ التلخيص…",
+    en: "Summarizing...",
+    ar: "جارٍ التلخيص...",
   },
   privacy: {
     en: "We never store your raw chat, only summaries.",
     ar: "لا نحفظ نص المحادثة الخام، بل الملخصات فقط.",
-  },
-  watchDemo: {
-    en: "Watch 30-second demo",
-    ar: "شاهد عرضًا مدته 30 ثانية",
-  },
-  demoSub: {
-    en: "See Fazumi in action",
-    ar: "شاهد Fazumi أثناء العمل",
-  },
-  demo: {
-    en: "DEMO",
-    ar: "عرض",
   },
   auto: {
     en: "Auto",
@@ -99,8 +87,20 @@ const COPY = {
     ar: "حدث خطأ ما. حاول مرة أخرى.",
   },
   clearText: {
-    en: "Clear text",
-    ar: "مسح النص",
+    en: "Clear",
+    ar: "مسح",
+  },
+  previewBody: {
+    en: "Sign up free to see the full summary",
+    ar: "سجّل مجانًا لعرض الملخص بالكامل",
+  },
+  previewButton: {
+    en: "Sign up free",
+    ar: "سجّل مجانًا",
+  },
+  shortcutLabel: {
+    en: "Ctrl + Enter",
+    ar: "Ctrl + Enter",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 
@@ -126,12 +126,38 @@ export function Hero() {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploadWarn, setUploadWarn] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
   const charCount = text.length;
   const remaining = MAX_CHARS - charCount;
   const isOverLimit = charCount > MAX_CHARS;
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadUser() {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+
+        if (active) {
+          setIsLoggedIn(Boolean(data.user));
+        }
+      } catch {
+        if (active) {
+          setIsLoggedIn(false);
+        }
+      }
+    }
+
+    void loadUser();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -243,74 +269,56 @@ export function Hero() {
           ? "ar"
           : "en";
 
+  const toolbarButtonClass =
+    "inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-50";
+  const langToggleClass =
+    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors";
+  const summaryCard = (
+    <SummaryDisplay summary={summary as SummaryResult} outputLang={outputLang} actionMode="gated" />
+  );
+
   return (
     <section
       dir={isRtl ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("relative overflow-hidden py-20 md:py-28", isRtl && "font-arabic")}
+      className={cn("py-14 md:py-18", isRtl && "font-arabic")}
     >
       <div className="page-shell">
-        <div className="hero-backdrop surface-panel-elevated relative overflow-hidden px-[var(--card-padding-lg)] py-10 shadow-[var(--shadow-md)] sm:py-12">
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -top-24 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-[var(--primary-soft)] blur-3xl" />
-            <div className="absolute bottom-0 right-0 h-48 w-48 rounded-full bg-[var(--accent-cream)] blur-3xl opacity-70" />
-          </div>
-          <Image
-            src="/brand/mascot/mascot-reading.png.png"
-            alt=""
-            width={196}
-            height={196}
-            className="pointer-events-none absolute bottom-0 right-6 hidden w-40 opacity-40 dark:opacity-25 lg:block"
-          />
-
-          <div className="relative mx-auto max-w-3xl">
-            <div className="mb-8 text-center">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--primary)] shadow-[var(--shadow-xs)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
-                {pick(COPY.badge, locale)}
-              </div>
-              <h1 className="text-3xl font-bold leading-tight tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
-                {pick(COPY.titleLineOne, locale)}
-                <span className="block text-[var(--primary)]">
-                  {pick(COPY.titleLineTwo, locale)}
-                </span>
-              </h1>
-              <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[var(--muted-foreground)] sm:text-lg">
-                {pick(COPY.subtitle, locale)}
-              </p>
+        <div className="mx-auto max-w-5xl">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[11px] font-semibold text-[var(--primary)] shadow-[var(--shadow-xs)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+              {pick(COPY.badge, locale)}
             </div>
+            <h1 className="mt-5 text-4xl font-bold leading-[1.08] tracking-tight text-[var(--foreground)] sm:text-5xl md:text-[3.4rem]">
+              {pick(COPY.titleLineOne, locale)}
+              <span className="block text-[var(--primary)]">
+                {pick(COPY.titleLineTwo, locale)}
+              </span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">
+              {pick(COPY.subtitle, locale)}
+            </p>
+          </div>
 
-            <div className="shine-wrap">
-              <div className="shine-inner overflow-hidden rounded-[calc(var(--radius-xl)-1px)]">
-                <form onSubmit={handleSubmit}>
-                  <div className="relative">
-                    <textarea
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      disabled={loading}
-                      rows={9}
-                      placeholder={pick(COPY.placeholder, locale)}
-                      className={cn(
-                        "w-full resize-none border-0 bg-transparent px-5 pt-5 pb-11 text-sm leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]",
-                        isOverLimit && "bg-[var(--destructive-soft)]"
-                      )}
-                    />
-                    <div
-                      className={cn(
-                        "pointer-events-none absolute bottom-3 right-3 rounded-full border px-2 py-1 text-[11px] tabular-nums shadow-[var(--shadow-xs)]",
-                        isOverLimit
-                          ? "border-[var(--destructive)] bg-[var(--destructive-soft)] font-semibold text-[var(--destructive)]"
-                          : remaining < 3000
-                            ? "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning)]"
-                            : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
-                      )}
-                    >
-                      {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
-                    </div>
-                  </div>
+          <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-md)]">
+            <form onSubmit={handleSubmit}>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={loading}
+                rows={10}
+                placeholder={pick(COPY.placeholder, locale)}
+                className={cn(
+                  "min-h-[280px] w-full resize-none border-0 bg-transparent px-5 py-5 text-sm leading-7 text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] sm:px-6 sm:py-6",
+                  isOverLimit && "bg-[var(--destructive-soft)]"
+                )}
+              />
 
-                  <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-3">
+              <div className="border-t border-[var(--border)] bg-[var(--surface)]/80 px-3 py-3 sm:px-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -322,7 +330,7 @@ export function Hero() {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={loading}
-                      className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                      className={toolbarButtonClass}
                     >
                       <Upload className="h-3.5 w-3.5" />
                       {pick(COPY.upload, locale)}
@@ -335,7 +343,7 @@ export function Hero() {
                         setUploadWarn(null);
                       }}
                       disabled={loading}
-                      className="rounded-full px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                      className={toolbarButtonClass}
                     >
                       {pick(COPY.useSample, locale)}
                     </button>
@@ -350,23 +358,39 @@ export function Hero() {
                           setUploadWarn(null);
                         }}
                         disabled={loading}
-                        className="rounded-full px-3 py-2 text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+                        className={toolbarButtonClass}
                         aria-label={pick(COPY.clearText, locale)}
                       >
                         <X className="h-3.5 w-3.5" />
+                        {pick(COPY.clearText, locale)}
                       </button>
                     )}
 
-                    <div className="ml-auto flex items-center gap-0.5 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-xs)]">
+                    <span
+                      className={cn(
+                        "px-1 text-[11px] tabular-nums",
+                        isOverLimit
+                          ? "font-semibold text-[var(--destructive)]"
+                          : remaining < 3000
+                            ? "text-[var(--warning)]"
+                            : "text-[var(--muted-foreground)]"
+                      )}
+                    >
+                      {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
                       {(["auto", "en", "ar"] as LangPref[]).map((value) => (
                         <button
                           key={value}
                           type="button"
                           onClick={() => setLangPref(value)}
                           className={cn(
-                            "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                            langToggleClass,
                             langPref === value
-                              ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[var(--shadow-xs)]"
+                              ? "bg-[var(--surface-muted)] text-[var(--foreground)]"
                               : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
                           )}
                         >
@@ -374,57 +398,76 @@ export function Hero() {
                         </button>
                       ))}
                     </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading || !text.trim() || isOverLimit}
+                      className="inline-flex min-w-[10.5rem] items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loading ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          {pick(COPY.summarizing, locale)}
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          {pick(COPY.summarize, locale)}
+                        </>
+                      )}
+                    </button>
                   </div>
-                </form>
+                </div>
               </div>
-            </div>
-
-            {uploadWarn && (
-              <div className="status-warning mt-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-xs">
-                <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-                {uploadWarn}
-              </div>
-            )}
-
-            <div className="mt-4 space-y-2">
-              <Button
-                className="h-10 w-full gap-2 rounded-xl px-5 font-medium shadow-[var(--shadow-sm)]"
-                disabled={loading || !text.trim() || isOverLimit}
-                onClick={() => void handleSubmit()}
-              >
-                {loading ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {pick(COPY.summarizing, locale)}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-5 w-5" />
-                    {pick(COPY.summarize, locale)}
-                  </>
-                )}
-              </Button>
-              <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-[var(--muted-foreground)]">
-                <Lock className="h-3 w-3" />
-                {pick(COPY.privacy, locale)}
-                <span className="text-[var(--muted-foreground)]/60">·</span>
-                <kbd className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 font-mono text-[10px] shadow-[var(--shadow-xs)]">Ctrl</kbd>
-                <kbd className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 font-mono text-[10px] shadow-[var(--shadow-xs)]">↵</kbd>
-              </p>
-            </div>
-
-            {error && (
-              <div className="status-destructive mt-4 rounded-[var(--radius)] border px-4 py-3 text-sm">
-                {error}
-              </div>
-            )}
-
-            {summary && (
-              <div ref={summaryRef} className="mt-8">
-                <SummaryDisplay summary={summary} outputLang={outputLang} actionMode="gated" />
-              </div>
-            )}
+            </form>
           </div>
+
+          {uploadWarn && (
+            <div className="mx-auto mt-3 flex max-w-4xl items-center gap-2 rounded-[var(--radius)] border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-2 text-xs text-[var(--warning-foreground)]">
+              <Lightbulb className="h-3.5 w-3.5 shrink-0" />
+              {uploadWarn}
+            </div>
+          )}
+
+          <p className="mx-auto mt-3 flex max-w-4xl flex-wrap items-center justify-center gap-1.5 text-center text-[11px] text-[var(--muted-foreground)]">
+            <Lock className="h-3 w-3 shrink-0" />
+            {pick(COPY.privacy, locale)}
+            <span className="text-[var(--muted-foreground)]/60">·</span>
+            <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 font-mono text-[10px]">
+              {pick(COPY.shortcutLabel, locale)}
+            </span>
+          </p>
+
+          {error && (
+            <div className="mx-auto mt-4 max-w-4xl rounded-[var(--radius)] border border-[var(--destructive)] bg-[var(--destructive-soft)] px-4 py-3 text-sm text-[var(--destructive-foreground)]">
+              {error}
+            </div>
+          )}
+
+          {summary && (
+            <div ref={summaryRef} className="mx-auto mt-8 max-w-4xl">
+              {isLoggedIn ? (
+                summaryCard
+              ) : (
+                <div className="relative max-h-[260px] overflow-hidden rounded-[var(--radius-xl)]">
+                  {summaryCard}
+                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-center bg-gradient-to-b from-transparent via-[var(--background)]/70 to-[var(--background)] px-4 pb-4 pt-20 backdrop-blur-sm">
+                    <div className="surface-panel w-full max-w-md px-4 py-4 text-center">
+                      <p className="text-sm font-medium text-[var(--foreground)]">
+                        {pick(COPY.previewBody, locale)}
+                      </p>
+                      <Link
+                        href="/login?next=/summarize"
+                        className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)]"
+                      >
+                        {pick(COPY.previewButton, locale)}
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </section>

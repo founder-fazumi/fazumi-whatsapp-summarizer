@@ -218,6 +218,8 @@ export default function SummarizePage() {
       if (data.savedId) {
         setSavedId(data.savedId);
         emitDashboardInsightsRefresh();
+        // Refresh TodoWidget after server seeds action_items into user_todos
+        window.dispatchEvent(new Event("fazumi-todos-changed"));
       }
       setTimeout(() => {
         summaryRef.current?.scrollIntoView({
@@ -426,6 +428,7 @@ export default function SummarizePage() {
                   <div className="space-y-2">
                     <div className="relative">
                       <Textarea
+                        data-testid="summary-input"
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={handleKeyDown}
@@ -559,6 +562,7 @@ export default function SummarizePage() {
                   type="button"
                   variant="ghost"
                   size="sm"
+                  data-testid="summary-use-sample"
                   className="gap-1.5 text-xs"
                   onClick={() => setText(getSampleChat(langPref, locale))}
                   disabled={loading}
@@ -588,6 +592,7 @@ export default function SummarizePage() {
                 <Button
                   type="submit"
                   size="lg"
+                  data-testid="summary-submit"
                   className="w-full gap-2 shadow-[var(--shadow-lg)]"
                   disabled={loading || !text.trim() || isOverLimit}
                 >
@@ -618,7 +623,7 @@ export default function SummarizePage() {
         )}
 
         {limitReached && (
-          <div className="status-warning mt-4 flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-4">
+          <div data-testid="summary-limit-banner" className="status-warning mt-4 flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-4">
             <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium">
@@ -648,7 +653,7 @@ export default function SummarizePage() {
         {summary && (
           <div ref={summaryRef} className="mt-5">
             {savedId && (
-              <div className="status-success mb-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-sm">
+              <div data-testid="summary-saved-banner" className="status-success mb-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-sm">
                 <Check className="h-4 w-4 shrink-0" />
                 <span>{pick(COPY.saved, locale)}</span>
                 <a
@@ -662,7 +667,7 @@ export default function SummarizePage() {
             <SummaryDisplay
               summary={summary}
               outputLang={outputLang}
-              actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "coming-soon" : "gated"}
+              actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
             />
           </div>
         )}

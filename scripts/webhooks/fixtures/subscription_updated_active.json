@@ -9,7 +9,11 @@
     "id": "sub_test_monthly_001",
     "attributes": {
       "status": "active",
-      "renews_at": "2026-04-01T00:00:00.000Z"
+      "renews_at": "2026-04-01T00:00:00.000Z",
+      "urls": {
+        "customer_portal": "https://billing.fazumi.test/customer-portal",
+        "update_payment_method": "https://billing.fazumi.test/update-payment"
+      }
     }
   }
 }

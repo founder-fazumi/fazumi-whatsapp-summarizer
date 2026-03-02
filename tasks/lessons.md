@@ -87,3 +87,11 @@
 **Quick test:** Temporarily break the service-role config, hit `/api/summarize`, and confirm the response is `500` with a save/usage error instead of `200`.
 
 ---
+
+## L011 — OAuth entry and callback must preserve the intended destination
+**Mistake:** Provider auth was started with a bare `/auth/callback` URL, so the flow dropped the original `next` destination and depended on the browser redirect side effect from `signInWithOAuth`.
+**Why:** The login page did not thread `next` through OAuth/email callback URLs, and the callback route did not normalize the return destination or forwarded host before redirecting back into the app.
+**Rule:** Any auth flow that leaves the app must build a callback URL that carries a sanitized relative `next` path, and the callback route must redirect back using that same sanitized path.
+**Quick test:** Open `/login?next=/summarize`, continue with Google or Apple, and confirm the callback returns to `/summarize` instead of a generic dashboard/login loop.
+
+---

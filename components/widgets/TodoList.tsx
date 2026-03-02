@@ -24,6 +24,9 @@ import { cn } from "@/lib/utils";
 
 const TODOS_CHANGED_EVENT = "fazumi-todos-changed";
 
+// Only backfill from summaries once per browser session (not on every mount)
+let _backfillDone = false;
+
 const COPY = {
   title: { en: "To-Do", ar: "المهام" },
   addPlaceholder: { en: "Add a task…", ar: "أضف مهمة…" },
@@ -245,8 +248,51 @@ export function TodoList() {
         return;
       }
 
-      setItems(sortItems((data ?? []) as TodoItem[]));
+      const loadedItems = sortItems((data ?? []) as TodoItem[]);
+      setItems(loadedItems);
       setIsLoading(false);
+
+      // One-time backfill: if user_todos is empty on first load, seed from
+      // recent summary action_items so existing summaries appear immediately.
+      if (loadedItems.length === 0 && !_backfillDone) {
+        _backfillDone = true;
+        const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: summaryData } = await supabase
+          .from("summaries")
+          .select("action_items")
+          .eq("user_id", currentUser.id)
+          .is("deleted_at", null)
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (summaryData && summaryData.length > 0) {
+          const rows = (summaryData as { action_items: string[] | null }[])
+            .flatMap((row, si) =>
+              (row.action_items ?? [])
+                .filter((label) => label.trim().length > 0)
+                .map((label, idx) => ({
+                  user_id: currentUser.id,
+                  label: label.trim(),
+                  source: "summary",
+                  sort_order: si * 100 + idx,
+                  done: false,
+                }))
+            );
+
+          if (rows.length > 0 && active) {
+            const { data: inserted } = await supabase
+              .from("user_todos")
+              .insert(rows)
+              .select("id, user_id, label, done, due_date, sort_order, note, source, created_at, updated_at");
+
+            if (inserted && active) {
+              setItems(sortItems(inserted as TodoItem[]));
+              emitTodosChanged();
+            }
+          }
+        }
+      }
     }
 
     void loadTodos();
@@ -263,9 +309,13 @@ export function TodoList() {
       // Ignore missing client env configuration and render the signed-out state.
     }
 
+    const handleTodosChanged = () => { void loadTodos(); };
+    window.addEventListener(TODOS_CHANGED_EVENT, handleTodosChanged);
+
     return () => {
       active = false;
       authSubscription?.unsubscribe();
+      window.removeEventListener(TODOS_CHANGED_EVENT, handleTodosChanged);
     };
   }, []);
 

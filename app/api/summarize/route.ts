@@ -106,6 +106,26 @@ async function incrementUsage(userId: string, dateKey: string): Promise<void> {
   }
 }
 
+async function seedTodosFromSummary(userId: string, actionItems: string[]): Promise<void> {
+  const admin = getAdminClient();
+  if (!admin) return; // Non-critical: best-effort, don't fail the request
+
+  const rows = actionItems
+    .map((label, index) => ({ label: label.trim(), sort_order: index }))
+    .filter(({ label }) => label.length > 0)
+    .map(({ label, sort_order }) => ({
+      user_id: userId,
+      label,
+      source: "summary" as const,
+      sort_order,
+      done: false,
+    }));
+
+  if (rows.length === 0) return;
+
+  await admin.from("user_todos").insert(rows);
+}
+
 async function incrementLifetimeFreeUsage(userId: string, lifetimeFreeUsed: number): Promise<void> {
   const admin = getAdminClient();
   if (!admin) {
@@ -310,6 +330,16 @@ export async function POST(req: NextRequest) {
         summaryId: savedId,
         dateKey: usageDateKey ?? getUtcDateKey(),
       });
+
+      // Seed action items into user_todos (best-effort, non-blocking)
+      if (summary.action_items && summary.action_items.length > 0) {
+        await seedTodosFromSummary(authedUserId, summary.action_items);
+        logger.info("db.todos_seeded", {
+          userId: authedUserId,
+          summaryId: savedId,
+          count: summary.action_items.length,
+        });
+      }
 
       if (shouldIncrementLifetimeFree) {
         await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
