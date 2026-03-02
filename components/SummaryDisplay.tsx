@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap,
-  AlignLeft, Calendar, Users, Link2, HelpCircle, ShieldCheck,
+  AlignLeft, Calendar, Users, Link2, HelpCircle, ShieldCheck, X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
@@ -276,6 +276,8 @@ export function SummaryDisplay({
 }: SummaryDisplayProps) {
   const [helpful, setHelpful] = useState<"up" | "down" | null>(null);
   const [dialogVariant, setDialogVariant] = useState<"upgrade" | "soon" | null>(null);
+  const [showSharePanel, setShowSharePanel] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState<"fb" | null>(null);
   const copy = UI_COPY[outputLang];
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
@@ -287,12 +289,17 @@ export function SummaryDisplay({
     }
 
     if (actionMode === "coming-soon" && actionKey === "export") {
-      downloadSummaryExport(buildPlainTextExport(summary, outputLang, copy.nothingMentioned));
+      setShowSharePanel(true);
       return;
     }
 
     if (actionMode === "coming-soon") {
       setDialogVariant("soon");
+    }
+
+    if (actionKey === "export") {
+      setShowSharePanel(true);
+      return;
     }
   }
 
@@ -342,6 +349,75 @@ export function SummaryDisplay({
           );
         })}
       </div>
+
+      {/* ── Share panel ───────────────────────── */}
+      {showSharePanel && (() => {
+        const exportText = buildPlainTextExport(summary, outputLang, copy.nothingMentioned);
+        const short = exportText.slice(0, 1500);
+        const waUrl = `https://wa.me/?text=${encodeURIComponent(short)}`;
+        const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
+        const isTruncated = exportText.length > 1500;
+        const truncatedNote = outputLang === "ar" ? " (أول ١٥٠٠ حرف)" : " (first 1,500 chars)";
+
+        function handleCopyFb() {
+          navigator.clipboard.writeText(exportText).catch(() => {});
+          setCopiedTarget("fb");
+          setTimeout(() => setCopiedTarget((curr) => (curr === "fb" ? null : curr)), 2000);
+        }
+
+        return (
+          <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 shadow-[var(--shadow-xs)]">
+            {/* Download .txt */}
+            <button
+              type="button"
+              onClick={() => downloadSummaryExport(exportText)}
+              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+            >
+              <Download className="h-3.5 w-3.5 text-[var(--primary)]" />
+              {outputLang === "ar" ? "تحميل .txt" : "Download .txt"}
+            </button>
+
+            {/* WhatsApp */}
+            <button
+              type="button"
+              onClick={() => window.open(waUrl, "_blank", "noopener,noreferrer")}
+              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+            >
+              {outputLang === "ar" ? `واتساب${isTruncated ? truncatedNote : ""}` : `WhatsApp${isTruncated ? truncatedNote : ""}`}
+            </button>
+
+            {/* Telegram */}
+            <button
+              type="button"
+              onClick={() => window.open(tgUrl, "_blank", "noopener,noreferrer")}
+              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+            >
+              {outputLang === "ar" ? `تيليجرام${isTruncated ? truncatedNote : ""}` : `Telegram${isTruncated ? truncatedNote : ""}`}
+            </button>
+
+            {/* Copy for Facebook */}
+            <button
+              type="button"
+              onClick={handleCopyFb}
+              className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+            >
+              {copiedTarget === "fb"
+                ? (outputLang === "ar" ? "تم النسخ ✓" : "Copied ✓")
+                : (outputLang === "ar" ? "نسخ للفيسبوك" : "Copy for Facebook")}
+            </button>
+
+            {/* Dismiss */}
+            <button
+              type="button"
+              onClick={() => setShowSharePanel(false)}
+              className="ml-auto rounded-full p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+              aria-label={outputLang === "ar" ? "إغلاق" : "Close share panel"}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ── Section cards ─────────────────────────── */}
       <Card className="overflow-hidden bg-[var(--surface-elevated)]">
