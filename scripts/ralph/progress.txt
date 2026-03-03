@@ -37,3 +37,40 @@ S010 = PENDING  # Referral system
 # OAuth flow hardened: login now preserves `next` through Google/Apple and email callback URLs, uses an explicit browser redirect from the returned provider URL, and the auth callback normalizes the post-login destination across proxied hosts.
 # Files: app/login/page.tsx, app/auth/callback/route.ts, tasks/lessons.md
 # Pattern: when an auth flow crosses origins, always carry a sanitized relative return path through the callback and do not rely on implicit provider redirects alone.
+
+# 2026-03-02
+# Dev-only admin dashboard added with overview, users, income, guarded admin APIs, and polling-based recent subscription notifications backed by the Supabase service role.
+# Files: app/admin_dashboard/**, app/api/admin/**, components/admin/**, lib/admin/**, lib/supabase/admin.ts, lib/supabase/middleware.ts, .env.local.example, docs/decisions.md
+# Pattern: keep internal operator tooling behind a development-only cookie gate and centralize all service-role access in server-side helpers so pages and APIs share one audited path.
+
+# 2026-03-03
+# Landing conversion slice completed: larger Apple-style typography, rotating hero headline, interactive gated demo, and How It Works screenshot placeholders with updated copy.
+# Files: app/globals.css, components/landing/Hero.tsx, components/landing/HowItWorks.tsx, components/landing/Pricing.tsx, components/landing/FAQAccordion.tsx, components/ui/accordion.tsx, specs/hero-redesign-typography-bv4-bv6.md, tasks/todo.md
+# Pattern: keep landing demos local and deterministic so users can preview the product without adding backend/storage complexity or risking raw chat persistence.
+
+# 2026-03-03
+# Typography overhaul landed: Inter + Cairo font loading, corrected mobile/desktop scale tokens, Arabic line-height refinements, and consistent 16px input/form text across landing, dashboard, history, and auth/contact surfaces.
+# Files: app/globals.css, app/layout.tsx, app/dashboard/page.tsx, app/login/page.tsx, app/summarize/page.tsx, components/contact/ContactForm.tsx, components/dashboard/DashboardBanner.tsx, components/history/HistoryList.tsx, components/landing/Hero.tsx, components/landing/HowItWorks.tsx, components/landing/Pricing.tsx, components/landing/FAQAccordion.tsx, components/landing/FAQ.tsx, components/landing/GoToAppButton.tsx, components/landing/Newsletter.tsx, components/landing/Testimonials.tsx, components/ui/accordion.tsx, components/ui/input.tsx, components/ui/textarea.tsx, specs/typography-overhaul-2026-saas-standards.md, tasks/todo.md
+# Pattern: when typography drifts across a bilingual product, fix the root tokens and shared primitives first, then apply explicit component-level sizes only where the hierarchy must differ from the global defaults.
+
+# 2026-03-03
+# Launch blocker fix completed: the global App Router error boundary is now hook-free, root themeColor moved to viewport, and production verification is green without the prior metadata warnings.
+# Files: app/global-error.tsx, app/layout.tsx, specs/launch-blockers-p0-fix.md, tasks/todo.md, tasks/lessons.md
+# Pattern: for special Next.js boundary files, prefer self-contained markup first, then verify the live build output before applying broader cleanup work.
+
+# 2026-03-03
+# Follow-up build blocker verification completed: clearing `.next` and `node_modules/.cache` plus `pnpm store prune` removed the stale-failure state, and the clean build/lint/typecheck pass without extra app-code changes.
+# Files: specs/build-errors-p0-fix-2.md, specs/launch-blockers-p0-fix.md, tasks/todo.md, scripts/ralph/progress.txt
+# Pattern: when a Next.js production failure disappears after a clean cache reset, record the clean-run evidence before rewriting boundary components or route pages.
+
+# 2026-03-03
+# Public-route prerender hardening completed: added a custom App Router 404 page and defaulted localized section item arrays to [] before rendering list lengths/maps on legal/help pages.
+# Files: app/not-found.tsx, app/cookie-policy/page.tsx, app/privacy/page.tsx, app/terms/page.tsx, app/help/page.tsx, tasks/todo.md, scripts/ralph/progress.txt, tasks/lessons.md
+# Build status: `pnpm lint`, `pnpm typecheck`, and `pnpm build` all pass; build reached `Generating static pages using 7 workers (36/36)`. `pnpm test` is currently blocked by Playwright webServer startup timing out after port 3000 was already occupied.
+# Pattern: for localized collections rendered in SSR paths, coerce the selected value to a concrete array before any `.length` or `.map` access instead of relying on the localization helper to always return one.
+
+# 2026-03-03
+# Final launch-blocker pass completed: cleared `.next` and `node_modules/.cache`, pruned the pnpm store, replaced `app/error.tsx` with inline SSR-safe route boundary UI, and re-audited the legal/help pages for concrete array normalization.
+# Files: app/error.tsx, specs/launch-blockers-final-fix.md, tasks/todo.md, scripts/ralph/progress.txt, tasks/lessons.md
+# Build status: `pnpm lint`, `pnpm typecheck`, and a clean `pnpm build` pass; build reached `Generating static pages using 7 workers (36/36)` with exit code `0`. `pnpm test` first failed because a stale Next.js server held port `3000`, then timed out on retry after the process was stopped.
+# Pattern: treat `app/error.tsx` as a special App Router boundary and keep it self-contained so route fallback rendering never depends on provider context during prerender.

@@ -95,3 +95,27 @@
 **Quick test:** Open `/login?next=/summarize`, continue with Google or Apple, and confirm the callback returns to `/summarize` instead of a generic dashboard/login loop.
 
 ---
+
+## L012 — `app/global-error.tsx` must stay hook-free in Next.js App Router
+**Mistake:** The global error boundary used normal client-component patterns (`useEffect` plus shared error UI), which pulled in hook-dependent behavior and caused the production build to fail during route generation.
+**Why:** `app/global-error.tsx` is a special App Router boundary with stricter constraints than a typical client component.
+**Rule:** Keep `app/global-error.tsx` self-contained: no React hooks, no context imports, no hook-dependent shared components. Prefer plain markup with inline styles.
+**Quick test:** Run `pnpm build` and confirm there is no `Cannot read properties of null (reading 'useContext')` crash during static page generation.
+
+---
+
+## L013 — Localized list data must be normalized before SSR list rendering
+**Mistake:** Public pages were calling `.length` and `.map` directly on the result of `pick(section.items, locale)`, which assumes every localized branch always resolves to a concrete array during prerender.
+**Why:** SSR failures on legal/help pages become brittle when localized collection data is ever missing, malformed, or widened to `undefined` by future edits.
+**Rule:** When rendering localized collections, coerce the selected value to a concrete fallback first, for example `const items = pick<readonly string[] | undefined>(section.items, locale) ?? [];`, and only then call `.length` or `.map`.
+**Quick test:** Temporarily set one localized `items` branch to `undefined`, run `pnpm build`, and confirm the page still prerenders without a `Cannot read properties of undefined (reading 'length')` crash.
+
+---
+
+## L014 — `app/error.tsx` must not pull provider-dependent UI into route fallback rendering
+**Mistake:** The route-level App Router boundary imported a shared `ErrorFallback` component that depends on `useLang()`, which caused the production build to crash with `Cannot read properties of null (reading 'useContext')`.
+**Why:** `app/error.tsx` runs in a restricted boundary path where transitive provider hooks are not guaranteed to exist during prerender or recovery.
+**Rule:** Keep `app/error.tsx` self-contained: no shared fallback components, no provider hooks, and no imports from `@/lib/context/*`.
+**Quick test:** `Get-Content app/error.tsx | Select-String "ErrorFallback|useLang|useTheme|@/lib/context"` returns no matches, and `pnpm build` finishes without the `useContext` prerender crash.
+
+---

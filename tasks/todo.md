@@ -1812,3 +1812,141 @@ Manual smoke:
 - [ ] Sign up from demo CTA → redirected to `/summarize` → full summary shown
 - [ ] 4th logged-in free summary → 402 LIFETIME_CAP + "Upgrade" CTA (not "Sign up")
 - [ ] RTL: switch to Arabic, verify all new UI copy in Arabic, no layout breaks
+
+---
+
+## Spec: brand-voice-kit-v1 (2026-03-03)
+> Spec file: `specs/brand-voice-kit-v1.md`
+> Rule: implement only Priority 1-3 in this Codex run. Leave the rest for follow-up slices.
+
+- [x] BV1. Landing Page Hero — update headline, subtitle, CTA, and trust line in `components/landing/Hero.tsx`
+- [x] BV2. How It Works — update title and step copy in `components/landing/HowItWorks.tsx`
+- [x] BV3. Pricing — calibrate descriptions and refund note in `components/landing/Pricing.tsx`
+- [ ] BV4. FAQ — calibrate Arabic support and privacy answers in `components/landing/FAQAccordion.tsx`
+- [ ] BV5. About — keep founder-led tone and verify factual metrics in `app/about/page.tsx`
+- [ ] BV6. Summarize — update in-app title, subtitle, loading, error, and limit copy in `app/summarize/page.tsx`
+- [ ] BV7. Contact — update contact page and form microcopy in `app/contact/page.tsx` and `components/contact/ContactForm.tsx`
+- [ ] BV8. Dashboard — update empty, loading, and delete states in dashboard pages
+- [ ] BV9. Trust Block — create `components/shared/TrustBlock.tsx` and add it to landing/about
+- [ ] BV10. Footer — add trust disclaimer in `components/landing/Footer.tsx`
+
+---
+
+## Spec: hero-redesign-typography-bv4-bv6 (2026-03-03)
+> Spec file: `specs/hero-redesign-typography-bv4-bv6.md`
+> Rule: implement only HR1-HR4 in this Codex run. Leave BV4-BV6 follow-up items for the next slice.
+
+- [x] HR1. Typography — upgrade the landing typography scale and Apple-style font stacks in `app/globals.css`, then apply the larger body/small text sizes in `components/landing/Hero.tsx`, `components/landing/HowItWorks.tsx`, `components/landing/Pricing.tsx`, and `components/landing/FAQAccordion.tsx`
+- [x] HR2. Hero — add the rotating bilingual headline/subtitle with a 3-second cycle, fade transition, and `prefers-reduced-motion` support in `components/landing/Hero.tsx`
+- [x] HR3. Hero — replace the static preview with an interactive demo flow (textarea, sample chat, loading state, blurred summary gate, signup CTA) in `components/landing/Hero.tsx`
+- [x] HR4. How It Works — replace icon-first step cards with screenshot placeholders and update the step copy in `components/landing/HowItWorks.tsx`
+- [ ] HR5. FAQ — add the Arabic-support accuracy guardrail and the updated privacy answer in `components/landing/FAQAccordion.tsx`
+- [ ] HR6. About — add a founder-verification TODO comment for the placeholder metrics in `app/about/page.tsx`
+- [ ] HR7. Summarize — update loading, error, and limit copy in `app/summarize/page.tsx`
+- [ ] HR8. Verify — run `pnpm lint`, `pnpm typecheck`, confirm no `.env*` files are staged, and do a manual mobile landing smoke check
+
+---
+
+## Spec: audit-fixes-p0-typography-rtl-a11y (2026-03-03)
+> Spec file: `specs/audit-fixes-p0-typography-rtl-a11y.md`
+> Rule: implement Slice 1 first, verify, then continue through Slices 2 and 3 in order.
+
+### Slice 1 — P0 Critical/High
+- [x] AF1. Fix summary deletion API admin-client error handling in `app/api/summaries/[id]/route.ts`
+- [x] AF2. Add visible bilingual checkout error feedback in `components/billing/CheckoutButton.tsx`
+- [x] AF3. Add account deletion fallback instructions UI in `app/profile/page.tsx`
+- [x] AF4. Add contact-form honeypot and minimum-message validation in `components/contact/ContactForm.tsx`
+- [x] AF5. Add loading states for calendar, export, and todo actions in `components/SummaryDisplay.tsx`
+- [x] AF6. Replace history desktop-style rows with mobile-safe cards in `components/history/HistoryList.tsx`
+- [x] AF7. Verify Slice 1 with `pnpm lint` and `pnpm typecheck`
+
+### Slice 2 — Typography
+- [x] AF8. Replace the typography scale and Arabic/mobile readability rules in `app/globals.css`
+- [x] AF9. Update hero typography scale usage in `components/landing/Hero.tsx`
+- [x] AF10. Update How It Works typography scale usage in `components/landing/HowItWorks.tsx`
+- [x] AF11. Update pricing typography scale usage in `components/landing/Pricing.tsx`
+- [x] AF12. Verify Slice 2 with `pnpm lint` and `pnpm typecheck`
+
+### Slice 3 — RTL and Accessibility
+- [x] AF13. Flip calendar chevrons and add Arabic aria labels in `components/widgets/CalendarWidget.tsx`
+- [x] AF14. Flip landing nav arrow direction in `components/landing/Nav.tsx`
+- [x] AF15. Add mixed EN/AR contact input direction handling in `components/contact/ContactForm.tsx`
+- [x] AF16. Standardize explicit `dir` and `lang` usage across landing sections in `Hero`, `HowItWorks`, `Pricing`, `FAQAccordion`, `Footer`, and `Nav`
+- [x] AF17. Add dropdown trigger ARIA in `components/layout/TopBar.tsx`
+- [x] AF18. Ensure summary dialog markup exposes `role="dialog"`, `aria-modal`, and labelled title semantics
+- [x] AF19. Add `role` and `aria-live` to visible error/success/status messages across affected pages/components
+- [x] AF20. Final verify with `pnpm lint` and `pnpm typecheck`
+
+---
+
+## Spec: typography-overhaul-2026-saas-standards (2026-03-03)
+> Spec file: `specs/typography-overhaul-2026-saas-standards.md`
+> Rule: land the token/font changes first, then update components/pages, then verify.
+
+### Slice 1 — Typography Tokens
+- [x] TO1. Replace the mobile and desktop typography scale in `app/globals.css`
+- [x] TO2. Add content-specific line-height assignments plus fluid `clamp()` rules in `app/globals.css`
+
+### Slice 2 — Font Stack
+- [x] TO3. Switch `app/layout.tsx` to Inter + Cairo font loading and update CSS font tokens
+
+### Slice 3 — Landing Components
+- [x] TO4. Update landing hero typography classes in `components/landing/Hero.tsx`
+- [x] TO5. Update landing How It Works typography classes in `components/landing/HowItWorks.tsx`
+- [x] TO6. Update landing pricing typography classes in `components/landing/Pricing.tsx`
+- [x] TO7. Update landing FAQ typography classes in `components/landing/FAQAccordion.tsx` and `components/ui/accordion.tsx`
+
+### Slice 4 — Dashboard, History, and Forms
+- [x] TO8. Update dashboard and summarize typography in `app/dashboard/page.tsx`, `components/dashboard/DashboardBanner.tsx`, and `app/summarize/page.tsx`
+- [x] TO9. Update history typography in `components/history/HistoryList.tsx`
+- [x] TO10. Update form typography in `components/contact/ContactForm.tsx`, `app/login/page.tsx`, `components/ui/input.tsx`, and `components/ui/textarea.tsx`
+
+### Slice 5 — Arabic and Verification
+- [x] TO11. Refine Arabic typography overrides and confirm landing `dir`/`lang`/`font-arabic` usage
+- [~] TO12. Verify with `pnpm lint`, `pnpm typecheck`, `pnpm test` when feasible, manual smoke, and confirm no `.env*` files are staged
+
+---
+
+## Spec: launch-blockers-p0-fix (2026-03-03)
+> Spec file: `specs/launch-blockers-p0-fix.md`
+> Rule: clear the global-error build blocker first, then remove the root metadata warning, then verify whether any key warnings still reproduce before making extra UI edits.
+
+- [x] LB1. Replace `app/global-error.tsx` with a hook-free global error boundary using inline styles and explicit `<html>` / `<body>` markup
+- [x] LB2. Move root `themeColor` configuration from `metadata` to `viewport` in `app/layout.tsx`
+- [x] LB3. Verify with `pnpm lint`, `pnpm typecheck`, and `pnpm build`; confirm the global-error crash is gone, `themeColor` warnings are gone, and no missing-key warnings reproduce in the current build output
+
+---
+
+## Spec: build-errors-p0-fix-2 (2026-03-03)
+> Spec file: `specs/build-errors-p0-fix-2.md`
+> Rule: execute Slice 1 first, only touch app code if the clean post-cache build still fails.
+
+- [x] BE1. Slice 1 — clear `.next` and `node_modules/.cache`, run `pnpm store prune`, verify both cache paths return `False`, then rerun `pnpm build`
+- [x] BE2. Slice 2 — inspect `app/error.tsx` and `app/cookie-policy/page.tsx`; no code change needed because the clean build reproduced neither the `useContext` crash nor the `undefined.length` crash
+- [x] BE3. Slice 3 — rerun `pnpm lint` and `pnpm typecheck`, confirm the clean `pnpm build` reaches `Generating static pages using 7 workers (36/36)`, and note that the prior missing-key warnings did not reproduce
+
+---
+
+## Spec: final-build-fix-undefined-length (2026-03-03)
+> User-requested hardening for intermittent prerender failures on public legal routes.
+> Note: the valid App Router custom 404 entry is `app/not-found.tsx`, not `app/_not-found/page.tsx`.
+
+- [x] FBF1. Add `app/not-found.tsx` with `PublicPageShell`, bilingual copy, and a home link CTA
+- [x] FBF2. Default localized `section.items` arrays to `[]` in `app/cookie-policy/page.tsx`, `app/privacy/page.tsx`, `app/terms/page.tsx`, and `app/help/page.tsx` so `.length` and `.map` remain SSR-safe
+- [x] FBF3. Verify with `pnpm lint`, `pnpm typecheck`, and `pnpm build`; the build on March 3, 2026 reached `Generating static pages using 7 workers (36/36)` with exit code `0`
+- [!] FBF4. `pnpm test` is still blocked locally because Playwright's `config.webServer` timed out after the spawned server fell back to port `3001` while port `3000` was already occupied by process `37436`
+
+---
+
+## Spec: launch-blockers-final-fix (2026-03-03)
+> Spec file: `specs/launch-blockers-final-fix.md`
+> Rule: clear caches first, patch the route error boundary, audit the public legal/help pages, then verify on a clean build before committing.
+
+- [x] LBF1. Clear `.next` and `node_modules/.cache`, run `pnpm store prune`, and verify both cache paths return `False`
+- [x] LBF2. Replace `app/error.tsx` with inline route error UI that keeps client-side logging and removes `ErrorFallback` and context usage
+- [x] LBF3. Audit `app/cookie-policy/page.tsx`, `app/privacy/page.tsx`, `app/terms/page.tsx`, and `app/help/page.tsx`; confirm localized `section.items` values are normalized to `[]` before `.length` or `.map`
+- [x] LBF4. Save the run spec to `specs/launch-blockers-final-fix.md`
+- [x] LBF5. Verify with `pnpm lint` and `pnpm typecheck`
+- [x] LBF6. Run a clean `pnpm build`; confirm the March 3, 2026 build exits `0` and reaches `Generating static pages using 7 workers (36/36)`
+- [!] LBF7. `pnpm test` remains unstable locally: the first run hit a stale `next` server on port `3000`, and the retry timed out after that process was stopped
+- [x] LBF8. Stage only the launch-blocker files, confirm no `.env*` files are staged, and create one descriptive commit
