@@ -16,7 +16,7 @@ export default async function PricingPage() {
   return (
     <main className="min-h-screen bg-[var(--background)]">
       <Nav isLoggedIn={isLoggedIn} />
-      <Pricing isLoggedIn={isLoggedIn} />
+      <Pricing isLoggedIn={isLoggedIn} headingTag="h1" />
     </main>
   );
 }

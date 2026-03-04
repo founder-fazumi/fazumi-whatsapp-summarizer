@@ -10,10 +10,10 @@ const SECTIONS = [
     },
   },
   {
-    title: { en: "2. Founder LTD", ar: "2. Founder LTD" },
+    title: { en: "2. Founder lifetime access", ar: "2. باقة المؤسسين مدى الحياة" },
     body: {
-      en: "The Founder Lifetime Deal is a one-time purchase and is final sale. No refunds are offered for Founder LTD purchases. By completing the purchase you acknowledge and agree to this policy.",
-      ar: "صفقة Founder مدى الحياة هي عملية شراء لمرة واحدة وتعد بيعًا نهائيًا. لا نقدم استردادًا لمشتريات Founder LTD. وبإتمام عملية الشراء فإنك تقر بهذه السياسة وتوافق عليها.",
+      en: "Founder lifetime access is a one-time purchase and is final sale. No refunds are offered for founder purchases. By completing the purchase you acknowledge and agree to this policy.",
+      ar: "باقة المؤسسين مدى الحياة هي عملية شراء لمرة واحدة وتُعد بيعًا نهائيًا. لا نقدم استردادًا لمشتريات باقة المؤسسين. وبإتمام عملية الشراء فإنك تقر بهذه السياسة وتوافق عليها.",
     },
   },
   {

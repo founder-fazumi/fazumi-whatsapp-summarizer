@@ -42,10 +42,10 @@ const COPY = {
   },
   founder: {
     en: "Founder",
-    ar: "المؤسس",
+    ar: "باقة المؤسسين",
   },
   founderSuffix: {
-    en: "LTD",
+    en: "lifetime",
     ar: "مدى الحياة",
   },
   founderBody: {
@@ -58,7 +58,7 @@ const COPY = {
   },
   trust: {
     en: "Secured by Lemon Squeezy · 7-day money-back on monthly & annual · Founder is final",
-    ar: "مدفوعات آمنة عبر Lemon Squeezy · استرداد 7 أيام للاشتراكات · الأسعار المؤسسية نهائية",
+    ar: "مدفوعات آمنة عبر Lemon Squeezy · استرداد خلال 7 أيام للاشتراكات الشهرية والسنوية · باقة المؤسسين نهائية",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 

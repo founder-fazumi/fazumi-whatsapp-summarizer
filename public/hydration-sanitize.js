@@ -12,6 +12,17 @@
         element.removeAttribute(ATTRS[i]);
       }
     }
+
+    if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
+      if (element.style && element.style.caretColor === "transparent") {
+        element.style.removeProperty("caret-color");
+      }
+
+      var styleValue = element.getAttribute("style");
+      if (!styleValue || !styleValue.trim()) {
+        element.removeAttribute("style");
+      }
+    }
   }
 
   function scrubTree(node) {
@@ -49,7 +60,7 @@
     subtree: true,
     childList: true,
     attributes: true,
-    attributeFilter: ATTRS,
+    attributeFilter: ATTRS.concat("style"),
   });
 
   window.setTimeout(function () {

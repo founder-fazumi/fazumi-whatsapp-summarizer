@@ -1,473 +1,515 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Upload, X, Lightbulb, Lock } from "lucide-react";
-import JSZip from "jszip";
-import type { SummaryResult } from "@/lib/ai/summarize";
-import { SummaryDisplay } from "@/components/SummaryDisplay";
+import Link from "next/link";
+import { ArrowRight, CheckCircle2, LoaderCircle, Sparkles } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useLang } from "@/lib/context/LangContext";
-import { formatNumber } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
-import { getSampleChat, type SampleLangPref } from "@/lib/sampleChats";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-const MAX_CHARS = 30_000;
-const MAX_ZIP_BYTES = 10 * 1024 * 1024;
-type LangPref = SampleLangPref;
+type SampleSummary = {
+  tldr: string;
+  actionItems: readonly string[];
+  importantDates: readonly string[];
+  followUpQuestions: readonly string[];
+  helpfulLinks: readonly string[];
+};
+
+type DemoState = "idle" | "typing" | "loading" | "preview";
+
+const HEADLINE_INTERVAL_MS = 3_000;
+const HEADLINE_SWAP_DELAY_MS = 200;
+const DEMO_LOADING_MS = 2_000;
+const DEMO_MAX_CHARS = 500;
+
+const HEADLINES = [
+  { en: "School chats, summarized.", ar: "محادثات المدرسة، ملخصة." },
+  { en: "Know what matters in 10 seconds.", ar: "اعرف المهم خلال 10 ثوانٍ." },
+  { en: "From noisy chats to clear next steps.", ar: "من ضوضاء المجموعات إلى خطوات واضحة." },
+] as const satisfies readonly LocalizedCopy<string>[];
+
+const SUBTITLES = [
+  { en: "Paste WhatsApp chat. Get a clear summary in seconds.", ar: "الصق محادثة واتساب. احصل على ملخص واضح خلال ثوانٍ." },
+  { en: "Deadlines, payments, supplies, and exams in one card.", ar: "المواعيد والرسوم والمستلزمات والاختبارات في بطاقة واحدة." },
+  { en: "Built for GCC parents. Arabic and English by default.", ar: "مصمم لأولياء الأمور في الخليج. العربية والإنجليزية افتراضيًا." },
+] as const satisfies readonly LocalizedCopy<string>[];
+
+const SAMPLE_CHAT = `[15/02/2025, 09:23] Ms. Sarah - Math Teacher: Good morning parents! Reminder: math test on Monday covering chapters 4-6. Please review practice problems.
+[15/02/2025, 09:25] Parent Committee: Field trip forms due Wednesday! $15 payment required. Send with child.
+[15/02/2025, 09:27] Science Dept: Science fair projects due Friday. Presentation slides must be uploaded by Thursday 8pm.
+[15/02/2025, 09:30] Admin: Sports practice Thursday 3pm. Send sports kit and water bottle.`;
 
 const COPY = {
   badge: {
-    en: "Used by 12,500 parents in GCC schools",
-    ar: "موثوق به من أولياء الأمور في مدارس الخليج",
+    en: "Trusted by GCC parents",
+    ar: "موثوق به من أولياء الأمور في الخليج",
   },
-  titleLineOne: {
-    en: "Turn school group chats",
-    ar: "حوّل محادثات مجموعات المدرسة",
+  cta: {
+    en: "Get your summary",
+    ar: "احصل على الملخّص",
   },
-  titleLineTwo: {
-    en: "into clear summaries",
-    ar: "إلى ملخصات واضحة",
+  trustLine: {
+    en: "Privacy-first · Raw chats not stored · One-tap delete",
+    ar: "الخصوصية أولًا · لا نحتفظ بالمحادثات الخام · حذف بنقرة واحدة",
   },
-  subtitle: {
-    en: "Paste a school group chat. Get a clear summary in seconds.",
-    ar: "الصق محادثة مجموعة مدرسة. احصل على ملخص واضح خلال ثوانٍ.",
+  demoEyebrow: {
+    en: "Interactive demo",
+    ar: "تجربة تفاعلية",
   },
-  placeholder: {
-    en: "Paste your WhatsApp school group messages here...\n\nExample:\nTeacher: Math test on Monday - chapters 4, 5, 6.\nParent: Is there homework due?\nTeacher: Field trip forms must be in by Wednesday.",
-    ar: "الصق رسائل مجموعة المدرسة من واتساب هنا...\n\nمثال:\nالمعلمة: اختبار الرياضيات يوم الاثنين ويشمل الوحدات 4 و5 و6.\nولي أمر: هل هناك واجب منزلي؟\nالمعلمة: يجب تسليم استمارات الرحلة يوم الأربعاء.",
+  demoBody: {
+    en: "Paste a school chat and preview the calm summary parents get before they sign up.",
+    ar: "الصق محادثة مدرسية وشاهد معاينة الملخص الهادئ الذي يحصل عليه أولياء الأمور قبل التسجيل.",
   },
-  upload: {
-    en: "Upload .txt / .zip",
-    ar: "رفع .txt / .zip",
+  demoPlaceholder: {
+    en: "Paste a sample school chat here…",
+    ar: "الصق نموذج محادثة مدرسية هنا…",
   },
-  useSample: {
-    en: "Use sample",
-    ar: "استخدم نموذجًا",
+  demoHint: {
+    en: "Demo limit: 500 characters",
+    ar: "حد التجربة: 500 حرف",
   },
-  summarize: {
-    en: "Paste & Summarize",
-    ar: "الصق ولخّص",
+  demoUseSample: {
+    en: "Use sample chat",
+    ar: "استخدم محادثة نموذجية",
   },
-  summarizing: {
-    en: "Summarizing...",
-    ar: "جارٍ التلخيص...",
+  demoGenerate: {
+    en: "Create sample summary",
+    ar: "أنشئ ملخصًا تجريبيًا",
   },
-  privacy: {
-    en: "We never store your raw chat, only summaries.",
-    ar: "لا نحفظ نص المحادثة الخام، بل الملخصات فقط.",
+  demoGenerating: {
+    en: "Creating your summary...",
+    ar: "جارٍ إنشاء ملخّصك...",
   },
-  auto: {
-    en: "Auto",
-    ar: "تلقائي",
+  previewEyebrow: {
+    en: "Summary preview",
+    ar: "معاينة الملخص",
   },
-  fileTooLarge: {
-    en: "File too large. Max 10 MB.",
-    ar: "الملف كبير جدًا. الحد الأقصى 10 MB.",
+  previewBadge: {
+    en: "Blurred below the essentials",
+    ar: "مموّه أسفل الأساسيات",
   },
-  noTextFiles: {
-    en: "No text files found in the zip.",
-    ar: "لم يتم العثور على ملفات نصية داخل الملف المضغوط.",
+  tldr: {
+    en: "TL;DR",
+    ar: "الخلاصة السريعة",
   },
-  zipReadError: {
-    en: "Could not read zip file. Try a WhatsApp export (.zip).",
-    ar: "تعذر قراءة الملف المضغوط. جرّب تصدير واتساب (.zip).",
+  actionItems: {
+    en: "Action items",
+    ar: "المهام المطلوبة",
   },
-  unsupportedFile: {
-    en: "Only .txt and .zip files are supported.",
-    ar: "الملفات المدعومة هي .txt و .zip فقط.",
+  importantDates: {
+    en: "Important dates",
+    ar: "المواعيد المهمة",
   },
-  networkError: {
-    en: "Network error. Please check your connection and try again.",
-    ar: "خطأ في الشبكة. تحقّق من الاتصال ثم حاول مرة أخرى.",
+  questions: {
+    en: "Questions to follow up",
+    ar: "أسئلة للمتابعة",
   },
-  unknownError: {
-    en: "Something went wrong. Please try again.",
-    ar: "حدث خطأ ما. حاول مرة أخرى.",
+  helpfulLinks: {
+    en: "Helpful links",
+    ar: "روابط مفيدة",
   },
-  clearText: {
-    en: "Clear",
-    ar: "مسح",
+  overlayTitle: {
+    en: "Subscribe free to unlock the full summary",
+    ar: "اشترك مجانًا لفتح الملخص الكامل",
   },
-  previewBody: {
-    en: "Sign up free to see the full summary",
-    ar: "سجّل مجانًا لعرض الملخص بالكامل",
+  overlayBody: {
+    en: "Share with family, add dates to calendar, and keep every school update in one calm view.",
+    ar: "شارك الملخص مع العائلة وأضف المواعيد إلى التقويم واحتفظ بكل تحديثات المدرسة في عرض واحد هادئ.",
   },
-  previewButton: {
-    en: "Sign up free",
-    ar: "سجّل مجانًا",
+  startTrial: {
+    en: "Start free trial",
+    ar: "ابدأ التجربة المجانية",
   },
-  shortcutLabel: {
-    en: "Ctrl + Enter",
-    ar: "Ctrl + Enter",
-  },
-} satisfies Record<string, LocalizedCopy<string>>;
+} as const;
 
-function getIgnoredMediaCopy(count: number): LocalizedCopy<string> {
-  return {
-    en: `${formatNumber(count)} media file${count > 1 ? "s" : ""} ignored. Text only.`,
-    ar: `تم تجاهل ${formatNumber(count)} ملف وسائط. النص فقط.`,
-  };
-}
-
-const OUTPUT_LABELS: Record<LangPref, LocalizedCopy<string>> = {
-  auto: COPY.auto,
-  en: { en: "EN", ar: "EN" },
-  ar: { en: "AR", ar: "AR" },
+const OVERLAY_FEATURES: LocalizedCopy<readonly string[]> = {
+  en: ["Share with family", "Add to calendar", "Export to PDF"],
+  ar: ["شارك مع العائلة", "أضف إلى التقويم", "صدّر PDF"],
 };
+
+const SAMPLE_SUMMARY = {
+  en: {
+    tldr: "Math test Monday, field trip forms due Wednesday, science fair Friday.",
+    actionItems: [
+      "Review math chapters 4 to 6 for Monday's test.",
+      "Sign and return the field-trip form with the $15 payment by Wednesday.",
+      "Upload science presentation slides by Thursday at 8pm.",
+    ],
+    importantDates: [
+      "Monday: Math test on chapters 4 to 6.",
+      "Wednesday: Field-trip form and $15 payment due.",
+      "Friday: Science fair projects due.",
+    ],
+    followUpQuestions: [
+      "Should parents send extra materials for the science fair?",
+      "Will sports practice finish at the usual pickup time on Thursday?",
+    ],
+    helpfulLinks: [
+      "Field-trip form and payment reminder",
+      "Science presentation upload instructions",
+    ],
+  },
+  ar: {
+    tldr: "اختبار الرياضيات يوم الإثنين، ونموذج الرحلة المدرسية مطلوب يوم الأربعاء، ومشروع العلوم يوم الجمعة.",
+    actionItems: [
+      "راجع فصول الرياضيات من 4 إلى 6 لاختبار يوم الإثنين.",
+      "وقّع نموذج الرحلة المدرسية وأعده مع مبلغ 15 دولارًا قبل يوم الأربعاء.",
+      "ارفع شرائح عرض مشروع العلوم قبل الخميس الساعة 8 مساءً.",
+    ],
+    importantDates: [
+      "الإثنين: اختبار رياضيات في الفصول 4 إلى 6.",
+      "الأربعاء: آخر موعد لنموذج الرحلة المدرسية مع الرسوم.",
+      "الجمعة: آخر موعد لمشاريع معرض العلوم.",
+    ],
+    followUpQuestions: [
+      "هل يحتاج الطلاب إلى مواد إضافية لمعرض العلوم؟",
+      "هل ينتهي تدريب الرياضة يوم الخميس في وقت الاستلام المعتاد؟",
+    ],
+    helpfulLinks: [
+      "تذكير نموذج الرحلة المدرسية والدفع",
+      "تعليمات رفع شرائح عرض العلوم",
+    ],
+  },
+} satisfies LocalizedCopy<SampleSummary>;
 
 export function Hero() {
   const { locale } = useLang();
   const isRtl = locale === "ar";
-  const [text, setText] = useState("");
-  const [langPref, setLangPref] = useState<LangPref>("auto");
-  const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState<SummaryResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [uploadWarn, setUploadWarn] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const summaryRef = useRef<HTMLDivElement>(null);
+  const summary = pick(SAMPLE_SUMMARY, locale);
+  const overlayFeatures = pick(OVERLAY_FEATURES, locale);
+  const [headlineIndex, setHeadlineIndex] = useState(0);
+  const [headlineVisible, setHeadlineVisible] = useState(true);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [demoState, setDemoState] = useState<DemoState>("idle");
+  const [demoText, setDemoText] = useState("");
+  const swapTimeoutRef = useRef<number | null>(null);
+  const demoTimeoutRef = useRef<number | null>(null);
 
-  const charCount = text.length;
-  const remaining = MAX_CHARS - charCount;
-  const isOverLimit = charCount > MAX_CHARS;
+  const displayedHeadlineIndex = prefersReducedMotion ? 0 : headlineIndex;
+  const activeHeadline = pick(HEADLINES[displayedHeadlineIndex], locale);
+  const activeSubtitle = pick(SUBTITLES[displayedHeadlineIndex], locale);
+  const isHeadlineVisible = prefersReducedMotion ? true : headlineVisible;
+  const isLoadingDemo = demoState === "loading";
+  const isPreviewVisible = demoState === "preview";
+  const demoCharsRemaining = DEMO_MAX_CHARS - demoText.length;
 
   useEffect(() => {
-    let active = true;
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches);
 
-    async function loadUser() {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
+    updateMotionPreference();
 
-        if (active) {
-          setIsLoggedIn(Boolean(data.user));
-        }
-      } catch {
-        if (active) {
-          setIsLoggedIn(false);
-        }
-      }
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateMotionPreference);
+      return () => mediaQuery.removeEventListener("change", updateMotionPreference);
     }
 
-    void loadUser();
-
-    return () => {
-      active = false;
-    };
+    mediaQuery.addListener(updateMotionPreference);
+    return () => mediaQuery.removeListener(updateMotionPreference);
   }, []);
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadWarn(null);
-
-    if (file.size > MAX_ZIP_BYTES) {
-      setUploadWarn(pick(COPY.fileTooLarge, locale));
+  useEffect(() => {
+    if (prefersReducedMotion) {
       return;
     }
 
-    if (file.name.endsWith(".txt")) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setText((ev.target?.result as string) ?? "");
-      reader.readAsText(file);
+    const intervalId = window.setInterval(() => {
+      setHeadlineVisible(false);
+      swapTimeoutRef.current = window.setTimeout(() => {
+        setHeadlineIndex((current) => (current + 1) % HEADLINES.length);
+        setHeadlineVisible(true);
+      }, HEADLINE_SWAP_DELAY_MS);
+    }, HEADLINE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+      if (swapTimeoutRef.current !== null) {
+        window.clearTimeout(swapTimeoutRef.current);
+      }
+    };
+  }, [prefersReducedMotion]);
+
+  useEffect(() => () => {
+    if (demoTimeoutRef.current !== null) {
+      window.clearTimeout(demoTimeoutRef.current);
+    }
+  }, []);
+
+  function handleDemoTextChange(value: string) {
+    const nextValue = value.slice(0, DEMO_MAX_CHARS);
+    setDemoText(nextValue);
+    setDemoState(nextValue.trim().length > 0 ? "typing" : "idle");
+  }
+
+  function handleUseSample() {
+    setDemoText(SAMPLE_CHAT);
+    setDemoState("typing");
+  }
+
+  function handleDemoPreview() {
+    if (!demoText.trim() || isLoadingDemo) {
       return;
     }
 
-    if (file.name.endsWith(".zip")) {
-      try {
-        const zip = await JSZip.loadAsync(file);
-        let extracted = "";
-        let mediaCount = 0;
-        const promises: Promise<void>[] = [];
+    setDemoState("loading");
 
-        zip.forEach((path, entry) => {
-          if (entry.dir) return;
-          if (path.endsWith(".txt") || path.includes("_chat")) {
-            promises.push(entry.async("text").then((content) => {
-              extracted += `${content}\n`;
-            }));
-          } else {
-            mediaCount++;
-          }
-        });
-
-        await Promise.all(promises);
-
-        if (!extracted) {
-          setUploadWarn(pick(COPY.noTextFiles, locale));
-        } else {
-          setText(extracted.slice(0, MAX_CHARS));
-          if (mediaCount > 0) {
-            setUploadWarn(pick(getIgnoredMediaCopy(mediaCount), locale));
-          }
-        }
-      } catch {
-        setUploadWarn(pick(COPY.zipReadError, locale));
-      }
-    } else {
-      setUploadWarn(pick(COPY.unsupportedFile, locale));
+    if (demoTimeoutRef.current !== null) {
+      window.clearTimeout(demoTimeoutRef.current);
     }
 
-    e.target.value = "";
+    demoTimeoutRef.current = window.setTimeout(() => {
+      setDemoState("preview");
+    }, DEMO_LOADING_MS);
   }
-
-  async function handleSubmit(e?: React.FormEvent) {
-    e?.preventDefault();
-    if (!text.trim() || loading || isOverLimit) return;
-
-    setLoading(true);
-    setError(null);
-    setSummary(null);
-
-    try {
-      const res = await fetch("/api/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, lang_pref: langPref }),
-      });
-
-      const data = (await res.json()) as {
-        summary?: SummaryResult;
-        error?: string;
-      };
-
-      if (!res.ok || !data.summary) {
-        setError(data.error ?? pick(COPY.unknownError, locale));
-        return;
-      }
-
-      setSummary(data.summary);
-      setTimeout(() => {
-        summaryRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 100);
-    } catch {
-      setError(pick(COPY.networkError, locale));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      void handleSubmit();
-    }
-  }
-
-  const outputLang: "en" | "ar" =
-    langPref === "ar"
-      ? "ar"
-      : langPref === "en"
-        ? "en"
-        : summary?.lang_detected === "ar"
-          ? "ar"
-          : "en";
-
-  const toolbarButtonClass =
-    "inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] disabled:opacity-50";
-  const langToggleClass =
-    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors";
-  const summaryCard = (
-    <SummaryDisplay summary={summary as SummaryResult} outputLang={outputLang} actionMode="gated" />
-  );
 
   return (
     <section
       dir={isRtl ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("py-14 md:py-18", isRtl && "font-arabic")}
+      className={cn("page-section pt-20 md:pt-32", isRtl && "font-arabic")}
     >
       <div className="page-shell">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto flex max-w-5xl flex-col gap-10">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[11px] font-semibold text-[var(--primary)] shadow-[var(--shadow-xs)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
+            <div className={cn("inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[var(--text-xs)] font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)]", isRtl && "flex-row-reverse")}>
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--primary)]" />
               {pick(COPY.badge, locale)}
             </div>
-            <h1 className="mt-5 text-4xl font-bold leading-[1.08] tracking-tight text-[var(--foreground)] sm:text-5xl md:text-[3.4rem]">
-              {pick(COPY.titleLineOne, locale)}
-              <span className="block text-[var(--primary)]">
-                {pick(COPY.titleLineTwo, locale)}
-              </span>
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">
-              {pick(COPY.subtitle, locale)}
+
+            <div aria-live="polite">
+              <h1
+                className={cn(
+                  "mt-6 min-h-[7.5rem] font-bold leading-tight tracking-tight text-[var(--foreground)] transition-opacity duration-300 sm:min-h-[8.5rem] md:min-h-[9rem]",
+                  "text-[var(--text-3xl)] sm:text-[var(--text-5xl)] md:text-[var(--text-6xl)]",
+                  isHeadlineVisible ? "opacity-100" : "opacity-0"
+                )}
+              >
+                {activeHeadline}
+              </h1>
+
+              <p
+                className={cn(
+                  "mx-auto mt-4 min-h-[5.75rem] max-w-2xl text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)] transition-opacity duration-300 md:min-h-[6.25rem] md:text-[var(--text-lg)]",
+                  isHeadlineVisible ? "opacity-100" : "opacity-0"
+                )}
+              >
+                {activeSubtitle}
+              </p>
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-3">
+              <Link
+                href="/login?tab=signup"
+                className="inline-flex h-12 items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] px-8 text-[var(--text-sm)] font-semibold text-white shadow-[var(--shadow-md)] transition-colors hover:bg-[var(--primary-hover)]"
+              >
+                {pick(COPY.cta, locale)}
+                <ArrowRight className={cn("h-4 w-4", isRtl && "rotate-180")} />
+              </Link>
+            </div>
+
+            <p className="mt-4 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+              {pick(COPY.trustLine, locale)}
             </p>
           </div>
 
-          <div className="mx-auto mt-8 max-w-4xl overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-md)]">
-            <form onSubmit={handleSubmit}>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={loading}
-                rows={10}
-                placeholder={pick(COPY.placeholder, locale)}
-                className={cn(
-                  "min-h-[280px] w-full resize-none border-0 bg-transparent px-5 py-5 text-sm leading-7 text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] sm:px-6 sm:py-6",
-                  isOverLimit && "bg-[var(--destructive-soft)]"
-                )}
-              />
+          <div className="mx-auto w-full max-w-3xl">
+            <div className="shine-wrap">
+              <div className="shine-inner hero-backdrop overflow-hidden rounded-[calc(var(--radius-xl)-1px)]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4 sm:px-6">
+                  <div>
+                    <p className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">
+                      {pick(COPY.demoEyebrow, locale)}
+                    </p>
+                    <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                      {pick(COPY.demoBody, locale)}
+                    </p>
+                  </div>
+                  <span className="inline-flex min-h-10 items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[var(--text-xs)] font-bold uppercase tracking-[0.14em] text-[var(--accent-fox-deep)] shadow-[var(--shadow-xs)]">
+                    {pick(COPY.demoHint, locale)}
+                  </span>
+                </div>
 
-              <div className="border-t border-[var(--border)] bg-[var(--surface)]/80 px-3 py-3 sm:px-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".txt,.zip"
-                      className="hidden"
-                      onChange={handleFileUpload}
+                <div className="space-y-6 bg-[var(--surface-elevated)] px-5 py-5 sm:px-6 sm:py-6">
+                  <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
+                    <Textarea
+                      aria-label={pick(COPY.demoPlaceholder, locale)}
+                      value={demoText}
+                      onChange={(event) => handleDemoTextChange(event.target.value)}
+                      placeholder={pick(COPY.demoPlaceholder, locale)}
+                      rows={7}
+                      maxLength={DEMO_MAX_CHARS}
+                      disabled={isLoadingDemo}
+                      className="min-h-[11rem] resize-none border-0 bg-transparent px-0 py-0 text-[var(--text-base)] leading-relaxed shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={loading}
-                      className={toolbarButtonClass}
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      {pick(COPY.upload, locale)}
-                    </button>
+                    <div className={cn("mt-4 flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between", isRtl && "sm:flex-row-reverse")}>
+                      <div className={cn("flex flex-wrap items-center gap-3", isRtl && "sm:flex-row-reverse")}>
+                        <button
+                          type="button"
+                          onClick={handleUseSample}
+                          disabled={isLoadingDemo}
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2 text-[var(--text-sm)] font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {pick(COPY.demoUseSample, locale)}
+                        </button>
+                        <span className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                          {demoCharsRemaining} / {DEMO_MAX_CHARS}
+                        </span>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setText(getSampleChat(langPref, locale));
-                        setUploadWarn(null);
-                      }}
-                      disabled={loading}
-                      className={toolbarButtonClass}
-                    >
-                      {pick(COPY.useSample, locale)}
-                    </button>
-
-                    {text && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setText("");
-                          setSummary(null);
-                          setError(null);
-                          setUploadWarn(null);
-                        }}
-                        disabled={loading}
-                        className={toolbarButtonClass}
-                        aria-label={pick(COPY.clearText, locale)}
+                        onClick={handleDemoPreview}
+                        disabled={!demoText.trim() || isLoadingDemo}
+                        className="inline-flex h-12 items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] px-5 text-[var(--text-sm)] font-semibold text-white shadow-[var(--shadow-sm)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-70"
                       >
-                        <X className="h-3.5 w-3.5" />
-                        {pick(COPY.clearText, locale)}
+                        {isLoadingDemo ? (
+                          <>
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                            {pick(COPY.demoGenerating, locale)}
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4" />
+                            {pick(COPY.demoGenerate, locale)}
+                          </>
+                        )}
                       </button>
-                    )}
-
-                    <span
-                      className={cn(
-                        "px-1 text-[11px] tabular-nums",
-                        isOverLimit
-                          ? "font-semibold text-[var(--destructive)]"
-                          : remaining < 3000
-                            ? "text-[var(--warning)]"
-                            : "text-[var(--muted-foreground)]"
-                      )}
-                    >
-                      {formatNumber(charCount)} / {formatNumber(MAX_CHARS)}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
-                      {(["auto", "en", "ar"] as LangPref[]).map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setLangPref(value)}
-                          className={cn(
-                            langToggleClass,
-                            langPref === value
-                              ? "bg-[var(--surface-muted)] text-[var(--foreground)]"
-                              : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
-                          )}
-                        >
-                          {pick(OUTPUT_LABELS[value], locale)}
-                        </button>
-                      ))}
                     </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading || !text.trim() || isOverLimit}
-                      className="inline-flex min-w-[10.5rem] items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {loading ? (
-                        <>
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                          {pick(COPY.summarizing, locale)}
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-4 w-4" />
-                          {pick(COPY.summarize, locale)}
-                        </>
-                      )}
-                    </button>
                   </div>
+
+                  {isLoadingDemo ? (
+                    <div className="flex min-h-[19rem] flex-col items-center justify-center gap-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-6 text-center shadow-[var(--shadow-xs)]">
+                      <LoaderCircle className="h-7 w-7 animate-spin text-[var(--primary)]" />
+                      <div>
+                        <p className="text-[var(--text-lg)] font-semibold text-[var(--foreground)]">
+                          {pick(COPY.demoGenerating, locale)}
+                        </p>
+                        <p className="mt-2 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
+                          {pick(SUBTITLES[1], locale)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : isPreviewVisible ? (
+                    <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
+                        <div>
+                          <p className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                            {pick(COPY.previewEyebrow, locale)}
+                          </p>
+                          <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                            {pick(SUBTITLES[1], locale)}
+                          </p>
+                        </div>
+                        <span className="inline-flex min-h-10 items-center rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1 text-[var(--text-xs)] font-bold uppercase tracking-[0.14em] text-[var(--accent-fox-deep)] shadow-[var(--shadow-xs)]">
+                          {pick(COPY.previewBadge, locale)}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 space-y-4">
+                        <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] p-4">
+                          <p className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                            {pick(COPY.tldr, locale)}
+                          </p>
+                          <p className="mt-3 text-[var(--text-base)] leading-relaxed text-[var(--foreground)]">
+                            {summary.tldr}
+                          </p>
+                        </div>
+
+                        <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] p-4">
+                          <p className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                            {pick(COPY.actionItems, locale)}
+                          </p>
+                          <ul className="mt-3 space-y-3">
+                            {summary.actionItems.map((item) => (
+                              <li key={item} className="flex items-start gap-3">
+                                <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[var(--primary)]" />
+                                <span className="text-[var(--text-base)] leading-relaxed text-[var(--foreground)]">
+                                  {item}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="relative overflow-hidden rounded-[var(--radius)]">
+                          <div className="pointer-events-none select-none space-y-4 blur-[4px]">
+                            <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] p-4">
+                              <p className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                                {pick(COPY.importantDates, locale)}
+                              </p>
+                              <ul className="mt-3 space-y-2 text-[var(--text-base)] leading-relaxed text-[var(--foreground)]">
+                                {summary.importantDates.map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] p-4">
+                                <p className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                                  {pick(COPY.questions, locale)}
+                                </p>
+                                <ul className="mt-3 space-y-2 text-[var(--text-sm)] leading-relaxed text-[var(--foreground)]">
+                                  {summary.followUpQuestions.map((item) => (
+                                    <li key={item}>{item}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] p-4">
+                                <p className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                                  {pick(COPY.helpfulLinks, locale)}
+                                </p>
+                                <ul className="mt-3 space-y-2 text-[var(--text-sm)] leading-relaxed text-[var(--foreground)]">
+                                  {summary.helpfulLinks.map((item) => (
+                                    <li key={item}>{item}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-transparent via-[var(--background)]/78 to-[var(--background)] px-6 text-center">
+                            <p className="max-w-sm text-[var(--text-xl)] font-semibold text-[var(--foreground)]">
+                              {pick(COPY.overlayTitle, locale)}
+                            </p>
+                            <p className="mt-3 max-w-md text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)]">
+                              {pick(COPY.overlayBody, locale)}
+                            </p>
+                            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                              {overlayFeatures.map((feature) => (
+                                <span
+                                  key={feature}
+                                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[var(--text-sm)] font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)]"
+                                >
+                                  {feature}
+                                </span>
+                              ))}
+                            </div>
+                            <Link
+                              href="/login?tab=signup"
+                              className="mt-5 inline-flex h-12 items-center rounded-[var(--radius-lg)] bg-[var(--primary)] px-8 text-[var(--text-sm)] font-semibold text-white shadow-[var(--shadow-md)] transition-colors hover:bg-[var(--primary-hover)]"
+                            >
+                              {pick(COPY.startTrial, locale)}
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)] px-5 py-6 text-center shadow-[var(--shadow-xs)]">
+                      <p className="text-[var(--text-lg)] font-semibold text-[var(--foreground)]">
+                        {pick(HEADLINES[0], locale)}
+                      </p>
+                      <p className="mt-2 text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)]">
+                        {pick(COPY.demoBody, locale)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
-            </form>
+            </div>
           </div>
-
-          {uploadWarn && (
-            <div className="mx-auto mt-3 flex max-w-4xl items-center gap-2 rounded-[var(--radius)] border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-2 text-xs text-[var(--warning-foreground)]">
-              <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-              {uploadWarn}
-            </div>
-          )}
-
-          <p className="mx-auto mt-3 flex max-w-4xl flex-wrap items-center justify-center gap-1.5 text-center text-[11px] text-[var(--muted-foreground)]">
-            <Lock className="h-3 w-3 shrink-0" />
-            {pick(COPY.privacy, locale)}
-            <span className="text-[var(--muted-foreground)]/60">·</span>
-            <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 font-mono text-[10px]">
-              {pick(COPY.shortcutLabel, locale)}
-            </span>
-          </p>
-
-          {error && (
-            <div className="mx-auto mt-4 max-w-4xl rounded-[var(--radius)] border border-[var(--destructive)] bg-[var(--destructive-soft)] px-4 py-3 text-sm text-[var(--destructive-foreground)]">
-              {error}
-            </div>
-          )}
-
-          {summary && (
-            <div ref={summaryRef} className="mx-auto mt-8 max-w-4xl">
-              {isLoggedIn ? (
-                summaryCard
-              ) : (
-                <div className="relative max-h-[260px] overflow-hidden rounded-[var(--radius-xl)]">
-                  {summaryCard}
-                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-center bg-gradient-to-b from-transparent via-[var(--background)]/70 to-[var(--background)] px-4 pb-4 pt-20 backdrop-blur-sm">
-                    <div className="surface-panel w-full max-w-md px-4 py-4 text-center">
-                      <p className="text-sm font-medium text-[var(--foreground)]">
-                        {pick(COPY.previewBody, locale)}
-                      </p>
-                      <Link
-                        href="/login?next=/summarize"
-                        className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)]"
-                      >
-                        {pick(COPY.previewButton, locale)}
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </section>

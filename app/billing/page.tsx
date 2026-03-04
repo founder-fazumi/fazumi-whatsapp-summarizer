@@ -8,11 +8,27 @@ import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
 import type { Profile } from "@/lib/supabase/types";
 import { formatDate, formatNumber, formatPrice } from "@/lib/format";
 
-const PLAN_LABELS: Record<string, { name: { en: string; ar: string }; price: string; color: string }> = {
-  free:    { name: { en: "Free", ar: "مجاني" },          price: formatPrice(0),       color: "text-[var(--muted-foreground)]" },
-  monthly: { name: { en: "Pro Monthly", ar: "Pro شهري" }, price: `${formatPrice(9.99, 2)}/mo`, color: "text-[var(--primary)]" },
-  annual:  { name: { en: "Pro Annual", ar: "Pro سنوي" },  price: `${formatPrice(99.99, 2)}/yr`, color: "text-[var(--primary)]" },
-  founder: { name: { en: "Founder LTD", ar: "المؤسس" },   price: formatPrice(149),     color: "text-[var(--accent-fox-deep)]" },
+const PLAN_LABELS: Record<string, { name: { en: string; ar: string }; price: { en: string; ar: string }; color: string }> = {
+  free: {
+    name: { en: "Free", ar: "مجاني" },
+    price: { en: formatPrice(0), ar: formatPrice(0) },
+    color: "text-[var(--muted-foreground)]",
+  },
+  monthly: {
+    name: { en: "Pro Monthly", ar: "برو الشهري" },
+    price: { en: `${formatPrice(9.99, 2)}/mo`, ar: `${formatPrice(9.99, 2)}/شهريًا` },
+    color: "text-[var(--primary)]",
+  },
+  annual: {
+    name: { en: "Pro Annual", ar: "برو السنوي" },
+    price: { en: `${formatPrice(99.99, 2)}/yr`, ar: `${formatPrice(99.99, 2)}/سنويًا` },
+    color: "text-[var(--primary)]",
+  },
+  founder: {
+    name: { en: "Founder Lifetime", ar: "باقة المؤسسين" },
+    price: { en: formatPrice(149), ar: formatPrice(149) },
+    color: "text-[var(--accent-fox-deep)]",
+  },
 };
 
 const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
@@ -24,13 +40,13 @@ const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
   monthly: [
     { en: "50 summaries / day", ar: "50 ملخصًا يوميًا" },
     { en: "200 / month", ar: "200 شهريًا" },
-    { en: "Priority support", ar: "دعم أولوية" },
+    { en: "Priority support", ar: "دعم ذو أولوية" },
     { en: "Full history", ar: "سجل كامل" },
   ],
   annual: [
     { en: "50 summaries / day", ar: "50 ملخصًا يوميًا" },
     { en: "200 / month", ar: "200 شهريًا" },
-    { en: "Priority support", ar: "دعم أولوية" },
+    { en: "Priority support", ar: "دعم ذو أولوية" },
     { en: "Full history", ar: "سجل كامل" },
     { en: "2 months free", ar: "شهران مجانًا" },
   ],
@@ -116,7 +132,7 @@ export default async function BillingPage() {
     <DashboardShell contentClassName="max-w-6xl">
       <div className="space-y-4">
         {isPastDue && (
-          <div className="status-destructive flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-3 text-sm">
+          <div className="status-destructive flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-3 text-sm" role="alert" aria-live="polite">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="space-y-1">
               <p>
@@ -138,8 +154,8 @@ export default async function BillingPage() {
               ) : (
                 <p className="text-xs text-[var(--muted-foreground)]">
                   <LocalizedText
-                    en="Portal link unavailable — try again in a minute (we refresh after webhook updates)."
-                    ar="رابط البوابة غير متاح حاليًا — حاول مرة أخرى بعد دقيقة (نحدّثه بعد تحديثات webhook)."
+                    en="Portal link unavailable. Try again in a minute while billing sync finishes."
+                    ar="رابط البوابة غير متاح حاليًا. حاول مرة أخرى بعد دقيقة حتى يكتمل تحديث الفوترة."
                   />
                 </p>
               )}
@@ -153,9 +169,9 @@ export default async function BillingPage() {
                 <CreditCard className="h-5 w-5 text-[var(--primary)]" />
               </div>
               <div>
-                <CardTitle>
+                <h1 className="text-[var(--text-2xl)] font-semibold text-[var(--text-strong)] sm:text-[var(--text-3xl)]">
                   <LocalizedText en="Billing" ar="الفوترة" />
-                </CardTitle>
+                </h1>
                 <CardDescription>
                   <LocalizedText en="Manage your subscription and invoices" ar="أدر اشتراكك وفواتيرك" />
                 </CardDescription>
@@ -171,7 +187,9 @@ export default async function BillingPage() {
               <p data-testid="billing-current-plan" className={`mt-1 text-2xl font-bold ${planInfo.color}`}>
                 <LocalizedText en={planInfo.name.en} ar={planInfo.name.ar} />
               </p>
-              <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">{planInfo.price}</p>
+              <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
+                <LocalizedText en={planInfo.price.en} ar={planInfo.price.ar} />
+              </p>
 
               {isTrialActive && trialDaysLeft !== null && (
                 <p className="mt-2 text-xs font-medium text-[var(--warning)]">

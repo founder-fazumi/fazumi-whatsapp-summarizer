@@ -13,8 +13,10 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { buttonVariants } from "@/components/ui/button";
 import { parseDateFromLabel } from "@/lib/dashboard-insights";
+import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
 import { formatNumber } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
+import { mergeLocalTodoLabels, normalizeTodoLabel } from "@/lib/todos/local";
 import { cn } from "@/lib/utils";
 
 type OutputLang = "en" | "ar";
@@ -267,8 +269,10 @@ function downloadCalendarExport(contents: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function normalizeTodoLabel(value: string): string {
-  return value.trim().toLowerCase();
+function waitForNextPaint() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 function SectionBlock({
@@ -367,6 +371,17 @@ export function SummaryDisplay({
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
 
+  async function runAction(actionKey: ActionKey, action: () => Promise<void> | void) {
+    setPendingAction(actionKey);
+
+    try {
+      await waitForNextPaint();
+      await action();
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   async function handleActionClick(actionKey: ActionKey) {
     if (actionKey !== "export") {
       setShowSharePanel(false);
@@ -394,23 +409,27 @@ export function SummaryDisplay({
     }
 
     if (actionKey === "export") {
-      setShowSharePanel(true);
+      await runAction("export", async () => {
+        setShowSharePanel(true);
+      });
       return;
     }
 
     if (actionKey === "calendar") {
-      const calendarExport = buildCalendarExport(summary);
+      await runAction("calendar", async () => {
+        const calendarExport = buildCalendarExport(summary);
 
-      if (!calendarExport) {
-        setDialogVariant(null);
-        setInfoDialog({
-          title: copy.calendarEmptyTitle,
-          body: copy.calendarEmptyBody,
-        });
-        return;
-      }
+        if (!calendarExport) {
+          setDialogVariant(null);
+          setInfoDialog({
+            title: copy.calendarEmptyTitle,
+            body: copy.calendarEmptyBody,
+          });
+          return;
+        }
 
-      downloadCalendarExport(calendarExport);
+        downloadCalendarExport(calendarExport);
+      });
       return;
     }
 
@@ -440,65 +459,73 @@ export function SummaryDisplay({
       return;
     }
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    await runAction("todo", async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        setInfoDialog(null);
-        setDialogVariant("upgrade");
-        return;
-      }
-
-      setPendingAction("todo");
-
-      const { data: existingItems, error: existingError } = await supabase
-        .from("user_todos")
-        .select("label, sort_order")
-        .eq("user_id", user.id);
-
-      if (existingError) {
-        throw existingError;
-      }
-
-      const existingLabels = new Set(
-        ((existingItems ?? []) as { label: string; sort_order: number }[]).map((item) => normalizeTodoLabel(item.label))
-      );
-      const nextSortOrder = ((existingItems ?? []) as { label: string; sort_order: number }[])
-        .reduce((highest, item) => Math.max(highest, item.sort_order), -1) + 1;
-      const rows = actionItems
-        .filter((label) => !existingLabels.has(normalizeTodoLabel(label)))
-        .map((label, index) => ({
-          user_id: user.id,
-          label,
-          source: "summary" as const,
-          sort_order: nextSortOrder + index,
-          done: false,
-        }));
-
-      if (rows.length > 0) {
-        const { error: insertError } = await supabase.from("user_todos").insert(rows);
-
-        if (insertError) {
-          throw insertError;
+        if (!user) {
+          setInfoDialog(null);
+          setDialogVariant("upgrade");
+          return;
         }
-      }
 
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
-      }
+        const health = await getClientHealthSnapshot();
+        if (getTodoStorageMode(health) === "local") {
+          mergeLocalTodoLabels(user.id, actionItems);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
+          }
+          router.push("/todo");
+          return;
+        }
 
-      router.push("/todo");
-    } catch {
-      setDialogVariant(null);
-      setInfoDialog({
-        title: copy.actionErrorTitle,
-        body: copy.actionErrorBody,
-      });
-    } finally {
-      setPendingAction(null);
-    }
+        const { data: existingItems, error: existingError } = await supabase
+          .from("user_todos")
+          .select("label, sort_order")
+          .eq("user_id", user.id);
+
+        if (existingError) {
+          throw existingError;
+        }
+
+        const existingLabels = new Set(
+          ((existingItems ?? []) as { label: string; sort_order: number }[]).map((item) => normalizeTodoLabel(item.label))
+        );
+        const nextSortOrder = ((existingItems ?? []) as { label: string; sort_order: number }[])
+          .reduce((highest, item) => Math.max(highest, item.sort_order), -1) + 1;
+        const rows = actionItems
+          .filter((label) => !existingLabels.has(normalizeTodoLabel(label)))
+          .map((label, index) => ({
+            user_id: user.id,
+            label,
+            source: "summary" as const,
+            sort_order: nextSortOrder + index,
+            done: false,
+          }));
+
+        if (rows.length > 0) {
+          const { error: insertError } = await supabase.from("user_todos").insert(rows);
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
+        }
+
+        router.push("/todo");
+      } catch {
+        setDialogVariant(null);
+        setInfoDialog({
+          title: copy.actionErrorTitle,
+          body: copy.actionErrorBody,
+        });
+      }
+    });
   }
 
   return (
@@ -533,6 +560,7 @@ export function SummaryDisplay({
                   : key === "todo"
                     ? copy.addToTodo
                     : copy.export;
+              const isPending = pendingAction === key;
 
               return (
                 <button
@@ -542,11 +570,19 @@ export function SummaryDisplay({
                   onClick={() => {
                     void handleActionClick(key);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60",
+                    isPending && "opacity-50"
+                  )}
                   disabled={actionMode === "disabled" || pendingAction !== null}
                   title={actionMode === "disabled" ? copy.comingSoon : undefined}
+                  aria-busy={isPending}
                 >
-                  <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  {isPending ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  )}
                   {label}
                 </button>
               );
@@ -646,6 +682,7 @@ export function SummaryDisplay({
             </p>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setHelpful("up")}
                 className={cn(
                   "rounded-full p-1.5 transition-colors",
@@ -653,11 +690,12 @@ export function SummaryDisplay({
                     ? "bg-[var(--primary)] text-white"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
                 )}
-                aria-label="Thumbs up"
+                aria-label={outputLang === "ar" ? "إفادة إيجابية" : "Thumbs up"}
               >
                 <ThumbsUp className="h-4 w-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setHelpful("down")}
                 className={cn(
                   "rounded-full p-1.5 transition-colors",
@@ -665,7 +703,7 @@ export function SummaryDisplay({
                     ? "bg-[var(--destructive)] text-white"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
                 )}
-                aria-label="Thumbs down"
+                aria-label={outputLang === "ar" ? "إفادة سلبية" : "Thumbs down"}
               >
                 <ThumbsDown className="h-4 w-4" />
               </button>
@@ -687,6 +725,7 @@ export function SummaryDisplay({
           }
         }}
         title={infoDialog?.title ?? (dialogVariant === "upgrade" ? copy.subscribeTitle : copy.soonTitle)}
+        titleId="summary-dialog-title"
       >
         {infoDialog ? (
           <div

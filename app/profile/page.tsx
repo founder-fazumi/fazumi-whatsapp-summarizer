@@ -8,12 +8,40 @@ import { Avatar } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { User } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
+import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+
+const COPY = {
+  title: { en: "Profile", ar: "الملف الشخصي" },
+  description: { en: "Your account details", ar: "تفاصيل حسابك" },
+  deleteTitle: { en: "Delete account", ar: "حذف الحساب" },
+  deleteBody: {
+    en: "Account deletion is handled manually for now. Open the prepared email and send the request to the Fazumi team.",
+    ar: "حذف الحساب يتم يدويًا في الوقت الحالي. افتح البريد الجاهز وأرسل الطلب إلى فريق Fazumi.",
+  },
+  deleteHint: {
+    en: "No in-app deletion action is performed from this page.",
+    ar: "لن يتم تنفيذ أي حذف داخل التطبيق من هذه الصفحة.",
+  },
+  managePreferences: { en: "Manage preferences", ar: "إدارة التفضيلات" },
+  deleteButton: { en: "Email delete account request", ar: "إرسال طلب حذف الحساب" },
+  deleteFallbackBody: {
+    en: "If your email app did not open, send an email to:",
+    ar: "إذا لم يفتح تطبيق البريد، أرسل بريدًا إلى:",
+  },
+  deleteFallbackHint: {
+    en: "Include your account email in the message",
+    ar: "تضمين بريد حسابك في الرسالة",
+  },
+  showFallback: { en: "Can't open email app?", ar: "لا يمكنك فتح تطبيق البريد؟" },
+  hideFallback: { en: "Hide email instructions", ar: "إخفاء تعليمات البريد" },
+} satisfies Record<string, LocalizedCopy<string>>;
 
 export default function ProfilePage() {
   const { locale } = useLang();
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [showDeleteFallback, setShowDeleteFallback] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,8 +81,10 @@ export default function ProfilePage() {
               <User className="h-5 w-5 text-[var(--primary)]" />
             </div>
             <div>
-              <CardTitle>{locale === "ar" ? "الملف الشخصي" : "Profile"}</CardTitle>
-              <CardDescription>{locale === "ar" ? "تفاصيل حسابك" : "Your account details"}</CardDescription>
+              <h1 className="text-[var(--text-2xl)] font-semibold text-[var(--text-strong)] sm:text-[var(--text-3xl)]">
+                {pick(COPY.title, locale)}
+              </h1>
+              <CardDescription>{pick(COPY.description, locale)}</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -69,32 +99,52 @@ export default function ProfilePage() {
           <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
             <div>
               <p className="text-sm font-semibold text-[var(--foreground)]">
-                {locale === "ar" ? "حذف الحساب" : "Delete account"}
+                {pick(COPY.deleteTitle, locale)}
               </p>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                {locale === "ar"
-                  ? "حذف الحساب يتم يدويًا في الوقت الحالي. افتح البريد الجاهز وأرسل الطلب إلى فريق Fazumi."
-                  : "Account deletion is handled manually for now. Open the prepared email and send the request to the Fazumi team."}
+                {pick(COPY.deleteBody, locale)}
               </p>
               <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                {locale === "ar"
-                  ? "لن يتم تنفيذ أي حذف داخل التطبيق من هذه الصفحة."
-                  : "No in-app deletion action is performed from this page."}
+                {pick(COPY.deleteHint, locale)}
               </p>
             </div>
             <div className={cn("flex flex-wrap gap-3", locale === "ar" && "justify-end")}>
               <Link href="/settings" className={buttonVariants({ variant: "outline" })}>
-                {locale === "ar" ? "إدارة التفضيلات" : "Manage preferences"}
+                {pick(COPY.managePreferences, locale)}
               </Link>
-              <a
-                href={deleteAccountHref}
-                className={cn(
-                  buttonVariants({ variant: "link" }),
-                  "px-0 text-[var(--destructive)] hover:text-[var(--destructive)]"
-                )}
+            </div>
+            <div className={cn("space-y-3", locale === "ar" && "text-right")}>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = deleteAccountHref;
+                }}
+                className="inline-flex h-10 items-center rounded-[var(--radius)] bg-[var(--destructive)] px-4 text-sm font-semibold text-white"
               >
-                {locale === "ar" ? "إرسال طلب حذف الحساب" : "Email delete account request"}
-              </a>
+                {pick(COPY.deleteButton, locale)}
+              </button>
+
+              {showDeleteFallback ? (
+                <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
+                  <p className="text-sm text-[var(--foreground)]">
+                    {pick(COPY.deleteFallbackBody, locale)}
+                  </p>
+                  <code className="mt-2 block rounded bg-[var(--surface-muted)] p-2 text-sm font-mono text-[var(--primary)]">
+                    support@fazumi.app
+                  </code>
+                  <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                    {pick(COPY.deleteFallbackHint, locale)}
+                  </p>
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setShowDeleteFallback((current) => !current)}
+                className="text-xs text-[var(--muted-foreground)] underline"
+              >
+                {pick(showDeleteFallback ? COPY.hideFallback : COPY.showFallback, locale)}
+              </button>
             </div>
           </div>
         </CardContent>

@@ -6,9 +6,9 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const ROOT_DIR = process.cwd();
-const FREE_EMAIL = "free1@fazumi.local";
-const PAID_EMAIL = "paid1@fazumi.local";
-const FOUNDER_EMAIL = "founder1@fazumi.local";
+const FREE_EMAIL = "free@fazumi.test";
+const PAID_EMAIL = "paid@fazumi.test";
+const FOUNDER_EMAIL = "founder@fazumi.test";
 const FIXTURES_DIR = path.join(ROOT_DIR, "scripts", "webhooks", "fixtures");
 const RECURRING_FIXTURE_EMAILS: Record<string, string> = {
   subscription_payment_success: PAID_EMAIL,
@@ -177,7 +177,11 @@ export async function loginWithEmail(page: Page, account: TestAccount) {
   await page.goto("/login");
   await page.locator("#login-email").fill(account.email);
   await page.locator("#login-pass").fill(account.password);
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page
+    .locator("form")
+    .filter({ has: page.locator("#login-email") })
+    .locator('button[type="submit"]')
+    .click();
   await page.waitForURL("**/dashboard");
 }
 

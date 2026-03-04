@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLang } from "@/lib/context/LangContext";
+import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
 import { formatDate, formatNumber } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
+import { readLocalTodos } from "@/lib/todos/local";
 
 const SUMMARY_SAVED_EVENT = "fazumi-summary-saved";
 const TODOS_CHANGED_EVENT = "fazumi-todos-changed";
@@ -20,8 +22,6 @@ type TodoPreview = {
   created_at: string;
 };
 
-// Module-level stale-while-revalidate cache so navigating between pages
-// instantly shows the last-known data while a background refresh runs.
 let _cachedItems: TodoPreview[] = [];
 let _cachedCount = 0;
 
@@ -33,6 +33,11 @@ const COPY = {
     ar: "لا يوجد شيء هنا بعد.",
   },
   viewAll: { en: "View all →", ar: "عرض الكل ←" },
+  deviceBadge: { en: "This device", ar: "هذا الجهاز" },
+  deviceBody: {
+    en: "Tasks are stored locally in this environment until database sync is enabled.",
+    ar: "يتم حفظ المهام محليًا في هذه البيئة حتى يتم تفعيل مزامنة قاعدة البيانات.",
+  },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 type TodoSupabase = ReturnType<typeof createClient>;
@@ -41,6 +46,7 @@ export function TodoWidget() {
   const { locale } = useLang();
   const [todoItems, setTodoItems] = useState<TodoPreview[]>(_cachedItems);
   const [pendingCount, setPendingCount] = useState(_cachedCount);
+  const [storageMode, setStorageMode] = useState<"remote" | "local">("remote");
 
   useEffect(() => {
     let active = true;
@@ -70,6 +76,26 @@ export function TodoWidget() {
       if (!user) {
         setTodoItems([]);
         setPendingCount(0);
+        return;
+      }
+
+      const health = await getClientHealthSnapshot();
+      const nextStorageMode = getTodoStorageMode(health);
+      setStorageMode(nextStorageMode);
+
+      if (nextStorageMode === "local") {
+        const localItems = readLocalTodos(user.id).filter((item) => !item.done);
+        const items = localItems.slice(0, 5).map((item) => ({
+          id: item.id,
+          label: item.label,
+          due_date: item.due_date,
+          sort_order: item.sort_order,
+          created_at: item.created_at,
+        }));
+        _cachedItems = items;
+        _cachedCount = localItems.length;
+        setTodoItems(items);
+        setPendingCount(localItems.length);
         return;
       }
 
@@ -132,13 +158,28 @@ export function TodoWidget() {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">
           {pick(COPY.title, locale)}{" "}
-          <span className="font-normal text-[var(--muted-foreground)]">({formatNumber(pendingCount)})</span>
+          <span className="font-normal text-[var(--muted-foreground)]">
+            ({formatNumber(pendingCount)})
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 pb-3">
+        {storageMode === "local" ? (
+          <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
+            <p className="text-caption font-semibold text-[var(--foreground)]">
+              {pick(COPY.deviceBadge, locale)}
+            </p>
+            <p className="mt-1 text-caption text-[var(--muted-foreground)]">
+              {pick(COPY.deviceBody, locale)}
+            </p>
+          </div>
+        ) : null}
+
         {todoItems.length === 0 ? (
           <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3">
-            <p className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.emptyTitle, locale)}</p>
+            <p className="text-xs font-semibold text-[var(--foreground)]">
+              {pick(COPY.emptyTitle, locale)}
+            </p>
             <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
               {pick(COPY.emptyBody, locale)}
             </p>
@@ -151,7 +192,9 @@ export function TodoWidget() {
             >
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs leading-snug text-[var(--foreground)]">{item.label}</p>
+                <p className="text-xs leading-snug text-[var(--foreground)]">
+                  {item.label}
+                </p>
                 {item.due_date ? (
                   <div className="mt-1">
                     <span className="inline-flex items-center rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">

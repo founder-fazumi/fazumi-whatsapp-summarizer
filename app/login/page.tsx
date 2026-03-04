@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLang } from "@/lib/context/LangContext";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type Tab = "login" | "signup";
@@ -235,10 +236,14 @@ export default function LoginPage() {
   }
 
   const inputCls =
-    "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]";
+    "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text-base)] outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-12">
+    <main
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      lang={locale}
+      className={cn("flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-12", locale === "ar" && "font-arabic")}
+    >
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-2">
@@ -251,7 +256,9 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">{locale === "ar" ? "مرحبًا" : "Welcome"}</CardTitle>
+            <h1 className="text-[var(--text-xl)] font-semibold text-[var(--text-strong)]">
+              {locale === "ar" ? "مرحبًا" : "Welcome"}
+            </h1>
             <CardDescription>
               {locale === "ar" ? "سجّل الدخول أو أنشئ حسابًا مجانيًا للبدء" : "Log in or create a free account to get started"}
             </CardDescription>
@@ -305,7 +312,7 @@ export default function LoginPage() {
               <TabsContent value="login" className="mt-4">
                 <form onSubmit={handleEmailLogin} className="space-y-3">
                   <div>
-                    <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                    <label htmlFor="login-email" className="mb-1 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "البريد الإلكتروني" : "Email"}
                     </label>
                     <input
@@ -320,7 +327,7 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="login-pass" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                    <label htmlFor="login-pass" className="mb-1 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "كلمة المرور" : "Password"}
                     </label>
                     <div className="relative">
@@ -345,7 +352,7 @@ export default function LoginPage() {
                     </div>
                   </div>
                   {error && (
-                    <p className="rounded-[var(--radius)] bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                    <p className="rounded-[var(--radius)] bg-red-50 px-3 py-2 text-[var(--text-sm)] text-red-700 dark:bg-red-950/30 dark:text-red-400">
                       {error}
                     </p>
                   )}
@@ -359,7 +366,7 @@ export default function LoginPage() {
               <TabsContent value="signup" className="mt-4">
                 <form onSubmit={handleEmailSignup} className="space-y-3">
                   <div>
-                    <label htmlFor="signup-name" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                    <label htmlFor="signup-name" className="mb-1 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "الاسم الكامل" : "Full name"}
                     </label>
                     <input
@@ -374,7 +381,7 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="signup-email" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                    <label htmlFor="signup-email" className="mb-1 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "البريد الإلكتروني" : "Email"}
                     </label>
                     <input
@@ -389,21 +396,21 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="signup-pass" className="mb-1 block text-xs font-medium text-[var(--foreground)]">
+                    <label htmlFor="signup-pass" className="mb-1 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "كلمة المرور" : "Password"}
                     </label>
                     <div className="relative">
                       <input
                         id="signup-pass"
                         type={showPass ? "text" : "password"}
-                        autoComplete="new-password"
-                        required
-                        minLength={8}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Min 8 characters"
-                        className={cn(inputCls, "pr-10")}
-                      />
+                      autoComplete="new-password"
+                      required
+                      minLength={8}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={t("auth.password.requirement", locale)}
+                      className={cn(inputCls, "pr-10")}
+                    />
                       <button
                         type="button"
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -415,12 +422,12 @@ export default function LoginPage() {
                     </div>
                   </div>
                   {error && (
-                    <p className="rounded-[var(--radius)] bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                    <p className="rounded-[var(--radius)] bg-red-50 px-3 py-2 text-[var(--text-sm)] text-red-700 dark:bg-red-950/30 dark:text-red-400">
                       {error}
                     </p>
                   )}
                   {success && (
-                    <p className="rounded-[var(--radius)] bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                    <p className="rounded-[var(--radius)] bg-green-50 px-3 py-2 text-[var(--text-sm)] text-green-700 dark:bg-green-950/30 dark:text-green-400">
                       {success}
                     </p>
                   )}
@@ -443,6 +450,6 @@ export default function LoginPage() {
           <Link href="/privacy" className="text-[var(--primary)] hover:underline">{locale === "ar" ? "سياسة الخصوصية" : "Privacy Policy"}</Link>.
         </p>
       </div>
-    </div>
+    </main>
   );
 }

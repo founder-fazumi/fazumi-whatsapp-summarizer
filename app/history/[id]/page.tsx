@@ -113,7 +113,9 @@ export default async function SummaryDetailPage({ params }: PageProps) {
           </div>
         </CardHeader>
         <CardContent className="px-4 pb-3 pt-0">
-          <p className="text-sm font-semibold text-[var(--foreground)]">{row.title}</p>
+          <h1 className="text-[var(--text-lg)] font-semibold leading-snug text-[var(--foreground)] sm:text-[var(--text-xl)]">
+            {row.title}
+          </h1>
         </CardContent>
       </Card>
 

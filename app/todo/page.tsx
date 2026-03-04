@@ -8,9 +8,9 @@ export default function TodoPage() {
     <DashboardShell>
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>
+          <h1 className="text-[var(--text-2xl)] font-semibold text-[var(--text-strong)] sm:text-[var(--text-3xl)]">
             <LocalizedText en="To-Do" ar="المهام" />
-          </CardTitle>
+          </h1>
           <CardDescription>
             <LocalizedText
               en="Action items extracted from your summaries will appear here automatically."
