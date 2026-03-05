@@ -49,12 +49,14 @@
 - `pnpm lint`: pass
 - `pnpm typecheck`: pass
 - `pnpm test` (Playwright): pass (`13 passed`)
+- `$env:NEXT_PUBLIC_LS_MONTHLY_VARIANT=''; $env:NEXT_PUBLIC_LS_ANNUAL_VARIANT=''; $env:NEXT_PUBLIC_LS_FOUNDER_VARIANT=''; pnpm exec playwright test e2e/public-routes.spec.ts --grep \"/pricing renders\"`: pass (`1 passed`)
 - `pnpm build` (final): pass
   - Includes `/_not-found` route generation.
 
 ## Verification Notes
 - Production build output confirms `/_not-found` is generated.
 - Pricing/checkout UI uses `lsVariantsConfigured` and optional `lsVariantIds` to avoid runtime errors when env vars are missing.
+- Missing-env `/pricing` smoke test passed with all three `NEXT_PUBLIC_LS_*` variant env vars empty.
 - Social icon links in footer now point to external platforms and open safely in new tabs.
 
 ## Remaining Known Issues
