@@ -8,11 +8,13 @@ import { CheckoutButton } from "@/components/billing/CheckoutButton";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { billingConfigured } from "@/lib/config/public";
+import { getCheckoutVariantConfig } from "@/lib/lemonsqueezy-config";
 
-const VARIANT_IDS = {
-  monthly: process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? "",
-  annual: process.env.NEXT_PUBLIC_LS_ANNUAL_VARIANT ?? "",
-  founder: process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? "",
+const CHECKOUT_VARIANTS = {
+  monthly: getCheckoutVariantConfig("monthly"),
+  annual: getCheckoutVariantConfig("annual"),
+  founder: getCheckoutVariantConfig("founder"),
 } as const;
 
 type Billing = "monthly" | "yearly";
@@ -61,6 +63,10 @@ const COPY = {
   refundNote: {
     en: "7-day money-back on monthly and annual. Founder is final.",
     ar: "استرداد خلال 7 أيام للاشتراكات الشهرية والسنوية. باقة المؤسس نهائية.",
+  },
+  billingNotConfigured: {
+    en: "Billing is not configured yet.",
+    ar: "لم يتم إعداد الدفع بعد.",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 
@@ -334,10 +340,10 @@ export function Pricing({
                   <CheckoutButton
                     variantId={
                       plan.id === "founder"
-                        ? VARIANT_IDS.founder
+                        ? CHECKOUT_VARIANTS.founder.variantId
                         : billing === "yearly"
-                          ? VARIANT_IDS.annual
-                          : VARIANT_IDS.monthly
+                          ? CHECKOUT_VARIANTS.annual.variantId
+                          : CHECKOUT_VARIANTS.monthly.variantId
                     }
                     isLoggedIn={isLoggedIn}
                     className={cn(
@@ -377,6 +383,15 @@ export function Pricing({
         <p className="mt-6 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
           {pick(COPY.refundNote, locale)}
         </p>
+        {!billingConfigured ? (
+          <p
+            className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]"
+            role="status"
+            aria-live="polite"
+          >
+            {pick(COPY.billingNotConfigured, locale)}
+          </p>
+        ) : null}
       </div>
     </section>
   );

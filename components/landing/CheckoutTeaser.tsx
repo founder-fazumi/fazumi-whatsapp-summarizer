@@ -5,6 +5,8 @@ import { ArrowUpCircle, CreditCard, Shield } from "lucide-react";
 import { CheckoutButton } from "@/components/billing/CheckoutButton";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { billingConfigured } from "@/lib/config/public";
+import { getCheckoutVariantConfig } from "@/lib/lemonsqueezy-config";
 import { cn } from "@/lib/utils";
 
 const COPY = {
@@ -60,11 +62,17 @@ const COPY = {
     en: "Secured by Lemon Squeezy · 7-day money-back on monthly & annual · Founder is final",
     ar: "مدفوعات آمنة عبر Lemon Squeezy · استرداد خلال 7 أيام للاشتراكات الشهرية والسنوية · باقة المؤسسين نهائية",
   },
+  billingNotConfigured: {
+    en: "Billing is not configured yet.",
+    ar: "لم يتم إعداد الدفع بعد.",
+  },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 export function CheckoutTeaser() {
   const { locale } = useLang();
   const isArabic = locale === "ar";
+  const monthlyVariant = getCheckoutVariantConfig("monthly");
+  const founderVariant = getCheckoutVariantConfig("founder");
 
   return (
     <section
@@ -103,7 +111,7 @@ export function CheckoutTeaser() {
               </p>
               <p className="mt-2 text-xs leading-relaxed text-[var(--muted-foreground)]">{pick(COPY.monthlyBody, locale)}</p>
               <CheckoutButton
-                variantId={process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? ""}
+                variantId={monthlyVariant.variantId}
                 isLoggedIn={false}
                 className="mt-4 w-full rounded-[var(--radius)] bg-[var(--primary)] py-3 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
@@ -118,7 +126,7 @@ export function CheckoutTeaser() {
               </p>
               <p className="mt-2 text-xs leading-relaxed text-[var(--muted-foreground)]">{pick(COPY.founderBody, locale)}</p>
               <CheckoutButton
-                variantId={process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? ""}
+                variantId={founderVariant.variantId}
                 isLoggedIn={false}
                 className="mt-4 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] py-3 text-sm font-bold text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
               >
@@ -131,6 +139,11 @@ export function CheckoutTeaser() {
             <Shield className="h-3.5 w-3.5" />
             {pick(COPY.trust, locale)}
           </div>
+          {!billingConfigured ? (
+            <p className="mt-2 text-center text-xs text-[var(--muted-foreground)]" role="status" aria-live="polite">
+              {pick(COPY.billingNotConfigured, locale)}
+            </p>
+          ) : null}
         </div>
       </div>
     </section>
