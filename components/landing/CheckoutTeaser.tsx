@@ -5,8 +5,7 @@ import { ArrowUpCircle, CreditCard, Shield } from "lucide-react";
 import { CheckoutButton } from "@/components/billing/CheckoutButton";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
-import { billingConfigured } from "@/lib/config/public";
-import { getCheckoutVariantConfig } from "@/lib/lemonsqueezy-config";
+import { lsVariantIds, lsVariantsConfigured } from "@/lib/config/public";
 import { cn } from "@/lib/utils";
 
 const COPY = {
@@ -71,8 +70,6 @@ const COPY = {
 export function CheckoutTeaser() {
   const { locale } = useLang();
   const isArabic = locale === "ar";
-  const monthlyVariant = getCheckoutVariantConfig("monthly");
-  const founderVariant = getCheckoutVariantConfig("founder");
 
   return (
     <section
@@ -111,7 +108,7 @@ export function CheckoutTeaser() {
               </p>
               <p className="mt-2 text-xs leading-relaxed text-[var(--muted-foreground)]">{pick(COPY.monthlyBody, locale)}</p>
               <CheckoutButton
-                variantId={monthlyVariant.variantId}
+                variantId={lsVariantIds.monthly ?? ""}
                 isLoggedIn={false}
                 className="mt-4 w-full rounded-[var(--radius)] bg-[var(--primary)] py-3 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
@@ -126,7 +123,7 @@ export function CheckoutTeaser() {
               </p>
               <p className="mt-2 text-xs leading-relaxed text-[var(--muted-foreground)]">{pick(COPY.founderBody, locale)}</p>
               <CheckoutButton
-                variantId={founderVariant.variantId}
+                variantId={lsVariantIds.founder ?? ""}
                 isLoggedIn={false}
                 className="mt-4 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] py-3 text-sm font-bold text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
               >
@@ -139,7 +136,7 @@ export function CheckoutTeaser() {
             <Shield className="h-3.5 w-3.5" />
             {pick(COPY.trust, locale)}
           </div>
-          {!billingConfigured ? (
+          {!lsVariantsConfigured ? (
             <p className="mt-2 text-center text-xs text-[var(--muted-foreground)]" role="status" aria-live="polite">
               {pick(COPY.billingNotConfigured, locale)}
             </p>

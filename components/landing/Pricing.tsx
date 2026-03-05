@@ -8,14 +8,7 @@ import { CheckoutButton } from "@/components/billing/CheckoutButton";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
-import { billingConfigured } from "@/lib/config/public";
-import { getCheckoutVariantConfig } from "@/lib/lemonsqueezy-config";
-
-const CHECKOUT_VARIANTS = {
-  monthly: getCheckoutVariantConfig("monthly"),
-  annual: getCheckoutVariantConfig("annual"),
-  founder: getCheckoutVariantConfig("founder"),
-} as const;
+import { lsVariantIds, lsVariantsConfigured } from "@/lib/config/public";
 
 type Billing = "monthly" | "yearly";
 
@@ -340,10 +333,10 @@ export function Pricing({
                   <CheckoutButton
                     variantId={
                       plan.id === "founder"
-                        ? CHECKOUT_VARIANTS.founder.variantId
+                        ? lsVariantIds.founder ?? ""
                         : billing === "yearly"
-                          ? CHECKOUT_VARIANTS.annual.variantId
-                          : CHECKOUT_VARIANTS.monthly.variantId
+                          ? lsVariantIds.annual ?? ""
+                          : lsVariantIds.monthly ?? ""
                     }
                     isLoggedIn={isLoggedIn}
                     className={cn(
@@ -383,7 +376,7 @@ export function Pricing({
         <p className="mt-6 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
           {pick(COPY.refundNote, locale)}
         </p>
-        {!billingConfigured ? (
+        {!lsVariantsConfigured ? (
           <p
             className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]"
             role="status"

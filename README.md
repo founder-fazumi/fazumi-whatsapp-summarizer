@@ -62,6 +62,31 @@ pnpm dev
 
 6. Open `http://localhost:3000` and paste WhatsApp chat text into the summarizer.
 
+## Lemon Squeezy Variant Setup (Launch)
+
+Set these public env vars in local and Vercel:
+
+```text
+NEXT_PUBLIC_LS_MONTHLY_VARIANT=<your_variant_id>
+NEXT_PUBLIC_LS_ANNUAL_VARIANT=<your_variant_id>
+NEXT_PUBLIC_LS_FOUNDER_VARIANT=<your_variant_id>
+```
+
+Steps:
+
+1. In Lemon Squeezy, create your monthly, annual, and founder products/variants.
+2. Copy each Variant ID from Lemon Squeezy.
+3. Paste the IDs into Vercel project env vars using the exact names above.
+4. Redeploy the app so pricing/checkout client bundles get the new values.
+
+Where used:
+
+- Pricing and checkout buttons on `/pricing` and billing upgrade surfaces.
+- If any of these are missing, checkout buttons are disabled and show `Billing is not configured yet.` / `لم يتم إعداد الدفع بعد.`
+
+Security note:
+
+- Do not commit real project Variant IDs to git.
 ## Dev Server Lock Error
 
 If Next.js dev shows `Runtime AbortError: Lock broken by another request with the 'steal' option.`, switch to the webpack dev server. The default `pnpm dev` script already uses webpack for local stability.

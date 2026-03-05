@@ -1,4 +1,4 @@
-const REQUIRED_BILLING_ENV = {
+const PUBLIC_LS_ENV = {
   NEXT_PUBLIC_LS_MONTHLY_VARIANT: process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? "",
   NEXT_PUBLIC_LS_ANNUAL_VARIANT: process.env.NEXT_PUBLIC_LS_ANNUAL_VARIANT ?? "",
   NEXT_PUBLIC_LS_FOUNDER_VARIANT: process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? "",
@@ -8,14 +8,30 @@ function normalizePublicValue(value: string) {
   return value.trim();
 }
 
-export const publicBillingConfig = {
-  monthlyVariantId: normalizePublicValue(REQUIRED_BILLING_ENV.NEXT_PUBLIC_LS_MONTHLY_VARIANT),
-  annualVariantId: normalizePublicValue(REQUIRED_BILLING_ENV.NEXT_PUBLIC_LS_ANNUAL_VARIANT),
-  founderVariantId: normalizePublicValue(REQUIRED_BILLING_ENV.NEXT_PUBLIC_LS_FOUNDER_VARIANT),
+const monthly = normalizePublicValue(PUBLIC_LS_ENV.NEXT_PUBLIC_LS_MONTHLY_VARIANT);
+const annual = normalizePublicValue(PUBLIC_LS_ENV.NEXT_PUBLIC_LS_ANNUAL_VARIANT);
+const founder = normalizePublicValue(PUBLIC_LS_ENV.NEXT_PUBLIC_LS_FOUNDER_VARIANT);
+
+export const lsVariantIds: { monthly?: string; annual?: string; founder?: string } = {
+  ...(monthly ? { monthly } : {}),
+  ...(annual ? { annual } : {}),
+  ...(founder ? { founder } : {}),
 };
 
-export const missingBillingEnvVars = Object.entries(REQUIRED_BILLING_ENV)
+export const lsVariantsConfigured = Boolean(
+  lsVariantIds.monthly && lsVariantIds.annual && lsVariantIds.founder
+);
+
+export const missingLsVariantEnvVars = Object.entries(PUBLIC_LS_ENV)
   .filter(([, value]) => normalizePublicValue(value).length === 0)
   .map(([name]) => name);
 
-export const billingConfigured = missingBillingEnvVars.length === 0;
+// Backward-compatible aliases for existing imports.
+export const publicBillingConfig = {
+  monthlyVariantId: lsVariantIds.monthly ?? "",
+  annualVariantId: lsVariantIds.annual ?? "",
+  founderVariantId: lsVariantIds.founder ?? "",
+};
+
+export const missingBillingEnvVars = missingLsVariantEnvVars;
+export const billingConfigured = lsVariantsConfigured;

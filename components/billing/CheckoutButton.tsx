@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLang } from "@/lib/context/LangContext";
-import { billingConfigured } from "@/lib/config/public";
+import { lsVariantsConfigured } from "@/lib/config/public";
 import {
   isValidCheckoutVariantId,
   normalizeVariantId,
@@ -22,7 +22,7 @@ export function CheckoutButton({ variantId, children, className, isLoggedIn = fa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const normalizedVariantId = normalizeVariantId(variantId);
-  const checkoutState = !billingConfigured
+  const checkoutState = !lsVariantsConfigured
     ? "billing_missing"
     : !normalizedVariantId
     ? "missing"
