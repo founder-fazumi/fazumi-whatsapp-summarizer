@@ -11,10 +11,10 @@ import { BrandLogo } from "@/components/shared/BrandLogo";
 
 // LinkedIn is intentionally omitted until an official public company page is available.
 const SOCIAL_LINKS = [
-  { href: "https://facebook.com/fazumi", label: "Facebook", icon: Facebook },
-  { href: "https://instagram.com/fazumi", label: "Instagram", icon: Instagram },
-  { href: "https://twitter.com/fazumi", label: "Twitter/X", icon: Twitter },
-  { href: "https://youtube.com/@fazumi", label: "YouTube", icon: Youtube },
+  { href: "https://facebook.com", label: "Facebook", icon: Facebook },
+  { href: "https://instagram.com", label: "Instagram", icon: Instagram },
+  { href: "https://x.com", label: "Twitter/X", icon: Twitter },
+  { href: "https://youtube.com", label: "YouTube", icon: Youtube },
 ] as const;
 
 const FOOTER_GROUPS = [
