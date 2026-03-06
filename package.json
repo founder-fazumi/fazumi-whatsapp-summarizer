@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:assets": "node scripts/check-asset-filenames.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "playwright test e2e",
     "test:audit": "playwright test tests/playwright/audit.spec.ts --project=chromium --reporter=line",
     "test:e2e": "playwright test e2e",
