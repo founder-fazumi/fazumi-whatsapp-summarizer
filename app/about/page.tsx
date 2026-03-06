@@ -1,7 +1,16 @@
 "use client";
 
-import { Quote, UserRound } from "lucide-react";
+import Link from "next/link";
+import {
+  CheckCircle2,
+  Globe2,
+  HeartHandshake,
+  Lock,
+  MapPinned,
+  Sparkles,
+} from "lucide-react";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLang } from "@/lib/context/LangContext";
 import { pick } from "@/lib/i18n";
@@ -9,68 +18,110 @@ import { cn } from "@/lib/utils";
 
 const COPY = {
   eyebrow: { en: "About", ar: "من نحن" },
-  title: { en: "About Fazumi", ar: "عن Fazumi" },
+  title: { en: "Built by parents, for parents", ar: "صُمم من قبل أولياء الأمور، لأولياء الأمور" },
   description: {
-    en: "A calm, focused product for parents who want the signal from school chat noise.",
-    ar: "منتج هادئ ومركز لأولياء الأمور الذين يريدون المهم وسط ضجيج رسائل المدرسة.",
+    en: "Fazumi helps busy parents turn noisy school chats into clear next steps, dates, and follow-ups without endless scrolling.",
+    ar: "يساعد فازومي الآباء والأمهات المشغولين على تحويل محادثات المدرسة المزدحمة إلى خطوات واضحة ومواعيد ومتابعات دون تمرير لا ينتهي.",
   },
-  sections: [
+  originBadge: { en: "Built in Doha for the GCC", ar: "صُمم في الدوحة من أجل الخليج" },
+  bilingualBadge: { en: "Arabic + English by default", ar: "العربية والإنجليزية افتراضيًا" },
+  highlights: [
     {
-      title: { en: "What Fazumi is", ar: "ما هو Fazumi" },
+      title: { en: "Built for busy parents", ar: "مصمم للآباء والأمهات المشغولين" },
       body: {
-        en: "Fazumi is a focused summarization tool that turns long school-group message threads into a clear, structured recap.",
-        ar: "Fazumi أداة تلخيص مركزة تحول سلاسل رسائل مجموعات المدرسة الطويلة إلى خلاصة واضحة ومنظمة.",
+        en: "Designed for the moments when you need the update quickly, not another long scroll.",
+        ar: "صُمم للحظات التي تحتاج فيها إلى التحديث بسرعة، لا إلى تمرير أطول.",
       },
     },
     {
-      title: { en: "Who it is for", ar: "لمن صُمم" },
+      title: { en: "Clarity from noisy school chats", ar: "وضوح وسط محادثات المدرسة المزدحمة" },
       body: {
-        en: "It is built for busy parents and guardians who want the important dates, tasks, and announcements without endless scrolling.",
-        ar: "صُمم للآباء والأمهات وأولياء الأمور المشغولين الذين يريدون المواعيد والمهام والإعلانات المهمة من دون تمرير لا ينتهي.",
+        en: "Dates, actions, follow-ups, and context should be easy to scan and easy to share.",
+        ar: "ينبغي أن تكون المواعيد والمهام والمتابعات والسياق سهلة الالتقاط وسهلة المشاركة.",
       },
     },
     {
-      title: { en: "Mission", ar: "المهمة" },
+      title: { en: "Privacy considered from the start", ar: "خصوصية حاضرة من البداية" },
       body: {
-        en: "Our mission is simple: more calm, more clarity, and less scrolling for families trying to keep up with school life.",
-        ar: "مهمتنا بسيطة: مزيد من الهدوء، ومزيد من الوضوح، وتمرير أقل للعائلات التي تحاول مواكبة الحياة المدرسية.",
-      },
-    },
-    {
-      title: { en: "What does Fazumi mean?", ar: "ماذا يعني Fazumi؟" },
-      body: {
-        en: "Fazumi is a made-up name we chose because it feels friendly, light, and easy to remember.",
-        ar: "Fazumi اسم مبتكر اخترناه لأنه يبدو ودودًا وخفيفًا وسهل التذكر.",
+        en: "Fazumi is built to keep the useful structure, not a permanent archive of pasted chat threads.",
+        ar: "صُمم فازومي للاحتفاظ بالبنية المفيدة، لا لتحويل المحادثات الملصقة إلى أرشيف دائم.",
       },
     },
   ],
-  founder: {
-    title: { en: "Founder", ar: "المؤسس" },
-    body: {
-      en: "Founder profile placeholder. We will add a short bio and photo before publishing a public founder profile.",
-      ar: "هذا موضع مؤقت لملف المؤسس. سنضيف نبذة مختصرة وصورة قبل نشر الملف الشخصي العام.",
-    },
-    imageLabel: {
-      en: "Founder image placeholder",
-      ar: "موضع مؤقت لصورة المؤسس",
-    },
+  storyTitle: { en: "Why Fazumi exists", ar: "لماذا وُجد فازومي" },
+  storyBody: {
+    en: "As parents in Doha, we once missed our daughter's science-fair deadline because the reminder was buried inside 200+ WhatsApp messages. The information was there, but the signal was lost in the noise. Fazumi started as the tool we wanted that night: paste the chat, surface the dates, identify the actions, and share the summary with the whole family before anything slips again.",
+    ar: "كأولياء أمور في الدوحة، فاتنا ذات مرة موعد معرض العلوم لابنتنا لأن التذكير كان مدفونًا داخل أكثر من 200 رسالة واتساب. كانت المعلومة موجودة، لكن الإشارة ضاعت وسط الضجيج. بدأ فازومي كالأداة التي تمنينا وجودها في تلك الليلة: الصق المحادثة، أظهر المواعيد، حدد الإجراءات، وشارك الملخص مع العائلة كلها قبل أن يفوت شيء مرة أخرى.",
   },
-  quote: {
-    title: { en: "A reminder we like", ar: "عبارة نحبها" },
-    body: {
-      en: "Stay hungry. Stay foolish.",
-      ar: "ابقَ جائعًا. ابقَ أحمقًا.",
-    },
-    author: {
-      en: "Steve Jobs",
-      ar: "ستيف جوبز",
-    },
+  founderTitle: { en: "How we think about the product", ar: "كيف نفكر في المنتج" },
+  founderBody: {
+    en: "Fazumi is shaped by parents who balance school, work, and family logistics every day. We care about reducing friction: faster scanning on mobile, clearer language, and summaries that make it obvious what happens next.",
+    ar: "يتشكل فازومي على يد أولياء أمور يوازنون يوميًا بين المدرسة والعمل وتنظيم شؤون العائلة. ما نهتم به هو تقليل الاحتكاك: قراءة أسرع على الهاتف، ولغة أوضح، وملخصات تجعل الخطوة التالية واضحة مباشرة.",
   },
+  founderListTitle: { en: "What we optimize for", ar: "ما الذي نركز عليه" },
+  founderList: {
+    en: [
+      "Useful structure before visual noise.",
+      "Bilingual clarity that feels natural in English and Arabic.",
+      "A calmer experience on the phone, where most parents actually use it.",
+    ],
+    ar: [
+      "بنية مفيدة قبل أي ازدحام بصري.",
+      "وضوح ثنائي اللغة يبدو طبيعيًا في العربية والإنجليزية.",
+      "تجربة أهدأ على الهاتف، حيث يستخدمه معظم أولياء الأمور فعلًا.",
+    ],
+  },
+  missionTitle: { en: "Our mission", ar: "مهمتنا" },
+  missionBody: {
+    en: "Give parents a calmer way to understand school communication, act on time, and coordinate with family with less friction.",
+    ar: "منح الأسر طريقة أهدأ لفهم تواصل المدرسة، والتصرف في الوقت المناسب، والتنسيق العائلي باحتكاك أقل.",
+  },
+  values: [
+    {
+      title: { en: "Privacy-first", ar: "الخصوصية أولًا" },
+      body: {
+        en: "We do not save raw chat text in the summaries database or account history. Fazumi keeps the structured result needed for the product to work.",
+        ar: "لا نحفظ نص المحادثة الخام في قاعدة بيانات الملخصات أو سجل الحساب. يحتفظ فازومي بالنتيجة المنظمة اللازمة لعمل المنتج.",
+      },
+      icon: Lock,
+    },
+    {
+      title: { en: "Built for GCC parents", ar: "مصمم لأولياء الأمور في الخليج" },
+      body: {
+        en: "Arabic and English support, regional school rhythms, and family-sharing habits are product assumptions, not afterthoughts.",
+        ar: "دعم العربية والإنجليزية، وإيقاع المدارس في المنطقة، وعادات مشاركة العائلة هي افتراضات أساسية في المنتج وليست إضافات لاحقة.",
+      },
+      icon: Globe2,
+    },
+    {
+      title: { en: "Clarity by default", ar: "الوضوح افتراضيًا" },
+      body: {
+        en: "The goal is not to show more. It is to surface the deadline, action, question, and context that matter most.",
+        ar: "الهدف ليس عرض المزيد، بل إبراز الموعد والمهمة والسؤال والسياق الأكثر أهمية.",
+      },
+      icon: CheckCircle2,
+    },
+    {
+      title: { en: "Always improving", ar: "نتحسن باستمرار" },
+      body: {
+        en: "We ship improvements from real parent feedback, especially around clarity, reliability, and calmer mobile use.",
+        ar: "نطلق تحسينات مبنية على ملاحظات أولياء الأمور الحقيقية، خصوصًا فيما يتعلق بالوضوح والاعتمادية وتجربة الهاتف الأكثر هدوءًا.",
+      },
+      icon: Sparkles,
+    },
+  ],
+  ctaTitle: { en: "Ready to try Fazumi?", ar: "هل أنت مستعد لتجربة فازومي؟" },
+  ctaBody: {
+    en: "Start your free trial and turn the next crowded school chat into one clear family-ready summary.",
+    ar: "ابدأ تجربتك المجانية وحوّل المحادثة المدرسية المزدحمة التالية إلى ملخص واحد واضح وجاهز للعائلة.",
+  },
+  ctaButton: { en: "Start free trial", ar: "ابدأ التجربة المجانية" },
 } as const;
 
 export default function AboutPage() {
   const { locale } = useLang();
   const isArabic = locale === "ar";
+  const founderList = pick<readonly string[]>(COPY.founderList, locale);
 
   return (
     <PublicPageShell
@@ -81,58 +132,176 @@ export default function AboutPage() {
       <div
         dir={isArabic ? "rtl" : "ltr"}
         lang={locale}
-        className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
+        className={cn("space-y-5", isArabic && "font-arabic")}
       >
-        <div className="space-y-4">
-          {COPY.sections.map((section) => (
-            <Card key={section.title.en}>
+        <Card className="hero-backdrop overflow-hidden">
+          <CardContent className="flex flex-col gap-6 px-6 py-6 sm:px-8 sm:py-8">
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-3",
+                isArabic && "justify-end"
+              )}
+            >
+              <BrandLogo size="lg" />
+              <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)]">
+                {pick(COPY.originBadge, locale)}
+              </span>
+              <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)]">
+                {pick(COPY.bilingualBadge, locale)}
+              </span>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {COPY.highlights.map((highlight) => (
+                <div
+                  key={highlight.title.en}
+                  className={cn(
+                    "rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)]/90 p-4 shadow-[var(--shadow-xs)]",
+                    isArabic && "text-right"
+                  )}
+                >
+                  <p className="text-sm font-semibold text-[var(--foreground)]">
+                    {pick(highlight.title, locale)}
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
+                    {pick(highlight.body, locale)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <Card>
+            <CardHeader className={cn(isArabic && "text-right")}>
+              <div
+                className={cn(
+                  "flex items-center gap-3",
+                  isArabic && "flex-row-reverse"
+                )}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
+                  <HeartHandshake className="h-5 w-5" />
+                </div>
+                <CardTitle>{pick(COPY.storyTitle, locale)}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className={cn(isArabic && "text-right")}>
+              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                {pick(COPY.storyBody, locale)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className={cn(isArabic && "text-right")}>
+              <div
+                className={cn(
+                  "flex items-center gap-3",
+                  isArabic && "flex-row-reverse"
+                )}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
+                  <MapPinned className="h-5 w-5" />
+                </div>
+                <CardTitle>{pick(COPY.founderTitle, locale)}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className={cn("space-y-4", isArabic && "text-right")}>
+              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                {pick(COPY.founderBody, locale)}
+              </p>
+              <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  {pick(COPY.founderListTitle, locale)}
+                </p>
+                <ul
+                  className={cn(
+                    "mt-3 list-disc space-y-2 text-sm leading-7 text-[var(--muted-foreground)]",
+                    isArabic ? "pr-5" : "pl-5"
+                  )}
+                >
+                  {founderList.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="hero-backdrop">
+          <CardHeader className={cn(isArabic && "text-right")}>
+            <div
+              className={cn(
+                "flex items-center gap-3",
+                isArabic && "flex-row-reverse"
+              )}
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <CardTitle>{pick(COPY.missionTitle, locale)}</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className={cn(isArabic && "text-right")}>
+            <p className="text-sm leading-7 text-[var(--foreground)]">
+              {pick(COPY.missionBody, locale)}
+            </p>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {COPY.values.map((value) => (
+            <Card key={value.title.en}>
               <CardHeader className={cn(isArabic && "text-right")}>
-                <CardTitle>{pick(section.title, locale)}</CardTitle>
+                <div
+                  className={cn(
+                    "flex items-center gap-3",
+                    isArabic && "flex-row-reverse"
+                  )}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
+                    <value.icon className="h-5 w-5" />
+                  </div>
+                  <CardTitle>{pick(value.title, locale)}</CardTitle>
+                </div>
               </CardHeader>
               <CardContent className={cn(isArabic && "text-right")}>
                 <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-                  {pick(section.body, locale)}
+                  {pick(value.body, locale)}
                 </p>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className={cn(isArabic && "text-right")}>
-              <CardTitle>{pick(COPY.founder.title, locale)}</CardTitle>
-            </CardHeader>
-            <CardContent className={cn("space-y-4", isArabic && "text-right")}>
-              <div className="flex h-48 items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)] text-[var(--muted-foreground)]">
-                <div className={cn("flex flex-col items-center gap-3 text-center", isArabic && "font-arabic")}>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)]">
-                    <UserRound className="h-6 w-6" />
-                  </div>
-                  <p className="text-sm font-medium">{pick(COPY.founder.imageLabel, locale)}</p>
-                </div>
+        <Card>
+          <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
+            <div
+              className={cn(
+                "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
+                isArabic && "sm:flex-row-reverse"
+              )}
+            >
+              <div className={cn("max-w-2xl", isArabic && "text-right")}>
+                <h2 className="text-2xl font-bold text-[var(--foreground)]">
+                  {pick(COPY.ctaTitle, locale)}
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+                  {pick(COPY.ctaBody, locale)}
+                </p>
               </div>
-              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-                {pick(COPY.founder.body, locale)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="hero-backdrop">
-            <CardHeader className={cn(isArabic && "text-right")}>
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
-                <Quote className="h-5 w-5" />
-              </div>
-              <CardTitle>{pick(COPY.quote.title, locale)}</CardTitle>
-            </CardHeader>
-            <CardContent className={cn("space-y-3", isArabic && "text-right")}>
-              <blockquote className="text-xl font-semibold leading-9 text-[var(--text-strong)]">
-                {pick(COPY.quote.body, locale)}
-              </blockquote>
-              <p className="text-sm text-[var(--muted-foreground)]">{pick(COPY.quote.author, locale)}</p>
-            </CardContent>
-          </Card>
-        </div>
+              <Link
+                href="/login?tab=signup"
+                className="inline-flex h-12 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--primary)] px-6 text-sm font-semibold text-white shadow-[var(--shadow-sm)] transition-colors hover:bg-[var(--primary-hover)]"
+              >
+                {pick(COPY.ctaButton, locale)}
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </PublicPageShell>
   );
