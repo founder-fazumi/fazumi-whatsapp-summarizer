@@ -389,6 +389,7 @@ export default function TermsPage() {
                         key={`${section.title.en}-${email}`}
                         href={`mailto:${email}`}
                         className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                        dir="ltr"
                       >
                         {email}
                       </a>

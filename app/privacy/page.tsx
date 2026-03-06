@@ -104,26 +104,26 @@ const COPY = {
       },
     },
     {
-      title: { en: "4. Sharing and processors", ar: "4. المشاركة والجهات المعالجة" },
+      title: { en: "4. Service providers", ar: "4. مزودو الخدمة" },
       body: {
-        en: "We use specialized service providers to operate Fazumi. They process data only for their role in delivering the service to us.",
-        ar: "نستخدم مزودي خدمة متخصصين لتشغيل Fazumi. ويعالج كل مزود البيانات فقط بالقدر اللازم لدوره في تقديم الخدمة لنا.",
+        en: "We use a small set of service providers to operate Fazumi. Each provider processes data only for its role in delivering the service to us.",
+        ar: "نستخدم مجموعة محدودة من مزودي الخدمة لتشغيل فازومي. ويعالج كل مزود البيانات فقط بالقدر اللازم لدوره في تقديم الخدمة لنا.",
       },
       items: {
         en: [
-          "OpenAI processes submitted chat text to generate summaries.",
-          "Supabase provides hosting for authentication, database, and core app records.",
-          "Lemon Squeezy handles checkout, subscriptions, and billing portal workflows.",
+          "Supabase provides authentication and the primary database for account, summary, subscription, consent, and contact records.",
+          "OpenAI processes submitted chat text during summarization requests.",
           "Sentry helps us monitor application errors and diagnose failures.",
-          "PostHog may process analytics or session replay data if you opt in to those features.",
+          "PostHog may process analytics or session replay data only after your opt-in and only when those features are enabled.",
+          "Lemon Squeezy handles hosted checkout, subscriptions, invoices, and the billing portal.",
           "We do not sell your personal data.",
         ],
         ar: [
-          "تعالج OpenAI نص المحادثة المرسل لإنشاء الملخصات.",
-          "توفر Supabase الاستضافة للمصادقة وقاعدة البيانات وسجلات التطبيق الأساسية.",
-          "تتولى Lemon Squeezy عمليات الدفع والاشتراكات وبوابة الفوترة.",
+          "توفر Supabase المصادقة وقاعدة البيانات الأساسية لسجلات الحسابات والملخصات والاشتراكات والموافقات ورسائل التواصل.",
+          "تعالج OpenAI نص المحادثة المرسل أثناء طلبات التلخيص.",
           "تساعدنا Sentry في مراقبة أخطاء التطبيق وتشخيص الأعطال.",
-          "قد تعالج PostHog بيانات التحليلات أو تسجيل الجلسات إذا وافقت على هذه الميزات.",
+          "قد تعالج PostHog بيانات التحليلات أو تسجيل الجلسات فقط بعد موافقتك وفقط عندما تكون هذه الميزات مفعلة.",
+          "تتولى Lemon Squeezy عمليات الدفع المستضافة والاشتراكات والفواتير وبوابة الفوترة.",
           "نحن لا نبيع بياناتك الشخصية.",
         ],
       },
@@ -327,6 +327,7 @@ export default function PrivacyPage() {
                         key={`${section.title.en}-${email}`}
                         href={`mailto:${email}`}
                         className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                        dir="ltr"
                       >
                         {email}
                       </a>
