@@ -37,6 +37,29 @@ function buildSummaryReadyPayload(summary: SummaryResult, savedId: string) {
   };
 }
 
+function isRetryableUsageRpcError(error: {
+  code?: string | null;
+  message?: string | null;
+}) {
+  const code = error.code ?? "";
+  const message = (error.message ?? "").toLowerCase();
+
+  return (
+    code === "23505" ||
+    code === "40001" ||
+    code === "40P01" ||
+    message.includes("duplicate key") ||
+    message.includes("could not serialize") ||
+    message.includes("deadlock")
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 class PersistError extends Error {
   constructor(message: string, readonly code: string) {
     super(message);
@@ -171,17 +194,25 @@ async function incrementUsageDailyAtomic(
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
-  const { data, error } = await admin.rpc("increment_usage_daily_atomic", {
-    p_user_id: userId,
-    p_date: dateKey,
-    p_increment: increment,
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error } = await admin.rpc("increment_usage_daily_atomic", {
+      p_user_id: userId,
+      p_date: dateKey,
+      p_increment: increment,
+    });
 
-  if (error || typeof data !== "number") {
-    throw new PersistError("Could not update daily usage.", "USAGE_WRITE_FAILED");
+    if (!error && typeof data === "number") {
+      return data;
+    }
+
+    if (!error || !isRetryableUsageRpcError(error) || attempt === 2) {
+      throw new PersistError("Could not update daily usage.", "USAGE_WRITE_FAILED");
+    }
+
+    await sleep(25 * (attempt + 1));
   }
 
-  return data;
+  throw new PersistError("Could not update daily usage.", "USAGE_WRITE_FAILED");
 }
 
 async function seedTodosFromSummary(userId: string, actionItems: string[]): Promise<void> {
