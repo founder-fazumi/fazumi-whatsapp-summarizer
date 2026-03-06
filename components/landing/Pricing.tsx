@@ -162,6 +162,10 @@ export function Pricing({
         : currentPlan
           ? "monthly"
           : null;
+  const visiblePlans =
+    embedded && currentPlanId && currentPlanId !== "free"
+      ? PLANS.filter((plan) => plan.id !== "free")
+      : PLANS;
 
   return (
     <section
@@ -211,13 +215,20 @@ export function Pricing({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 pt-3 lg:grid-cols-3">
-          {PLANS.map((plan) => {
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4 pt-3",
+            visiblePlans.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3"
+          )}
+        >
+          {visiblePlans.map((plan) => {
             const isCurrentPlan = currentPlanId === plan.id;
 
             return (
               <div
                 key={plan.id}
+                data-testid={`pricing-plan-${plan.id}`}
+                data-current-plan={isCurrentPlan ? "true" : "false"}
                 className={cn(
                   "relative flex flex-col rounded-[var(--radius-xl)] border bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-sm)]",
                   plan.featured

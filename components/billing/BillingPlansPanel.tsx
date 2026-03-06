@@ -43,6 +43,7 @@ export function BillingPlansPanel({
         <button
           type="button"
           onClick={() => setShowPlans(true)}
+          data-testid="billing-view-plans"
           className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
         >
           <LocalizedText en="View plans" ar="عرض الخطط" />

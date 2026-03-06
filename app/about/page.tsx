@@ -136,12 +136,7 @@ export default function AboutPage() {
       >
         <Card className="hero-backdrop overflow-hidden">
           <CardContent className="flex flex-col gap-6 px-6 py-6 sm:px-8 sm:py-8">
-            <div
-              className={cn(
-                "flex flex-wrap items-center gap-3",
-                isArabic && "justify-end"
-              )}
-            >
+            <div className="flex flex-wrap items-center gap-3">
               <BrandLogo size="lg" />
               <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)]">
                 {pick(COPY.originBadge, locale)}
@@ -175,12 +170,7 @@ export default function AboutPage() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <Card>
             <CardHeader className={cn(isArabic && "text-right")}>
-              <div
-                className={cn(
-                  "flex items-center gap-3",
-                  isArabic && "flex-row-reverse"
-                )}
-              >
+              <div className={cn("flex items-center gap-3", isArabic && "flex-row-reverse")}>
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                   <HeartHandshake className="h-5 w-5" />
                 </div>
@@ -196,12 +186,7 @@ export default function AboutPage() {
 
           <Card>
             <CardHeader className={cn(isArabic && "text-right")}>
-              <div
-                className={cn(
-                  "flex items-center gap-3",
-                  isArabic && "flex-row-reverse"
-                )}
-              >
+              <div className={cn("flex items-center gap-3", isArabic && "flex-row-reverse")}>
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                   <MapPinned className="h-5 w-5" />
                 </div>
@@ -219,7 +204,7 @@ export default function AboutPage() {
                 <ul
                   className={cn(
                     "mt-3 list-disc space-y-2 text-sm leading-7 text-[var(--muted-foreground)]",
-                    isArabic ? "pr-5" : "pl-5"
+                    isArabic ? "pr-5 text-right" : "pl-5"
                   )}
                 >
                   {founderList.map((item) => (
@@ -233,12 +218,7 @@ export default function AboutPage() {
 
         <Card className="hero-backdrop">
           <CardHeader className={cn(isArabic && "text-right")}>
-            <div
-              className={cn(
-                "flex items-center gap-3",
-                isArabic && "flex-row-reverse"
-              )}
-            >
+            <div className={cn("flex items-center gap-3", isArabic && "flex-row-reverse")}>
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
@@ -256,12 +236,7 @@ export default function AboutPage() {
           {COPY.values.map((value) => (
             <Card key={value.title.en}>
               <CardHeader className={cn(isArabic && "text-right")}>
-                <div
-                  className={cn(
-                    "flex items-center gap-3",
-                    isArabic && "flex-row-reverse"
-                  )}
-                >
+                <div className={cn("flex items-center gap-3", isArabic && "flex-row-reverse")}>
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                     <value.icon className="h-5 w-5" />
                   </div>
@@ -279,12 +254,7 @@ export default function AboutPage() {
 
         <Card>
           <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
-            <div
-              className={cn(
-                "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
-                isArabic && "sm:flex-row-reverse"
-              )}
-            >
+            <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between", isArabic && "sm:flex-row-reverse")}>
               <div className={cn("max-w-2xl", isArabic && "text-right")}>
                 <h2 className="text-2xl font-bold text-[var(--foreground)]">
                   {pick(COPY.ctaTitle, locale)}

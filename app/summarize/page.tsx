@@ -370,7 +370,7 @@ export default function SummarizePage() {
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
-              <div className={cn("space-y-3", isRtl && "text-right")}>
+              <div className="space-y-3 text-start">
                 <div>
                   <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
                     {pick(COPY.outputLanguage, locale)}
@@ -380,10 +380,7 @@ export default function SummarizePage() {
                   </p>
                 </div>
                 <div
-                  className={cn(
-                    "inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1",
-                    isRtl && "flex-row-reverse"
-                  )}
+                  className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
                   role="group"
                   aria-label={pick(COPY.outputLanguage, locale)}
                 >
@@ -557,7 +554,7 @@ export default function SummarizePage() {
                 <span>{pick(COPY.saved, locale)}</span>
                 <a
                   href={`/history/${savedId}`}
-                  className="ml-auto text-xs underline hover:no-underline"
+                  className="ms-auto text-xs underline hover:no-underline"
                 >
                   {pick(COPY.view, locale)} →
                 </a>

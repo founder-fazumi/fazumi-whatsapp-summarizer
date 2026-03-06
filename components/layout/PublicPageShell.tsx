@@ -38,10 +38,20 @@ export function PublicPageShell({
               {pick(eyebrow, locale)}
             </p>
           )}
-          <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-[var(--text-strong)] sm:text-4xl">
+          <h1
+            className={cn(
+              "max-w-3xl text-3xl font-bold tracking-tight text-[var(--text-strong)] sm:text-4xl",
+              isArabic && "ml-auto"
+            )}
+          >
             {pick(title, locale)}
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
+          <p
+            className={cn(
+              "mt-3 max-w-2xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base",
+              isArabic && "ml-auto"
+            )}
+          >
             {pick(description, locale)}
           </p>
         </div>

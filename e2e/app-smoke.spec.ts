@@ -174,7 +174,7 @@ test("limits are atomic: free trial concurrent summarizes stop at 3 per day", as
   }
 });
 
-test("billing smoke: paid and founder plans show the correct plan and hide free upsells", async ({ page, request }) => {
+test("billing smoke: billing view plans shows the correct cards for free, paid, and founder accounts", async ({ page, request }) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
@@ -182,11 +182,49 @@ test("billing smoke: paid and founder plans show the correct plan and hide free 
   );
 
   const accounts = await ensureTestAccounts(request);
+  const openBillingPlans = async () => {
+    await page.waitForFunction(() => {
+      const node = document.querySelector('[data-testid="billing-view-plans"]') as Record<string, unknown> | null;
+      if (!node) {
+        return false;
+      }
+
+      return Object.keys(node).some((key) =>
+        key.startsWith("__reactFiber") || key.startsWith("__reactProps")
+      );
+    });
+
+    await page.getByTestId("billing-view-plans").click();
+  };
+
+  await resetTestUser(accounts.free.email, { plan: "free" });
+  await loginWithEmail(page, accounts.free);
+  await page.goto("/billing");
+  await expect(page.getByTestId("billing-current-plan")).toContainText("Free");
+  await openBillingPlans();
+  await expect(page.getByTestId("pricing-plan-free")).toHaveCount(1);
+  await expect(page.getByTestId("pricing-plan-monthly")).toHaveCount(1);
+  await expect(page.getByTestId("pricing-plan-founder")).toHaveCount(1);
+  await expect(page.locator('[data-testid^="pricing-plan-"]')).toHaveCount(3);
+  await expect(page.getByTestId("pricing-plan-free")).toHaveAttribute("data-current-plan", "true");
+  await expect(page.getByTestId("sidebar-upsell-card")).toHaveCount(0);
+
+  await page.context().clearCookies();
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 
   await resetTestUser(accounts.paid.email, { plan: "monthly" });
   await loginWithEmail(page, accounts.paid);
   await page.goto("/billing");
   await expect(page.getByTestId("billing-current-plan")).toContainText("Pro Monthly");
+  await openBillingPlans();
+  await expect(page.getByTestId("pricing-plan-free")).toHaveCount(0);
+  await expect(page.getByTestId("pricing-plan-monthly")).toHaveCount(1);
+  await expect(page.getByTestId("pricing-plan-founder")).toHaveCount(1);
+  await expect(page.locator('[data-testid^="pricing-plan-"]')).toHaveCount(2);
+  await expect(page.getByTestId("pricing-plan-monthly")).toHaveAttribute("data-current-plan", "true");
   await expect(page.getByTestId("sidebar-upsell-card")).toHaveCount(0);
 
   await page.context().clearCookies();
@@ -199,6 +237,12 @@ test("billing smoke: paid and founder plans show the correct plan and hide free 
   await loginWithEmail(page, accounts.founder);
   await page.goto("/billing");
   await expect(page.getByTestId("billing-current-plan")).toContainText("Founder LTD");
+  await openBillingPlans();
+  await expect(page.getByTestId("pricing-plan-free")).toHaveCount(0);
+  await expect(page.getByTestId("pricing-plan-monthly")).toHaveCount(1);
+  await expect(page.getByTestId("pricing-plan-founder")).toHaveCount(1);
+  await expect(page.locator('[data-testid^="pricing-plan-"]')).toHaveCount(2);
+  await expect(page.getByTestId("pricing-plan-founder")).toHaveAttribute("data-current-plan", "true");
   await expect(page.getByTestId("sidebar-upsell-card")).toHaveCount(0);
 });
 

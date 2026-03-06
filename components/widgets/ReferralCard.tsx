@@ -16,6 +16,12 @@ const COPY = {
 
 export function ReferralCard() {
   const { locale } = useLang();
+  // Keep the referral UI in code and only show it once the referral flow is ready.
+  const referralEnabled = process.env.NEXT_PUBLIC_FAZUMI_REFERRALS_READY === "true";
+
+  if (!referralEnabled) {
+    return null;
+  }
 
   return (
     <Card className="hero-backdrop overflow-hidden bg-[var(--surface-elevated)]">
