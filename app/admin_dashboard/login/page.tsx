@@ -1,6 +1,6 @@
-import { Shield } from "lucide-react";
+import Link from "next/link";
+import { Shield, ArrowRight } from "lucide-react";
 import { redirectAuthenticatedAdmin } from "@/lib/admin/auth";
-import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import {
   Card,
@@ -9,6 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +37,7 @@ export default async function AdminDashboardLoginPage({
               Fazumi Admin
             </h1>
             <p className="text-sm text-[var(--muted-foreground)]">
-              Development-only access for the local admin dashboard.
+              Sign in with a Fazumi account that has the admin role.
             </p>
           </div>
         </div>
@@ -47,17 +49,23 @@ export default async function AdminDashboardLoginPage({
                 <Shield className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>Sign in</CardTitle>
+                <CardTitle>Restricted access</CardTitle>
                 <CardDescription>
-                  Uses `ADMIN_USER` and `ADMIN_PASS` when set, otherwise `admin / admin`.
+                  Admin routes are protected by the authenticated Supabase session and a server-side role check on `profiles.role`.
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <AdminLoginForm nextPath={nextPath} />
+            <Link
+              href={`/login?next=${encodeURIComponent(nextPath)}`}
+              className={cn(buttonVariants(), "w-full")}
+            >
+              Continue to sign in
+              <ArrowRight className="h-4 w-4" />
+            </Link>
             <p className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
-              This gate is only available when `NODE_ENV` is `development`. The admin route is blocked in production.
+              If you can sign in but still cannot open the dashboard, promote the user by setting <code>profiles.role = &apos;admin&apos;</code> for that account.
             </p>
           </CardContent>
         </Card>

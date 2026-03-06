@@ -147,6 +147,15 @@ export async function POST(req: NextRequest) {
 
   try {
     await routeEvent(admin, event, userId, payload, logger);
+    await recordWebhookDelivery(admin, {
+      provider: "lemonsqueezy",
+      eventName: event,
+      externalId: lsId,
+      requestId,
+      status: "processed",
+      httpStatus: 200,
+      userId,
+    });
     logger.info("webhook.success", {
       userId,
       eventType: event,
@@ -155,6 +164,17 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
+    await recordWebhookDelivery(admin, {
+      provider: "lemonsqueezy",
+      eventName: event,
+      externalId: lsId,
+      requestId,
+      status: "failed",
+      httpStatus: 500,
+      userId,
+      errorCode: "WEBHOOK_HANDLER_FAILED",
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
     logger.error("webhook.failed", {
       userId,
       eventType: event,
@@ -181,6 +201,37 @@ export async function POST(req: NextRequest) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminClient = SupabaseClient<any>;
+
+async function recordWebhookDelivery(
+  admin: AdminClient,
+  payload: {
+    provider: string;
+    eventName: string;
+    externalId: string;
+    requestId: string;
+    status: "processed" | "failed" | "rejected";
+    httpStatus: number;
+    userId?: string | null;
+    errorCode?: string;
+    errorMessage?: string;
+  }
+) {
+  try {
+    await admin.from("webhook_delivery_log").insert({
+      provider: payload.provider,
+      event_name: payload.eventName,
+      external_id: payload.externalId,
+      request_id: payload.requestId,
+      status: payload.status,
+      http_status: payload.httpStatus,
+      user_id: payload.userId ?? null,
+      error_code: payload.errorCode ?? null,
+      error_message: payload.errorMessage ?? null,
+    });
+  } catch {
+    // Do not block billing flows on observability writes.
+  }
+}
 
 async function routeEvent(
   admin: AdminClient,
