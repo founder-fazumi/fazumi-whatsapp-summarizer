@@ -1,5 +1,6 @@
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
+import { BILLING_CONTACT_EMAIL } from "@/lib/config/legal";
 
 const SECTIONS = [
   {
@@ -22,7 +23,7 @@ const SECTIONS = [
       en: "Email",
       ar: "راسلنا عبر البريد الإلكتروني على",
     },
-    contact: "billing@fazumi.app",
+    contact: BILLING_CONTACT_EMAIL,
     bodySuffix: {
       en: 'with the subject line "Refund request" and include your registered email address. Refunds are processed within 5–10 business days to your original payment method.',
       ar: "مع كتابة \"طلب استرداد\" في عنوان الرسالة، وأرفق عنوان بريدك الإلكتروني المسجل. تتم معالجة الاستردادات خلال 5 إلى 10 أيام عمل إلى وسيلة الدفع الأصلية.",
@@ -52,7 +53,11 @@ export default function RefundsPage() {
               ) : (
                 <>
                   <LocalizedText en={section.bodyPrefix.en} ar={section.bodyPrefix.ar} />{" "}
-                  <a href={`mailto:${section.contact}`} className="text-[var(--primary)] hover:underline">
+                  <a
+                    href={`mailto:${section.contact}`}
+                    className="text-[var(--primary)] hover:underline"
+                    dir="ltr"
+                  >
                     {section.contact}
                   </a>{" "}
                   <LocalizedText en={section.bodySuffix.en} ar={section.bodySuffix.ar} />

@@ -960,7 +960,7 @@ Keep the "gated" mode (free users) showing the upgrade dialog — only the "comi
 
 **File:** `app/contact/page.tsx`
 
-**Change:** On submit, use `window.location.href = 'mailto:support@fazumi.app?subject=...&body=...'` (simplest, no server required). Build the mailto URL from the form fields (name, email, message).
+**Change:** On submit, use `window.location.href = 'mailto:support@fazumi.com?subject=...&body=...'` (simplest, no server required). Build the mailto URL from the form fields (name, email, message).
 
 Alternatively if that feels cheap: POST to a new `/api/contact` route that sends an email via Supabase Edge Function or simply writes to a `contact_submissions` table. For MVP, **use the mailto approach** — it's reliable and requires no new infra.
 
@@ -987,13 +987,13 @@ Alternatively if that feels cheap: POST to a new `/api/contact` route that sends
 ---
 
 #### RC8 — /profile: add account deletion via support email [Codex]
-**Why:** GDPR requires a clear deletion path. MVP can use a mailto link to `support@fazumi.app` rather than a real delete flow.
+**Why:** GDPR requires a clear deletion path. MVP can use a mailto link to `support@fazumi.com` rather than a real delete flow.
 
 **File:** `app/profile/page.tsx`
 
 **Change:** Replace `"Profile editing and account deletion coming soon."` with two items:
 1. A link to `/settings` for preferences
-2. A `mailto:support@fazumi.app?subject=Delete%20my%20account` link labelled "Request account deletion" (styled as a small danger-colored text link, not a button)
+2. A `mailto:support@fazumi.com?subject=Delete%20my%20account` link labelled "Request account deletion" (styled as a small danger-colored text link, not a button)
 
 **Acceptance:**
 - [ ] `/profile` shows "Request account deletion →" with correct mailto link
@@ -1950,3 +1950,18 @@ Manual smoke:
 - [x] LBF6. Run a clean `pnpm build`; confirm the March 3, 2026 build exits `0` and reaches `Generating static pages using 7 workers (36/36)`
 - [!] LBF7. `pnpm test` remains unstable locally: the first run hit a stale `next` server on port `3000`, and the retry timed out after that process was stopped
 - [x] LBF8. Stage only the launch-blocker files, confirm no `.env*` files are staged, and create one descriptive commit
+
+---
+
+## Spec: nextjs-version-fix (2026-03-03)
+> Spec file: `specs/nextjs-version-fix.md`
+> Rule: pin the stable rollback first, verify with a clean build, then use canary only if the stable path still fails.
+
+- [x] NVF1. Pin `next` and `eslint-config-next` to `16.0.0` in `package.json`
+- [x] NVF2. Refresh `pnpm-lock.yaml` and installed dependencies for the pinned version
+- [x] NVF3. Clear `.next` and `node_modules/.cache`, then run a clean `pnpm build`
+- [x] NVF4. Stable downgrade cleared the metadata prerender error, so canary fallback was not needed
+- [x] NVF5. Optional warning suppression in `next.config.ts` was not needed because the metadata crash and related warning path did not reproduce after the downgrade
+- [x] NVF6. Run `pnpm lint` and `pnpm typecheck`
+- [x] NVF7. Confirm no `.env*` files are staged
+- [!] NVF8. Commit only the version-fix changes if verification passes; blocked by existing `pnpm test` failure in `e2e/app-smoke.spec.ts` timing out on `summary-use-sample`

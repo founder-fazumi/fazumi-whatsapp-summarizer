@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { User } from "lucide-react";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -61,7 +62,7 @@ export default function ProfilePage() {
   const name = user?.user_metadata?.full_name as string | undefined;
   const email = user?.email;
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
-  const deleteAccountHref = `mailto:support@fazumi.app?subject=${encodeURIComponent("Delete my account")}&body=${encodeURIComponent(
+  const deleteAccountHref = `mailto:${LEGAL_CONTACT_EMAIL}?subject=${encodeURIComponent("Delete my account")}&body=${encodeURIComponent(
     [
       "Hello Fazumi team,",
       "",
@@ -130,7 +131,7 @@ export default function ProfilePage() {
                     {pick(COPY.deleteFallbackBody, locale)}
                   </p>
                   <code className="mt-2 block rounded bg-[var(--surface-muted)] p-2 text-sm font-mono text-[var(--primary)]">
-                    support@fazumi.app
+                    {LEGAL_CONTACT_EMAIL}
                   </code>
                   <p className="mt-2 text-xs text-[var(--muted-foreground)]">
                     {pick(COPY.deleteFallbackHint, locale)}
