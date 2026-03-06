@@ -16,7 +16,6 @@ const REPORTS_DIR = path.join(process.cwd(), "reports");
 const SCREENSHOTS_DIR = path.join(REPORTS_DIR, "screenshots");
 const JSON_REPORT_PATH = path.join(REPORTS_DIR, "audit-results.json");
 const MARKDOWN_REPORT_PATH = path.join(REPORTS_DIR, "audit.md");
-const ADMIN_SESSION_COOKIE = "fazumi_admin";
 const LANG_STORAGE_KEY = "fazumi_lang";
 const THEME_STORAGE_KEY = "fazumi_theme";
 const AUDIT_RESET = process.env.AUDIT_RESET !== "0";
@@ -69,6 +68,7 @@ const PRIORITY_PUBLIC_ROUTES = [
   "/refunds",
   "/terms",
   "/status",
+  "/admin_dashboard/login",
 ] as const;
 const PRIORITY_AUTHENTICATED_ROUTES = [
   "/dashboard",
@@ -79,7 +79,7 @@ const PRIORITY_AUTHENTICATED_ROUTES = [
   "/profile",
   "/settings",
 ] as const;
-const PRIORITY_ADMIN_ROUTES = ["/admin_dashboard", "/admin_dashboard/ai-usage"] as const;
+const PRIORITY_ADMIN_ROUTES = ["/admin_dashboard", "/admin_dashboard/inbox", "/admin_dashboard/ai-usage"] as const;
 const EXPECTED_DIR_BY_LOCALE = {
   en: "ltr",
   ar: "rtl",
@@ -361,14 +361,7 @@ test("audit FAZUMI routes, links, interactions, typography, and accessibility", 
           viewport,
           routes: coverage.admin,
           login: async (context) => {
-            await context.addCookies([
-              {
-                name: ADMIN_SESSION_COOKIE,
-                value: "1",
-                url: BASE_URL,
-                sameSite: "Lax",
-              },
-            ]);
+            await context.addCookies(await getAuthCookies(accounts.admin));
           },
         });
       }
@@ -1215,10 +1208,8 @@ async function runLandingDemoFlow(page: Page, locale: Locale, viewport: Viewport
 
 async function runAdminLoginFlow(page: Page, viewport: ViewportName): Promise<FeatureFlowResult> {
   try {
-    await page.locator("#admin-username").fill("admin");
-    await page.locator("#admin-password").fill("admin");
-    await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL("**/admin_dashboard", { timeout: 60_000 });
+    await page.getByRole("link", { name: /continue to sign in/i }).click();
+    await page.waitForURL(/\/login\?next=%2Fadmin_dashboard/, { timeout: 60_000 });
 
     return {
       key: "admin-login",

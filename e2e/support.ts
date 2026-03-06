@@ -8,6 +8,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 
 const ROOT_DIR = process.cwd();
+const ADMIN_EMAIL = "admin@fazumi.test";
 const FREE_EMAIL = "free@fazumi.test";
 const PAID_EMAIL = "paid@fazumi.test";
 const FOUNDER_EMAIL = "founder@fazumi.test";
@@ -194,6 +195,7 @@ export async function ensureTestAccounts(request: APIRequestContext) {
   }
 
   return {
+    admin: getAccount(ADMIN_EMAIL),
     free: getAccount(FREE_EMAIL),
     paid: getAccount(PAID_EMAIL),
     founder: getAccount(FOUNDER_EMAIL),
@@ -424,6 +426,95 @@ export async function getSubscription(subscriptionId: string) {
 
   if (error) {
     throw new Error(`Could not load subscription ${subscriptionId}: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getLatestSupportRequest(email: string) {
+  const admin = getAdminClient();
+  const { data, error } = await admin
+    .from("support_requests")
+    .select("id, email, subject, message, status, priority, locale, created_at")
+    .eq("email", email.toLowerCase())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{
+      id: string;
+      email: string | null;
+      subject: string;
+      message: string;
+      status: string;
+      priority: string;
+      locale: string;
+      created_at: string;
+    }>();
+
+  if (error) {
+    const { data: fallbackData, error: fallbackError } = await admin
+      .from("user_feedback")
+      .select("id, message, meta_json, created_at")
+      .filter("meta_json->>email", "eq", email.toLowerCase())
+      .filter("meta_json->>type", "eq", "support")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        message: string;
+        meta_json: {
+          email?: string;
+          subject?: string;
+          status?: string;
+          priority?: string;
+          locale?: string;
+        } | null;
+        created_at: string;
+      }>();
+
+    if (fallbackError) {
+      throw new Error(`Could not read support request for ${email}: ${error.message}`);
+    }
+
+    if (!fallbackData) {
+      return null;
+    }
+
+    return {
+      id: fallbackData.id,
+      email: fallbackData.meta_json?.email ?? email.toLowerCase(),
+      subject: fallbackData.meta_json?.subject ?? fallbackData.message.slice(0, 96),
+      message: fallbackData.message,
+      status: fallbackData.meta_json?.status ?? "pending",
+      priority: fallbackData.meta_json?.priority ?? "medium",
+      locale: fallbackData.meta_json?.locale ?? "en",
+      created_at: fallbackData.created_at,
+    };
+  }
+
+  return data;
+}
+
+export async function getLatestFeedback(email: string) {
+  const admin = getAdminClient();
+  const { data, error } = await admin
+    .from("user_feedback")
+    .select("id, email, subject, message, status, priority, locale, created_at")
+    .eq("email", email.toLowerCase())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{
+      id: string;
+      email: string | null;
+      subject: string;
+      message: string;
+      status: string;
+      priority: string;
+      locale: string;
+      created_at: string;
+    }>();
+
+  if (error) {
+    throw new Error(`Could not read feedback for ${email}: ${error.message}`);
   }
 
   return data;
