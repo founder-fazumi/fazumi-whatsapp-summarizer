@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "crypto";
-
-export type PlanType = "monthly" | "annual" | "founder";
+import {
+  findCheckoutVariantConfig,
+  type PlanType,
+} from "@/lib/lemonsqueezy-config";
 
 // ── Checkout URL ────────────────────────────────────────────────────────────
 
@@ -41,14 +43,7 @@ export function verifyWebhookSignature(rawBody: string, signature: string, secre
 // ── Plan type mapping ───────────────────────────────────────────────────────
 
 export function getPlanType(variantId: string): PlanType | null {
-  const monthly = process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT;
-  const annual = process.env.NEXT_PUBLIC_LS_ANNUAL_VARIANT;
-  const founder = process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT;
-
-  if (variantId === founder) return "founder";
-  if (variantId === annual) return "annual";
-  if (variantId === monthly) return "monthly";
-  return null;
+  return findCheckoutVariantConfig(variantId)?.plan ?? null;
 }
 
 // ── Customer portal URL ─────────────────────────────────────────────────────

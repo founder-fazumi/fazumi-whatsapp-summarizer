@@ -1,7 +1,31 @@
-import * as Sentry from "@sentry/nextjs";
+import type * as Sentry from "@sentry/nextjs";
 import { redact } from "@/lib/redact";
 
 type SentryLike = Record<string, unknown>;
+type SentryModule = Pick<typeof Sentry, "captureException" | "flush">;
+
+const sentryEnabled = Boolean(
+  process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN
+);
+
+let sentryModulePromise: Promise<SentryModule | null> | null = null;
+
+async function getSentryModule() {
+  if (!sentryEnabled) {
+    return null;
+  }
+
+  if (!sentryModulePromise) {
+    sentryModulePromise = import("@sentry/nextjs")
+      .then((module) => ({
+        captureException: module.captureException,
+        flush: module.flush,
+      }))
+      .catch(() => null);
+  }
+
+  return sentryModulePromise;
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]";
@@ -78,12 +102,17 @@ export function sanitizeSentryEvent<T extends SentryLike | null>(event: T): T {
 }
 
 export function getSentryOptions(runtime: "client" | "server" | "edge") {
+  const dsn =
+    runtime === "client"
+      ? process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN
+      : process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN;
+
   return {
-    dsn: process.env.SENTRY_DSN,
-    enabled: Boolean(process.env.SENTRY_DSN),
+    dsn,
+    enabled: Boolean(dsn),
     environment: process.env.NODE_ENV,
     sendDefaultPii: false,
-    tracesSampleRate: 0,
+    tracesSampleRate: 0.1,
     beforeSend(event: unknown) {
       return sanitizeSentryEvent(event as SentryLike | null) as typeof event;
     },
@@ -109,7 +138,8 @@ type CaptureContext = {
 };
 
 export async function captureRouteException(error: unknown, context: CaptureContext) {
-  if (!process.env.SENTRY_DSN) {
+  const sentry = await getSentryModule();
+  if (!sentry) {
     return;
   }
 
@@ -117,7 +147,7 @@ export async function captureRouteException(error: unknown, context: CaptureCont
   void userId;
   const extra = redact(extraSource) as Record<string, unknown>;
 
-  Sentry.captureException(
+  sentry.captureException(
     error instanceof Error ? error : new Error(String(error)),
     {
       level: "error",
@@ -129,5 +159,7 @@ export async function captureRouteException(error: unknown, context: CaptureCont
     }
   );
 
-  await Sentry.flush(2000);
+  if (typeof sentry.flush === "function") {
+    await sentry.flush(2000);
+  }
 }

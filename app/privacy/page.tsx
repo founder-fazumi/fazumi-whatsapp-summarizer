@@ -1,20 +1,33 @@
 "use client";
 
+import Link from "next/link";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
-import { pick } from "@/lib/i18n";
+import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const LAST_UPDATED = "2026-03-01";
+const LAST_UPDATED = "2026-03-06";
+
+interface PrivacySection {
+  title: LocalizedCopy<string>;
+  body: LocalizedCopy<string>;
+  items?: LocalizedCopy<readonly string[]>;
+  links?: readonly {
+    href: string;
+    label: LocalizedCopy<string>;
+  }[];
+  emails?: readonly string[];
+}
 
 const COPY = {
   eyebrow: { en: "Legal", ar: "قانوني" },
   title: { en: "Privacy Policy", ar: "سياسة الخصوصية" },
   description: {
-    en: "What Fazumi processes, saves, and deletes when you use the product.",
-    ar: "كيف يعالج Fazumi بياناتك، وماذا يحفظ، ومتى يتم الحذف.",
+    en: "What Fazumi collects, what it does not keep, and how data is used across the product.",
+    ar: "ما الذي يجمعه Fazumi وما الذي لا يحتفظ به وكيف تُستخدم البيانات داخل المنتج.",
   },
   lastUpdated: {
     en: `Last updated: ${LAST_UPDATED}`,
@@ -22,171 +35,228 @@ const COPY = {
   },
   sections: [
     {
-      title: { en: "1. What Fazumi does", ar: "1. ماذا يفعل Fazumi" },
+      title: { en: "1. What we collect", ar: "1. ما الذي نجمعه" },
       body: {
-        en: "Fazumi turns busy school-group messages into structured summaries so parents can quickly understand the important updates.",
-        ar: "يساعد Fazumi أولياء الأمور على تحويل رسائل مجموعات المدرسة المزدحمة إلى ملخصات منظمة وواضحة تسهّل معرفة المهم بسرعة.",
+        en: "We collect only the information we need to run Fazumi, secure accounts, save summaries, and support billing and compliance.",
+        ar: "نحن نجمع فقط المعلومات اللازمة لتشغيل Fazumi وتأمين الحسابات وحفظ الملخصات ودعم الفوترة والامتثال.",
       },
       items: {
         en: [
-          "It summarizes pasted or uploaded school-group text.",
-          "It highlights the TL;DR, dates, action items, people or classes, links, and follow-up questions.",
-          "When you are signed in, it saves the generated summary to your account history.",
+          "Account data such as your name, email address, user ID, and sign-in provider details.",
+          "Submitted content such as chat text or text files you send for summarization during a request.",
+          "Saved summary cards and metadata such as the TL;DR, dates, action items, people or classes, links, questions, detected language, timestamps, and character count.",
+          "Usage and plan data such as trial state, summary counters, subscription status, and product limits.",
+          "Billing records provided through Lemon Squeezy, including plan type, order or subscription IDs, renewal dates, and customer portal links. We do not store full payment card details.",
+          "Device, diagnostic, and compliance data such as IP address, user agent, consent records, basic security logs, and error monitoring data.",
         ],
         ar: [
-          "يلخّص نصوص مجموعات المدرسة التي تقوم بلصقها أو رفعها.",
-          "يعرض خلاصة سريعة مع المواعيد والمهام والأشخاص أو الصفوف والروابط والأسئلة المقترحة للمتابعة.",
-          "وعند تسجيل الدخول، يحفظ الملخص الناتج في سجل حسابك.",
+          "بيانات الحساب مثل الاسم والبريد الإلكتروني ومعرف المستخدم وبيانات مزود تسجيل الدخول.",
+          "المحتوى المرسل مثل نص المحادثة أو الملفات النصية التي ترسلها للتلخيص أثناء الطلب.",
+          "بطاقات الملخص المحفوظة وبياناتها مثل الخلاصة السريعة والتواريخ والمهام والأشخاص أو الصفوف والروابط والأسئلة واللغة المكتشفة والطوابع الزمنية وعدد الأحرف.",
+          "بيانات الاستخدام والخطة مثل حالة الفترة التجريبية وعدادات التلخيص وحالة الاشتراك وحدود المنتج.",
+          "سجلات الفوترة القادمة من Lemon Squeezy، بما في ذلك نوع الخطة ومعرفات الطلب أو الاشتراك وتواريخ التجديد وروابط بوابة العميل. نحن لا نحفظ بيانات البطاقة الكاملة.",
+          "بيانات الجهاز والتشخيص والامتثال مثل عنوان IP ومعرف المتصفح وسجلات الموافقة وبعض سجلات الأمان وبيانات مراقبة الأخطاء.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "2. What we store", ar: "2. ما الذي نحفظه" },
+      title: { en: "2. How we use data", ar: "2. كيف نستخدم البيانات" },
       body: {
-        en: "We store only the data needed to run your account and show your saved results.",
-        ar: "نحتفظ فقط بالبيانات اللازمة لتشغيل حسابك وعرض النتائج المحفوظة لك.",
+        en: "We use personal data to provide the service you asked for and to keep the product reliable and secure.",
+        ar: "نستخدم البيانات الشخصية لتقديم الخدمة التي طلبتها وللحفاظ على موثوقية المنتج وأمانه.",
       },
       items: {
         en: [
-          "Account details such as your name, email, and sign-in provider information.",
-          "Summary output generated for you.",
-          "Extracted structured items such as dates, tasks, people or classes, links, and questions.",
-          "Operational metadata such as timestamps, plan state, and character count.",
+          "To authenticate you, manage your account, and show your saved summary history.",
+          "To send submitted chat text to OpenAI and return a summary card to you.",
+          "To enforce usage limits, manage subscriptions, process billing events, and provide customer support.",
+          "To detect abuse, prevent fraud, diagnose incidents, and monitor product health.",
+          "To keep a record of privacy choices where consent logging is required.",
         ],
         ar: [
-          "بيانات الحساب مثل الاسم والبريد الإلكتروني وبعض معلومات جهة تسجيل الدخول.",
-          "نص الملخص النهائي الذي تم إنشاؤه لك.",
-          "العناصر المنظمة المستخرجة مثل التواريخ والمهام والأشخاص أو الصفوف والروابط والأسئلة.",
-          "بيانات تشغيل أساسية مثل وقت الإنشاء وحالة الخطة وعدد الأحرف.",
+          "للمصادقة عليك وإدارة حسابك وعرض سجل الملخصات المحفوظة.",
+          "لإرسال نص المحادثة المقدم إلى OpenAI وإرجاع بطاقة الملخص إليك.",
+          "لتطبيق حدود الاستخدام وإدارة الاشتراكات ومعالجة أحداث الفوترة وتقديم الدعم.",
+          "لكشف إساءة الاستخدام ومنع الاحتيال وتشخيص الحوادث ومراقبة صحة المنتج.",
+          "للاحتفاظ بسجل لخيارات الخصوصية عندما يكون توثيق الموافقة مطلوبًا.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "3. What we process transiently", ar: "3. ما الذي نعالجه بشكل عابر" },
+      title: { en: "3. Legal bases for processing", ar: "3. الأسس القانونية للمعالجة" },
       body: {
-        en: "The chat text you paste or upload is handled only long enough to create the summary.",
-        ar: "يتم التعامل مع نص المحادثة الذي تلصقه أو ترفعه لفترة قصيرة تكفي فقط لإنشاء الملخص.",
+        en: "Where GDPR or similar laws apply, we rely on a small set of legal bases depending on the purpose of the processing.",
+        ar: "عندما تنطبق اللائحة العامة لحماية البيانات أو قوانين مشابهة، فإننا نعتمد على مجموعة محدودة من الأسس القانونية بحسب غرض المعالجة.",
       },
       items: {
         en: [
-          "Pasted text and uploaded text files are processed during the summarization request.",
-          "We never persist raw chat text to our database.",
-          "We do not store raw pasted chats or message bodies in product logs.",
+          "Contract: to create your account, generate summaries, save history, and manage paid plans.",
+          "Legitimate interests: to secure the service, prevent abuse, debug failures, improve reliability, and operate the business responsibly.",
+          "Consent: for optional analytics, session replay, marketing-related tracking, and similar non-essential technologies.",
+          "Legal obligation: where we must keep records, respond to lawful requests, or meet tax, accounting, or compliance duties.",
         ],
         ar: [
-          "تتم معالجة النصوص الملصقة أو الملفات النصية المرفوعة أثناء طلب التلخيص فقط.",
-          "ولا نحفظ نص المحادثة الخام في قاعدة البيانات.",
-          "كما أننا لا نخزن نصوص الرسائل الخام في سجلات المنتج.",
+          "العقد: لإنشاء حسابك وإنشاء الملخصات وحفظ السجل وإدارة الخطط المدفوعة.",
+          "المصلحة المشروعة: لتأمين الخدمة ومنع إساءة الاستخدام وتصحيح الأعطال وتحسين الموثوقية وتشغيل النشاط بشكل مسؤول.",
+          "الموافقة: للتحليلات الاختيارية وتسجيل الجلسات والتتبع المرتبط بالتسويق والتقنيات غير الضرورية المشابهة.",
+          "الالتزام القانوني: عندما يجب علينا حفظ السجلات أو الرد على الطلبات النظامية أو الوفاء بواجبات الضرائب أو المحاسبة أو الامتثال.",
         ],
       },
-      email: "",
     },
     {
       title: { en: "4. Service providers", ar: "4. مزودو الخدمة" },
       body: {
-        en: "We use a limited set of providers to operate Fazumi. Each provider handles data only for its role in delivering the service.",
-        ar: "نعتمد على عدد محدود من مزودي الخدمة لتشغيل Fazumi، ويعالج كل مزود البيانات في حدود دوره في تقديم الخدمة.",
+        en: "We use a small set of service providers to operate Fazumi. Each provider processes data only for its role in delivering the service to us.",
+        ar: "نستخدم مجموعة محدودة من مزودي الخدمة لتشغيل فازومي. ويعالج كل مزود البيانات فقط بالقدر اللازم لدوره في تقديم الخدمة لنا.",
       },
       items: {
         en: [
-          "Supabase for authentication and database infrastructure.",
-          "OpenAI for summarization.",
-          "Sentry for error monitoring.",
-          "Lemon Squeezy for checkout, subscriptions, and the customer billing portal.",
+          "Supabase provides authentication and the primary database for account, summary, subscription, consent, and contact records.",
+          "OpenAI processes submitted chat text during summarization requests.",
+          "Sentry helps us monitor application errors and diagnose failures.",
+          "PostHog may process analytics or session replay data only after your opt-in and only when those features are enabled.",
+          "Lemon Squeezy handles hosted checkout, subscriptions, invoices, and the billing portal.",
+          "We do not sell your personal data.",
         ],
         ar: [
-          "Supabase للمصادقة والبنية الأساسية لقاعدة البيانات.",
-          "OpenAI لتوليد الملخصات.",
-          "Sentry لمراقبة الأخطاء.",
-          "Lemon Squeezy للدفع والاشتراكات وبوابة الفوترة الخاصة بالعميل.",
+          "توفر Supabase المصادقة وقاعدة البيانات الأساسية لسجلات الحسابات والملخصات والاشتراكات والموافقات ورسائل التواصل.",
+          "تعالج OpenAI نص المحادثة المرسل أثناء طلبات التلخيص.",
+          "تساعدنا Sentry في مراقبة أخطاء التطبيق وتشخيص الأعطال.",
+          "قد تعالج PostHog بيانات التحليلات أو تسجيل الجلسات فقط بعد موافقتك وفقط عندما تكون هذه الميزات مفعلة.",
+          "تتولى Lemon Squeezy عمليات الدفع المستضافة والاشتراكات والفواتير وبوابة الفوترة.",
+          "نحن لا نبيع بياناتك الشخصية.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "5. Retention and deletion", ar: "5. الاحتفاظ والحذف" },
+      title: { en: "5. International transfers", ar: "5. نقل البيانات دوليًا" },
       body: {
-        en: "Saved summaries remain in your account until you delete them or ask us to remove your account.",
-        ar: "تبقى الملخصات المحفوظة في حسابك إلى أن تحذفها أو تطلب منا إزالة الحساب.",
+        en: "Our providers may process data in countries other than your own, including the United States and other places where they operate infrastructure.",
+        ar: "قد يعالج مزودو الخدمة البيانات في دول خارج بلدك، بما في ذلك الولايات المتحدة وأماكن أخرى يشغلون فيها البنية التحتية.",
       },
       items: {
         en: [
-          "If you delete a summary, we may keep a deletion marker such as deleted_at so it no longer appears in the product and can be handled by cleanup workflows.",
-          "If you want your account deleted, email us from your registered address.",
-          "Depending on your region, you may have rights to request access to or deletion of your data.",
+          "When data is transferred internationally, we rely on provider safeguards, contractual commitments, and reasonable technical and organizational protections as applicable.",
+          "By using Fazumi, you understand that your data may be processed where our providers operate.",
         ],
         ar: [
-          "عند حذف ملخص قد نحتفظ بعلامة حذف مثل deleted_at حتى يختفي من التطبيق وتتم معالجته ضمن إجراءات التنظيف الداخلية.",
-          "وإذا أردت حذف الحساب بالكامل، فراسلنا من بريدك المسجل.",
-          "وبحسب منطقتك، قد تتوفر لك حقوق لطلب الوصول إلى بياناتك أو حذفها.",
+          "عندما يتم نقل البيانات دوليًا، فإننا نعتمد على الضمانات التي يقدمها المزودون والالتزامات التعاقدية ووسائل الحماية التقنية والتنظيمية المعقولة بحسب ما ينطبق.",
+          "وباستخدام Fazumi، فإنك تفهم أن بياناتك قد تُعالج في الأماكن التي يعمل فيها مزودونا.",
         ],
       },
-      email: "support@fazumi.app",
     },
     {
-      title: { en: "6. Security", ar: "6. الأمان" },
+      title: { en: "6. Retention", ar: "6. الاحتفاظ بالبيانات" },
       body: {
-        en: "We use reasonable technical and organizational measures designed to protect account data.",
-        ar: "نستخدم إجراءات تقنية وتنظيمية معقولة تهدف إلى حماية بيانات الحساب.",
+        en: "We keep data for as long as we need it to provide the service, meet legal obligations, and resolve disputes.",
+        ar: "نحتفظ بالبيانات طالما كانت لازمة لتقديم الخدمة أو الوفاء بالالتزامات القانونية أو حل النزاعات.",
+      },
+      items: {
+        en: [
+          "Raw chat text is processed during the summarization request and is not stored in our summaries database or account history.",
+          "Saved summary cards remain in your account until you delete them or ask us to delete your account.",
+          "Deleted summaries may leave limited deletion markers or backup traces for a short time while systems sync or recover.",
+          "Subscription, billing, and accounting records may be retained for the period required by law or operational necessity.",
+          "Diagnostic, monitoring, and security logs are retained for limited periods based on operational need.",
+        ],
+        ar: [
+          "يتم التعامل مع نص المحادثة الخام أثناء طلب التلخيص ولا يتم حفظه في قاعدة بيانات الملخصات أو سجل الحساب.",
+          "تبقى بطاقات الملخص المحفوظة في حسابك إلى أن تحذفها أو تطلب حذف حسابك.",
+          "قد تترك الملخصات المحذوفة مؤشرات حذف محدودة أو آثار نسخ احتياطية لفترة قصيرة أثناء مزامنة الأنظمة أو الاستعادة.",
+          "قد يتم الاحتفاظ بسجلات الاشتراك والفوترة والمحاسبة للمدة التي يفرضها القانون أو تقتضيها الحاجة التشغيلية.",
+          "يتم الاحتفاظ بسجلات التشخيص والمراقبة والأمان لفترات محدودة بحسب الحاجة التشغيلية.",
+        ],
+      },
+    },
+    {
+      title: { en: "7. Your rights", ar: "7. حقوقك" },
+      body: {
+        en: "Depending on where you live, you may have privacy rights over your personal data.",
+        ar: "بحسب مكان إقامتك، قد تكون لديك حقوق خصوصية تتعلق ببياناتك الشخصية.",
+      },
+      items: {
+        en: [
+          "You may ask for access to the personal data we hold about you.",
+          "You may ask us to correct inaccurate data, delete your account data, or provide a copy of eligible data in a portable format where applicable.",
+          "You may object to certain processing or ask us to restrict it where the law gives you that right.",
+          "You can withdraw consent for optional cookies and tracking at any time without affecting earlier lawful processing.",
+          "You can delete individual saved summaries inside the product.",
+        ],
+        ar: [
+          "يمكنك طلب الوصول إلى البيانات الشخصية التي نحتفظ بها عنك.",
+          "ويمكنك طلب تصحيح البيانات غير الدقيقة أو حذف بيانات الحساب أو الحصول على نسخة من البيانات المؤهلة بصيغة قابلة للنقل حيثما ينطبق ذلك.",
+          "ويمكنك الاعتراض على بعض أنواع المعالجة أو طلب تقييدها عندما يمنحك القانون هذا الحق.",
+          "ويمكنك سحب الموافقة على ملفات الارتباط والتتبع الاختياري في أي وقت دون أن يؤثر ذلك على المعالجة السابقة التي كانت مشروعة.",
+          "كما يمكنك حذف الملخصات المحفوظة الفردية من داخل المنتج.",
+        ],
+      },
+      emails: [LEGAL_CONTACT_EMAIL],
+    },
+    {
+      title: { en: "8. Cookies and tracking", ar: "8. ملفات الارتباط والتتبع" },
+      body: {
+        en: "Fazumi uses necessary cookies and similar browser storage for sign-in, consent handling, language, and app settings. Optional analytics and session replay stay off until you opt in where consent is required.",
+        ar: "يستخدم Fazumi ملفات ارتباط ضرورية ووسائل تخزين متشابهة في المتصفح لتسجيل الدخول وإدارة الموافقة واللغة وإعدادات التطبيق. وتبقى التحليلات الاختيارية وتسجيل الجلسات متوقفة حتى توافق عليها عندما تكون الموافقة مطلوبة.",
+      },
+      links: [
+        {
+          href: "/cookie-policy",
+          label: {
+            en: "Read the Cookie Policy",
+            ar: "اقرأ سياسة ملفات الارتباط",
+          },
+        },
+      ],
+    },
+    {
+      title: { en: "9. Security", ar: "9. الأمان" },
+      body: {
+        en: "We use reasonable technical and organizational measures designed to protect account data and saved summaries.",
+        ar: "نستخدم إجراءات تقنية وتنظيمية معقولة تهدف إلى حماية بيانات الحساب والملخصات المحفوظة.",
       },
       items: {
         en: [
           "Encrypted connections in transit.",
-          "Access controls around stored account data.",
-          "Operational monitoring to detect errors and service issues.",
-          "No system is perfect, so avoid submitting highly sensitive information.",
+          "Access controls around stored account and billing records.",
+          "Operational monitoring and error detection tools.",
+          "No service is perfectly secure, so please avoid sending unusually sensitive information in chat submissions.",
         ],
         ar: [
-          "تشفير الاتصالات أثناء النقل.",
-          "ضوابط وصول على البيانات المخزنة.",
-          "مراقبة تشغيلية لرصد الأعطال ومشكلات الخدمة.",
-          "ولا يوجد نظام معصوم بالكامل، لذلك يُفضّل عدم مشاركة معلومات شديدة الحساسية.",
+          "اتصالات مشفرة أثناء النقل.",
+          "ضوابط وصول على سجلات الحساب والفوترة المخزنة.",
+          "أدوات لمراقبة التشغيل ورصد الأخطاء.",
+          "ولا توجد خدمة آمنة بالكامل، لذلك يُرجى تجنب إرسال معلومات شديدة الحساسية في المحادثات المرسلة.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "7. Children", ar: "7. الأطفال" },
+      title: { en: "10. Children", ar: "10. الأطفال" },
       body: {
-        en: "Fazumi is for parents and guardians, not for children to use directly.",
-        ar: "Fazumi مخصص للآباء والأمهات وأولياء الأمور، وليس لاستخدام الأطفال مباشرة.",
+        en: "Fazumi is intended for parents, guardians, and other authorized adults. It is not directed to children.",
+        ar: "Fazumi مخصص للآباء والأمهات وأولياء الأمور وغيرهم من البالغين المصرح لهم. وهو غير موجه إلى الأطفال.",
       },
       items: {
         en: [
-          "Do not submit sensitive personal data about children.",
-          "Avoid sharing health details, government identifiers, or other highly sensitive information in pasted text.",
+          "Do not create accounts for children to use directly.",
+          "Avoid submitting sensitive child information unless it is genuinely necessary for the summary you want.",
+          "If you believe we have collected data from a child improperly, contact us and we will review the request.",
         ],
         ar: [
-          "يرجى عدم إرسال بيانات شخصية حساسة عن الأطفال.",
-          "وتجنّب مشاركة المعلومات الصحية أو أرقام الهوية أو أي تفاصيل شديدة الحساسية ضمن النص المرسل للتلخيص.",
+          "يرجى عدم إنشاء حسابات ليستخدمها الأطفال مباشرة.",
+          "وتجنب إرسال معلومات حساسة تخص الأطفال إلا إذا كانت ضرورية فعلًا للملخص الذي تريده.",
+          "وإذا كنت تعتقد أننا جمعنا بيانات من طفل بشكل غير صحيح، فتواصل معنا وسنراجع الطلب.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "8. Contact", ar: "8. التواصل" },
+      title: { en: "11. Contact and updates", ar: "11. التواصل والتحديثات" },
       body: {
-        en: "For privacy questions, deletion requests, or general support, contact us at:",
-        ar: "للاستفسارات المتعلقة بالخصوصية أو طلبات الحذف أو الدعم العام، تواصل معنا عبر:",
+        en: "For privacy questions, access requests, deletion requests, or general support, contact us at the address below. We may update this policy from time to time and will post the revised version here.",
+        ar: "للاستفسارات المتعلقة بالخصوصية أو طلبات الوصول أو الحذف أو الدعم العام، تواصل معنا على العنوان أدناه. وقد نحدّث هذه السياسة من وقت لآخر وسننشر النسخة المعدلة هنا.",
       },
-      items: { en: [], ar: [] },
-      email: "support@fazumi.app",
+      emails: [LEGAL_CONTACT_EMAIL],
     },
-    {
-      title: { en: "9. Updates", ar: "9. التحديثات" },
-      body: {
-        en: "This is a general notice. We may update this policy from time to time to reflect product, legal, or operational changes.",
-        ar: "هذه سياسة عامة، وقد نحدّثها من وقت لآخر بما يعكس تغييرات المنتج أو التشغيل أو المتطلبات القانونية.",
-      },
-      items: {
-        en: ["If we make updates, we will post the revised version on this page."],
-        ar: ["وعند إجراء تحديثات، سننشر النسخة المراجعة على هذه الصفحة."],
-      },
-      email: "",
-    },
-  ],
+  ] satisfies readonly PrivacySection[],
 } as const;
 
 export default function PrivacyPage() {
@@ -209,7 +279,9 @@ export default function PrivacyPage() {
         </p>
 
         {COPY.sections.map((section) => {
-          const items = pick<readonly string[]>(section.items, locale);
+          const items = section.items ? pick(section.items, locale) : [];
+          const links = section.links ?? [];
+          const emails = section.emails ?? [];
 
           return (
             <Card key={section.title.en}>
@@ -234,13 +306,33 @@ export default function PrivacyPage() {
                   </ul>
                 ) : null}
 
-                {section.email ? (
-                  <a
-                    href={`mailto:${section.email}`}
-                    className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
-                  >
-                    {section.email}
-                  </a>
+                {links.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {links.map((link) => (
+                      <Link
+                        key={`${section.title.en}-${link.href}`}
+                        href={link.href}
+                        className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                      >
+                        {pick(link.label, locale)}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+
+                {emails.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {emails.map((email) => (
+                      <a
+                        key={`${section.title.en}-${email}`}
+                        href={`mailto:${email}`}
+                        className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                        dir="ltr"
+                      >
+                        {email}
+                      </a>
+                    ))}
+                  </div>
                 ) : null}
               </CardContent>
             </Card>

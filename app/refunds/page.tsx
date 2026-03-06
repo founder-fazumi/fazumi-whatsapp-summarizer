@@ -1,5 +1,6 @@
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
+import { BILLING_CONTACT_EMAIL } from "@/lib/config/legal";
 
 const SECTIONS = [
   {
@@ -10,10 +11,10 @@ const SECTIONS = [
     },
   },
   {
-    title: { en: "2. Founder LTD", ar: "2. Founder LTD" },
+    title: { en: "2. Founder lifetime access", ar: "2. باقة المؤسسين مدى الحياة" },
     body: {
-      en: "The Founder Lifetime Deal is a one-time purchase and is final sale. No refunds are offered for Founder LTD purchases. By completing the purchase you acknowledge and agree to this policy.",
-      ar: "صفقة Founder مدى الحياة هي عملية شراء لمرة واحدة وتعد بيعًا نهائيًا. لا نقدم استردادًا لمشتريات Founder LTD. وبإتمام عملية الشراء فإنك تقر بهذه السياسة وتوافق عليها.",
+      en: "Founder lifetime access is a one-time purchase and is final sale. No refunds are offered for founder purchases. By completing the purchase you acknowledge and agree to this policy.",
+      ar: "باقة المؤسسين مدى الحياة هي عملية شراء لمرة واحدة وتُعد بيعًا نهائيًا. لا نقدم استردادًا لمشتريات باقة المؤسسين. وبإتمام عملية الشراء فإنك تقر بهذه السياسة وتوافق عليها.",
     },
   },
   {
@@ -22,7 +23,7 @@ const SECTIONS = [
       en: "Email",
       ar: "راسلنا عبر البريد الإلكتروني على",
     },
-    contact: "billing@fazumi.app",
+    contact: BILLING_CONTACT_EMAIL,
     bodySuffix: {
       en: 'with the subject line "Refund request" and include your registered email address. Refunds are processed within 5–10 business days to your original payment method.',
       ar: "مع كتابة \"طلب استرداد\" في عنوان الرسالة، وأرفق عنوان بريدك الإلكتروني المسجل. تتم معالجة الاستردادات خلال 5 إلى 10 أيام عمل إلى وسيلة الدفع الأصلية.",
@@ -52,7 +53,11 @@ export default function RefundsPage() {
               ) : (
                 <>
                   <LocalizedText en={section.bodyPrefix.en} ar={section.bodyPrefix.ar} />{" "}
-                  <a href={`mailto:${section.contact}`} className="text-[var(--primary)] hover:underline">
+                  <a
+                    href={`mailto:${section.contact}`}
+                    className="text-[var(--primary)] hover:underline"
+                    dir="ltr"
+                  >
                     {section.contact}
                   </a>{" "}
                   <LocalizedText en={section.bodySuffix.en} ar={section.bodySuffix.ar} />

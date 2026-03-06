@@ -1,9 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import { getPlaywrightBaseUrl, getPlaywrightDevServerCommand } from "./lib/testing/playwright";
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const baseURL = getPlaywrightBaseUrl();
+const shouldManageWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER !== "1";
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: ".",
+  testMatch: ["e2e/**/*.spec.ts", "tests/playwright/**/*.spec.ts"],
   timeout: 240_000,
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
@@ -26,10 +29,16 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: "pnpm dev",
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  webServer: shouldManageWebServer
+    ? {
+        command: getPlaywrightDevServerCommand(),
+        env: {
+          ...process.env,
+          PLAYWRIGHT_TEST: "1",
+        },
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 180_000,
+      }
+    : undefined,
 });

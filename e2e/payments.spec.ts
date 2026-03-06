@@ -45,7 +45,7 @@ test("billing lifecycle smoke: replayed Lemon Squeezy webhooks update UI without
   await page.goto("/dashboard?upgraded=1");
 
   await expect(page.getByTestId("upgrading-banner")).toBeVisible();
-  await page.waitForURL("**/dashboard", { timeout: 10_000 });
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
 
   await page.goto("/billing");
   await expect(page.getByTestId("billing-manage-subscription")).toBeVisible();

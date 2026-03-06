@@ -77,12 +77,12 @@ export default async function DashboardPage({
 
       <Card className="bg-[var(--surface-elevated)]">
         <CardHeader>
-          <CardTitle>
+          <CardTitle className="text-[var(--text-lg)]">
             <LocalizedText en="Ready to summarize?" ar="هل أنت مستعد للتلخيص؟" />
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-[var(--muted-foreground)] mb-4">
+          <p className="mb-4 text-[var(--text-sm)] text-[var(--muted-foreground)]">
             <LocalizedText
               en="Paste your school group chat and get a structured summary in seconds. Dates, tasks, and announcements are extracted automatically."
               ar="الصق محادثة مجموعة المدرسة واحصل على ملخص منظم خلال ثوانٍ. سيتم استخراج التواريخ والمهام والإعلانات تلقائيًا."

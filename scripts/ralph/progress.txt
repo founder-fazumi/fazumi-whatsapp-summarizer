@@ -74,3 +74,9 @@ S010 = PENDING  # Referral system
 # Files: app/error.tsx, specs/launch-blockers-final-fix.md, tasks/todo.md, scripts/ralph/progress.txt, tasks/lessons.md
 # Build status: `pnpm lint`, `pnpm typecheck`, and a clean `pnpm build` pass; build reached `Generating static pages using 7 workers (36/36)` with exit code `0`. `pnpm test` first failed because a stale Next.js server held port `3000`, then timed out on retry after the process was stopped.
 # Pattern: treat `app/error.tsx` as a special App Router boundary and keep it self-contained so route fallback rendering never depends on provider context during prerender.
+
+# 2026-03-03
+# Next.js version rollback verification completed: pinned `next` and `eslint-config-next` to `16.0.0`, refreshed the lockfile, and recorded the downgrade run in a dedicated spec/checklist.
+# Files: package.json, pnpm-lock.yaml, specs/nextjs-version-fix.md, tasks/todo.md, scripts/ralph/progress.txt, tasks/lessons.md
+# Build status: two clean `pnpm build` runs pass on Next.js `16.0.0` and reach `Generating static pages (36/36)` with exit code `0`; `pnpm lint` and `pnpm typecheck` pass. `pnpm test` is still blocked by `e2e/app-smoke.spec.ts` timing out while waiting for `summary-use-sample`.
+# Pattern: when a production build failure points at framework internals, pin the framework version first and verify with clean caches before adding app-side suppression or route-level workarounds.

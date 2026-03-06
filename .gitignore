@@ -57,3 +57,24 @@ yarn-error.log*
 # Supabase CLI temp files
 # =========================
 supabase/.temp/
+
+# Sentry Config File
+.env.sentry-build-plugin
+
+# =========================
+# Local dev artefacts
+# =========================
+*.log
+playwright-full.pid
+playwright-start.pid
+$null
+
+# =========================
+# Claude Code local settings
+# =========================
+.claude/settings.local.json
+
+# =========================
+# Screenshots / reports
+# =========================
+reports/screenshots/

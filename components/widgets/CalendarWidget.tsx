@@ -102,9 +102,10 @@ export function CalendarWidget() {
         <div className="flex items-center justify-between">
           <button
             onClick={prev}
+            aria-label={locale === "ar" ? "الشهر السابق" : "Previous month"}
             className="rounded-full p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className={cn("h-4 w-4", locale === "ar" && "rotate-180")} />
           </button>
 
           <div className="flex items-center gap-2">
@@ -124,9 +125,10 @@ export function CalendarWidget() {
 
           <button
             onClick={next}
+            aria-label={locale === "ar" ? "الشهر التالي" : "Next month"}
             className="rounded-full p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className={cn("h-4 w-4", locale === "ar" && "rotate-180")} />
           </button>
         </div>
       </CardHeader>

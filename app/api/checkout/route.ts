@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildCheckoutUrl } from "@/lib/lemonsqueezy";
-
-const VALID_VARIANTS = new Set([
-  process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT,
-  process.env.NEXT_PUBLIC_LS_ANNUAL_VARIANT,
-  process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT,
-].filter(Boolean));
+import {
+  findCheckoutVariantConfig,
+  getCheckoutConfigSummary,
+  normalizeVariantId,
+} from "@/lib/lemonsqueezy-config";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -23,13 +22,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const variantId = body.variant?.trim();
-  if (!variantId || !VALID_VARIANTS.has(variantId)) {
-    return NextResponse.json({ error: "Invalid variant" }, { status: 400 });
+  const requestedVariantId = normalizeVariantId(body.variant);
+  const configSummary = getCheckoutConfigSummary();
+  const selectedVariant = findCheckoutVariantConfig(requestedVariantId);
+
+  if (!requestedVariantId) {
+    return NextResponse.json(
+      {
+        error: "Checkout is not configured yet.",
+        code: "CHECKOUT_NOT_CONFIGURED",
+        missingEnv: [...configSummary.missing, ...configSummary.invalid].map(
+          (config) => config.envName
+        ),
+      },
+      { status: 503 }
+    );
+  }
+
+  if (!selectedVariant) {
+    if (configSummary.ready.length === 0) {
+      return NextResponse.json(
+        {
+          error: "Checkout is not configured yet.",
+          code: "CHECKOUT_NOT_CONFIGURED",
+          missingEnv: [...configSummary.missing, ...configSummary.invalid].map(
+            (config) => config.envName
+          ),
+        },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Invalid checkout variant.", code: "INVALID_VARIANT" },
+      { status: 400 }
+    );
   }
 
   const checkoutUrl = buildCheckoutUrl({
-    variantId,
+    variantId: selectedVariant.variantId,
     email: user.email,
     userId: user.id,
     appUrl: process.env.NEXT_PUBLIC_APP_URL,

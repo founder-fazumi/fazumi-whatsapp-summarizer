@@ -1,20 +1,37 @@
 "use client";
 
+import Link from "next/link";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BILLING_CONTACT_EMAIL,
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_GOVERNING_LAW,
+} from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
-import { pick } from "@/lib/i18n";
+import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const LAST_UPDATED = "2026-03-01";
+const LAST_UPDATED = "2026-03-06";
+
+interface TermsSection {
+  title: LocalizedCopy<string>;
+  body: LocalizedCopy<string>;
+  items?: LocalizedCopy<readonly string[]>;
+  links?: readonly {
+    href: string;
+    label: LocalizedCopy<string>;
+  }[];
+  emails?: readonly string[];
+}
 
 const COPY = {
   eyebrow: { en: "Legal", ar: "قانوني" },
   title: { en: "Terms of Service", ar: "شروط الخدمة" },
   description: {
-    en: "The basic rules that apply when you use Fazumi.",
-    ar: "القواعد الأساسية التي تنطبق عند استخدامك لـ Fazumi.",
+    en: "The rules for using Fazumi's chat summarization service, saved history, and paid plans.",
+    ar: "القواعد التي تنظم استخدام خدمة Fazumi لتلخيص المحادثات وسجل الملخصات والخطط المدفوعة.",
   },
   lastUpdated: {
     en: `Last updated: ${LAST_UPDATED}`,
@@ -22,172 +39,286 @@ const COPY = {
   },
   sections: [
     {
-      title: { en: "1. Acceptance of terms", ar: "1. قبول الشروط" },
-      body: {
-        en: "By creating an account or using Fazumi, you agree to these Terms. If you do not agree, please do not use the service.",
-        ar: "عند إنشاء حساب أو استخدام Fazumi فإنك توافق على هذه الشروط. وإذا لم توافق عليها، فالرجاء عدم استخدام الخدمة.",
+      title: {
+        en: "1. Who we are and acceptance of these Terms",
+        ar: "1. من نحن وقبول هذه الشروط",
       },
-      items: { en: [], ar: [] },
-      email: "",
-    },
-    {
-      title: { en: "2. Accounts and eligibility", ar: "2. الحسابات والأهلية" },
       body: {
-        en: "Fazumi is intended for parents, guardians, and other authorized adults who support a student.",
-        ar: "الخدمة موجهة للآباء والأمهات وأولياء الأمور وغيرهم من البالغين المصرح لهم بمتابعة شؤون الطالب.",
+        en: "Fazumi is a web app for parents and guardians. It turns busy parent group chats into structured summary cards so families can catch important dates, tasks, and school updates faster. These Terms apply whenever you create an account, start a trial, buy a plan, or otherwise use Fazumi.",
+        ar: "Fazumi هو تطبيق ويب للآباء والأمهات وأولياء الأمور. يحول محادثات مجموعات أولياء الأمور المزدحمة إلى بطاقات ملخص منظمة حتى تتمكن العائلات من التقاط التواريخ المهمة والمهام والتحديثات المدرسية بسرعة أكبر. تنطبق هذه الشروط عند إنشاء حساب أو بدء فترة تجريبية أو شراء خطة أو استخدام Fazumi بأي شكل.",
       },
       items: {
         en: [
-          "You must be legally able to enter a binding agreement where you live.",
+          "The service currently supports pasted or uploaded text from WhatsApp, Telegram, and Facebook Messenger chats.",
+          "If you do not agree to these Terms, do not use the service.",
+        ],
+        ar: [
+          "تدعم الخدمة حاليًا النصوص التي يتم لصقها أو رفعها من محادثات WhatsApp وTelegram وFacebook Messenger.",
+          "إذا لم توافق على هذه الشروط، فلا تستخدم الخدمة.",
+        ],
+      },
+    },
+    {
+      title: {
+        en: "2. Eligibility and account responsibility",
+        ar: "2. الأهلية ومسؤولية الحساب",
+      },
+      body: {
+        en: "Fazumi is intended for adults who are legally able to enter into a binding agreement and who are authorized to access the chats they submit.",
+        ar: "Fazumi مخصص للبالغين القادرين قانونيًا على إبرام اتفاق ملزم والمصرح لهم بالوصول إلى المحادثات التي يرسلونها.",
+      },
+      items: {
+        en: [
           "You must provide accurate account information and keep it reasonably up to date.",
+          "Keep your login credentials secure and do not let others use your account without permission.",
           "You are responsible for activity that happens through your account.",
         ],
         ar: [
-          "يجب أن تكون مؤهلًا قانونيًا لإبرام اتفاق ملزم في المكان الذي تقيم فيه.",
-          "كما يجب تقديم معلومات حساب دقيقة وتحديثها بشكل معقول عند الحاجة.",
-          "وأنت مسؤول عن أي نشاط يتم عبر حسابك.",
+          "يجب تقديم معلومات حساب دقيقة وتحديثها بشكل معقول عند الحاجة.",
+          "احفظ بيانات تسجيل الدخول بشكل آمن ولا تسمح للآخرين باستخدام حسابك دون إذن.",
+          "أنت مسؤول عن أي نشاط يتم عبر حسابك.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "3. Usage rules", ar: "3. قواعد الاستخدام" },
+      title: { en: "3. Description of the service", ar: "3. وصف الخدمة" },
       body: {
-        en: "You must use Fazumi in a lawful and responsible way.",
-        ar: "يجب استخدام Fazumi بطريقة قانونية ومسؤولة.",
+        en: "Fazumi uses OpenAI to generate summaries and Supabase to run authentication, saved history, and core account data. Product features may change over time as we improve the service.",
+        ar: "يستخدم Fazumi واجهة OpenAI لإنشاء الملخصات وSupabase لتشغيل المصادقة وسجل الملخصات وبيانات الحساب الأساسية. وقد تتغير ميزات المنتج بمرور الوقت مع تطوير الخدمة.",
       },
       items: {
         en: [
-          "Do not use the service for illegal, abusive, or harmful activity.",
-          "Do not upload or share content that contains threats, malware, or material you are not allowed to use.",
-          "Do not process chats you are not authorized to access.",
-          "Do not interfere with the service, bypass limits, or misuse the product.",
+          "Summary cards may include a TL;DR, important dates, action items, people or classes, links, and follow-up questions.",
+          "When you are signed in, saved summaries appear in your history.",
+          "You may choose English, Arabic, or automatic language handling where available.",
         ],
         ar: [
-          "عدم استخدام الخدمة لأي نشاط غير قانوني أو مسيء أو ضار.",
-          "وعدم رفع أو مشاركة محتوى يتضمن تهديدًا أو برمجيات خبيثة أو مواد لا يحق لك استخدامها.",
-          "وعدم معالجة محادثات لا تملك صلاحية الوصول إليها.",
-          "كما يُمنع تعطيل الخدمة أو تجاوز الحدود أو إساءة استخدام المنتج.",
+          "قد تتضمن بطاقات الملخص خلاصة سريعة وتواريخ مهمة ومهام وأشخاصًا أو صفوفًا وروابط وأسئلة متابعة.",
+          "عند تسجيل الدخول، تظهر الملخصات المحفوظة في سجلك.",
+          "يمكنك اختيار الإنجليزية أو العربية أو المعالجة التلقائية للغة عند توفرها.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "4. Raw chats are not stored", ar: "4. عدم حفظ المحادثات الخام" },
+      title: { en: "4. Your content", ar: "4. المحتوى الخاص بك" },
       body: {
-        en: "The chat text you paste or upload is processed transiently to generate a summary and is not stored as part of your account history.",
-        ar: "يتم التعامل مع نصوص المحادثات التي تلصقها أو ترفعها بشكل عابر لإنشاء الملخص، ولا يتم حفظ النص الخام ضمن سجل حسابك.",
+        en: "You may submit chat text and related text files for summarization. You keep the rights you already have in that content.",
+        ar: "يمكنك إرسال نص المحادثة والملفات النصية المرتبطة به للتلخيص. وتبقى لك الحقوق التي تملكها أصلًا في هذا المحتوى.",
       },
       items: {
         en: [
-          "We do not store raw messages in the database.",
-          "We save only the summary output and extracted structured items.",
+          "You represent that you have the right to submit the content and to ask Fazumi to process it.",
+          "You give Fazumi a limited, non-exclusive license to host, transmit, and process that content only to provide, secure, and support the service.",
+          "Raw chat text is processed during the summarization request and is not stored in your account history or the summaries table.",
+          "We store only the generated summary card, extracted structured fields, and limited operational metadata needed to run the service.",
         ],
         ar: [
-          "نحن لا نحفظ الرسائل الخام في قاعدة البيانات.",
-          "ونحتفظ فقط بناتج الملخص والعناصر المنظمة المستخرجة.",
+          "أنت تقر بأن لديك الحق في إرسال المحتوى وطلب معالجته عبر Fazumi.",
+          "وتمنح Fazumi ترخيصًا محدودًا وغير حصري لاستضافة هذا المحتوى ونقله ومعالجته فقط لتقديم الخدمة وتأمينها ودعمها.",
+          "يتم التعامل مع نص المحادثة الخام أثناء طلب التلخيص ولا يتم حفظه في سجل حسابك أو في جدول الملخصات.",
+          "نحن نحفظ فقط بطاقة الملخص الناتجة والعناصر المنظمة المستخرجة والبيانات التشغيلية المحدودة اللازمة لتشغيل الخدمة.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "5. AI summaries may contain errors", ar: "5. قد تحتوي الملخصات على أخطاء" },
+      title: { en: "5. Acceptable use", ar: "5. الاستخدام المقبول" },
       body: {
-        en: "Fazumi uses AI to generate summaries. AI output may contain mistakes, omissions, or incorrect assumptions.",
-        ar: "يعتمد Fazumi على الذكاء الاصطناعي في إنشاء الملخصات، وقد تتضمن المخرجات أخطاء أو سهوًا أو افتراضات غير دقيقة.",
+        en: "You must use Fazumi lawfully, respectfully, and within the limits of the product.",
+        ar: "يجب استخدام Fazumi بطريقة قانونية ومحترمة وضمن حدود المنتج.",
       },
       items: {
         en: [
-          "Verify important dates, homework, announcements, and policies with the school or teacher.",
-          "Do not rely on Fazumi alone for urgent, legal, medical, or safety-critical decisions.",
+          "Do not use the service for illegal content, threats, harassment, hate, exploitation, or other abusive conduct.",
+          "Do not submit malware, attempt to gain unauthorized access, scrape the service, reverse engineer it, or interfere with its normal operation.",
+          "Do not try to bypass usage limits, billing controls, security measures, or account restrictions.",
+          "Do not use Fazumi to process chats you are not authorized to access.",
         ],
         ar: [
-          "تحقق من المواعيد والواجبات والإعلانات والسياسات المهمة مع المدرسة أو المعلم.",
-          "ولا تعتمد على Fazumi وحده في القرارات العاجلة أو القانونية أو الطبية أو الحساسة للسلامة.",
+          "لا تستخدم الخدمة للمحتوى غير القانوني أو التهديد أو المضايقة أو الكراهية أو الاستغلال أو أي سلوك مسيء آخر.",
+          "ولا ترسل برمجيات خبيثة أو تحاول الوصول غير المصرح به أو كشط الخدمة أو عكس هندستها أو تعطيل عملها المعتاد.",
+          "ولا تحاول تجاوز حدود الاستخدام أو ضوابط الفوترة أو إجراءات الأمان أو قيود الحساب.",
+          "ولا تستخدم Fazumi لمعالجة محادثات لا تملك صلاحية الوصول إليها.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "6. Plans, subscriptions, and refunds", ar: "6. الخطط والاشتراكات والاسترداد" },
+      title: {
+        en: "6. AI output and verification",
+        ar: "6. مخرجات الذكاء الاصطناعي وضرورة التحقق",
+      },
       body: {
-        en: "Current plans and pricing are described in-product and may change over time.",
-        ar: "يتم توضيح الخطط والأسعار الحالية داخل المنتج، وقد تتغير بمرور الوقت.",
+        en: "Summaries are generated automatically and may be incomplete, inaccurate, or missing context.",
+        ar: "يتم إنشاء الملخصات بشكل آلي وقد تكون غير مكتملة أو غير دقيقة أو تفتقد إلى بعض السياق.",
       },
       items: {
         en: [
-          "Free access currently includes a 7-day trial with up to 3 summaries per day, followed by any limited free access shown in-product.",
-          "Monthly and annual plans renew automatically until canceled.",
-          "Founder is a one-time purchase and does not renew.",
-          "Refunds are available only for monthly and annual plans within 7 days of the first charge. Founder purchases are final.",
+          "Always verify time-sensitive school details, including deadlines, fees, transport changes, attendance rules, and policy notices, against the original chat, school portal, teacher, or school office.",
+          "Do not rely on Fazumi alone for urgent, legal, medical, safety-critical, or financial decisions.",
         ],
         ar: [
-          "تشمل الخطة المجانية حاليًا فترة تجريبية لمدة 7 أيام بحد أقصى 3 ملخصات يوميًا، يليها أي استخدام مجاني محدود يظهر داخل المنتج.",
-          "الخطتان الشهرية والسنوية اشتراكات متجددة تلقائيًا حتى يتم إلغاؤها.",
-          "أما خطة Founder فهي شراء لمرة واحدة ولا تتجدد.",
-          "ويُتاح طلب الاسترداد فقط للخطط الشهرية والسنوية خلال 7 أيام من أول عملية دفع. مشتريات Founder نهائية.",
+          "تحقق دائمًا من التفاصيل المدرسية الحساسة زمنيًا، بما في ذلك المواعيد النهائية والرسوم وتغييرات النقل وقواعد الحضور والإشعارات التنظيمية، بالرجوع إلى المحادثة الأصلية أو بوابة المدرسة أو المعلم أو إدارة المدرسة.",
+          "ولا تعتمد على Fazumi وحده في القرارات العاجلة أو القانونية أو الطبية أو الحساسة للسلامة أو المالية.",
         ],
       },
-      email: "",
     },
     {
-      title: { en: "7. Termination", ar: "7. الإنهاء" },
+      title: {
+        en: "7. Subscriptions, billing, cancellation, and refunds",
+        ar: "7. الاشتراكات والفوترة والإلغاء والاسترداد",
+      },
       body: {
-        en: "We may suspend or end access if you violate these Terms or misuse the service.",
-        ar: "يجوز لنا تعليق الوصول أو إنهاؤه إذا خالفت هذه الشروط أو أسأت استخدام الخدمة.",
+        en: "Paid plans are sold and billed through Lemon Squeezy, which acts as our merchant of record and payment processor for checkout, recurring billing, and the customer billing portal.",
+        ar: "تتم مبيعات الخطط المدفوعة وفوترتها عبر Lemon Squeezy، الذي يعمل بصفته التاجر الرسمي ومسؤول معالجة الدفع لعمليات الدفع والفوترة المتكررة وبوابة العميل الخاصة بالفوترة.",
       },
       items: {
         en: [
-          "You may stop using Fazumi at any time.",
-          "If you want your account deleted, contact support from your registered email address.",
+          "Monthly and annual plans renew automatically until canceled before the next billing date.",
+          "Founder access is a one-time purchase and does not renew.",
+          "You can manage or cancel a subscription through the Lemon Squeezy billing portal.",
+          "We do not store full payment card numbers.",
+          "Refund requests are handled under our Refund Policy, applicable law, and reasonable case-by-case review. Monthly and annual first charges may be eligible within 7 days; founder purchases are final except where law requires otherwise.",
         ],
         ar: [
-          "يمكنك التوقف عن استخدام Fazumi في أي وقت.",
-          "وإذا أردت حذف الحساب، فتواصل مع الدعم من بريدك الإلكتروني المسجل.",
+          "تتجدد الخطتان الشهرية والسنوية تلقائيًا ما لم يتم الإلغاء قبل تاريخ الفوترة التالي.",
+          "أما وصول Founder فهو شراء لمرة واحدة ولا يتجدد.",
+          "يمكنك إدارة الاشتراك أو إلغاؤه من خلال بوابة الفوترة التابعة لـ Lemon Squeezy.",
+          "نحن لا نحفظ أرقام بطاقات الدفع الكاملة.",
+          "تتم معالجة طلبات الاسترداد وفق سياسة الاسترداد والقانون المعمول به ومراجعة معقولة لكل حالة. قد تكون أول دفعة في الخطط الشهرية والسنوية مؤهلة خلال 7 أيام، بينما تكون مشتريات Founder نهائية ما لم يفرض القانون خلاف ذلك.",
         ],
       },
-      email: "support@fazumi.app",
+      links: [
+        {
+          href: "/refunds",
+          label: {
+            en: "Read the Refund Policy",
+            ar: "اقرأ سياسة الاسترداد",
+          },
+        },
+      ],
+      emails: [BILLING_CONTACT_EMAIL],
     },
     {
-      title: { en: "8. Disclaimers", ar: "8. إخلاءات المسؤولية" },
+      title: { en: "8. Privacy", ar: "8. الخصوصية" },
       body: {
-        en: 'Fazumi is provided "as is" and "as available". We may change features, limits, or availability without guaranteeing uninterrupted service.',
-        ar: 'يتم تقديم Fazumi "كما هو" و"بحسب التوفر"، وقد نغيّر الميزات أو الحدود أو التوفر دون ضمان خدمة متواصلة بلا انقطاع.',
+        en: "Our Privacy Policy explains what personal data we collect, how we use it, and how we handle cookies and consent choices.",
+        ar: "توضح سياسة الخصوصية البيانات الشخصية التي نجمعها وكيف نستخدمها وكيف نتعامل مع ملفات الارتباط وخيارات الموافقة.",
       },
-      items: { en: [], ar: [] },
-      email: "",
+      links: [
+        {
+          href: "/privacy",
+          label: {
+            en: "Read the Privacy Policy",
+            ar: "اقرأ سياسة الخصوصية",
+          },
+        },
+      ],
     },
     {
-      title: { en: "9. Limitation of liability", ar: "9. حدود المسؤولية" },
+      title: { en: "9. Intellectual property", ar: "9. الملكية الفكرية" },
       body: {
-        en: "To the extent allowed by law, we are not liable for indirect, incidental, or consequential losses arising from your use of the service or your reliance on summary output.",
-        ar: "إلى الحد الذي يسمح به القانون، لا نتحمل المسؤولية عن الأضرار غير المباشرة أو العرضية أو التبعية الناتجة عن استخدامك للخدمة أو اعتمادك على مخرجات الملخص.",
-      },
-      items: { en: [], ar: [] },
-      email: "",
-    },
-    {
-      title: { en: "10. Governing law", ar: "10. القانون الواجب التطبيق" },
-      body: {
-        en: "Your local jurisdiction may apply. These Terms should be read subject to any mandatory consumer rights that apply where you live.",
-        ar: "قد تنطبق الولاية القضائية المحلية الخاصة بك. ويجب قراءة هذه الشروط بما لا ينتقص من أي حقوق استهلاكية إلزامية تسري في مكان إقامتك.",
-      },
-      items: { en: [], ar: [] },
-      email: "",
-    },
-    {
-      title: { en: "11. Changes and contact", ar: "11. التغييرات والتواصل" },
-      body: {
-        en: "We may update these Terms from time to time. If you continue using Fazumi after an updated version is posted, that use means you accept the revised Terms.",
-        ar: "قد نحدّث هذه الشروط من وقت لآخر. ويعني استمرارك في استخدام Fazumi بعد نشر النسخة المحدثة أنك تقبل الشروط المعدلة.",
+        en: "Fazumi and its licensors own the software, design, branding, and other product materials, except for content that belongs to users or third parties.",
+        ar: "يملك Fazumi والجهات المرخصة له البرنامج والتصميم والعلامة والمواد الأخرى الخاصة بالمنتج، باستثناء المحتوى الذي يعود للمستخدمين أو للغير.",
       },
       items: {
-        en: ["Questions about these Terms can be sent to:"],
-        ar: ["يمكن إرسال أي استفسار حول هذه الشروط إلى:"],
+        en: [
+          "As between you and Fazumi, you keep your rights in the chat text you submit.",
+          "You may use the summary cards generated for your own family coordination, school follow-up, and lawful personal use.",
+          "You may not copy our product code, branding, or protected materials except as the law allows.",
+        ],
+        ar: [
+          "فيما بينك وبين Fazumi، تبقى لك حقوقك في نص المحادثة الذي ترسله.",
+          "يمكنك استخدام بطاقات الملخص الناتجة للتنسيق العائلي ومتابعة المدرسة والاستخدام الشخصي المشروع.",
+          "ولا يجوز لك نسخ كود المنتج أو علامته أو مواده المحمية إلا بالقدر الذي يسمح به القانون.",
+        ],
       },
-      email: "support@fazumi.app",
     },
-  ],
+    {
+      title: { en: "10. Suspension and termination", ar: "10. التعليق والإنهاء" },
+      body: {
+        en: "You may stop using Fazumi at any time. We may suspend or terminate access if you break these Terms, misuse the product, create risk for other users, or expose Fazumi to legal or security harm.",
+        ar: "يمكنك التوقف عن استخدام Fazumi في أي وقت. ويجوز لنا تعليق الوصول أو إنهاؤه إذا خالفت هذه الشروط أو أسأت استخدام المنتج أو خلقت خطرًا على المستخدمين الآخرين أو عرضت Fazumi لضرر قانوني أو أمني.",
+      },
+      items: {
+        en: [
+          "If your account is terminated, your right to use the service stops immediately.",
+          "You can request account deletion by emailing us from your registered address.",
+          "Sections that should reasonably survive termination, including billing, liability, indemnity, and dispute terms, will continue to apply.",
+        ],
+        ar: [
+          "إذا تم إنهاء حسابك، ينتهي حقك في استخدام الخدمة فورًا.",
+          "يمكنك طلب حذف الحساب عبر مراسلتنا من بريدك الإلكتروني المسجل.",
+          "تستمر الأحكام التي يُفترض منطقيًا أن تبقى بعد الإنهاء، بما في ذلك الفوترة والمسؤولية والتعويض وتسوية النزاعات.",
+        ],
+      },
+      emails: [LEGAL_CONTACT_EMAIL],
+    },
+    {
+      title: {
+        en: "11. Disclaimers and limitation of liability",
+        ar: "11. إخلاءات المسؤولية وحدود المسؤولية",
+      },
+      body: {
+        en: 'To the maximum extent permitted by law, Fazumi is provided "as is" and "as available". We do not guarantee uninterrupted service, error-free output, or that the service will always meet every need.',
+        ar: 'إلى أقصى حد يسمح به القانون، يتم تقديم Fazumi "كما هو" و"بحسب التوفر". ولا نضمن خدمة غير منقطعة أو مخرجات خالية من الأخطاء أو أن تلبي الخدمة كل احتياج على الدوام.',
+      },
+      items: {
+        en: [
+          "To the maximum extent permitted by law, we are not liable for indirect, incidental, special, consequential, or punitive damages, or for loss of profits, data, goodwill, or business opportunity.",
+          "Our total liability for any claim related to Fazumi will not exceed the greater of the amount you paid us in the 12 months before the claim arose or USD 100.",
+          "Nothing in these Terms excludes liability that cannot legally be excluded.",
+        ],
+        ar: [
+          "إلى أقصى حد يسمح به القانون، لا نتحمل المسؤولية عن الأضرار غير المباشرة أو العرضية أو الخاصة أو التبعية أو العقابية، ولا عن خسارة الأرباح أو البيانات أو السمعة أو الفرص التجارية.",
+          "لن تتجاوز مسؤوليتنا الإجمالية عن أي مطالبة متعلقة بـ Fazumi المبلغ الأكبر من: ما دفعته لنا خلال الاثني عشر شهرًا السابقة لنشوء المطالبة أو 100 دولار أمريكي.",
+          "ولا يستبعد أي جزء من هذه الشروط المسؤولية التي لا يجوز استبعادها قانونًا.",
+        ],
+      },
+    },
+    {
+      title: { en: "12. Indemnity", ar: "12. التعويض" },
+      body: {
+        en: "You agree to defend, indemnify, and hold Fazumi and its team harmless from claims, losses, liabilities, and costs that arise out of your submitted content, your misuse of the service, or your breach of these Terms.",
+        ar: "توافق على الدفاع عن Fazumi وفريقه وتعويضهم وإبراء ذمتهم من المطالبات والخسائر والمسؤوليات والتكاليف الناشئة عن المحتوى الذي ترسله أو إساءة استخدامك للخدمة أو مخالفتك لهذه الشروط.",
+      },
+    },
+    {
+      title: { en: "13. Governing law and disputes", ar: "13. القانون الواجب التطبيق والنزاعات" },
+      body: LEGAL_GOVERNING_LAW,
+      items: {
+        en: [
+          "If mandatory consumer protection law gives you additional non-waivable rights, those rights still apply.",
+        ],
+        ar: [
+          "إذا منحك قانون حماية المستهلك الإلزامي حقوقًا إضافية غير قابلة للتنازل، فإن تلك الحقوق تبقى سارية.",
+        ],
+      },
+    },
+    {
+      title: { en: "14. Changes to these Terms", ar: "14. التغييرات على هذه الشروط" },
+      body: {
+        en: "We may update these Terms from time to time to reflect product, billing, legal, or operational changes. We will post the revised version on this page and update the date above.",
+        ar: "قد نحدّث هذه الشروط من وقت لآخر لتعكس تغييرات المنتج أو الفوترة أو المتطلبات القانونية أو التشغيلية. وسننشر النسخة المحدثة على هذه الصفحة ونقوم بتحديث التاريخ الموضح أعلاه.",
+      },
+      items: {
+        en: [
+          "If changes are material, we may also notify you in-product or by email.",
+          "By continuing to use Fazumi after the updated Terms take effect, you accept the revised Terms.",
+        ],
+        ar: [
+          "إذا كانت التغييرات جوهرية، فقد نبلغك أيضًا داخل المنتج أو عبر البريد الإلكتروني.",
+          "يعني استمرارك في استخدام Fazumi بعد سريان الشروط المحدثة أنك تقبل النسخة المعدلة.",
+        ],
+      },
+    },
+    {
+      title: { en: "15. Contact", ar: "15. التواصل" },
+      body: {
+        en: "Questions about these Terms, billing, or legal notices can be sent to:",
+        ar: "يمكن إرسال الاستفسارات المتعلقة بهذه الشروط أو الفوترة أو الإشعارات القانونية إلى:",
+      },
+      emails: [LEGAL_CONTACT_EMAIL, BILLING_CONTACT_EMAIL],
+    },
+  ] satisfies readonly TermsSection[],
 } as const;
 
 export default function TermsPage() {
@@ -210,7 +341,9 @@ export default function TermsPage() {
         </p>
 
         {COPY.sections.map((section) => {
-          const items = pick<readonly string[]>(section.items, locale);
+          const items = section.items ? pick(section.items, locale) : [];
+          const links = section.links ?? [];
+          const emails = section.emails ?? [];
 
           return (
             <Card key={section.title.en}>
@@ -235,13 +368,33 @@ export default function TermsPage() {
                   </ul>
                 ) : null}
 
-                {section.email ? (
-                  <a
-                    href={`mailto:${section.email}`}
-                    className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
-                  >
-                    {section.email}
-                  </a>
+                {links.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {links.map((link) => (
+                      <Link
+                        key={`${section.title.en}-${link.href}`}
+                        href={link.href}
+                        className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                      >
+                        {pick(link.label, locale)}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+
+                {emails.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {emails.map((email) => (
+                      <a
+                        key={`${section.title.en}-${email}`}
+                        href={`mailto:${email}`}
+                        className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                        dir="ltr"
+                      >
+                        {email}
+                      </a>
+                    ))}
+                  </div>
                 ) : null}
               </CardContent>
             </Card>

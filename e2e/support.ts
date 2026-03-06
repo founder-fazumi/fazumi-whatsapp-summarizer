@@ -3,12 +3,15 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 
 const ROOT_DIR = process.cwd();
-const FREE_EMAIL = "free1@fazumi.local";
-const PAID_EMAIL = "paid1@fazumi.local";
-const FOUNDER_EMAIL = "founder1@fazumi.local";
+const ADMIN_EMAIL = "admin@fazumi.test";
+const FREE_EMAIL = "free@fazumi.test";
+const PAID_EMAIL = "paid@fazumi.test";
+const FOUNDER_EMAIL = "founder@fazumi.test";
 const FIXTURES_DIR = path.join(ROOT_DIR, "scripts", "webhooks", "fixtures");
 const RECURRING_FIXTURE_EMAILS: Record<string, string> = {
   subscription_payment_success: PAID_EMAIL,
@@ -132,6 +135,31 @@ function readEnv(name: string) {
   return process.env[name] ?? envCache[name] ?? "";
 }
 
+function hasSupabaseAuthCookie(
+  cookies: Array<{
+    name: string;
+  }>
+) {
+  return cookies.some(({ name }) =>
+    name === "supabase-auth-token" ||
+    name.startsWith("supabase-auth-token.") ||
+    (name.startsWith("sb-") && name.includes("-auth-token"))
+  );
+}
+
+async function waitForReactHydration(page: Page, selector: string) {
+  await page.waitForFunction((inputSelector) => {
+    const node = document.querySelector(inputSelector) as Record<string, unknown> | null;
+    if (!node) {
+      return false;
+    }
+
+    return Object.keys(node).some((key) =>
+      key.startsWith("__reactFiber") || key.startsWith("__reactProps")
+    );
+  }, selector);
+}
+
 function getAdminClient(): SupabaseClient {
   const supabaseUrl = readEnv("SUPABASE_URL") || readEnv("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
@@ -167,18 +195,116 @@ export async function ensureTestAccounts(request: APIRequestContext) {
   }
 
   return {
+    admin: getAccount(ADMIN_EMAIL),
     free: getAccount(FREE_EMAIL),
     paid: getAccount(PAID_EMAIL),
     founder: getAccount(FOUNDER_EMAIL),
   };
 }
 
+export async function getAuthCookieHeader(account: TestAccount) {
+  const supabaseUrl = readEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const anonKey = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("Missing Supabase anon env vars for auth cookie creation.");
+  }
+
+  const cookies = new Map<string, string>();
+  const client = createServerClient(supabaseUrl, anonKey, {
+    cookies: {
+      getAll() {
+        return Array.from(cookies.entries()).map(([name, value]) => ({ name, value }));
+      },
+      setAll(items) {
+        for (const item of items) {
+          if (item.value) {
+            cookies.set(item.name, item.value);
+          } else {
+            cookies.delete(item.name);
+          }
+        }
+      },
+    },
+  });
+
+  const { error } = await client.auth.signInWithPassword({
+    email: account.email,
+    password: account.password,
+  });
+
+  if (error) {
+    throw new Error(`Could not create auth cookie for ${account.email}: ${error.message}`);
+  }
+
+  if (cookies.size === 0) {
+    throw new Error(`Supabase did not return auth cookies for ${account.email}.`);
+  }
+
+  return Array.from(cookies.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+export async function getAuthCookies(account: TestAccount) {
+  const cookieHeader = await getAuthCookieHeader(account);
+  const baseURL = getPlaywrightBaseUrl();
+
+  return cookieHeader
+    .split(/;\s*/)
+    .filter(Boolean)
+    .map((item) => {
+      const separatorIndex = item.indexOf("=");
+      const name = item.slice(0, separatorIndex);
+      const value = item.slice(separatorIndex + 1);
+
+      return {
+        name,
+        value,
+        url: baseURL,
+      };
+    });
+}
+
 export async function loginWithEmail(page: Page, account: TestAccount) {
   await page.goto("/login");
+  await waitForReactHydration(page, "#login-email");
   await page.locator("#login-email").fill(account.email);
   await page.locator("#login-pass").fill(account.password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await page.waitForURL("**/dashboard");
+  await page
+    .locator("form")
+    .filter({ has: page.locator("#login-email") })
+    .locator('button[type="submit"]')
+    .click();
+
+  await expect.poll(async () => {
+    if (/\/dashboard(?:$|[/?#])/.test(page.url())) {
+      return "dashboard";
+    }
+
+    const cookies = await page.context().cookies();
+    return hasSupabaseAuthCookie(cookies) ? "session" : "pending";
+  }, {
+    timeout: 30_000,
+    message: `Expected ${account.email} to establish a Supabase session.`,
+  }).not.toBe("pending");
+
+  if (!/\/dashboard(?:$|[/?#])/.test(page.url())) {
+    try {
+      await page.goto("/dashboard");
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("ERR_ABORTED")) {
+        throw error;
+      }
+    }
+
+    await expect
+      .poll(() => /\/dashboard(?:$|[/?#])/.test(page.url()), {
+        timeout: 15_000,
+        message: `Expected ${account.email} to land on /dashboard after login.`,
+      })
+      .toBeTruthy();
+  }
 }
 
 export async function resetTestUser(
@@ -269,6 +395,23 @@ export async function getVisibleSummaryIds(email: string) {
   return (data ?? []).map((row) => row.id as string);
 }
 
+export async function getDailyUsageCount(email: string, dateKey = new Date().toISOString().slice(0, 10)) {
+  const admin = getAdminClient();
+  const user = await findUserByEmail(admin, email);
+  const { data, error } = await admin
+    .from("usage_daily")
+    .select("summaries_used")
+    .eq("user_id", user.id)
+    .eq("date", dateKey)
+    .maybeSingle<{ summaries_used: number | null }>();
+
+  if (error) {
+    throw new Error(`Could not read daily usage for ${email}: ${error.message}`);
+  }
+
+  return data?.summaries_used ?? 0;
+}
+
 export async function getSummaryDeletedAt(summaryId: string) {
   const admin = getAdminClient();
   const { data, error } = await admin
@@ -296,6 +439,95 @@ export async function getSubscription(subscriptionId: string) {
 
   if (error) {
     throw new Error(`Could not load subscription ${subscriptionId}: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getLatestSupportRequest(email: string) {
+  const admin = getAdminClient();
+  const { data, error } = await admin
+    .from("support_requests")
+    .select("id, email, subject, message, status, priority, locale, created_at")
+    .eq("email", email.toLowerCase())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{
+      id: string;
+      email: string | null;
+      subject: string;
+      message: string;
+      status: string;
+      priority: string;
+      locale: string;
+      created_at: string;
+    }>();
+
+  if (error) {
+    const { data: fallbackData, error: fallbackError } = await admin
+      .from("user_feedback")
+      .select("id, message, meta_json, created_at")
+      .filter("meta_json->>email", "eq", email.toLowerCase())
+      .filter("meta_json->>type", "eq", "support")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        message: string;
+        meta_json: {
+          email?: string;
+          subject?: string;
+          status?: string;
+          priority?: string;
+          locale?: string;
+        } | null;
+        created_at: string;
+      }>();
+
+    if (fallbackError) {
+      throw new Error(`Could not read support request for ${email}: ${error.message}`);
+    }
+
+    if (!fallbackData) {
+      return null;
+    }
+
+    return {
+      id: fallbackData.id,
+      email: fallbackData.meta_json?.email ?? email.toLowerCase(),
+      subject: fallbackData.meta_json?.subject ?? fallbackData.message.slice(0, 96),
+      message: fallbackData.message,
+      status: fallbackData.meta_json?.status ?? "pending",
+      priority: fallbackData.meta_json?.priority ?? "medium",
+      locale: fallbackData.meta_json?.locale ?? "en",
+      created_at: fallbackData.created_at,
+    };
+  }
+
+  return data;
+}
+
+export async function getLatestFeedback(email: string) {
+  const admin = getAdminClient();
+  const { data, error } = await admin
+    .from("user_feedback")
+    .select("id, email, subject, message, status, priority, locale, created_at")
+    .eq("email", email.toLowerCase())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{
+      id: string;
+      email: string | null;
+      subject: string;
+      message: string;
+      status: string;
+      priority: string;
+      locale: string;
+      created_at: string;
+    }>();
+
+  if (error) {
+    throw new Error(`Could not read feedback for ${email}: ${error.message}`);
   }
 
   return data;
@@ -415,7 +647,7 @@ export async function postWebhookFixture(fixtureName: "subscription_payment_succ
     throw new Error("Missing webhook signing secret for payment smoke.");
   }
 
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+  const baseURL = getPlaywrightBaseUrl();
   const rawBody = JSON.stringify(payload);
   const signature = createHmac("sha256", secret).update(rawBody).digest("hex");
   const response = await fetch(`${baseURL}/api/webhooks/lemonsqueezy`, {

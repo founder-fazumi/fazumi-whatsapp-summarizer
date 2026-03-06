@@ -146,3 +146,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Do NOT adopt Wasp, OpenSaaS, or SuperTokens. Keep the current stack exactly as-is: Next.js App Router + Supabase Auth/DB + Lemon Squeezy payments. All three are already integrated and working.
 **Rationale:** The rewrite cost exceeds any DX gain at this stage. Time-to-ship is the constraint. Any framework migration is a pre-launch distraction.
 **Consequences:** Future infra additions must be additive bolt-ons (monitoring SDK, edge function, etc.), not framework replacements. Revisit only after MVP revenue is stable.
+
+---
+
+## D016 — Admin dashboard is dev-only and service-role backed
+**Date:** 2026-03-02
+**Context:** Internal admin metrics are needed locally, but shipping a public hardcoded admin credential or a production-facing service-role dashboard would be unsafe at MVP stage.
+**Decision:** Add `/admin_dashboard` only for local development. Access is gated by a dev-only HttpOnly cookie set from `/admin_dashboard/login`, using `ADMIN_USER` and `ADMIN_PASS` when present or `admin / admin` by default. All `/api/admin/*` endpoints are server-only, require the same cookie, and use the Supabase service role strictly on the server. Production blocks the entire admin dashboard surface.
+**Consequences:** Local admin diagnostics stay simple and cheap, while production avoids exposing a second auth surface or any client-visible service-role behavior. Any future production admin panel should replace this with real operator auth instead of extending the dev gate.

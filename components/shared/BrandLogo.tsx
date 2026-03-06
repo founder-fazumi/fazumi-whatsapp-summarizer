@@ -23,13 +23,13 @@ export function BrandLogo({ size = "md", className }: BrandLogoProps) {
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--primary)]",
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-xl",
         sizeClass,
         className
       )}
     >
       <Image
-        src="/brand/logo/fazumi-logo.svg.png"
+        src="/brand/logo/fazumi-logo.svg"
         alt="Fazumi"
         width={px}
         height={px}

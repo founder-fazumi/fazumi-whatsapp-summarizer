@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -8,12 +8,15 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
+  titleId?: string;
   children: React.ReactNode;
   className?: string;
 }
 
-export function Dialog({ open, onOpenChange, title, children, className }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, titleId, children, className }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const generatedTitleId = useId();
+  const resolvedTitleId = titleId ?? generatedTitleId;
 
   // Close on Escape
   useEffect(() => {
@@ -37,9 +40,10 @@ export function Dialog({ open, onOpenChange, title, children, className }: Dialo
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--overlay)] px-4 pt-[10vh] backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onOpenChange(false); }}
-      aria-modal
       role="dialog"
-      aria-label={title}
+      aria-modal="true"
+      aria-labelledby={title ? resolvedTitleId : undefined}
+      aria-label={title ? undefined : "Dialog"}
     >
       <div
         ref={panelRef}
@@ -51,7 +55,7 @@ export function Dialog({ open, onOpenChange, title, children, className }: Dialo
         {(title || true) && (
           <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
             {title && (
-              <span className="text-sm font-semibold text-[var(--text-strong)]">{title}</span>
+              <span id={resolvedTitleId} className="text-sm font-semibold text-[var(--text-strong)]">{title}</span>
             )}
             <button
               onClick={() => onOpenChange(false)}

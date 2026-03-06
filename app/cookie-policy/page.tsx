@@ -1,122 +1,179 @@
 "use client";
 
-import { Cookie, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { BarChart3, Megaphone, Settings2, ShieldCheck } from "lucide-react";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
-import { pick } from "@/lib/i18n";
+import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const LAST_UPDATED = "2026-03-01";
+const LAST_UPDATED = "2026-03-06";
+
+interface CookieSection {
+  title: LocalizedCopy<string>;
+  body: LocalizedCopy<string>;
+  items?: LocalizedCopy<readonly string[]>;
+  links?: readonly {
+    href: string;
+    label: LocalizedCopy<string>;
+  }[];
+  emails?: readonly string[];
+}
 
 const COPY = {
-  eyebrow: { en: "Policy", ar: "سياسة" },
+  eyebrow: { en: "Legal", ar: "قانوني" },
   title: { en: "Cookie Policy", ar: "سياسة ملفات الارتباط" },
   description: {
-    en: "How Fazumi uses cookies and similar browser storage.",
-    ar: "كيف يستخدم Fazumi ملفات الارتباط والتخزين المشابه داخل المتصفح.",
+    en: "How Fazumi uses cookies and browser storage for sign-in, preferences, and optional analytics.",
+    ar: "كيف يستخدم فازومي ملفات الارتباط وتخزين المتصفح لتسجيل الدخول والتفضيلات والتحليلات الاختيارية.",
   },
   lastUpdated: {
     en: `Last updated: ${LAST_UPDATED}`,
     ar: `آخر تحديث: ${LAST_UPDATED}`,
   },
-  sections: [
-    {
-      title: { en: "1. What cookies are", ar: "1. ما هي ملفات الارتباط" },
-      body: {
-        en: "Cookies are small pieces of data stored in your browser. Similar technologies, such as local storage, can remember sessions or preferences so the site works as expected.",
-        ar: "ملفات الارتباط هي أجزاء صغيرة من البيانات تُخزَّن في متصفحك. كما يمكن لتقنيات مشابهة مثل التخزين المحلي أن تتذكر الجلسات أو التفضيلات حتى يعمل الموقع كما هو متوقع.",
-      },
-      items: { en: [], ar: [] },
-    },
-    {
-      title: { en: "2. How Fazumi uses browser storage today", ar: "2. كيف يستخدم Fazumi التخزين حاليًا" },
-      body: {
-        en: "At launch, Fazumi mainly relies on strictly necessary cookies and similar browser storage for sign-in, session continuity, language, and theme preferences.",
-        ar: "عند الإطلاق يعتمد Fazumi أساسًا على ملفات ارتباط ضرورية وتخزين مشابه داخل المتصفح لتسجيل الدخول واستمرار الجلسة وتفضيلات اللغة والمظهر.",
-      },
-      items: { en: [], ar: [] },
-    },
-    {
-      title: { en: "3. Consent for non-essential cookies", ar: "3. الموافقة على الملفات غير الضرورية" },
-      body: {
-        en: "When enabled, we do not set non-essential cookies until you choose. Analytics and marketing cookies are not strictly necessary for the service.",
-        ar: "عند تفعيلها، لا نضبط ملفات الارتباط غير الضرورية إلا بعد اختيارك. فملفات التحليلات والتسويق ليست ضرورية لتشغيل الخدمة.",
-      },
-      items: { en: [], ar: [] },
-    },
-    {
-      title: { en: "4. Managing cookies in your browser", ar: "4. إدارة الملفات من المتصفح" },
-      body: {
-        en: "Most browsers let you clear, block, or limit cookies from their settings. You can also remove local storage data for this site.",
-        ar: "تتيح لك معظم المتصفحات مسح ملفات الارتباط أو حظرها أو تقييدها من خلال الإعدادات، كما يمكنك حذف بيانات التخزين المحلي الخاصة بهذا الموقع.",
-      },
-      items: {
-        en: [
-          "Clearing cookies may sign you out.",
-          "Removing site storage may reset your saved language or theme preferences.",
-        ],
-        ar: [
-          "وقد يؤدي مسح ملفات الارتباط إلى تسجيل خروجك.",
-          "كما أن حذف بيانات الموقع قد يعيد ضبط تفضيلات اللغة أو المظهر المحفوظة لديك.",
-        ],
-      },
-    },
-    {
-      title: { en: "5. Third parties", ar: "5. الجهات الخارجية" },
-      body: {
-        en: "Some third-party services connected to Fazumi may use their own cookies or similar identifiers when their features are active, such as authentication or checkout providers.",
-        ar: "قد تستخدم بعض الخدمات الخارجية المرتبطة بـ Fazumi ملفات ارتباط خاصة بها أو معرفات مشابهة عندما تكون ميزاتها فعّالة، مثل مزودي المصادقة أو الدفع.",
-      },
-      items: {
-        en: [
-          "Supabase may be involved for authentication and session handling.",
-          "Lemon Squeezy may use its own cookies on hosted checkout or billing pages.",
-          "If analytics or marketing tools are enabled later, they will fall under the consent rules above.",
-        ],
-        ar: [
-          "قد يشارك Supabase في المصادقة وإدارة الجلسات.",
-          "وقد تستخدم Lemon Squeezy ملفاتها الخاصة في صفحات الدفع أو الفوترة المستضافة لديها.",
-          "وإذا تم تفعيل أدوات التحليلات أو التسويق لاحقًا فستسري عليها قواعد الموافقة المذكورة أعلاه.",
-        ],
-      },
-    },
-  ],
   categories: [
     {
       title: { en: "Strictly necessary", ar: "ضرورية للغاية" },
       body: {
-        en: "Needed for sign-in, session security, and core product functionality. These do not require consent.",
-        ar: "مطلوبة لتسجيل الدخول وأمان الجلسة والوظائف الأساسية للمنتج. ولا تتطلب موافقة.",
+        en: "Needed for sign-in, session security, consent handling, and core product functionality. These do not require consent.",
+        ar: "مطلوبة لتسجيل الدخول وأمان الجلسة وإدارة الموافقة والوظائف الأساسية للمنتج. وهذه الفئة لا تتطلب موافقة.",
       },
       icon: ShieldCheck,
     },
     {
       title: { en: "Preferences", ar: "التفضيلات" },
       body: {
-        en: "Used to remember choices such as language or theme. These may use cookies or local storage depending on the feature.",
-        ar: "تُستخدم لتذكر اختياراتك مثل اللغة أو المظهر. وقد تعتمد على ملفات ارتباط أو تخزين محلي بحسب الميزة.",
+        en: "Used to remember choices such as language and theme. These may use cookies or local storage depending on the feature.",
+        ar: "تُستخدم لتذكر اختياراتك مثل اللغة والمظهر. وقد تعتمد على ملفات ارتباط أو تخزين محلي بحسب الميزة.",
       },
-      icon: Cookie,
+      icon: Settings2,
     },
     {
       title: { en: "Analytics", ar: "التحليلات" },
       body: {
-        en: "When enabled, analytics help us understand performance and usage trends. These require consent.",
-        ar: "عند تفعيلها، تساعدنا التحليلات على فهم الأداء واتجاهات الاستخدام. وهذه الفئة تتطلب موافقة.",
+        en: "When enabled and consented to, analytics help us understand page views, clicks, and product usage trends. These require consent.",
+        ar: "عند تفعيلها وبعد الحصول على الموافقة، تساعدنا التحليلات على فهم مشاهدات الصفحات والنقرات واتجاهات استخدام المنتج. وهذه الفئة تتطلب موافقة.",
       },
-      icon: Cookie,
+      icon: BarChart3,
     },
     {
       title: { en: "Marketing", ar: "التسويق" },
       body: {
-        en: "When enabled, marketing cookies may support campaign measurement or promotional messaging. These require consent.",
-        ar: "عند تفعيلها، قد تدعم ملفات التسويق قياس الحملات أو الرسائل الترويجية. وهذه الفئة تتطلب موافقة.",
+        en: "Fazumi does not currently use first-party marketing cookies on the main app. If that changes, we will ask first where consent is required.",
+        ar: "لا يستخدم فازومي حاليًا ملفات تسويق من الطرف الأول على التطبيق الرئيسي. وإذا تغير ذلك، فسنطلب الموافقة أولًا عندما تكون مطلوبة.",
       },
-      icon: Cookie,
+      icon: Megaphone,
     },
   ],
+  sections: [
+    {
+      title: { en: "1. What cookies are", ar: "1. ما هي ملفات الارتباط" },
+      body: {
+        en: "Cookies are small files placed in your browser. Fazumi also uses similar browser storage, such as localStorage, to remember language, theme, consent choices, and optional analytics settings.",
+        ar: "ملفات الارتباط هي ملفات صغيرة تُحفظ في متصفحك. كما يستخدم فازومي وسائل تخزين مشابهة في المتصفح مثل localStorage لتذكر اللغة والمظهر وخيارات الموافقة وإعدادات التحليلات الاختيارية.",
+      },
+    },
+    {
+      title: { en: "2. Categories we use today", ar: "2. الفئات التي نستخدمها حاليًا" },
+      body: {
+        en: "Fazumi mainly uses necessary storage for sign-in, consent handling, language, and saved preferences. Optional analytics storage is used only if you opt in and analytics is enabled in the app configuration.",
+        ar: "يعتمد فازومي أساسًا على التخزين الضروري لتسجيل الدخول وإدارة الموافقة واللغة والتفضيلات المحفوظة. ويتم استخدام التخزين الخاص بالتحليلات فقط إذا وافقت عليه وكانت التحليلات مفعلة في إعدادات التطبيق.",
+      },
+      items: {
+        en: [
+          "Strictly necessary storage keeps sign-in, session continuity, security, and your privacy choices working.",
+          "Preference storage remembers language and theme selections.",
+          "Analytics and session replay stay off until you opt in where consent is required.",
+          "Marketing storage is not currently used by Fazumi on the main app.",
+        ],
+        ar: [
+          "يحافظ التخزين الضروري للغاية على تسجيل الدخول واستمرار الجلسة والأمان وخيارات الخصوصية الخاصة بك.",
+          "يتذكر تخزين التفضيلات اختيارات اللغة والمظهر.",
+          "تبقى التحليلات وتسجيل الجلسات متوقفة حتى توافق عليها عندما تكون الموافقة مطلوبة.",
+          "لا يستخدم فازومي حاليًا تخزين التسويق على التطبيق الرئيسي.",
+        ],
+      },
+    },
+    {
+      title: { en: "3. High-level examples", ar: "3. أمثلة عامة" },
+      body: {
+        en: "The examples below are illustrative only, not an exhaustive list. Cookie and storage-key names may vary by configuration, provider version, browser, or environment.",
+        ar: "الأمثلة التالية توضيحية فقط وليست قائمة حصرية. وقد تختلف أسماء ملفات الارتباط ومفاتيح التخزين بحسب الإعدادات أو إصدار المزود أو المتصفح أو البيئة.",
+      },
+      items: {
+        en: [
+          "Necessary examples: sign-in or session storage from Supabase, consent state, and security-related storage.",
+          "Preference examples: language and theme choices stored in cookies or local storage.",
+          "Optional analytics examples: PostHog identifiers or replay settings only after you opt in and only if those features are enabled.",
+          "Hosted billing examples: Lemon Squeezy may use its own cookies on checkout, invoice, or billing-portal pages it hosts.",
+        ],
+        ar: [
+          "أمثلة الفئة الضرورية: تخزين تسجيل الدخول أو الجلسة من Supabase، وحالة الموافقة، وبعض عناصر التخزين المرتبطة بالأمان.",
+          "أمثلة فئة التفضيلات: اختيار اللغة والمظهر عبر ملفات ارتباط أو تخزين محلي.",
+          "أمثلة التحليلات الاختيارية: معرفات PostHog أو إعدادات تسجيل الجلسات فقط بعد موافقتك وفقط إذا كانت هذه الميزات مفعلة.",
+          "أمثلة الفوترة المستضافة: قد تستخدم Lemon Squeezy ملفاتها الخاصة في صفحات الدفع أو الفواتير أو بوابة الفوترة التي تستضيفها.",
+        ],
+      },
+    },
+    {
+      title: { en: "4. Consent controls and changing preferences", ar: "4. ضوابط الموافقة وتغيير التفضيلات" },
+      body: {
+        en: "If the GDPR banner appears for your region, you can accept or reject non-essential storage from the banner. You can also change those choices later in Settings if you have an account.",
+        ar: "إذا ظهر شريط موافقة GDPR في منطقتك، فيمكنك قبول التخزين غير الضروري أو رفضه من خلال الشريط. كما يمكنك تغيير هذه الخيارات لاحقًا من الإعدادات إذا كان لديك حساب.",
+      },
+      items: {
+        en: [
+          "Necessary storage stays on because the app cannot work properly without it.",
+          "Rejecting non-essential storage does not block core use of the product.",
+          "You can also clear cookies or local storage from your browser settings.",
+        ],
+        ar: [
+          "يبقى التخزين الضروري مفعلاً لأن التطبيق لا يعمل بشكل صحيح بدونه.",
+          "رفض التخزين غير الضروري لا يمنع الاستخدام الأساسي للمنتج.",
+          "كما يمكنك مسح ملفات الارتباط أو التخزين المحلي من إعدادات المتصفح.",
+        ],
+      },
+      links: [
+        {
+          href: "/privacy",
+          label: {
+            en: "Read the Privacy Policy",
+            ar: "اقرأ سياسة الخصوصية",
+          },
+        },
+      ],
+    },
+    {
+      title: { en: "5. Third parties", ar: "5. الجهات الخارجية" },
+      body: {
+        en: "Some third-party providers connected to Fazumi may use their own cookies or browser storage when their services are active.",
+        ar: "قد يستخدم بعض مزودي الخدمة الخارجيين المرتبطين بفازومي ملفات ارتباط خاصة بهم أو وسائل تخزين في المتصفح عندما تكون خدماتهم نشطة.",
+      },
+      items: {
+        en: [
+          "Supabase may set authentication or session cookies to keep you signed in.",
+          "Lemon Squeezy may set its own cookies on hosted checkout, invoice, or billing-portal pages.",
+          "PostHog may set browser storage for analytics or session replay only after your opt-in and only when those features are enabled.",
+        ],
+        ar: [
+          "قد تضع Supabase ملفات مصادقة أو جلسة لإبقائك مسجلاً للدخول.",
+          "وقد تضع Lemon Squeezy ملفاتها الخاصة في صفحات الدفع أو الفواتير أو بوابة الفوترة المستضافة لديها.",
+          "وقد تنشئ PostHog تخزينًا في المتصفح للتحليلات أو تسجيل الجلسات فقط بعد موافقتك وفقط عندما تكون هذه الميزات مفعلة.",
+        ],
+      },
+    },
+    {
+      title: { en: "6. Contact", ar: "6. التواصل" },
+      body: {
+        en: "If you have questions about cookies, browser storage, or consent choices, contact us at:",
+        ar: "إذا كانت لديك أسئلة حول ملفات الارتباط أو تخزين المتصفح أو خيارات الموافقة، فتواصل معنا على:",
+      },
+      emails: [LEGAL_CONTACT_EMAIL],
+    },
+  ] satisfies readonly CookieSection[],
 } as const;
 
 export default function CookiePolicyPage() {
@@ -157,7 +214,9 @@ export default function CookiePolicyPage() {
         </div>
 
         {COPY.sections.map((section) => {
-          const items = pick<readonly string[]>(section.items, locale);
+          const items = section.items ? pick(section.items, locale) : [];
+          const links = section.links ?? [];
+          const emails = section.emails ?? [];
 
           return (
             <Card key={section.title.en}>
@@ -180,6 +239,35 @@ export default function CookiePolicyPage() {
                       <li key={`${section.title.en}-${item}`}>{item}</li>
                     ))}
                   </ul>
+                ) : null}
+
+                {links.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {links.map((link) => (
+                      <Link
+                        key={`${section.title.en}-${link.href}`}
+                        href={link.href}
+                        className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                      >
+                        {pick(link.label, locale)}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+
+                {emails.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {emails.map((email) => (
+                      <a
+                        key={`${section.title.en}-${email}`}
+                        href={`mailto:${email}`}
+                        className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                        dir="ltr"
+                      >
+                        {email}
+                      </a>
+                    ))}
+                  </div>
                 ) : null}
               </CardContent>
             </Card>

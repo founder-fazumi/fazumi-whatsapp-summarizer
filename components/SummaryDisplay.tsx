@@ -13,8 +13,10 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { buttonVariants } from "@/components/ui/button";
 import { parseDateFromLabel } from "@/lib/dashboard-insights";
+import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
 import { formatNumber } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
+import { mergeLocalTodoLabels, normalizeTodoLabel } from "@/lib/todos/local";
 import { cn } from "@/lib/utils";
 
 type OutputLang = "en" | "ar";
@@ -64,6 +66,21 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
     questions: "الأسئلة",
   },
 };
+
+const EXPORT_HEADING_EMOJIS: Record<SectionKey, string> = {
+  tldr: "📝",
+  important_dates: "📅",
+  action_items: "✅",
+  people_classes: "👥",
+  links: "🔗",
+  questions: "❓",
+};
+
+const DIR_RLM = "\u200F";
+const DIR_LRM = "\u200E";
+const DIR_RTL_ISOLATE = "\u2067";
+const DIR_LTR_ISOLATE = "\u2066";
+const DIR_POP_ISOLATE = "\u2069";
 
 const EXPORT_DIGIT_MAP: Record<string, string> = {
   "٠": "0",
@@ -149,14 +166,39 @@ const ACTIONS = [
   { key: "export", icon: Download },
 ] as const;
 
+const BIDI_TEXT_STYLE = {
+  unicodeBidi: "plaintext",
+} as const;
+
 function normalizeExportDigits(value: string): string {
   return value.replace(/[٠-٩۰-۹]/g, (char) => EXPORT_DIGIT_MAP[char] ?? char);
 }
 
-function buildPlainTextExport(summary: SummaryResult, outputLang: OutputLang, emptyLabel: string): string {
-  return normalizeExportDigits(
+function wrapExportWithDirectionMarks(text: string, outputLang: OutputLang): string {
+  const isRtl = outputLang === "ar";
+  const isolateOpen = isRtl ? DIR_RTL_ISOLATE : DIR_LTR_ISOLATE;
+  const mark = isRtl ? DIR_RLM : DIR_LRM;
+  const lines = text.split("\n").map((line) => `${mark}${line}`);
+  return `${isolateOpen}${lines.join("\n")}${DIR_POP_ISOLATE}`;
+}
+
+function buildSummaryExportText(
+  summary: SummaryResult,
+  outputLang: OutputLang,
+  emptyLabel: string,
+  options?: {
+    includeHeadingEmojis?: boolean;
+    applyDirectionMarks?: boolean;
+  }
+): string {
+  const includeHeadingEmojis = options?.includeHeadingEmojis ?? false;
+  const applyDirectionMarks = options?.applyDirectionMarks ?? false;
+  const normalized = normalizeExportDigits(
     SECTION_ORDER.map((sectionKey) => {
-      const heading = EXPORT_HEADINGS[outputLang][sectionKey];
+      const baseHeading = EXPORT_HEADINGS[outputLang][sectionKey];
+      const heading = includeHeadingEmojis
+        ? `${EXPORT_HEADING_EMOJIS[sectionKey]} ${baseHeading}`
+        : baseHeading;
       const value = summary[sectionKey];
       const lines =
         sectionKey === "tldr"
@@ -168,13 +210,32 @@ function buildPlainTextExport(summary: SummaryResult, outputLang: OutputLang, em
                 .map((item) => `• ${item}`)
             : [];
 
-      const sectionLines = lines.length > 0
-        ? lines
-            : [emptyLabel];
+      const sectionLines = lines.length > 0 ? lines : [emptyLabel];
+      const separator = "-".repeat(Math.max(5, baseHeading.length + (includeHeadingEmojis ? 3 : 0)));
 
-      return [heading, "-".repeat(Math.max(5, heading.length)), ...sectionLines, ""].join("\n");
+      return [heading, separator, ...sectionLines, ""].join("\n");
     }).join("\n").trim()
   );
+
+  return applyDirectionMarks ? wrapExportWithDirectionMarks(normalized, outputLang) : normalized;
+}
+
+function buildPlainTextExport(summary: SummaryResult, outputLang: OutputLang, emptyLabel: string): string {
+  return buildSummaryExportText(summary, outputLang, emptyLabel);
+}
+
+function buildSocialShareExport(summary: SummaryResult, outputLang: OutputLang, emptyLabel: string): string {
+  return buildSummaryExportText(summary, outputLang, emptyLabel, {
+    includeHeadingEmojis: true,
+  });
+}
+
+function formatSocialShareExport(text: string, outputLang: OutputLang): string {
+  if (outputLang !== "ar") {
+    return text;
+  }
+
+  return wrapExportWithDirectionMarks(text, outputLang);
 }
 
 function downloadSummaryExport(contents: string) {
@@ -267,8 +328,10 @@ function downloadCalendarExport(contents: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function normalizeTodoLabel(value: string): string {
-  return value.trim().toLowerCase();
+function waitForNextPaint() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 function SectionBlock({
@@ -295,13 +358,10 @@ function SectionBlock({
     <section
       dir={isRtl ? "rtl" : "ltr"}
       lang={isRtl ? "ar" : "en"}
-      className={cn("px-4 py-4 sm:px-5", isRtl && "font-arabic text-right")}
+      className={cn("px-4 py-4 text-start sm:px-5", isRtl && "font-arabic")}
     >
       <div
-        className={cn(
-          "mb-3 flex items-center gap-2 text-[11px] font-semibold text-[var(--muted-foreground)]",
-          isRtl && "flex-row-reverse"
-        )}
+        className="mb-3 flex items-center gap-2 text-[11px] font-semibold text-[var(--muted-foreground)]"
       >
         {(() => {
           const Icon = meta.icon;
@@ -316,11 +376,19 @@ function SectionBlock({
       </div>
 
       {isEmpty ? (
-        <p className="text-sm italic text-[var(--muted-foreground)]">
+        <p
+          dir="auto"
+          style={BIDI_TEXT_STYLE}
+          className="text-start text-sm italic text-[var(--muted-foreground)]"
+        >
           {copy.nothingMentioned}
         </p>
       ) : sectionKey === "tldr" ? (
-        <p className="text-sm leading-7 text-[var(--card-foreground)]">
+        <p
+          dir="auto"
+          style={BIDI_TEXT_STYLE}
+          className="text-start text-sm leading-7 text-[var(--card-foreground)]"
+        >
           {String(value)}
         </p>
       ) : (
@@ -328,13 +396,16 @@ function SectionBlock({
           {(value as string[]).map((item, i) => (
             <li
               key={i}
-              className={cn(
-                "flex gap-2.5 text-sm text-[var(--card-foreground)]",
-                isRtl && "flex-row-reverse text-right"
-              )}
+              className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]"
             >
               <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
-              <span className="leading-7">{item}</span>
+              <span
+                dir="auto"
+                style={BIDI_TEXT_STYLE}
+                className="min-w-0 flex-1 leading-7"
+              >
+                {item}
+              </span>
             </li>
           ))}
         </ul>
@@ -367,6 +438,17 @@ export function SummaryDisplay({
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
 
+  async function runAction(actionKey: ActionKey, action: () => Promise<void> | void) {
+    setPendingAction(actionKey);
+
+    try {
+      await waitForNextPaint();
+      await action();
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   async function handleActionClick(actionKey: ActionKey) {
     if (actionKey !== "export") {
       setShowSharePanel(false);
@@ -394,23 +476,27 @@ export function SummaryDisplay({
     }
 
     if (actionKey === "export") {
-      setShowSharePanel(true);
+      await runAction("export", async () => {
+        setShowSharePanel(true);
+      });
       return;
     }
 
     if (actionKey === "calendar") {
-      const calendarExport = buildCalendarExport(summary);
+      await runAction("calendar", async () => {
+        const calendarExport = buildCalendarExport(summary);
 
-      if (!calendarExport) {
-        setDialogVariant(null);
-        setInfoDialog({
-          title: copy.calendarEmptyTitle,
-          body: copy.calendarEmptyBody,
-        });
-        return;
-      }
+        if (!calendarExport) {
+          setDialogVariant(null);
+          setInfoDialog({
+            title: copy.calendarEmptyTitle,
+            body: copy.calendarEmptyBody,
+          });
+          return;
+        }
 
-      downloadCalendarExport(calendarExport);
+        downloadCalendarExport(calendarExport);
+      });
       return;
     }
 
@@ -440,72 +526,80 @@ export function SummaryDisplay({
       return;
     }
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    await runAction("todo", async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        setInfoDialog(null);
-        setDialogVariant("upgrade");
-        return;
-      }
-
-      setPendingAction("todo");
-
-      const { data: existingItems, error: existingError } = await supabase
-        .from("user_todos")
-        .select("label, sort_order")
-        .eq("user_id", user.id);
-
-      if (existingError) {
-        throw existingError;
-      }
-
-      const existingLabels = new Set(
-        ((existingItems ?? []) as { label: string; sort_order: number }[]).map((item) => normalizeTodoLabel(item.label))
-      );
-      const nextSortOrder = ((existingItems ?? []) as { label: string; sort_order: number }[])
-        .reduce((highest, item) => Math.max(highest, item.sort_order), -1) + 1;
-      const rows = actionItems
-        .filter((label) => !existingLabels.has(normalizeTodoLabel(label)))
-        .map((label, index) => ({
-          user_id: user.id,
-          label,
-          source: "summary" as const,
-          sort_order: nextSortOrder + index,
-          done: false,
-        }));
-
-      if (rows.length > 0) {
-        const { error: insertError } = await supabase.from("user_todos").insert(rows);
-
-        if (insertError) {
-          throw insertError;
+        if (!user) {
+          setInfoDialog(null);
+          setDialogVariant("upgrade");
+          return;
         }
-      }
 
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
-      }
+        const health = await getClientHealthSnapshot();
+        if (getTodoStorageMode(health) === "local") {
+          mergeLocalTodoLabels(user.id, actionItems);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
+          }
+          router.push("/todo");
+          return;
+        }
 
-      router.push("/todo");
-    } catch {
-      setDialogVariant(null);
-      setInfoDialog({
-        title: copy.actionErrorTitle,
-        body: copy.actionErrorBody,
-      });
-    } finally {
-      setPendingAction(null);
-    }
+        const { data: existingItems, error: existingError } = await supabase
+          .from("user_todos")
+          .select("label, sort_order")
+          .eq("user_id", user.id);
+
+        if (existingError) {
+          throw existingError;
+        }
+
+        const existingLabels = new Set(
+          ((existingItems ?? []) as { label: string; sort_order: number }[]).map((item) => normalizeTodoLabel(item.label))
+        );
+        const nextSortOrder = ((existingItems ?? []) as { label: string; sort_order: number }[])
+          .reduce((highest, item) => Math.max(highest, item.sort_order), -1) + 1;
+        const rows = actionItems
+          .filter((label) => !existingLabels.has(normalizeTodoLabel(label)))
+          .map((label, index) => ({
+            user_id: user.id,
+            label,
+            source: "summary" as const,
+            sort_order: nextSortOrder + index,
+            done: false,
+          }));
+
+        if (rows.length > 0) {
+          const { error: insertError } = await supabase.from("user_todos").insert(rows);
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
+        }
+
+        router.push("/todo");
+      } catch {
+        setDialogVariant(null);
+        setInfoDialog({
+          title: copy.actionErrorTitle,
+          body: copy.actionErrorBody,
+        });
+      }
+    });
   }
 
   return (
     <div
       dir={isRtl ? "rtl" : "ltr"}
       lang={isRtl ? "ar" : "en"}
-      className={cn("space-y-3", isRtl && "font-arabic text-right")}
+      className={cn("space-y-3 text-start", isRtl && "font-arabic")}
     >
       <Card className="overflow-hidden bg-[var(--surface-elevated)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)]/60 px-4 py-3 sm:px-5">
@@ -533,6 +627,7 @@ export function SummaryDisplay({
                   : key === "todo"
                     ? copy.addToTodo
                     : copy.export;
+              const isPending = pendingAction === key;
 
               return (
                 <button
@@ -542,11 +637,19 @@ export function SummaryDisplay({
                   onClick={() => {
                     void handleActionClick(key);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60",
+                    isPending && "opacity-50"
+                  )}
                   disabled={actionMode === "disabled" || pendingAction !== null}
                   title={actionMode === "disabled" ? copy.comingSoon : undefined}
+                  aria-busy={isPending}
                 >
-                  <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  {isPending ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  )}
                   {label}
                 </button>
               );
@@ -556,10 +659,12 @@ export function SummaryDisplay({
 
         {showSharePanel && (() => {
           const exportText = buildPlainTextExport(summary, outputLang, copy.nothingMentioned);
-          const short = exportText.slice(0, 1500);
+          const socialShareBody = buildSocialShareExport(summary, outputLang, copy.nothingMentioned);
+          const socialShareText = formatSocialShareExport(socialShareBody, outputLang);
+          const short = formatSocialShareExport(socialShareBody.slice(0, 1500), outputLang);
           const waUrl = `https://wa.me/?text=${encodeURIComponent(short)}`;
           const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
-          const isTruncated = exportText.length > 1500;
+          const isTruncated = socialShareBody.length > 1500;
           const truncatedCount = formatNumber(1500);
           const truncatedNote =
             outputLang === "ar"
@@ -567,13 +672,18 @@ export function SummaryDisplay({
               : `Only the first ${truncatedCount} chars are sent`;
 
           function handleCopyFb() {
-            navigator.clipboard.writeText(exportText).catch(() => {});
+            navigator.clipboard.writeText(socialShareText).catch(() => {});
             setCopiedTarget("fb");
             setTimeout(() => setCopiedTarget((curr) => (curr === "fb" ? null : curr)), 2000);
           }
 
           return (
-            <div data-testid="summary-share-panel" className="border-b border-[var(--border)] bg-[var(--surface)]/60 px-4 py-3 sm:px-5">
+            <div
+              data-testid="summary-share-panel"
+              dir={isRtl ? "rtl" : "ltr"}
+              lang={isRtl ? "ar" : "en"}
+              className="border-b border-[var(--border)] bg-[var(--surface)]/60 px-4 py-3 text-start sm:px-5"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -614,7 +724,7 @@ export function SummaryDisplay({
                 <button
                   type="button"
                   onClick={() => setShowSharePanel(false)}
-                  className="ml-auto rounded-lg border border-transparent px-2 py-1 text-xs font-medium text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+                  className="ms-auto rounded-lg border border-transparent px-2 py-1 text-xs font-medium text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
                   aria-label={outputLang === "ar" ? "إغلاق" : "Close share panel"}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -646,6 +756,7 @@ export function SummaryDisplay({
             </p>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setHelpful("up")}
                 className={cn(
                   "rounded-full p-1.5 transition-colors",
@@ -653,11 +764,12 @@ export function SummaryDisplay({
                     ? "bg-[var(--primary)] text-white"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
                 )}
-                aria-label="Thumbs up"
+                aria-label={outputLang === "ar" ? "إفادة إيجابية" : "Thumbs up"}
               >
                 <ThumbsUp className="h-4 w-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setHelpful("down")}
                 className={cn(
                   "rounded-full p-1.5 transition-colors",
@@ -665,7 +777,7 @@ export function SummaryDisplay({
                     ? "bg-[var(--destructive)] text-white"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
                 )}
-                aria-label="Thumbs down"
+                aria-label={outputLang === "ar" ? "إفادة سلبية" : "Thumbs down"}
               >
                 <ThumbsDown className="h-4 w-4" />
               </button>
@@ -687,12 +799,13 @@ export function SummaryDisplay({
           }
         }}
         title={infoDialog?.title ?? (dialogVariant === "upgrade" ? copy.subscribeTitle : copy.soonTitle)}
+        titleId="summary-dialog-title"
       >
         {infoDialog ? (
           <div
             dir={isRtl ? "rtl" : "ltr"}
             lang={isRtl ? "ar" : "en"}
-            className={cn("space-y-4", isRtl && "font-arabic text-right")}
+            className={cn("space-y-4 text-start", isRtl && "font-arabic")}
           >
             <p className="text-sm leading-6 text-[var(--muted-foreground)]">
               {infoDialog.body}
@@ -711,7 +824,7 @@ export function SummaryDisplay({
           <div
             dir={isRtl ? "rtl" : "ltr"}
             lang={isRtl ? "ar" : "en"}
-            className={cn("space-y-4", isRtl && "font-arabic text-right")}
+            className={cn("space-y-4 text-start", isRtl && "font-arabic")}
           >
             <p className="text-sm leading-6 text-[var(--muted-foreground)]">
               {dialogVariant === "upgrade" ? copy.subscribeBody : copy.soonBody}

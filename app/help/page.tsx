@@ -5,6 +5,7 @@ import { Accordion } from "@/components/ui/accordion";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
 import { pick } from "@/lib/i18n";
@@ -116,7 +117,7 @@ const COPY = {
         ar: [
           "استخدم /pricing لاختيار الخطة و /billing لإدارتها لاحقًا.",
           "وإذا أصبحت حالة الاشتراك past_due فقد تتأثر المزايا المدفوعة إلى أن يتم تحديث بيانات الدفع.",
-          "أما الاسترداد فهو متاح فقط للخطط الشهرية والسنوية خلال 7 أيام من أول عملية دفع. وخطة Founder بيع نهائي.",
+          "أما الاسترداد فهو متاح فقط للخطط الشهرية والسنوية خلال 7 أيام من أول عملية دفع. أما باقة المؤسسين فهي نهائية ولا تشمل الاسترداد.",
         ],
       },
     },
@@ -161,22 +162,22 @@ const COPY = {
       {
         question: {
           en: "I still need help",
-          ar: "ما زلت بحاجة إلى مساعدة",
+          ar: "هل لا تزال تحتاج مساعدة؟",
         },
         answer: {
-          en: "Email support@fazumi.app with your account email, a short description, and a screenshot if useful. Do not include full raw chats unless absolutely necessary.",
-          ar: "راسل support@fazumi.app مع بريد حسابك ووصف مختصر للمشكلة ولقطة شاشة إن كانت مفيدة. ولا ترسل المحادثة الخام كاملة إلا إذا كان ذلك ضروريًا للغاية.",
+          en: `Email ${LEGAL_CONTACT_EMAIL} with your account email, a short description, and a screenshot if useful. Do not include full raw chats unless absolutely necessary.`,
+          ar: `راسل ${LEGAL_CONTACT_EMAIL} مع بريد حسابك ووصف مختصر للمشكلة ولقطة شاشة إن كانت مفيدة. ولا ترسل المحادثة الخام كاملة إلا إذا كان ذلك ضروريًا للغاية.`,
         },
       },
     ],
   },
   support: {
-    title: { en: "Contact support", ar: "تواصل مع الدعم" },
+    title: { en: "Contact support", ar: "اتصل بالدعم الفني" },
     body: {
       en: "For billing, account, or product questions:",
       ar: "للاستفسارات المتعلقة بالفوترة أو الحساب أو المنتج:",
     },
-    email: "support@fazumi.app",
+    email: LEGAL_CONTACT_EMAIL,
   },
 } as const;
 
@@ -197,7 +198,7 @@ export default function HelpPage() {
       >
         <div className="grid gap-4 lg:grid-cols-2">
           {COPY.sections.map((section) => {
-            const items = pick<readonly string[]>(section.items, locale);
+            const items = pick<readonly string[] | undefined>(section.items, locale) ?? [];
 
             return (
               <Card key={section.title.en}>
@@ -264,6 +265,7 @@ export default function HelpPage() {
                 <a
                   href={`mailto:${COPY.support.email}`}
                   className="text-sm font-medium text-[var(--primary)] hover:underline"
+                  dir="ltr"
                 >
                   {COPY.support.email}
                 </a>

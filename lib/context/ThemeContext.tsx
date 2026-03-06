@@ -1,10 +1,9 @@
 "use client";
 
 import { createContext, useContext, useSyncExternalStore } from "react";
+import { THEME_STORAGE_KEY } from "@/lib/preferences";
 
 type Theme = "light" | "dark";
-
-const THEME_STORAGE_KEY = "fazumi_theme";
 const themeListeners = new Set<() => void>();
 
 interface ThemeContextValue {

@@ -5,11 +5,12 @@ import { Activity, CreditCard, Globe, ShieldCheck } from "lucide-react";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
 import { pick } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const SNAPSHOT_DATE = "2026-03-01";
+const SNAPSHOT_DATE = new Date().toISOString().split("T")[0];
 
 const COPY = {
   eyebrow: { en: "Status", ar: "الحالة" },
@@ -78,7 +79,7 @@ const COPY = {
       en: "If you notice a problem that is not reflected here, contact support:",
       ar: "إذا لاحظت مشكلة غير مذكورة هنا، فتواصل مع الدعم عبر:",
     },
-    email: "support@fazumi.app",
+    email: LEGAL_CONTACT_EMAIL,
   },
   health: {
     title: { en: "Internal health checks", ar: "فحوصات الصحة الداخلية" },
@@ -169,6 +170,7 @@ export default function StatusPage() {
                 <a
                   href={`mailto:${COPY.support.email}`}
                   className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                  dir="ltr"
                 >
                   {COPY.support.email}
                 </a>

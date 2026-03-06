@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675">
+  <title>FAZUMI Arabic Twitter Card</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5f2ec"/>
+      <stop offset="100%" style="stop-color:#efece6"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  
+  <!-- Logo Mark (top-RIGHT for RTL) -->
+  <rect x="1020" y="60" width="120" height="120" rx="40" fill="#247052"/>
+  <path d="M1055 85l12 18-14 4 2-22Z" fill="#d48b45"/>
+  <path d="m1095 85-12 18 14 4-2-22Z" fill="#d48b45"/>
+  <path d="M1060 95h48v14h-32v14h24v14h-24v24h-16V95Z" fill="#f5f2ec"/>
+  
+  <!-- Arabic Headline (right-aligned) -->
+  <text x="1140" y="260" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="#193129" text-anchor="end" direction="rtl">
+    ملخصات واتساب
+  </text>
+  <text x="1140" y="335" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="#193129" text-anchor="end" direction="rtl">
+    خلال ثوانٍ
+  </text>
+  
+  <!-- Arabic Subtext -->
+  <text x="1140" y="410" font-family="Arial, sans-serif" font-size="28" fill="#64746d" text-anchor="end" direction="rtl">
+    حوّل محادثات المدرسة الفوضوية إلى ملخصات واضحة
+  </text>
+  
+  <!-- CTA Button -->
+  <rect x="1140" y="460" width="280" height="70" rx="35" fill="#247052"/>
+  <text x="1280" y="505" font-family="Arial, sans-serif" font-size="26" font-weight="bold" fill="#ffffff" text-anchor="middle" direction="rtl">
+    ابدأ التجربة المجانية
+  </text>
+  
+  <!-- Decorative Elements -->
+  <circle cx="100" cy="600" r="80" fill="#247052" opacity="0.08"/>
+  <circle cx="150" cy="550" r="40" fill="#d48b45" opacity="0.15"/>
+</svg>

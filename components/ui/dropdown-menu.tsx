@@ -14,7 +14,7 @@ export interface DropdownItem {
 }
 
 interface DropdownMenuProps {
-  trigger: React.ReactNode;
+  trigger: React.ReactNode | ((open: boolean) => React.ReactNode);
   items: DropdownItem[];
   align?: "left" | "right";
   className?: string;
@@ -23,6 +23,7 @@ interface DropdownMenuProps {
 export function DropdownMenu({ trigger, items, align = "right", className }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const renderedTrigger = typeof trigger === "function" ? trigger(open) : trigger;
 
   // Close on outside click
   useEffect(() => {
@@ -49,7 +50,7 @@ export function DropdownMenu({ trigger, items, align = "right", className }: Dro
   return (
     <div ref={ref} className={cn("relative inline-block", className)}>
       <div onClick={() => setOpen((o) => !o)} className="cursor-pointer">
-        {trigger}
+        {renderedTrigger}
       </div>
 
       {open && (

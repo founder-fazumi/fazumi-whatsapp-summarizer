@@ -1,36 +1,63 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { summarizeChat, type LangPref, type SummaryResult } from "@/lib/ai/summarize";
+import { summarizeChat, type LangPref, type SummaryResult, type SummaryUsage } from "@/lib/ai/summarize";
+import { estimateTokenCount } from "@/lib/ai/usage";
 import { captureRouteException } from "@/lib/sentry";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
 import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
-import type { Profile, UsageDaily } from "@/lib/supabase/types";
-import { createRouteLogger, getRequestId, hashIdentifier } from "@/lib/logger";
+import { sendPushToUser } from "@/lib/push/server";
+import type { Profile } from "@/lib/supabase/types";
+import { createRouteLogger, getRequestId } from "@/lib/logger";
 
 const MAX_CHARS = 30_000;
 export const runtime = "nodejs";
-
-// Simple in-memory rate limiter: max 5 requests per IP per minute
-const ipRequestMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = ipRequestMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    ipRequestMap.set(ip, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-
-  if (entry.count >= 5) return false;
-  entry.count++;
-  return true;
-}
+let aiRequestLogsUnavailable = false;
+let aiRequestLogsWarningShown = false;
 
 function makeTitle(tldr: string): string {
   const first = tldr.split(/[.\n]/)[0]?.trim() ?? tldr;
   return first.length > 60 ? first.slice(0, 57) + "…" : first;
+}
+
+function hasSupabaseAuthCookie(req: NextRequest) {
+  return req.cookies.getAll().some(({ name }) =>
+    name === "supabase-auth-token" ||
+    name.startsWith("supabase-auth-token.") ||
+    (name.startsWith("sb-") && name.includes("-auth-token"))
+  );
+}
+
+function buildSummaryReadyPayload(summary: SummaryResult, savedId: string) {
+  return {
+    title: "Summary ready",
+    body: makeTitle(summary.tldr),
+    url: `/history/${savedId}`,
+    id: `summary-ready-${savedId}`,
+  };
+}
+
+function isRetryableUsageRpcError(error: {
+  code?: string | null;
+  message?: string | null;
+}) {
+  const code = error.code ?? "";
+  const message = (error.message ?? "").toLowerCase();
+
+  return (
+    code === "23505" ||
+    code === "40001" ||
+    code === "40P01" ||
+    message.includes("duplicate key") ||
+    message.includes("could not serialize") ||
+    message.includes("deadlock")
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 class PersistError extends Error {
@@ -39,6 +66,17 @@ class PersistError extends Error {
     this.name = "PersistError";
   }
 }
+
+type UsageReservation =
+  | {
+    kind: "daily";
+    userId: string;
+    dateKey: string;
+  }
+  | {
+    kind: "lifetime_free";
+    userId: string;
+  };
 
 function getAdminClient() {
   const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -49,6 +87,75 @@ function getAdminClient() {
   }
 
   return createAdminClient(adminUrl, adminKey);
+}
+
+function isAiRequestLogsMissingError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("ai_request_logs") &&
+    (
+      normalized.includes("schema cache") ||
+      normalized.includes("relation") ||
+      normalized.includes("does not exist") ||
+      normalized.includes("could not find the table")
+    )
+  );
+}
+
+function shouldSuppressAiRequestLogWarnings() {
+  return process.env.NODE_ENV !== "production" || process.env.PLAYWRIGHT_TEST === "1";
+}
+
+async function logAiRequest(params: {
+  userId: string | null;
+  model: string;
+  status: "success" | "error";
+  inputChars: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  latencyMs: number;
+  errorCode?: string | null;
+}) {
+  if (aiRequestLogsUnavailable) {
+    return;
+  }
+
+  const admin = getAdminClient();
+  if (!admin) {
+    return;
+  }
+
+  const { error } = await admin.from("ai_request_logs").insert({
+    user_id: params.userId,
+    route: "/api/summarize",
+    model: params.model,
+    status: params.status,
+    input_chars: params.inputChars,
+    prompt_tokens: params.promptTokens,
+    completion_tokens: params.completionTokens,
+    total_tokens: params.totalTokens,
+    estimated_cost_usd: params.estimatedCostUsd,
+    latency_ms: params.latencyMs,
+    error_code: params.errorCode ?? null,
+  });
+
+  if (error) {
+    if (isAiRequestLogsMissingError(error.message)) {
+      aiRequestLogsUnavailable = true;
+      if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
+        console.warn("ai_request_logs table is unavailable. Skipping AI usage inserts.");
+        aiRequestLogsWarningShown = true;
+      }
+      return;
+    }
+
+    if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
+      console.warn("Could not record ai_request_logs row.", error.message);
+      aiRequestLogsWarningShown = true;
+    }
+  }
 }
 
 async function saveSummary(userId: string, summary: SummaryResult, charCount: number): Promise<string> {
@@ -77,33 +184,35 @@ async function saveSummary(userId: string, summary: SummaryResult, charCount: nu
   return data.id;
 }
 
-async function incrementUsage(userId: string, dateKey: string): Promise<void> {
+async function incrementUsageDailyAtomic(
+  userId: string,
+  dateKey: string,
+  increment = 1
+): Promise<number> {
   const admin = getAdminClient();
   if (!admin) {
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
-  const { data: existing, error: readError } = await admin
-    .from("usage_daily")
-    .select("summaries_used")
-    .eq("user_id", userId)
-    .eq("date", dateKey)
-    .maybeSingle<Pick<UsageDaily, "summaries_used">>();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error } = await admin.rpc("increment_usage_daily_atomic", {
+      p_user_id: userId,
+      p_date: dateKey,
+      p_increment: increment,
+    });
 
-  if (readError) {
-    throw new PersistError("Could not read daily usage.", "USAGE_READ_FAILED");
+    if (!error && typeof data === "number") {
+      return data;
+    }
+
+    if (!error || !isRetryableUsageRpcError(error) || attempt === 2) {
+      throw new PersistError("Could not update daily usage.", "USAGE_WRITE_FAILED");
+    }
+
+    await sleep(25 * (attempt + 1));
   }
 
-  const newCount = (existing?.summaries_used ?? 0) + 1;
-
-  const { error: writeError } = await admin.from("usage_daily").upsert(
-    { user_id: userId, date: dateKey, summaries_used: newCount },
-    { onConflict: "user_id,date" }
-  );
-
-  if (writeError) {
-    throw new PersistError("Could not update daily usage.", "USAGE_WRITE_FAILED");
-  }
+  throw new PersistError("Could not update daily usage.", "USAGE_WRITE_FAILED");
 }
 
 async function seedTodosFromSummary(userId: string, actionItems: string[]): Promise<void> {
@@ -126,28 +235,86 @@ async function seedTodosFromSummary(userId: string, actionItems: string[]): Prom
   await admin.from("user_todos").insert(rows);
 }
 
-async function incrementLifetimeFreeUsage(userId: string, lifetimeFreeUsed: number): Promise<void> {
+async function incrementLifetimeFreeUsageAtomic(
+  userId: string,
+  increment = 1
+): Promise<number> {
   const admin = getAdminClient();
   if (!admin) {
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
-  const { error } = await admin
-    .from("profiles")
-    .update({ lifetime_free_used: lifetimeFreeUsed + 1 })
-    .eq("id", userId);
+  const { data, error } = await admin.rpc("increment_lifetime_free_atomic", {
+    p_user_id: userId,
+    p_increment: increment,
+  });
 
-  if (error) {
+  if (error || typeof data !== "number") {
     throw new PersistError("Could not update lifetime usage.", "LIFETIME_USAGE_WRITE_FAILED");
   }
+
+  return data;
 }
 
-function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    req.headers.get("x-real-ip") ??
-    "unknown"
-  );
+async function reserveUsageQuota(params: {
+  userId: string;
+  tierKey: string;
+  dateKey: string;
+}): Promise<
+  | {
+    ok: true;
+    count: number;
+    reservation: UsageReservation;
+  }
+  | {
+    ok: false;
+    code: "DAILY_CAP" | "LIFETIME_CAP";
+  }
+> {
+  if (params.tierKey === "free") {
+    const lifetimeFreeUsed = await incrementLifetimeFreeUsageAtomic(params.userId, 1);
+
+    if (lifetimeFreeUsed > FREE_LIFETIME_CAP) {
+      await incrementLifetimeFreeUsageAtomic(params.userId, -1);
+      return { ok: false, code: "LIFETIME_CAP" };
+    }
+
+    return {
+      ok: true,
+      count: lifetimeFreeUsed,
+      reservation: {
+        kind: "lifetime_free",
+        userId: params.userId,
+      },
+    };
+  }
+
+  const dailyUsed = await incrementUsageDailyAtomic(params.userId, params.dateKey, 1);
+  const dailyLimit = getDailyLimit(params.tierKey);
+
+  if (dailyUsed > dailyLimit) {
+    await incrementUsageDailyAtomic(params.userId, params.dateKey, -1);
+    return { ok: false, code: "DAILY_CAP" };
+  }
+
+  return {
+    ok: true,
+    count: dailyUsed,
+    reservation: {
+      kind: "daily",
+      userId: params.userId,
+      dateKey: params.dateKey,
+    },
+  };
+}
+
+async function releaseUsageQuota(reservation: UsageReservation): Promise<void> {
+  if (reservation.kind === "daily") {
+    await incrementUsageDailyAtomic(reservation.userId, reservation.dateKey, -1);
+    return;
+  }
+
+  await incrementLifetimeFreeUsageAtomic(reservation.userId, -1);
 }
 
 export async function POST(req: NextRequest) {
@@ -160,96 +327,71 @@ export async function POST(req: NextRequest) {
   // ── Auth + plan limit check (authenticated users) ──────────────────────
   let authedUserId: string | null = null;
   let tierKey = "free";
-  let lifetimeFreeUsed = 0;
-  let shouldIncrementLifetimeFree = false;
   let usageDateKey: string | null = null;
   let charCount = 0;
   let openAiDurationMs: number | null = null;
+  let openAiStartedAt: number | null = null;
+  let aiUsage: SummaryUsage | null = null;
   let savedId: string | null = null;
+  let usageReservation: UsageReservation | null = null;
+
+  if (!hasSupabaseAuthCookie(req)) {
+    logger.warn("auth.required", { errorCode: "AUTH_REQUIRED" });
+    return NextResponse.json(
+      {
+        error: "You must be signed in to summarize chats.",
+        code: "AUTH_REQUIRED",
+      },
+      { status: 401 }
+    );
+  }
 
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (user) {
-      authedUserId = user.id;
-
-      // Fetch profile + today's usage
-      const today = getUtcDateKey();
-      usageDateKey = today;
-      const [{ data: profile }, { data: usage }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("plan, trial_expires_at, lifetime_free_used")
-          .eq("id", user.id)
-          .maybeSingle<Pick<Profile, "plan" | "trial_expires_at" | "lifetime_free_used">>(),
-        supabase
-          .from("usage_daily")
-          .select("summaries_used")
-          .eq("user_id", user.id)
-          .eq("date", today)
-          .maybeSingle<Pick<UsageDaily, "summaries_used">>(),
-      ]);
-
-      const plan = profile?.plan ?? "free";
-      const trialExpires = profile?.trial_expires_at;
-      lifetimeFreeUsed = profile?.lifetime_free_used ?? 0;
-      const usedToday = usage?.summaries_used ?? 0;
-
-      tierKey = getTierKey(plan, trialExpires);
-      shouldIncrementLifetimeFree = tierKey === "free";
-      const dailyLimit = getDailyLimit(tierKey);
-
-      if (tierKey === "free") {
-        // Post-trial free: enforce lifetime cap
-        if (lifetimeFreeUsed >= FREE_LIFETIME_CAP) {
-          logger.warn("limit.hit", {
-            userId: user.id,
-            errorCode: "LIFETIME_CAP",
-            dateKey: today,
-            lifetimeFreeUsed,
-          });
-          return NextResponse.json(
-            { error: "limit_reached", code: "LIFETIME_CAP" },
-            { status: 402 }
-          );
-        }
-      } else if (usedToday >= dailyLimit) {
-        logger.warn("limit.hit", {
-          userId: user.id,
-          errorCode: "DAILY_CAP",
-          dateKey: today,
-          tierKey,
-          usedToday,
-          dailyLimit,
-        });
-        return NextResponse.json(
-          { error: "limit_reached", code: "DAILY_CAP" },
-          { status: 402 }
-        );
-      }
+    if (authError) {
+      throw authError;
     }
+
+    if (!user) {
+      logger.warn("auth.required", { errorCode: "AUTH_REQUIRED" });
+      return NextResponse.json(
+        {
+          error: "You must be signed in to summarize chats.",
+          code: "AUTH_REQUIRED",
+        },
+        { status: 401 }
+      );
+    }
+
+    authedUserId = user.id;
+
+    // Fetch profile + today's usage
+    const today = getUtcDateKey();
+    usageDateKey = today;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("plan, trial_expires_at")
+      .eq("id", user.id)
+      .maybeSingle<Pick<Profile, "plan" | "trial_expires_at">>();
+
+    const plan = profile?.plan ?? "free";
+    const trialExpires = profile?.trial_expires_at;
+
+    tierKey = getTierKey(plan, trialExpires);
   } catch (error) {
-    logger.warn("auth.lookup_failed", {
+    logger.error("auth.lookup_failed", {
       errorCode: "AUTH_LOOKUP_FAILED",
       error: error instanceof Error ? error.message : String(error),
     });
-    // Supabase not configured — fall through to anonymous IP rate limit
-  }
-
-  // ── Anonymous IP rate limit ─────────────────────────────────────────────
-  if (!authedUserId) {
-    const ip = getClientIp(req);
-    if (!checkRateLimit(ip)) {
-      logger.warn("limit.hit", {
-        errorCode: "ANON_RATE_LIMIT",
-        ipHash: hashIdentifier(ip),
-      });
-      return NextResponse.json(
-        { error: "Too many requests. Please wait a moment and try again." },
-        { status: 429 }
-      );
-    }
+    return NextResponse.json(
+      {
+        error: "Authentication is unavailable. Please try again later.",
+        code: "AUTH_LOOKUP_FAILED",
+      },
+      { status: 503 }
+    );
   }
 
   let body: { text?: string; lang_pref?: string };
@@ -300,20 +442,71 @@ export async function POST(req: NextRequest) {
     : "auto";
 
   try {
+    const reservation = await reserveUsageQuota({
+      userId: authedUserId,
+      tierKey,
+      dateKey: usageDateKey ?? getUtcDateKey(),
+    });
+
+    if (!reservation.ok) {
+      logger.warn("limit.hit", {
+        userId: authedUserId,
+        errorCode: reservation.code,
+        dateKey: usageDateKey ?? getUtcDateKey(),
+        tierKey,
+        limit:
+          reservation.code === "DAILY_CAP"
+            ? getDailyLimit(tierKey)
+            : FREE_LIFETIME_CAP,
+      });
+      return NextResponse.json(
+        { error: "limit_reached", code: reservation.code },
+        { status: 402 }
+      );
+    }
+
+    usageReservation = reservation.reservation;
+    logger.info("db.usage_reserved", {
+      userId: authedUserId,
+      reservationKind: usageReservation.kind,
+      dateKey: usageReservation.kind === "daily" ? usageReservation.dateKey : undefined,
+      tierKey,
+      used: reservation.count,
+    });
+
     logger.info("openai.start", {
       userId: authedUserId,
       charCount,
       langPref,
     });
-    const openAiStartedAt = Date.now();
-    const summary = await summarizeChat(text, langPref);
+    openAiStartedAt = Date.now();
+    const result = await summarizeChat(text, langPref);
+    const summary = result.summary;
+    aiUsage = result.usage;
     openAiDurationMs = Date.now() - openAiStartedAt;
     logger.info("openai.success", {
       userId: authedUserId,
       charCount,
       langPref,
       langDetected: summary.lang_detected ?? "en",
+      model: aiUsage.model,
+      promptTokens: aiUsage.promptTokens,
+      completionTokens: aiUsage.completionTokens,
+      totalTokens: aiUsage.totalTokens,
+      estimatedCostUsd: aiUsage.estimatedCostUsd,
       openAiDurationMs,
+    });
+    await logAiRequest({
+      userId: authedUserId,
+      model: aiUsage.model,
+      status: "success",
+      inputChars: charCount,
+      promptTokens: aiUsage.promptTokens,
+      completionTokens: aiUsage.completionTokens,
+      totalTokens: aiUsage.totalTokens,
+      estimatedCostUsd: aiUsage.estimatedCostUsd,
+      latencyMs: openAiDurationMs,
+      errorCode: null,
     });
 
     if (authedUserId) {
@@ -322,13 +515,6 @@ export async function POST(req: NextRequest) {
         userId: authedUserId,
         summaryId: savedId,
         charCount,
-      });
-
-      await incrementUsage(authedUserId, usageDateKey ?? getUtcDateKey());
-      logger.info("db.usage_updated", {
-        userId: authedUserId,
-        summaryId: savedId,
-        dateKey: usageDateKey ?? getUtcDateKey(),
       });
 
       // Seed action items into user_todos (best-effort, non-blocking)
@@ -341,13 +527,23 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      if (shouldIncrementLifetimeFree) {
-        await incrementLifetimeFreeUsage(authedUserId, lifetimeFreeUsed);
-        logger.info("db.lifetime_free_updated", {
-          userId: authedUserId,
-          summaryId: savedId,
-          lifetimeFreeUsed: lifetimeFreeUsed + 1,
-        });
+      if (savedId) {
+        try {
+          await sendPushToUser(
+            authedUserId,
+            buildSummaryReadyPayload(summary, savedId)
+          );
+          logger.info("push.summary_ready_sent", {
+            userId: authedUserId,
+            summaryId: savedId,
+          });
+        } catch (pushError) {
+          logger.warn("push.summary_ready_failed", {
+            userId: authedUserId,
+            summaryId: savedId,
+            error: pushError instanceof Error ? pushError.message : String(pushError),
+          });
+        }
       }
     }
 
@@ -367,12 +563,51 @@ export async function POST(req: NextRequest) {
       message.includes("OPENAI_API_KEY") ? "OPENAI_NOT_CONFIGURED" :
       "SUMMARY_FAILED";
     const statusCode = message.includes("OPENAI_API_KEY") ? 503 : 500;
+    const failedOpenAiLatencyMs =
+      openAiStartedAt !== null ? Date.now() - openAiStartedAt : 0;
+    const loggedOpenAiDurationMs =
+      openAiDurationMs ?? (failedOpenAiLatencyMs > 0 ? failedOpenAiLatencyMs : undefined);
+
+    if (!(err instanceof PersistError) && openAiStartedAt !== null && !aiUsage) {
+      await logAiRequest({
+        userId: authedUserId,
+        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        status: "error",
+        inputChars: charCount,
+        promptTokens: estimateTokenCount(text),
+        completionTokens: 0,
+        totalTokens: estimateTokenCount(text),
+        estimatedCostUsd: 0,
+        latencyMs: failedOpenAiLatencyMs,
+        errorCode,
+      });
+    }
+
+    if (usageReservation && !aiUsage) {
+      try {
+        await releaseUsageQuota(usageReservation);
+        logger.info("db.usage_released", {
+          userId: authedUserId,
+          reservationKind: usageReservation.kind,
+          dateKey: usageReservation.kind === "daily" ? usageReservation.dateKey : undefined,
+          errorCode,
+        });
+      } catch (releaseError) {
+        logger.error("db.usage_release_failed", {
+          userId: authedUserId,
+          reservationKind: usageReservation.kind,
+          dateKey: usageReservation.kind === "daily" ? usageReservation.dateKey : undefined,
+          errorCode,
+          releaseError: releaseError instanceof Error ? releaseError.message : String(releaseError),
+        });
+      }
+    }
 
     logger.error("request.failed", {
       userId: authedUserId,
       summaryId: savedId,
       charCount: charCount || undefined,
-      openAiDurationMs: openAiDurationMs ?? undefined,
+      openAiDurationMs: loggedOpenAiDurationMs,
       durationMs: Date.now() - requestStartedAt,
       errorCode,
       error: message,

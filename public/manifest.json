@@ -1,0 +1,48 @@
+{
+  "id": "/",
+  "name": "Fazumi",
+  "short_name": "Fazumi",
+  "description": "Summarize school chats into clear tasks, dates, and updates.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "background_color": "#f5f2ec",
+  "theme_color": "#247052",
+  "orientation": "portrait",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "education", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard"
+    },
+    {
+      "name": "History",
+      "short_name": "History",
+      "url": "/history"
+    }
+  ]
+}

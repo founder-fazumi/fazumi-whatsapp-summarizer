@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
-const ALLOWED_PLANS = new Set(["free", "monthly", "founder"]);
+const ALLOWED_PLANS = new Set(["free", "paid", "monthly", "founder"]);
+type TestPlan = "free" | "monthly" | "founder";
 
 type SetPlanBody = {
   email?: unknown;
@@ -19,7 +20,23 @@ function isLocalRequest(request: NextRequest) {
   return Boolean(hostname) && LOCAL_HOSTS.has(hostname);
 }
 
-function buildProfilePatch(plan: "free" | "monthly" | "founder") {
+function normalizePlan(plan: string): TestPlan | null {
+  if (plan === "free") {
+    return "free";
+  }
+
+  if (plan === "paid" || plan === "monthly") {
+    return "monthly";
+  }
+
+  if (plan === "founder") {
+    return "founder";
+  }
+
+  return null;
+}
+
+function buildProfilePatch(plan: TestPlan) {
   const now = new Date();
 
   return {
@@ -57,7 +74,7 @@ async function findUserByEmail(
 }
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.PLAYWRIGHT_TEST !== "1") {
     return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   }
 
@@ -91,7 +108,12 @@ export async function POST(request: NextRequest) {
   }
 
   if (!ALLOWED_PLANS.has(plan)) {
-    return NextResponse.json({ ok: false, error: "Plan must be free, monthly, or founder." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Plan must be free, paid, monthly, or founder." }, { status: 400 });
+  }
+
+  const normalizedPlan = normalizePlan(plan);
+  if (!normalizedPlan) {
+    return NextResponse.json({ ok: false, error: "Could not normalize plan." }, { status: 400 });
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -111,7 +133,7 @@ export async function POST(request: NextRequest) {
     .upsert(
       {
         id: user.id,
-        ...buildProfilePatch(plan as "free" | "monthly" | "founder"),
+        ...buildProfilePatch(normalizedPlan),
       },
       { onConflict: "id" }
     );
@@ -120,5 +142,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, email, plan });
+  return NextResponse.json({ ok: true, email, plan: normalizedPlan });
 }

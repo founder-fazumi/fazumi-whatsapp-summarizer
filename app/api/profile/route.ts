@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient();
@@ -22,7 +23,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No valid fields" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  const admin = createAdminClient();
+  const { error } = await admin
     .from("profiles")
     .update({ ...allowed, updated_at: new Date().toISOString() })
     .eq("id", user.id);

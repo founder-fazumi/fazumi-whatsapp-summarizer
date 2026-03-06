@@ -19,7 +19,7 @@ function isLocalRequest(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.PLAYWRIGHT_TEST !== "1") {
     return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   }
 

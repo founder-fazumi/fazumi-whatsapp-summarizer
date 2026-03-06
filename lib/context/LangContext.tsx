@@ -1,10 +1,8 @@
 "use client";
 
-import { createContext, useContext, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { Locale } from "@/lib/i18n";
-
-const LANG_STORAGE_KEY = "fazumi_lang";
-const langListeners = new Set<() => void>();
+import { LANG_STORAGE_KEY } from "@/lib/preferences";
 
 interface LangContextValue {
   locale: Locale;
@@ -16,13 +14,17 @@ const LangContext = createContext<LangContextValue>({
   setLocale: () => {},
 });
 
-function readStoredLocale(): Locale {
-  if (typeof window === "undefined") return "en";
+function readStoredLocale(): Locale | null {
+  if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem(LANG_STORAGE_KEY);
+    if (!stored) {
+      return null;
+    }
+
     return stored === "ar" ? "ar" : "en";
   } catch {
-    return "en";
+    return null;
   }
 }
 
@@ -32,41 +34,49 @@ function applyLocale(locale: Locale) {
   document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
 }
 
-function subscribeLocale(listener: () => void) {
-  langListeners.add(listener);
+function writeLocaleCookie(locale: Locale) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${LANG_STORAGE_KEY}=${locale}; path=/; max-age=31536000; samesite=lax`;
+}
 
-  if (typeof window === "undefined") {
+export function LangProvider({
+  children,
+  initialLocale = "en",
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+}) {
+  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+
+  useEffect(() => {
+    const storedLocale = readStoredLocale();
+    let frameId: number | null = null;
+
+    if (storedLocale && storedLocale !== initialLocale) {
+      frameId = window.requestAnimationFrame(() => {
+        setLocaleState(storedLocale);
+      });
+    }
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== LANG_STORAGE_KEY) return;
+      setLocaleState(event.newValue === "ar" ? "ar" : "en");
+    }
+
+    window.addEventListener("storage", handleStorage);
+
     return () => {
-      langListeners.delete(listener);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener("storage", handleStorage);
     };
-  }
+  }, [initialLocale]);
 
-  function handleStorage(event: StorageEvent) {
-    if (event.key !== LANG_STORAGE_KEY) return;
-    applyLocale(event.newValue === "ar" ? "ar" : "en");
-    listener();
-  }
-
-  window.addEventListener("storage", handleStorage);
-
-  return () => {
-    langListeners.delete(listener);
-    window.removeEventListener("storage", handleStorage);
-  };
-}
-
-function emitLocaleChange() {
-  for (const listener of langListeners) {
-    listener();
-  }
-}
-
-export function LangProvider({ children }: { children: React.ReactNode }) {
-  const locale = useSyncExternalStore<Locale>(
-    subscribeLocale,
-    readStoredLocale,
-    () => "en"
-  );
+  useEffect(() => {
+    applyLocale(locale);
+    writeLocaleCookie(locale);
+  }, [locale]);
 
   function setLocale(next: Locale) {
     try {
@@ -74,8 +84,7 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore storage failures and keep the in-memory preference.
     }
-    applyLocale(next);
-    emitLocaleChange();
+    setLocaleState(next);
   }
 
   return (

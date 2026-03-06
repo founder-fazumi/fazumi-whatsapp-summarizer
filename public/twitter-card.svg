@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675">
+  <title>FAZUMI Twitter Card</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5f2ec"/>
+      <stop offset="100%" style="stop-color:#efece6"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  
+  <!-- Logo Mark (top-left) -->
+  <rect x="60" y="60" width="120" height="120" rx="40" fill="#247052"/>
+  <path d="M95 85l12 18-14 4 2-22Z" fill="#d48b45"/>
+  <path d="m135 85-12 18 14 4-2-22Z" fill="#d48b45"/>
+  <path d="M100 95h48v14h-32v14h24v14h-24v24h-16V95Z" fill="#f5f2ec"/>
+  
+  <!-- Headline -->
+  <text x="60" y="280" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#193129">
+    WhatsApp Summary
+  </text>
+  <text x="60" y="365" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="#193129">
+    in Seconds
+  </text>
+  
+  <!-- Subtext -->
+  <text x="60" y="440" font-family="Arial, sans-serif" font-size="32" fill="#64746d">
+    Turn messy school chats into clear summaries
+  </text>
+  
+  <!-- CTA Button -->
+  <rect x="60" y="490" width="280" height="70" rx="35" fill="#247052"/>
+  <text x="200" y="535" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#ffffff" text-anchor="middle">
+    Start Free Trial
+  </text>
+  
+  <!-- Decorative Elements -->
+  <circle cx="1100" cy="600" r="80" fill="#247052" opacity="0.08"/>
+  <circle cx="1050" cy="550" r="40" fill="#d48b45" opacity="0.15"/>
+</svg>

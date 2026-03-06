@@ -119,3 +119,11 @@
 **Quick test:** `Get-Content app/error.tsx | Select-String "ErrorFallback|useLang|useTheme|@/lib/context"` returns no matches, and `pnpm build` finishes without the `useContext` prerender crash.
 
 ---
+
+## L015 — Prove framework regressions with a version pin before patching app code
+**Mistake:** It is easy to keep treating a framework regression like an app bug and spend time on route-level workarounds even after the stack trace has moved into Next.js internals.
+**Why:** Repro steps and error text can look app-adjacent while the real fix is a runtime change, especially around App Router metadata and prerender internals.
+**Rule:** When a build failure points into framework internals, verify the current package version, pin to the known-good framework release first, clear caches, and rerun the production build before adding app-side suppressions.
+**Quick test:** After pinning the framework version and clearing `.next` plus `node_modules/.cache`, run `pnpm build` and confirm the original internal-error signature is gone before touching route/page code again.
+
+---

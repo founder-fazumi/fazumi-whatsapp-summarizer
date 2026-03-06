@@ -23,7 +23,7 @@ function getMissingEnvNames(env: ReturnType<typeof getEnvStatus>) {
 }
 
 export async function GET() {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.PLAYWRIGHT_TEST !== "1") {
     return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   }
 

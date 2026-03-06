@@ -17,9 +17,16 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLang } from "@/lib/context/LangContext";
+import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
 import { formatDate, formatNumber } from "@/lib/format";
 import { pick, type Locale, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
+import {
+  createLocalTodo,
+  getNextTodoSortOrder,
+  readLocalTodos,
+  writeLocalTodos,
+} from "@/lib/todos/local";
 import { cn } from "@/lib/utils";
 
 const TODOS_CHANGED_EVENT = "fazumi-todos-changed";
@@ -48,6 +55,14 @@ const COPY = {
   setDueDate: { en: "Set due date", ar: "تحديد تاريخ الاستحقاق" },
   toggleTask: { en: "Toggle task", ar: "تبديل حالة المهمة" },
   undoTask: { en: "Undo task", ar: "التراجع عن المهمة" },
+  localModeTitle: {
+    en: "Tasks are saved on this device in this environment.",
+    ar: "يتم حفظ المهام على هذا الجهاز في هذه البيئة.",
+  },
+  localModeBody: {
+    en: "Cloud sync stays off until the to-do table is available in the database.",
+    ar: "لن تظهر المزامنة السحابية حتى يتم تفعيل جدول المهام في قاعدة البيانات.",
+  },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 type TodoSupabase = ReturnType<typeof createClient>;
@@ -181,6 +196,7 @@ export function TodoList() {
   const [openDateItemId, setOpenDateItemId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [storageMode, setStorageMode] = useState<"remote" | "local">("remote");
 
   function ensureSupabase() {
     if (!supabaseRef.current) {
@@ -194,6 +210,17 @@ export function TodoList() {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event(TODOS_CHANGED_EVENT));
     }
+  }
+
+  function persistLocalItems(nextItems: TodoItem[]) {
+    if (!user) {
+      return [] as TodoItem[];
+    }
+
+    const savedItems = writeLocalTodos(user.id, nextItems);
+    setItems(savedItems);
+    emitTodosChanged();
+    return savedItems;
   }
 
   useEffect(() => {
@@ -231,6 +258,16 @@ export function TodoList() {
         return;
       }
 
+      const health = await getClientHealthSnapshot();
+      const nextStorageMode = getTodoStorageMode(health);
+      setStorageMode(nextStorageMode);
+
+      if (nextStorageMode === "local") {
+        setItems(readLocalTodos(currentUser.id));
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("user_todos")
         .select("id, user_id, label, done, due_date, sort_order, note, source, created_at, updated_at")
@@ -243,7 +280,8 @@ export function TodoList() {
       }
 
       if (error) {
-        setItems([]);
+        setStorageMode("local");
+        setItems(readLocalTodos(currentUser.id));
         setIsLoading(false);
         return;
       }
@@ -330,7 +368,18 @@ export function TodoList() {
     }));
   }
 
-  async function toggleDone(item: TodoItem) {
+async function toggleDone(item: TodoItem) {
+    if (storageMode === "local") {
+      const updatedAt = new Date().toISOString();
+      const nextItems = sortItems(
+        items.map((current) =>
+          current.id === item.id ? { ...current, done: !current.done, updated_at: updatedAt } : current
+        )
+      );
+      persistLocalItems(nextItems);
+      return;
+    }
+
     let supabase: TodoSupabase;
 
     try {
@@ -370,6 +419,15 @@ export function TodoList() {
       return;
     }
 
+    if (storageMode === "local") {
+      const nextItem = createLocalTodo(user.id, label, {
+        sortOrder: getNextTodoSortOrder(items),
+      });
+      setAddValue("");
+      persistLocalItems([...items, nextItem]);
+      return;
+    }
+
     let supabase: TodoSupabase;
 
     try {
@@ -405,6 +463,13 @@ export function TodoList() {
   }
 
   async function deleteItem(itemId: string) {
+    if (storageMode === "local") {
+      persistLocalItems(items.filter((item) => item.id !== itemId));
+      setOpenDateItemId((current) => (current === itemId ? null : current));
+      setEditingNoteId((current) => (current === itemId ? null : current));
+      return;
+    }
+
     let supabase: TodoSupabase;
 
     try {
@@ -429,6 +494,26 @@ export function TodoList() {
   }
 
   async function updateDueDate(item: TodoItem, dueDate: string | null) {
+    const normalized = dueDate?.trim() ? dueDate : null;
+
+    if (normalized === item.due_date) {
+      setOpenDateItemId(null);
+      return;
+    }
+
+    const updatedAt = new Date().toISOString();
+    const nextItems = sortItems(
+      items.map((current) =>
+        current.id === item.id ? { ...current, due_date: normalized, updated_at: updatedAt } : current
+      )
+    );
+
+    if (storageMode === "local") {
+      setOpenDateItemId(null);
+      persistLocalItems(nextItems);
+      return;
+    }
+
     let supabase: TodoSupabase;
 
     try {
@@ -437,23 +522,9 @@ export function TodoList() {
       return;
     }
 
-    const normalized = dueDate?.trim() ? dueDate : null;
-
-    if (normalized === item.due_date) {
-      setOpenDateItemId(null);
-      return;
-    }
-
     const previousItems = items;
-    const updatedAt = new Date().toISOString();
 
-    setItems(
-      sortItems(
-        items.map((current) =>
-          current.id === item.id ? { ...current, due_date: normalized, updated_at: updatedAt } : current
-        )
-      )
-    );
+    setItems(nextItems);
     setOpenDateItemId(null);
 
     const { error } = await supabase
@@ -470,6 +541,26 @@ export function TodoList() {
   }
 
   async function saveNote(item: TodoItem) {
+    const nextNote = (noteDrafts[item.id] ?? item.note ?? "").trim() || null;
+
+    if (nextNote === (item.note ?? null)) {
+      setEditingNoteId((current) => (current === item.id ? null : current));
+      return;
+    }
+
+    const updatedAt = new Date().toISOString();
+    const nextItems = sortItems(
+      items.map((current) =>
+        current.id === item.id ? { ...current, note: nextNote, updated_at: updatedAt } : current
+      )
+    );
+
+    if (storageMode === "local") {
+      setEditingNoteId((current) => (current === item.id ? null : current));
+      persistLocalItems(nextItems);
+      return;
+    }
+
     let supabase: TodoSupabase;
 
     try {
@@ -478,23 +569,9 @@ export function TodoList() {
       return;
     }
 
-    const nextNote = (noteDrafts[item.id] ?? item.note ?? "").trim() || null;
-
-    if (nextNote === (item.note ?? null)) {
-      setEditingNoteId((current) => (current === item.id ? null : current));
-      return;
-    }
-
     const previousItems = items;
-    const updatedAt = new Date().toISOString();
 
-    setItems(
-      sortItems(
-        items.map((current) =>
-          current.id === item.id ? { ...current, note: nextNote, updated_at: updatedAt } : current
-        )
-      )
-    );
+    setItems(nextItems);
     setEditingNoteId((current) => (current === item.id ? null : current));
 
     const { error } = await supabase
@@ -511,14 +588,6 @@ export function TodoList() {
   }
 
   async function moveItem(item: TodoItem, direction: "up" | "down") {
-    let supabase: TodoSupabase;
-
-    try {
-      supabase = ensureSupabase();
-    } catch {
-      return;
-    }
-
     const orderedPending = sortItems(pendingItems);
     const index = orderedPending.findIndex((current) => current.id === item.id);
     const targetIndex = direction === "up" ? index - 1 : index + 1;
@@ -528,24 +597,37 @@ export function TodoList() {
     }
 
     const targetItem = orderedPending[targetIndex];
-    const previousItems = items;
     const updatedAt = new Date().toISOString();
+    const nextItems = sortItems(
+      items.map((current) => {
+        if (current.id === item.id) {
+          return { ...current, sort_order: targetItem.sort_order, updated_at: updatedAt };
+        }
 
-    setItems(
-      sortItems(
-        items.map((current) => {
-          if (current.id === item.id) {
-            return { ...current, sort_order: targetItem.sort_order, updated_at: updatedAt };
-          }
+        if (current.id === targetItem.id) {
+          return { ...current, sort_order: item.sort_order, updated_at: updatedAt };
+        }
 
-          if (current.id === targetItem.id) {
-            return { ...current, sort_order: item.sort_order, updated_at: updatedAt };
-          }
-
-          return current;
-        })
-      )
+        return current;
+      })
     );
+
+    if (storageMode === "local") {
+      persistLocalItems(nextItems);
+      return;
+    }
+
+    let supabase: TodoSupabase;
+
+    try {
+      supabase = ensureSupabase();
+    } catch {
+      return;
+    }
+
+    const previousItems = items;
+
+    setItems(nextItems);
 
     const [{ error: firstError }, { error: secondError }] = await Promise.all([
       supabase.from("user_todos").update({ sort_order: targetItem.sort_order, updated_at: updatedAt }).eq("id", item.id),
@@ -589,6 +671,17 @@ export function TodoList() {
     <Card>
       <CardContent className={cn("p-2 sm:p-3", locale === "ar" && "text-right")}>
         <div className="space-y-1">
+          {storageMode === "local" ? (
+            <div className="mb-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
+              <p className="text-caption font-semibold text-[var(--foreground)]">
+                {pick(COPY.localModeTitle, locale)}
+              </p>
+              <p className="mt-1 text-caption text-[var(--muted-foreground)]">
+                {pick(COPY.localModeBody, locale)}
+              </p>
+            </div>
+          ) : null}
+
           {pendingItems.length === 0 ? (
             <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3">
               <p className="text-sm font-medium leading-relaxed text-[var(--foreground)]">

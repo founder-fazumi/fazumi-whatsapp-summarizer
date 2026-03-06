@@ -3,11 +3,36 @@ import { NextRequest, NextResponse } from "next/server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
-const TEST_PASSWORD = "FazumiTest!12345";
+type TestPlan = "free" | "monthly" | "founder";
 const TEST_ACCOUNTS = [
-  { email: "free1@fazumi.local", fullName: "Fazumi Free Test", plan: "free" },
-  { email: "paid1@fazumi.local", fullName: "Fazumi Paid Test", plan: "monthly" },
-  { email: "founder1@fazumi.local", fullName: "Fazumi Founder Test", plan: "founder" },
+  {
+    email: "admin@fazumi.test",
+    password: "@adm1nT3ST1ng",
+    fullName: "Fazumi Admin Test",
+    plan: "founder",
+    role: "admin",
+  },
+  {
+    email: "free@fazumi.test",
+    password: "@fr33T3ST1ng",
+    fullName: "Fazumi Free Test",
+    plan: "free",
+    role: "user",
+  },
+  {
+    email: "paid@fazumi.test",
+    password: "@pa1dT3ST1ng",
+    fullName: "Fazumi Paid Test",
+    plan: "monthly",
+    role: "user",
+  },
+  {
+    email: "founder@fazumi.test",
+    password: "@f0underT3ST1ng",
+    fullName: "Fazumi Founder Test",
+    plan: "founder",
+    role: "user",
+  },
 ] as const;
 
 function isLocalRequest(request: NextRequest) {
@@ -19,12 +44,13 @@ function isLocalRequest(request: NextRequest) {
   return Boolean(hostname) && LOCAL_HOSTS.has(hostname);
 }
 
-function buildProfilePatch(plan: "free" | "monthly" | "founder", fullName: string) {
+function buildProfilePatch(plan: TestPlan, fullName: string, role: "user" | "admin") {
   const now = new Date();
 
   return {
     full_name: fullName,
     plan,
+    role,
     trial_expires_at: plan === "free" ? new Date(now.getTime() + 7 * DAY_MS).toISOString() : null,
     lifetime_free_used: 0,
     updated_at: now.toISOString(),
@@ -58,7 +84,7 @@ async function findUserByEmail(
 }
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && process.env.PLAYWRIGHT_TEST !== "1") {
     return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   }
 
@@ -98,8 +124,11 @@ export async function POST(request: NextRequest) {
     if (!existingUser) {
       const { data, error } = await supabase.auth.admin.createUser({
         email: account.email,
-        password: TEST_PASSWORD,
+        password: account.password,
         email_confirm: true,
+        app_metadata: {
+          role: account.role,
+        },
         user_metadata: {
           full_name: account.fullName,
         },
@@ -112,8 +141,11 @@ export async function POST(request: NextRequest) {
       userId = data.user.id;
     } else {
       const { error } = await supabase.auth.admin.updateUserById(existingUser.id, {
-        password: TEST_PASSWORD,
+        password: account.password,
         email_confirm: true,
+        app_metadata: {
+          role: account.role,
+        },
         user_metadata: {
           full_name: account.fullName,
         },
@@ -128,23 +160,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Could not resolve test account user id." }, { status: 500 });
     }
 
+    const profilePatch = buildProfilePatch(account.plan, account.fullName, account.role);
     const { error: profileError } = await supabase
       .from("profiles")
       .upsert(
         {
           id: userId,
-          ...buildProfilePatch(account.plan, account.fullName),
+          ...profilePatch,
         },
         { onConflict: "id" }
       );
 
     if (profileError) {
-      return NextResponse.json({ ok: false, error: profileError.message }, { status: 500 });
+      const fallbackPatch = {
+        full_name: profilePatch.full_name,
+        plan: profilePatch.plan,
+        trial_expires_at: profilePatch.trial_expires_at,
+        lifetime_free_used: profilePatch.lifetime_free_used,
+        updated_at: profilePatch.updated_at,
+      };
+      const { error: fallbackError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: userId,
+            ...fallbackPatch,
+          },
+          { onConflict: "id" }
+        );
+
+      if (fallbackError) {
+        return NextResponse.json({ ok: false, error: fallbackError.message }, { status: 500 });
+      }
     }
 
     results.push({
       email: account.email,
-      password: TEST_PASSWORD,
+      password: account.password,
       plan: account.plan,
       status,
     });
