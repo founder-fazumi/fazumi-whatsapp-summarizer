@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Globe, Moon, Shield, Sun } from "lucide-react";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { useLang } from "@/lib/context/LangContext";
-import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { cn } from "@/lib/utils";
 
@@ -45,16 +45,23 @@ export function AdminShell({ children }: AdminShellProps) {
   const { locale, setLocale } = useLang();
   const copy = COPY[locale];
   const isRtl = locale === "ar";
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   async function handleLogout() {
+    setIsLoggingOut(true);
+
     try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+      await fetch("/api/admin/logout", {
+        method: "POST",
+      });
     } catch {
-      // Ignore and continue to the public login route.
+      // Ignore and continue to the admin login route.
+    } finally {
+      setIsLoggingOut(false);
     }
 
-    router.push("/login");
+    router.push("/admin/login");
+    router.refresh();
   }
 
   return (
@@ -124,7 +131,13 @@ export function AdminShell({ children }: AdminShellProps) {
                     <span className="hidden sm:inline">{theme === "dark" ? copy.light : copy.dark}</span>
                   </Button>
 
-                  <Button type="button" variant="outline" size="sm" onClick={() => void handleLogout()}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoggingOut}
+                    onClick={() => void handleLogout()}
+                  >
                     {copy.logout}
                   </Button>
                 </div>

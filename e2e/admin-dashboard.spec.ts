@@ -1,9 +1,8 @@
-import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { expect, request as playwrightRequest, test, type Page } from "@playwright/test";
 import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 import {
   ensureTestAccounts,
   getAuthCookieHeader,
-  getAuthCookies,
   getDevEnv,
   getLatestSupportRequest,
   loginWithEmail,
@@ -11,31 +10,65 @@ import {
 
 test.describe.configure({ mode: "serial" });
 
-test("admin overview renders for an admin user", async ({ page, request }) => {
+async function loginAsAdmin(page: Page) {
+  await page.goto("/admin/login");
+  await expect(page.getByRole("heading", { name: "Welcome Back, Sir." })).toBeVisible();
+  await page.locator("#admin-username").fill("admin");
+  await page.locator("#admin-password").fill("admin");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/admin_dashboard$/);
+}
+
+test("admin routes redirect to the dedicated admin login and admin/admin opens the dashboard", async ({
+  page,
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
-    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
-    env.hint ?? "Supabase dev env is required for admin coverage."
+    !env.env.supabaseUrl || !env.env.serviceRole,
+    env.hint ?? "Supabase admin env is required for admin coverage."
   );
 
-  const accounts = await ensureTestAccounts(request);
-  await page.context().addCookies(await getAuthCookies(accounts.admin));
   await page.goto("/admin_dashboard");
+  await expect(page).toHaveURL(/\/admin\/login\?next=%2Fadmin_dashboard$/);
+  await expect(page.getByRole("heading", { name: "Welcome Back, Sir." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
+  await expect(page.getByText("Log in or create a free account to get started")).toHaveCount(0);
+  await expect(page.getByText("By continuing you agree to our Terms and Privacy Policy.")).toHaveCount(0);
 
+  await page.locator("#admin-username").fill("admin");
+  await page.locator("#admin-password").fill("admin");
+  await page.getByRole("button", { name: "Log in" }).click();
+
+  await expect(page).toHaveURL(/\/admin_dashboard$/);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await expect(page.getByText("OpenAI spend")).toBeVisible();
-  await expect(page.getByText("Needs attention")).toBeVisible();
 });
 
-test("admin inbox tabs render for an admin user", async ({ page, request }) => {
+test("wrong admin credentials do not create an admin session", async ({ page, request }) => {
   const env = await getDevEnv(request);
   test.skip(
-    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
-    env.hint ?? "Supabase dev env is required for admin inbox coverage."
+    !env.env.supabaseUrl || !env.env.serviceRole,
+    env.hint ?? "Supabase admin env is required for admin coverage."
   );
 
-  const accounts = await ensureTestAccounts(request);
-  await page.context().addCookies(await getAuthCookies(accounts.admin));
+  await page.goto("/admin/login");
+  await page.locator("#admin-username").fill("admin");
+  await page.locator("#admin-password").fill("wrong-password");
+  await page.getByRole("button", { name: "Log in" }).click();
+
+  await expect(page).toHaveURL(/\/admin\/login$/);
+  await expect(page.locator('p[role="alert"]')).toContainText("Invalid credentials.");
+});
+
+test("admin inbox tabs render after admin login", async ({ page, request }) => {
+  const env = await getDevEnv(request);
+  test.skip(
+    !env.env.supabaseUrl || !env.env.serviceRole,
+    env.hint ?? "Supabase admin env is required for admin inbox coverage."
+  );
+
+  await loginAsAdmin(page);
   await page.goto("/admin_dashboard/inbox");
 
   await expect(page.getByRole("heading", { name: "Admin inbox" })).toBeVisible();
@@ -47,11 +80,10 @@ test("admin inbox tabs render for an admin user", async ({ page, request }) => {
 test("support request from contact page appears in the admin inbox", async ({ page, request }) => {
   const env = await getDevEnv(request);
   test.skip(
-    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
-    env.hint ?? "Supabase dev env is required for contact inbox coverage."
+    !env.env.supabaseUrl || !env.env.serviceRole,
+    env.hint ?? "Supabase admin env is required for contact inbox coverage."
   );
 
-  const accounts = await ensureTestAccounts(request);
   const unique = Date.now();
   const email = `support-${unique}@fazumi.test`;
   const subject = `Support inbox test ${unique}`;
@@ -67,13 +99,16 @@ test("support request from contact page appears in the admin inbox", async ({ pa
 
   await expect.poll(async () => (await getLatestSupportRequest(email))?.subject ?? null).toBe(subject);
 
-  await page.context().addCookies(await getAuthCookies(accounts.admin));
+  await loginAsAdmin(page);
   await page.goto("/admin_dashboard/inbox?tab=support");
   await page.locator("#admin-inbox-search").fill(subject);
   await expect(page.getByText(subject)).toBeVisible();
 });
 
-test("non-admin users are blocked from admin routes and APIs", async ({ page, request }) => {
+test("regular user auth does not grant access to admin routes or admin APIs", async ({
+  page,
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
@@ -84,7 +119,7 @@ test("non-admin users are blocked from admin routes and APIs", async ({ page, re
   await loginWithEmail(page, accounts.free);
   await page.goto("/admin_dashboard");
 
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).toHaveURL(/\/admin\/login\?next=%2Fadmin_dashboard$/);
 
   const cookieHeader = await getAuthCookieHeader(accounts.free);
   const api = await playwrightRequest.newContext({
@@ -96,7 +131,7 @@ test("non-admin users are blocked from admin routes and APIs", async ({ page, re
 
   try {
     const response = await api.get("/api/admin/metrics");
-    expect(response.status()).toBe(403);
+    expect(response.status()).toBe(401);
   } finally {
     await api.dispose();
   }

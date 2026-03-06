@@ -2,8 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   ADMIN_HOME_PATH,
+  ADMIN_LOGIN_API_PATH,
   ADMIN_LOGIN_PATH,
+  ADMIN_LOGOUT_API_PATH,
+  hasAdminSession,
   isAdminDashboardEnabled,
+  isAdminLoginPath,
+  isAdminRoutePath,
+  sanitizeAdminNextPath,
 } from "@/lib/admin/auth";
 import { CONSENT_REGION_COOKIE } from "@/lib/compliance/gdpr";
 
@@ -28,19 +34,16 @@ function withConsentRegionCookie(request: NextRequest, response: NextResponse) {
 
   response.cookies.set(CONSENT_REGION_COOKIE, countryCode.toUpperCase(), {
     httpOnly: false,
+    maxAge: 60 * 60 * 24 * 30,
+    path: "/",
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
   });
 
   return response;
 }
 
-function withSupabaseCookies(
-  source: NextResponse,
-  target: NextResponse
-) {
+function withSupabaseCookies(source: NextResponse, target: NextResponse) {
   source.cookies.getAll().forEach((cookie) => {
     target.cookies.set(cookie);
   });
@@ -48,23 +51,77 @@ function withSupabaseCookies(
   return target;
 }
 
+function createAdminLoginRedirect(request: NextRequest) {
+  const loginUrl = request.nextUrl.clone();
+  const nextPath = sanitizeAdminNextPath(
+    `${request.nextUrl.pathname}${request.nextUrl.search}`
+  );
+
+  loginUrl.pathname = ADMIN_LOGIN_PATH;
+  loginUrl.search = "";
+  loginUrl.searchParams.set("next", nextPath);
+
+  return loginUrl;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
-  const isAdminPage = path.startsWith("/admin_dashboard");
-  const isAdminLogin = path === ADMIN_LOGIN_PATH;
   const isAdminApi = path.startsWith("/api/admin");
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const isAdminAuthApi =
+    path === ADMIN_LOGIN_API_PATH || path === ADMIN_LOGOUT_API_PATH;
+  const isAdminPage = isAdminRoutePath(path);
+  const isAdminLogin = isAdminLoginPath(path);
 
-  if (!url || !key) {
-    if (isAdminApi) {
+  if (isAdminApi && !isAdminAuthApi) {
+    if (!isAdminDashboardEnabled()) {
       return withConsentRegionCookie(
         request,
         NextResponse.json({ ok: false, error: "Not found." }, { status: 404 })
       );
     }
 
+    if (!(await hasAdminSession(request.cookies))) {
+      return withConsentRegionCookie(
+        request,
+        NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 })
+      );
+    }
+
+    return withConsentRegionCookie(request, supabaseResponse);
+  }
+
+  if (isAdminPage) {
+    if (!isAdminDashboardEnabled()) {
+      return withConsentRegionCookie(request, supabaseResponse);
+    }
+
+    if (isAdminLogin) {
+      if (await hasAdminSession(request.cookies)) {
+        const targetUrl = request.nextUrl.clone();
+        targetUrl.pathname = ADMIN_HOME_PATH;
+        targetUrl.search = "";
+
+        return withConsentRegionCookie(request, NextResponse.redirect(targetUrl));
+      }
+
+      return withConsentRegionCookie(request, supabaseResponse);
+    }
+
+    if (!(await hasAdminSession(request.cookies))) {
+      return withConsentRegionCookie(
+        request,
+        NextResponse.redirect(createAdminLoginRedirect(request))
+      );
+    }
+
+    return withConsentRegionCookie(request, supabaseResponse);
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
     return withConsentRegionCookie(request, supabaseResponse);
   }
 
@@ -88,112 +145,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  async function isCurrentUserAdmin() {
-    if (!user) {
-      return false;
-    }
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle<{ role: string | null }>();
-
-    if (error) {
-      return (
-        typeof user.app_metadata?.role === "string" &&
-        user.app_metadata.role === "admin"
-      );
-    }
-
-    return (
-      data?.role === "admin" ||
-      (typeof user.app_metadata?.role === "string" &&
-        user.app_metadata.role === "admin")
-    );
-  }
-
-  if (isAdminApi) {
-    if (!isAdminDashboardEnabled()) {
-      return withConsentRegionCookie(
-        request,
-        withSupabaseCookies(
-          supabaseResponse,
-          NextResponse.json({ ok: false, error: "Not found." }, { status: 404 })
-        )
-      );
-    }
-
-    if (!user) {
-      return withConsentRegionCookie(
-        request,
-        withSupabaseCookies(
-          supabaseResponse,
-          NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 })
-        )
-      );
-    }
-
-    if (!(await isCurrentUserAdmin())) {
-      return withConsentRegionCookie(
-        request,
-        withSupabaseCookies(
-          supabaseResponse,
-          NextResponse.json({ ok: false, error: "Forbidden." }, { status: 403 })
-        )
-      );
-    }
-
-    return withConsentRegionCookie(request, supabaseResponse);
-  }
-
-  if (isAdminPage) {
-    if (!isAdminDashboardEnabled()) {
-      const fallbackUrl = request.nextUrl.clone();
-      fallbackUrl.pathname = user ? "/dashboard" : "/login";
-      fallbackUrl.search = "";
-      return withConsentRegionCookie(
-        request,
-        withSupabaseCookies(supabaseResponse, NextResponse.redirect(fallbackUrl))
-      );
-    }
-
-    if (!user && !isAdminLogin) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      loginUrl.search = "";
-      loginUrl.searchParams.set("next", path);
-      return withConsentRegionCookie(
-        request,
-        withSupabaseCookies(supabaseResponse, NextResponse.redirect(loginUrl))
-      );
-    }
-
-    if (user) {
-      const isAdmin = await isCurrentUserAdmin();
-
-      if (isAdminLogin) {
-        const targetUrl = request.nextUrl.clone();
-        targetUrl.pathname = isAdmin ? ADMIN_HOME_PATH : "/dashboard";
-        targetUrl.search = "";
-        return withConsentRegionCookie(
-          request,
-          withSupabaseCookies(supabaseResponse, NextResponse.redirect(targetUrl))
-        );
-      }
-
-      if (!isAdmin) {
-        const fallbackUrl = request.nextUrl.clone();
-        fallbackUrl.pathname = "/dashboard";
-        fallbackUrl.search = "";
-        return withConsentRegionCookie(
-          request,
-          withSupabaseCookies(supabaseResponse, NextResponse.redirect(fallbackUrl))
-        );
-      }
-    }
-  }
 
   const isProtected = PROTECTED_PATHS.some((protectedPath) =>
     path.startsWith(protectedPath)

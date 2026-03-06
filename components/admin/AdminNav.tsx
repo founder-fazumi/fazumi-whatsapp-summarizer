@@ -75,10 +75,10 @@ export function AdminNav({ mobile = false }: AdminNavProps) {
         <div className="mt-4 rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-strong)]">
             <BarChart3 className="h-4 w-4 text-[var(--primary)]" />
-            <span>Dev-only tools</span>
+            <span>Admin access</span>
           </div>
           <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-            Admin routes require a real Supabase session plus the `admin` role on `profiles`.
+            Admin routes require the dedicated admin login and a signed HttpOnly admin cookie.
           </p>
         </div>
       ) : null}
