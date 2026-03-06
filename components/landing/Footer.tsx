@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Facebook, Instagram, Twitter, Youtube } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
-import { formatNumber } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/shared/BrandLogo";
@@ -67,7 +66,7 @@ const COPY = {
 
 export function Footer() {
   const { locale } = useLang();
-  const year = formatNumber(new Date().getFullYear());
+  const year = String(new Date().getFullYear());
   const [openSection, setOpenSection] = useState<string | null>(FOOTER_GROUPS[0].id);
 
   return (
