@@ -3,7 +3,7 @@ import { redirectAuthenticatedAdmin } from "@/lib/admin/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function LegacyAdminLoginPage({
+export default async function AdminLoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string }>;
