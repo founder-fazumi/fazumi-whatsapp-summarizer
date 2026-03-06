@@ -40,6 +40,26 @@ const nextConfig: NextConfig = {
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",
           },
+          {
+            key: "Content-Security-Policy",
+            // 'unsafe-inline' is required for Next.js inline scripts/styles and the
+            // theme-init script in app/layout.tsx.
+            // TODO(post-launch): migrate to nonce-based CSP to remove 'unsafe-inline'.
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' https://app.posthog.com https://eu.posthog.com",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self'",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.posthog.com https://eu.posthog.com https://*.ingest.sentry.io https://sentry.io",
+              "frame-src https://app.lemonsqueezy.com https://*.lemonsqueezy.com",
+              "frame-ancestors 'self'",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "upgrade-insecure-requests",
+            ].join("; "),
+          },
         ],
       },
       {

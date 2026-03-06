@@ -16,11 +16,10 @@ type SampleSummary = {
   helpfulLinks: readonly string[];
 };
 
-type DemoState = "idle" | "typing" | "loading" | "preview";
+type DemoState = "idle" | "typing" | "loading" | "preview" | "error";
 
 const HEADLINE_INTERVAL_MS = 3_000;
 const HEADLINE_SWAP_DELAY_MS = 200;
-const DEMO_LOADING_MS = 2_000;
 const DEMO_MAX_CHARS = 500;
 
 const HEADLINES = [
@@ -176,15 +175,15 @@ const SAMPLE_SUMMARY = {
 export function Hero() {
   const { locale } = useLang();
   const isRtl = locale === "ar";
-  const summary = pick(SAMPLE_SUMMARY, locale);
   const overlayFeatures = pick(OVERLAY_FEATURES, locale);
   const [headlineIndex, setHeadlineIndex] = useState(0);
   const [headlineVisible, setHeadlineVisible] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [demoState, setDemoState] = useState<DemoState>("idle");
   const [demoText, setDemoText] = useState("");
+  const [apiSummary, setApiSummary] = useState<SampleSummary | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
   const swapTimeoutRef = useRef<number | null>(null);
-  const demoTimeoutRef = useRef<number | null>(null);
 
   const displayedHeadlineIndex = prefersReducedMotion ? 0 : headlineIndex;
   const activeHeadline = pick(HEADLINES[displayedHeadlineIndex], locale);
@@ -192,6 +191,8 @@ export function Hero() {
   const isHeadlineVisible = prefersReducedMotion ? true : headlineVisible;
   const isLoadingDemo = demoState === "loading";
   const isPreviewVisible = demoState === "preview";
+  const isErrorState = demoState === "error";
+  const displayedSummary = apiSummary ?? pick(SAMPLE_SUMMARY, locale);
   const demoCharsRemaining = DEMO_MAX_CHARS - demoText.length;
 
   useEffect(() => {
@@ -230,37 +231,49 @@ export function Hero() {
     };
   }, [prefersReducedMotion]);
 
-  useEffect(() => () => {
-    if (demoTimeoutRef.current !== null) {
-      window.clearTimeout(demoTimeoutRef.current);
-    }
-  }, []);
-
   function handleDemoTextChange(value: string) {
     const nextValue = value.slice(0, DEMO_MAX_CHARS);
     setDemoText(nextValue);
-    setDemoState(nextValue.trim().length > 0 ? "typing" : "idle");
+    if (nextValue.trim().length > 0) {
+      setDemoState("typing");
+    } else {
+      setDemoState("idle");
+      setApiSummary(null);
+      setDemoError(null);
+    }
   }
 
   function handleUseSample() {
     setDemoText(SAMPLE_CHAT);
     setDemoState("typing");
+    setApiSummary(null);
+    setDemoError(null);
   }
 
-  function handleDemoPreview() {
-    if (!demoText.trim() || isLoadingDemo) {
-      return;
-    }
+  async function handleDemoPreview() {
+    if (!demoText.trim() || isLoadingDemo) return;
 
     setDemoState("loading");
+    setDemoError(null);
 
-    if (demoTimeoutRef.current !== null) {
-      window.clearTimeout(demoTimeoutRef.current);
-    }
-
-    demoTimeoutRef.current = window.setTimeout(() => {
+    try {
+      const res = await fetch("/api/demo/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: demoText, lang_pref: locale }),
+      });
+      const data = (await res.json()) as SampleSummary & { error?: string };
+      if (!res.ok) {
+        setDemoError(data.error ?? "Could not generate summary.");
+        setDemoState("error");
+        return;
+      }
+      setApiSummary(data);
       setDemoState("preview");
-    }, DEMO_LOADING_MS);
+    } catch {
+      setDemoError("Network error. Please try again.");
+      setDemoState("error");
+    }
   }
 
   return (
@@ -359,7 +372,7 @@ export function Hero() {
 
                       <button
                         type="button"
-                        onClick={handleDemoPreview}
+                        onClick={() => { void handleDemoPreview(); }}
                         disabled={!demoText.trim() || isLoadingDemo}
                         className="inline-flex h-12 items-center justify-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] px-5 text-[var(--text-sm)] font-semibold text-white shadow-[var(--shadow-sm)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-70"
                       >
@@ -412,7 +425,7 @@ export function Hero() {
                             {pick(COPY.tldr, locale)}
                           </p>
                           <p className="mt-3 text-[var(--text-base)] leading-relaxed text-[var(--foreground)]">
-                            {summary.tldr}
+                            {displayedSummary.tldr}
                           </p>
                         </div>
 
@@ -421,7 +434,7 @@ export function Hero() {
                             {pick(COPY.actionItems, locale)}
                           </p>
                           <ul className="mt-3 space-y-3">
-                            {summary.actionItems.map((item) => (
+                            {displayedSummary.actionItems.map((item) => (
                               <li key={item} className="flex items-start gap-3">
                                 <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[var(--primary)]" />
                                 <span className="text-[var(--text-base)] leading-relaxed text-[var(--foreground)]">
@@ -439,7 +452,7 @@ export function Hero() {
                                 {pick(COPY.importantDates, locale)}
                               </p>
                               <ul className="mt-3 space-y-2 text-[var(--text-base)] leading-relaxed text-[var(--foreground)]">
-                                {summary.importantDates.map((item) => (
+                                {displayedSummary.importantDates.map((item) => (
                                   <li key={item}>{item}</li>
                                 ))}
                               </ul>
@@ -451,7 +464,7 @@ export function Hero() {
                                   {pick(COPY.questions, locale)}
                                 </p>
                                 <ul className="mt-3 space-y-2 text-[var(--text-sm)] leading-relaxed text-[var(--foreground)]">
-                                  {summary.followUpQuestions.map((item) => (
+                                  {displayedSummary.followUpQuestions.map((item) => (
                                     <li key={item}>{item}</li>
                                   ))}
                                 </ul>
@@ -461,7 +474,7 @@ export function Hero() {
                                   {pick(COPY.helpfulLinks, locale)}
                                 </p>
                                 <ul className="mt-3 space-y-2 text-[var(--text-sm)] leading-relaxed text-[var(--foreground)]">
-                                  {summary.helpfulLinks.map((item) => (
+                                  {displayedSummary.helpfulLinks.map((item) => (
                                     <li key={item}>{item}</li>
                                   ))}
                                 </ul>
@@ -495,6 +508,12 @@ export function Hero() {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  ) : isErrorState ? (
+                    <div className="flex min-h-[8rem] flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-[var(--destructive)]/30 bg-[var(--destructive)]/5 px-5 py-6 text-center shadow-[var(--shadow-xs)]">
+                      <p className="text-[var(--text-base)] font-semibold text-[var(--destructive)]">
+                        {demoError ?? (locale === "ar" ? "حدث خطأ. حاول مجددًا." : "Something went wrong. Please try again.")}
+                      </p>
                     </div>
                   ) : (
                     <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)] px-5 py-6 text-center shadow-[var(--shadow-xs)]">

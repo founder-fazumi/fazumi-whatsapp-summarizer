@@ -138,6 +138,8 @@ export function sanitizeAdminNextPath(value: string | null | undefined) {
 }
 
 export function getAdminCredentials() {
+  // PRODUCTION WARNING: Set ADMIN_USERNAME and ADMIN_PASSWORD env vars before deploying.
+  // If these are not set the dashboard falls back to "admin"/"admin" which is insecure.
   return {
     username: process.env.ADMIN_USERNAME?.trim() || "admin",
     password: process.env.ADMIN_PASSWORD ?? "admin",
