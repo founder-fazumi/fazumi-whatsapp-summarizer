@@ -1,7 +1,7 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { BillingPlansPanel } from "@/components/billing/BillingPlansPanel";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { CreditCard, Check, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
@@ -25,7 +25,7 @@ const PLAN_LABELS: Record<string, { name: { en: string; ar: string }; price: { e
     color: "text-[var(--primary)]",
   },
   founder: {
-    name: { en: "Founder Lifetime", ar: "باقة المؤسسين" },
+    name: { en: "Founder LTD", ar: "باقة المؤسسين" },
     price: { en: formatPrice(149), ar: formatPrice(149) },
     color: "text-[var(--accent-fox-deep)]",
   },

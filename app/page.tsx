@@ -1,14 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { FAQAccordion } from "@/components/landing/FAQAccordion";
 import { Nav } from "@/components/landing/Nav";
 import { Hero } from "@/components/landing/Hero";
-import { SocialProof } from "@/components/landing/SocialProof";
 import { HowItWorks } from "@/components/landing/HowItWorks";
-import { Testimonials } from "@/components/landing/Testimonials";
 import { Pricing } from "@/components/landing/Pricing";
-import { CheckoutTeaser } from "@/components/landing/CheckoutTeaser";
-import { FAQ } from "@/components/landing/FAQ";
-import { Newsletter } from "@/components/landing/Newsletter";
 import type { Profile } from "@/lib/supabase/types";
 
 export default async function LandingPage() {
@@ -41,19 +37,17 @@ export default async function LandingPage() {
       <Nav isLoggedIn={isLoggedIn} />
       <main>
         <Hero />
-        <SocialProof />
         <div id="how-it-works" className="scroll-mt-24">
           <HowItWorks />
         </div>
-        <Testimonials />
         <div id="pricing" className="scroll-mt-24">
           <Pricing />
         </div>
-        <CheckoutTeaser />
-        <div id="faq" className="scroll-mt-24">
-          <FAQ />
+        <div id="faq" className="scroll-mt-24 bg-[var(--page-layer)] py-[var(--page-section-space)]">
+          <div className="page-shell">
+            <FAQAccordion />
+          </div>
         </div>
-        <Newsletter />
       </main>
     </div>
   );

@@ -2,7 +2,9 @@
 
 import React from "react";
 import { Sidebar } from "./Sidebar";
+import { BottomNav } from "./BottomNav";
 import { TopBar } from "./TopBar";
+import { NotificationPrompt } from "@/components/push/NotificationPrompt";
 import { cn } from "@/lib/utils";
 
 interface DashboardShellProps {
@@ -27,7 +29,7 @@ export function DashboardShell({
           <Sidebar className="h-full" />
         </div>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
           <div
             className={cn(
               "mx-auto w-full px-[var(--page-gutter)] py-6 md:py-8",
@@ -45,6 +47,9 @@ export function DashboardShell({
           </aside>
         )}
       </div>
+
+      <BottomNav />
+      <NotificationPrompt />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { guardAdminApiRequest } from "@/lib/admin/auth";
+import { guardAdminApiRequest, getAdminCredentials, getRequestIp } from "@/lib/admin/auth";
 import { getAdminUsersData } from "@/lib/admin/queries";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAdminAction } from "@/lib/admin/audit";
+import { checkAdminRateLimit } from "@/lib/admin/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,7 +16,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const data = await getAdminUsersData();
+    const searchParams = request.nextUrl.searchParams;
+    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
+    const pageSize = Math.min(100, Math.max(10, parseInt(searchParams.get("pageSize") ?? "50", 10)));
+    const data = await getAdminUsersData(page, pageSize);
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     return NextResponse.json(
@@ -29,6 +34,11 @@ export async function POST(request: NextRequest) {
 
   if (guardResponse) {
     return guardResponse;
+  }
+
+  const adminUsername = getAdminCredentials().username;
+  if (!checkAdminRateLimit(`${adminUsername}:users`)) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
   }
 
   try {
@@ -87,6 +97,15 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    await logAdminAction({
+      adminUsername,
+      action: action === "ban" ? "ban_users" : "reset_ban",
+      targetType: "user",
+      targetIds: updatedIds,
+      details: { action, bannedUntil: action === "ban" ? new Date(Date.now() + 8760 * 60 * 60 * 1000).toISOString() : null },
+      ip: getRequestIp(request),
+    });
 
     return NextResponse.json({
       ok: true,

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { estimateAiCostUsd, estimateTokenCount } from "@/lib/ai/usage";
 
 export type LangPref = "auto" | "en" | "ar";
 
@@ -11,6 +12,14 @@ export interface SummaryResult {
   questions: string[];
   lang_detected: string;
   char_count: number;
+}
+
+export interface SummaryUsage {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
 }
 
 type ResolvedLang = Exclude<LangPref, "auto">;
@@ -38,12 +47,17 @@ RULES:
 Return ONLY valid JSON. No markdown code blocks. No explanation outside the JSON.`;
 
 let _openai: OpenAI | null = null;
+
 function getOpenAI(): OpenAI {
   if (!_openai) {
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY is not set");
+    }
+
     _openai = new OpenAI({ apiKey });
   }
+
   return _openai;
 }
 
@@ -51,8 +65,14 @@ function detectInputLanguage(text: string): ResolvedLang {
   const arabicChars = text.match(/[\u0600-\u06FF]/g)?.length ?? 0;
   const latinChars = text.match(/[A-Za-z]/g)?.length ?? 0;
 
-  if (arabicChars === 0) return "en";
-  if (latinChars === 0) return "ar";
+  if (arabicChars === 0) {
+    return "en";
+  }
+
+  if (latinChars === 0) {
+    return "ar";
+  }
+
   return arabicChars >= latinChars ? "ar" : "en";
 }
 
@@ -74,12 +94,37 @@ ${text.slice(0, 30000)}
 ${langInstruction}`;
 }
 
+function toStringArray(val: unknown): string[] {
+  if (!Array.isArray(val)) {
+    return [];
+  }
+
+  return val.map((value) => String(value)).filter(Boolean);
+}
+
+function buildUsage(
+  model: string,
+  promptTokens: number,
+  completionTokens: number
+): SummaryUsage {
+  return {
+    model,
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    estimatedCostUsd: estimateAiCostUsd(model, promptTokens, completionTokens),
+  };
+}
+
 export async function summarizeChat(
   text: string,
   langPref: LangPref = "auto"
-): Promise<SummaryResult> {
+): Promise<{
+  summary: SummaryResult;
+  usage: SummaryUsage;
+}> {
   const openai = getOpenAI();
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o";
+  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   const outputLang = resolveOutputLanguage(text, langPref);
 
   const completion = await openai.chat.completions.create({
@@ -102,10 +147,8 @@ export async function summarizeChat(
     throw new Error("AI returned invalid JSON");
   }
 
-  const tldr = String(parsed.tldr ?? "");
-
-  return {
-    tldr,
+  const summary: SummaryResult = {
+    tldr: String(parsed.tldr ?? ""),
     important_dates: toStringArray(parsed.important_dates),
     action_items: toStringArray(parsed.action_items),
     people_classes: toStringArray(parsed.people_classes),
@@ -114,9 +157,14 @@ export async function summarizeChat(
     lang_detected: outputLang,
     char_count: text.length,
   };
-}
 
-function toStringArray(val: unknown): string[] {
-  if (!Array.isArray(val)) return [];
-  return val.map((v) => String(v)).filter(Boolean);
+  const promptTokens =
+    completion.usage?.prompt_tokens ?? estimateTokenCount(buildUserMessage(text, outputLang));
+  const completionTokens =
+    completion.usage?.completion_tokens ?? estimateTokenCount(raw);
+
+  return {
+    summary,
+    usage: buildUsage(model, promptTokens, completionTokens),
+  };
 }

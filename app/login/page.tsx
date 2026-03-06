@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { createClient } from "@/lib/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLang } from "@/lib/context/LangContext";

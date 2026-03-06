@@ -11,9 +11,11 @@ import {
 } from "lucide-react";
 import type { AdminPlanType, AdminUserRecord, AdminUsersData } from "@/lib/admin/types";
 import { formatDate, formatNumber } from "@/lib/format";
+import { useLang } from "@/lib/context/LangContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 type SortKey = "joined" | "activity" | "subscription";
@@ -21,7 +23,6 @@ type SortDirection = "asc" | "desc";
 type BulkAction = "ban" | "reset";
 
 const USERS_PER_PAGE = 50;
-const PAGE_STORAGE_KEY = "fazumi_admin_users_page";
 const PAGE_SIZE_STORAGE_KEY = "fazumi_admin_users_page_size";
 
 const PLAN_ORDER: Record<AdminPlanType, number> = {
@@ -32,8 +33,9 @@ const PLAN_ORDER: Record<AdminPlanType, number> = {
   free: 4,
 };
 
-async function fetchUsers() {
-  const response = await fetch("/api/admin/users", {
+async function fetchUsers(page = 1, pageSize = USERS_PER_PAGE) {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  const response = await fetch(`/api/admin/users?${params.toString()}`, {
     cache: "no-store",
   });
   const payload = (await response.json()) as {
@@ -68,7 +70,9 @@ function isBanned(user: AdminUserRecord) {
 }
 
 function escapeCsvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
+  // Prevent CSV formula injection by prefixing trigger characters with a tab
+  const safe = /^[=+\-@]/.test(value) ? `\t${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
 }
 
 function getPageNumbers(current: number, total: number): Array<number | "ellipsis"> {
@@ -160,6 +164,7 @@ interface AdminUsersTableProps {
 }
 
 export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
+  const { locale } = useLang();
   const [data, setData] = useState(initialData);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("joined");
@@ -169,47 +174,45 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [submittingAction, setSubmittingAction] = useState<BulkAction | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [pendingBanUserIds, setPendingBanUserIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(USERS_PER_PAGE);
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
 
   useEffect(() => {
     try {
-      const storedPage = Number(window.localStorage.getItem(PAGE_STORAGE_KEY));
       const storedPageSize = Number(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
 
       if (storedPageSize === 25 || storedPageSize === 50 || storedPageSize === 100) {
-        setPageSize(storedPageSize);
-      }
-
-      if (Number.isFinite(storedPage) && storedPage > 0) {
-        setCurrentPage(Math.floor(storedPage));
+        void loadPage(1, storedPageSize);
       }
     } catch {
       // Ignore storage read failures.
     }
-  }, []);
+  }, []); // Run once on mount only — loadPage intentionally omitted from deps.
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(PAGE_STORAGE_KEY, String(currentPage));
       window.localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(pageSize));
     } catch {
       // Ignore storage write failures.
     }
-  }, [currentPage, pageSize]);
+  }, [pageSize]);
 
-  async function refreshUsers() {
+  async function loadPage(page: number, size: number) {
     setRefreshing(true);
     setError(null);
 
     try {
-      setData(await fetchUsers());
-    } catch (refreshError) {
+      const next = await fetchUsers(page, size);
+      setData(next);
+      setCurrentPage(next.page);
+      setPageSize(next.pageSize);
+    } catch (loadError) {
       setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : "Could not refresh admin users."
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not load admin users."
       );
     } finally {
       setRefreshing(false);
@@ -218,7 +221,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
 
   function handleRefresh() {
     startTransition(() => {
-      void refreshUsers();
+      void loadPage(currentPage, pageSize);
     });
   }
 
@@ -260,42 +263,37 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       return (leftValue - rightValue) * direction;
     });
 
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
-
-  useEffect(() => {
-    setCurrentPage((current) => Math.min(Math.max(current, 1), totalPages));
-  }, [totalPages]);
-
-  const startIndex = filteredUsers.length === 0 ? 0 : (currentPage - 1) * pageSize;
-  const endIndex = filteredUsers.length === 0 ? 0 : Math.min(startIndex + pageSize, filteredUsers.length);
-  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+  // Server drives totalPages and total count; client-side filter/sort applies within the page.
+  const totalPages = data.pages;
+  const paginatedUsers = filteredUsers;
   const selectedCount = filteredUsers.filter((user) => selectedUserIds.has(user.id)).length;
   const allVisibleSelected =
     paginatedUsers.length > 0 &&
     paginatedUsers.every((user) => selectedUserIds.has(user.id));
 
   function setPage(page: number) {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+    const next = Math.min(Math.max(page, 1), totalPages);
+    startTransition(() => {
+      void loadPage(next, pageSize);
+    });
   }
 
   function handleSearchChange(value: string) {
     setSearch(value);
-    setCurrentPage(1);
   }
 
   function handleSortKeyChange(value: SortKey) {
     setSortKey(value);
-    setCurrentPage(1);
   }
 
   function handleSortDirectionToggle() {
     setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-    setCurrentPage(1);
   }
 
   function handlePageSizeChange(size: number) {
-    setPageSize(size);
-    setCurrentPage(1);
+    startTransition(() => {
+      void loadPage(1, size);
+    });
   }
 
   function toggleUserSelection(userId: string) {
@@ -326,10 +324,16 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     });
   }
 
-  async function handleBulkAction(action: BulkAction) {
-    const userIds = Array.from(selectedUserIds);
+  async function handleBulkAction(action: BulkAction, ids?: string[]) {
+    const userIds = ids ?? Array.from(selectedUserIds);
 
     if (userIds.length === 0) {
+      return;
+    }
+
+    // Ban is destructive — show confirm dialog instead of acting immediately
+    if (action === "ban" && !ids) {
+      setPendingBanUserIds(userIds);
       return;
     }
 
@@ -340,13 +344,8 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     try {
       const response = await fetch("/api/admin/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action,
-          userIds,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, userIds }),
       });
       const payload = (await response.json()) as {
         ok: boolean;
@@ -359,7 +358,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
         throw new Error(payload.error ?? "Bulk action failed.");
       }
 
-      await refreshUsers();
+      await loadPage(currentPage, pageSize);
       setSelectedUserIds(new Set());
       setSuccess(
         action === "ban"
@@ -379,6 +378,11 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     } finally {
       setSubmittingAction(null);
     }
+  }
+
+  async function confirmBan() {
+    await handleBulkAction("ban", pendingBanUserIds);
+    setPendingBanUserIds([]);
   }
 
   function handleExport() {
@@ -427,10 +431,12 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     setSuccess(`Exported ${selectedUsers.length} user(s).`);
   }
 
+  const rangeStart = data.total === 0 ? 0 : (data.page - 1) * data.pageSize + 1;
+  const rangeEnd = Math.min(data.page * data.pageSize, data.total);
   const rangeLabel =
-    filteredUsers.length === 0
+    data.total === 0
       ? "Showing 0 of 0 users"
-      : `Showing ${formatNumber(startIndex + 1)}-${formatNumber(endIndex)} of ${formatNumber(filteredUsers.length)} users`;
+      : `Showing ${formatNumber(rangeStart)}-${formatNumber(rangeEnd)} of ${formatNumber(data.total)} users`;
 
   return (
     <div className="space-y-6">
@@ -624,6 +630,35 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
           onPageSizeChange={handlePageSizeChange}
         />
       </div>
+
+      {/* Ban confirmation dialog */}
+      <Dialog
+        open={pendingBanUserIds.length > 0}
+        onOpenChange={(open) => { if (!open) setPendingBanUserIds([]); }}
+        title={locale === "ar"
+          ? `حظر ${pendingBanUserIds.length} مستخدم لمدة سنة؟`
+          : `Ban ${pendingBanUserIds.length} user${pendingBanUserIds.length !== 1 ? "s" : ""} for 1 year?`}
+      >
+        <p className="text-sm text-[var(--muted-foreground)] leading-6">
+          {locale === "ar"
+            ? "لن يتمكن هؤلاء المستخدمون من تسجيل الدخول حتى تقوم بإعادة ضبط الحظر. هذا الإجراء لا يمكن التراجع عنه من لوحة الإدارة."
+            : "These users will be unable to log in until you reset the ban. This action cannot be undone from the admin panel."}
+        </p>
+        <div className="mt-5 flex justify-end gap-3">
+          <Button variant="outline" onClick={() => setPendingBanUserIds([])}>
+            {locale === "ar" ? "إلغاء" : "Cancel"}
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={submittingAction === "ban"}
+            onClick={() => void confirmBan()}
+          >
+            {submittingAction === "ban"
+              ? (locale === "ar" ? "جارٍ الحظر…" : "Banning…")
+              : (locale === "ar" ? "تأكيد الحظر" : "Confirm ban")}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

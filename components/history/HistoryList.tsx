@@ -80,12 +80,14 @@ export function HistoryList({
 
       const nextCount = Math.max(0, clientTotalCount - 1);
       const lastPage = Math.max(1, Math.ceil(nextCount / pageSize));
-      if (nextCount > 0 && currentPage > lastPage) {
+      if (nextCount > 0 && currentPage > lastPage && pathname) {
         router.push(buildHistoryHref(pathname, query, lastPage));
         return;
       }
 
-      router.refresh();
+      if (pathname) {
+        router.refresh();
+      }
     } catch {
       setLocalSummaries(previousSummaries);
       setClientTotalCount(clientTotalCount);
@@ -112,8 +114,10 @@ export function HistoryList({
         throw new Error(payload?.error ?? "Could not delete summaries.");
       }
 
-      router.push(pathname);
-      router.refresh();
+      if (pathname) {
+        router.push(pathname);
+        router.refresh();
+      }
     } catch {
       setLocalSummaries(previousSummaries);
       setClientTotalCount(previousTotal);
@@ -125,12 +129,16 @@ export function HistoryList({
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    router.push(buildHistoryHref(pathname, searchValue.trim(), 1));
+    if (pathname) {
+      router.push(buildHistoryHref(pathname, searchValue.trim(), 1));
+    }
   }
 
   function clearSearch() {
     setSearchValue("");
-    router.push(pathname);
+    if (pathname) {
+      router.push(pathname);
+    }
   }
 
   async function handleShare(id: string) {
@@ -363,7 +371,7 @@ export function HistoryList({
           </p>
 
           <div className="flex items-center gap-2">
-            {currentPage > 1 ? (
+            {currentPage > 1 && pathname ? (
               <Link
                 href={buildHistoryHref(pathname, query, currentPage - 1)}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -376,7 +384,7 @@ export function HistoryList({
               </Button>
             )}
 
-            {currentPage < totalPages ? (
+            {currentPage < totalPages && pathname ? (
               <Link
                 href={buildHistoryHref(pathname, query, currentPage + 1)}
                 className={buttonVariants({ size: "sm" })}

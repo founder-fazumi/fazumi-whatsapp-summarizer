@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
+import { MascotArt } from "@/components/shared/MascotArt";
 
 /**
  * Shown when the user arrives at /dashboard?upgraded=1 after a Lemon Squeezy
@@ -21,12 +21,23 @@ export function UpgradingBanner() {
   }, [router]);
 
   return (
-    <div data-testid="upgrading-banner" className="status-warning mb-4 flex items-center gap-3 rounded-[var(--radius-xl)] border px-4 py-3 text-sm">
-      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+    <div
+      data-testid="upgrading-banner"
+      className="status-success mb-4 flex items-center gap-3 rounded-[var(--radius-xl)] border px-4 py-3 text-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <MascotArt
+        variant="celebrating"
+        alt="Fazumi mascot celebrating your upgrade"
+        size={72}
+        className="h-14 w-14 shrink-0"
+        priority
+      />
       <p>
         <LocalizedText
-          en="Your upgrade is being processed — this usually takes a few seconds. Your plan will update automatically."
-          ar="جارٍ معالجة ترقيتك — يستغرق هذا عادةً بضع ثوانٍ. ستتحدث خطتك تلقائيًا."
+          en="Payment received. We are syncing your new plan now and will refresh this page automatically."
+          ar="تم استلام الدفعة. نقوم الآن بمزامنة خطتك الجديدة وسنحدّث الصفحة تلقائيًا."
         />
       </p>
     </div>

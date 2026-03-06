@@ -1,4 +1,4 @@
-const CACHE_VERSION = "fazumi-v3";
+const CACHE_VERSION = "fazumi-v4";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const API_CACHE = `${CACHE_VERSION}-api`;
@@ -14,8 +14,12 @@ const CACHE_LIMITS = {
 
 const INSTALL_ASSETS = [
   "/",
+  "/favicon.ico",
   "/manifest.json",
   "/apple-touch-icon.png",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/maskable-icon-512.png",
   OFFLINE_FALLBACK_URL,
 ];
 
@@ -118,6 +122,26 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Exclude authenticated routes from caching (security: prevent data exposure on shared devices)
+  const excludedPaths = [
+    '/api/',
+    '/dashboard',
+    '/history',
+    '/billing',
+    '/settings',
+    '/profile',
+    '/calendar',
+    '/todo',
+    '/admin_dashboard',
+  ];
+
+  const shouldExclude = excludedPaths.some(path => url.pathname.startsWith(path));
+  if (shouldExclude) {
+    // Network-only for authenticated routes
+    event.respondWith(fetch(request));
+    return;
+  }
+
   if (request.mode === "navigate") {
     event.respondWith(
       networkFirst(request, PAGE_CACHE).catch(async () => {
@@ -135,10 +159,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // API responses: network-only (don't cache potentially sensitive data)
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(
-      networkFirst(request, API_CACHE).catch(() => caches.match(request, { ignoreVary: true }))
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

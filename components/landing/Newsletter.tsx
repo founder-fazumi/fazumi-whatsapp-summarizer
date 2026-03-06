@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Mail, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 const COPY = {
   title: { en: "Stay in the loop", ar: "ابقَ على اطلاع" },
@@ -34,7 +35,11 @@ export function Newsletter() {
   }
 
   return (
-    <section className="bg-[var(--page-layer)] py-16 md:py-24">
+    <section
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      lang={locale}
+      className={cn("bg-[var(--page-layer)] py-16 md:py-24", locale === "ar" && "font-arabic")}
+    >
       <div className="page-shell">
         <div className="hero-backdrop surface-panel-elevated mx-auto max-w-xl px-[var(--card-padding-lg)] py-[var(--card-padding-lg)] text-center">
           <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)]/10">

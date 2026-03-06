@@ -1,7 +1,7 @@
 # FAZUMI
 
 <p align="center">
-  <img src="public/brand/mascot/mascot-waving.png.png" alt="Fazumi fox mascot" width="120" />
+  <img src="public/brand/mascot/mascot-waving.png" alt="Fazumi fox mascot" width="120" />
 </p>
 
 > Miss-nothing school comms.
@@ -62,6 +62,55 @@ pnpm dev
 
 6. Open `http://localhost:3000` and paste WhatsApp chat text into the summarizer.
 
+## Local Google OAuth (Supabase)
+
+Google auth can be intentionally disabled in local/dev until provider credentials are ready.
+
+To enable it for local testing:
+
+1. Supabase Dashboard -> Authentication -> Providers -> Google.
+2. Turn Google provider on.
+3. Add Google OAuth credentials and set callback URLs:
+   - `http://127.0.0.1:3000/auth/callback`
+   - `http://localhost:3000/auth/callback`
+
+If Google is disabled:
+
+- The Google button remains visible.
+- Clicking it shows a clear in-app message that Google is not enabled in Supabase for this project.
+- Email/password login still works.
+
+For local smoke tests without Google, use seeded dev test users via:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/create-test-accounts
+```
+
+## Deployment
+
+Production requires these env vars at minimum:
+
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `LEMONSQUEEZY_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_LS_MONTHLY_VARIANT`
+- `NEXT_PUBLIC_LS_ANNUAL_VARIANT`
+- `NEXT_PUBLIC_LS_FOUNDER_VARIANT`
+- `SENTRY_DSN`
+- `NEXT_PUBLIC_SENTRY_DSN` for browser-side Sentry capture
+
+Deployment notes:
+
+- Checkout buttons stay disabled until the Lemon Squeezy variant IDs above are set and valid.
+- The admin dashboard under `/admin_dashboard` is intentionally dev-only. Production middleware and server guards block it.
+- Launch assets are generated locally with `pwsh ./scripts/generate-launch-assets.ps1`.
+- Run `pnpm lint`, `pnpm lint:assets`, `pnpm typecheck`, `pnpm test`, and `pnpm build` before shipping.
+- Use the launch deploy checklist in [`docs/deploy-vercel.md`](docs/deploy-vercel.md) before promoting a production build.
+
 ## Lemon Squeezy Variant Setup (Launch)
 
 Set these public env vars in local and Vercel:
@@ -87,6 +136,7 @@ Where used:
 Security note:
 
 - Do not commit real project Variant IDs to git.
+
 ## Dev Server Lock Error
 
 If Next.js dev shows `Runtime AbortError: Lock broken by another request with the 'steal' option.`, switch to the webpack dev server. The default `pnpm dev` script already uses webpack for local stability.
@@ -149,6 +199,12 @@ Run the smoke suite:
 pnpm test
 ```
 
+Run the full audit suite (heavier, not part of default launch smoke):
+
+```powershell
+pnpm test:audit
+```
+
 Run one spec file:
 
 ```powershell
@@ -156,6 +212,50 @@ pnpm exec playwright test e2e\app-smoke.spec.ts
 ```
 
 Supabase deploy note: see [`docs/runbooks/supabase.md`](docs/runbooks/supabase.md). In this repo, `supabase db push --include-all` is the canonical pre-deploy check/apply flow.
+
+## GDPR Consent Testing (EU Users)
+
+To test the GDPR consent banner from outside the EU:
+
+### Option 1: Use a Proxy or VPN
+
+1. Connect to an EU server such as the Netherlands, Germany, or France.
+2. Clear browser cookies and localStorage for the app.
+3. Visit `https://fazumi.app`.
+4. The consent banner should appear.
+
+### Option 2: Override the Browser Timezone (Development Only)
+
+1. Open the browser DevTools console.
+2. Run:
+
+```js
+Object.defineProperty(Intl, "DateTimeFormat", {
+  value: function () {
+    return {
+      resolvedOptions: () => ({ timeZone: "Europe/Berlin" }),
+    };
+  },
+});
+```
+
+3. Refresh the page.
+4. The consent banner should appear.
+
+### Option 3: Use a Browser Extension
+
+1. Install a timezone changer extension for Chrome or Firefox.
+2. Set the timezone to `Europe/Berlin` or `Europe/Paris`.
+3. Refresh the page.
+4. The consent banner should appear.
+
+### Verify the Consent Flow
+
+1. Click `Accept all` and verify PostHog initializes.
+2. Click `Reject non-essential` and verify PostHog does not initialize.
+3. Click `Customize` and verify each optional toggle can be changed.
+4. Open `Settings` and verify the `Withdraw consent` control still works.
+5. Check the Supabase `user_consents` table and verify the decision is logged with IP address and user-agent.
 
 ## Webhook Replay (Dev)
 
@@ -249,21 +349,21 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/create-test-ac
 
 Seeded credentials:
 
-- `free1@fazumi.local` / `FazumiTest!12345`
-- `paid1@fazumi.local` / `FazumiTest!12345`
-- `founder1@fazumi.local` / `FazumiTest!12345`
+- `free@fazumi.test` / `@fr33T3ST1ng`
+- `paid@fazumi.test` / `@pa1dT3ST1ng`
+- `founder@fazumi.test` / `@f0underT3ST1ng`
 
 The helper is blocked in production and only works from `localhost`.
 
 To change a plan during testing:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"paid1@fazumi.local","plan":"monthly"}'
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"founder1@fazumi.local","plan":"founder"}'
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"free1@fazumi.local","plan":"free"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"paid@fazumi.test","plan":"paid"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"founder@fazumi.test","plan":"founder"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/dev/set-plan -ContentType "application/json" -Body '{"email":"free@fazumi.test","plan":"free"}'
 ```
 
-`plan: "free"` resets the account to an active 7-day trial for local testing. Paid plans clear the trial date.
+`plan: "free"` resets the account to an active 7-day trial for local testing. `plan: "paid"` maps to the existing monthly entitlement. Paid plans clear the trial date.
 
 ## Smoke Checks - Accounts + Limits
 

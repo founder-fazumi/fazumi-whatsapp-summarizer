@@ -30,3 +30,16 @@ export function formatPrice(
     maximumFractionDigits: fractionDigits,
   })}`;
 }
+
+export function formatCurrency(
+  value: number,
+  currency: "USD" | "QAR",
+  fractionDigits = value % 1 === 0 ? 0 : 2
+): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}

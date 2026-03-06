@@ -235,6 +235,9 @@ export interface AdminUserRecord {
 export interface AdminUsersData {
   generatedAt: string;
   total: number;
+  page: number;
+  pageSize: number;
+  pages: number;
   users: AdminUserRecord[];
 }
 
@@ -437,24 +440,23 @@ export interface AdminSupportRequestRow {
   lastUpdatedAt: string;
 }
 
+export interface AdminInboxSection<T> {
+  total: number;
+  newCount: number;
+  openCount: number;
+  highPriorityCount: number;
+  tags: string[];
+  items: T[];
+  /** Present when server-side pagination is active. */
+  page?: number;
+  pageSize?: number;
+  pages?: number;
+}
+
 export interface AdminInboxData {
   generatedAt: string;
-  feedback: {
-    total: number;
-    newCount: number;
-    openCount: number;
-    highPriorityCount: number;
-    tags: string[];
-    items: AdminFeedbackRow[];
-  };
-  support: {
-    total: number;
-    newCount: number;
-    openCount: number;
-    highPriorityCount: number;
-    tags: string[];
-    items: AdminSupportRequestRow[];
-  };
+  feedback: AdminInboxSection<AdminFeedbackRow>;
+  support: AdminInboxSection<AdminSupportRequestRow>;
 }
 
 export interface AdminOverviewAttentionItem {

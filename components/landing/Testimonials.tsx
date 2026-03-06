@@ -3,6 +3,7 @@
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { useLang } from "@/lib/context/LangContext";
 import { pick } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 const TESTIMONIALS = [
   { name: "Fatima Al-Rashidi",
@@ -113,12 +114,17 @@ function TestimonialsColumn({
 }
 
 export function Testimonials() {
+  const { locale } = useLang();
   const col1 = TESTIMONIALS.slice(0, 4);
   const col2 = TESTIMONIALS.slice(4, 8);
   const col3 = TESTIMONIALS.slice(8, 12);
 
   return (
-    <section className="overflow-hidden py-16 md:py-24">
+    <section
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      lang={locale}
+      className={cn("overflow-hidden py-16 md:py-24", locale === "ar" && "font-arabic")}
+    >
       <div className="page-shell">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)] mb-2">

@@ -3,6 +3,7 @@ export interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   plan: "free" | "monthly" | "annual" | "founder";
+  role: "user" | "admin";
   trial_expires_at: string | null;
   lifetime_free_used: number;
   lang_pref: "en" | "ar";

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Copy, Inbox, MessageSquareHeart, RefreshCcw, Search, Tags } from "lucide-react";
 import type {
@@ -25,8 +25,29 @@ import { cn } from "@/lib/utils";
 type InboxTab = "feedback" | "support";
 type InboxItem = AdminFeedbackRow | AdminSupportRequestRow;
 
-async function fetchInbox() {
-  const response = await fetch("/api/admin/inbox", { cache: "no-store" });
+async function fetchInbox(filters?: {
+  tab?: string;
+  status?: string;
+  priority?: string;
+  locale?: string;
+  tag?: string;
+  search?: string;
+  dateWindow?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const params = new URLSearchParams();
+  if (filters?.tab) params.set("tab", filters.tab);
+  if (filters?.status && filters.status !== "all") params.set("status", filters.status);
+  if (filters?.priority && filters.priority !== "all") params.set("priority", filters.priority);
+  if (filters?.locale && filters.locale !== "all") params.set("locale", filters.locale);
+  if (filters?.tag && filters.tag !== "all") params.set("tag", filters.tag);
+  if (filters?.search?.trim()) params.set("search", filters.search.trim());
+  if (filters?.dateWindow && filters.dateWindow !== "all") params.set("dateWindow", filters.dateWindow);
+  if (filters?.page) params.set("page", String(filters.page));
+  if (filters?.pageSize) params.set("pageSize", String(filters.pageSize));
+
+  const response = await fetch(`/api/admin/inbox?${params.toString()}`, { cache: "no-store" });
   const payload = (await response.json()) as { ok: boolean; data?: AdminInboxData; error?: string };
 
   if (!response.ok || !payload.ok || !payload.data) {
@@ -93,11 +114,6 @@ function contactValue(item: InboxItem) {
   return item.email ?? item.phone ?? item.userId ?? "Anonymous";
 }
 
-function inWindow(value: string, filter: "all" | "today" | "7d" | "30d") {
-  if (filter === "all") return true;
-  const ms = filter === "today" ? 86_400_000 : filter === "7d" ? 604_800_000 : 2_592_000_000;
-  return new Date(value).getTime() >= Date.now() - ms;
-}
 
 export function AdminInboxContent({ initialData }: { initialData: AdminInboxData }) {
   const { locale } = useLang();
@@ -130,29 +146,28 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
   }, [selected]);
 
   const section = tab === "feedback" ? data.feedback : data.support;
-  const items = tab === "feedback" ? data.feedback.items : data.support.items;
-  const filtered = useMemo(
-    () =>
-      items.filter((item) => {
-        if (statusFilter !== "all" && item.status !== statusFilter) return false;
-        if (priorityFilter !== "all" && item.priority !== priorityFilter) return false;
-        if (localeFilter !== "all" && item.locale !== localeFilter) return false;
-        if (tagFilter !== "all" && !item.tags.includes(tagFilter)) return false;
-        if (!inWindow(item.createdAt, dateFilter)) return false;
-        if (!query) return true;
-        return [item.subject, item.message, contactValue(item), item.tags.join(" "), isFeedback(item) ? item.type : ""]
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-      }),
-    [dateFilter, items, localeFilter, priorityFilter, query, statusFilter, tagFilter]
-  );
+  // Server handles filtering; items on the current page are returned directly.
+  const filtered = tab === "feedback" ? data.feedback.items : data.support.items;
+
+  function buildFilters() {
+    return {
+      tab,
+      status: statusFilter,
+      priority: priorityFilter,
+      locale: localeFilter,
+      tag: tagFilter,
+      search: query || undefined,
+      dateWindow: dateFilter,
+      page: 1,
+      pageSize: 50,
+    };
+  }
 
   async function refresh() {
     setRefreshing(true);
     setError(null);
     try {
-      const next = await fetchInbox();
+      const next = await fetchInbox(buildFilters());
       setData(next);
       if (selected) {
         const nextItem = [...next.feedback.items, ...next.support.items].find((item) => item.id === selected.id) ?? null;
@@ -164,6 +179,10 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
       setRefreshing(false);
     }
   }
+
+  // Re-fetch from server whenever any filter changes. query is useDeferredValue so search debounces naturally.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { startTransition(() => { void refresh(); }); }, [tab, statusFilter, priorityFilter, localeFilter, tagFilter, dateFilter, query]);
 
   async function handleSave() {
     if (!selected) return;
@@ -330,6 +349,7 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
                 <p className="text-sm text-[var(--muted-foreground)]">{formatDate(selected.createdAt, locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
               </SheetHeader>
               <div className="space-y-6 p-6">
+                {/* React JSX text interpolation auto-escapes — no XSS risk here */}
                 <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-strong)]">{selected.message}</div>
                 <div className="grid gap-3">
                   <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
@@ -375,7 +395,23 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
                 </div>
                 <div>
                   <label htmlFor="drawer-notes" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{locale === "ar" ? "ملاحظات الإدارة" : "Admin notes"}</label>
-                  <Textarea id="drawer-notes" value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} className="min-h-32" placeholder={locale === "ar" ? "اكتب ملاحظات داخلية..." : "Write internal notes..."} />
+                  <Textarea
+                    id="drawer-notes"
+                    value={notesDraft}
+                    onChange={(event) => setNotesDraft(event.target.value.slice(0, 4000))}
+                    maxLength={4000}
+                    className="min-h-32"
+                    placeholder={locale === "ar" ? "اكتب ملاحظات داخلية..." : "Write internal notes..."}
+                  />
+                  <p className={`mt-1 text-right text-[11px] tabular-nums ${
+                    notesDraft.length > 3900
+                      ? "text-[var(--destructive)]"
+                      : notesDraft.length > 3500
+                      ? "text-amber-600"
+                      : "text-[var(--muted-foreground)]"
+                  }`}>
+                    {notesDraft.length}/4000
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" onClick={() => void handleSave()} disabled={saving}>{saving ? (locale === "ar" ? "جارٍ الحفظ..." : "Saving...") : locale === "ar" ? "حفظ" : "Save"}</Button>

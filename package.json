@@ -21,7 +21,7 @@
     "webhook:replay:sub-active": "node scripts/webhooks/replay-lemonsqueezy.js subscription_updated_active"
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.40.0",
+    "@sentry/nextjs": "10",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.98.0",
     "class-variance-authority": "^0.7.1",
@@ -46,6 +46,7 @@
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "15.4.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "tsx": "^4.20.6",
     "typescript": "^5"

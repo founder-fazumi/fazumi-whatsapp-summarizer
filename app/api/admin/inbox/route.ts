@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { guardAdminApiRequest } from "@/lib/admin/auth";
-import { getAdminInboxData } from "@/lib/admin/queries";
+import { guardAdminApiRequest, getAdminCredentials, getRequestIp } from "@/lib/admin/auth";
+import { getAdminInboxData, type InboxFilters } from "@/lib/admin/queries";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAdminAction } from "@/lib/admin/audit";
+import { checkAdminRateLimit } from "@/lib/admin/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,7 +40,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const data = await getAdminInboxData();
+    const params = request.nextUrl.searchParams;
+    const rawTab = params.get("tab");
+    const rawDateWindow = params.get("dateWindow");
+    const filters: InboxFilters = {
+      tab: rawTab === "feedback" || rawTab === "support" ? rawTab : "all",
+      status: params.get("status") ?? undefined,
+      priority: params.get("priority") ?? undefined,
+      locale: params.get("locale") ?? undefined,
+      tag: params.get("tag") ?? undefined,
+      search: params.get("search") ?? undefined,
+      dateWindow: rawDateWindow === "today" || rawDateWindow === "7d" || rawDateWindow === "30d" ? rawDateWindow : "all",
+      page: parseInt(params.get("page") ?? "1", 10),
+      pageSize: parseInt(params.get("pageSize") ?? "50", 10),
+    };
+    const data = await getAdminInboxData(filters);
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     return NextResponse.json(
@@ -57,6 +73,11 @@ export async function PATCH(request: NextRequest) {
 
   if (guardResponse) {
     return guardResponse;
+  }
+
+  const adminUsername = getAdminCredentials().username;
+  if (!checkAdminRateLimit(`${adminUsername}:inbox`)) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
   }
 
   try {
@@ -115,6 +136,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const tags = normalizeTags(body.tags);
+    // Sanitize adminNotes: trim whitespace and enforce the 4000-char server cap to prevent unbounded storage.
     const adminNotes =
       typeof body.adminNotes === "string" ? body.adminNotes.trim().slice(0, 4000) : null;
     const nowIso = new Date().toISOString();
@@ -182,6 +204,19 @@ export async function PATCH(request: NextRequest) {
         }
       }
     }
+
+    await logAdminAction({
+      adminUsername,
+      action: "update_inbox",
+      targetType: body.kind === "feedback" ? "feedback" : "support",
+      targetIds: ids,
+      details: {
+        status: body.status,
+        priority: body.priority,
+        tags: typeof body.tags !== "undefined" ? tags : undefined,
+      },
+      ip: getRequestIp(request),
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

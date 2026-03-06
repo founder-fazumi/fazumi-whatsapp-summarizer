@@ -30,7 +30,7 @@ export function ReferralCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] py-3">
-          <Image src="/brand/mascot/mascot-waving.png.png" alt="" width={80} height={80} className="object-contain" />
+          <Image src="/brand/mascot/mascot-waving.png" alt="" width={80} height={80} className="object-contain" />
         </div>
 
         <div className="rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-center font-mono text-xs text-[var(--muted-foreground)]">

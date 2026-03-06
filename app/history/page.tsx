@@ -1,9 +1,11 @@
-import { DashboardShell } from "@/components/layout/DashboardShell";
-import { createClient } from "@/lib/supabase/server";
-import { LocalizedText } from "@/components/i18n/LocalizedText";
-import { HistoryList } from "@/components/history/HistoryList";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { Inbox, Sparkles } from "lucide-react";
+import { HistoryList } from "@/components/history/HistoryList";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { createClient } from "@/lib/supabase/server";
+
+const PAGE_SIZE = 50;
 
 export interface SummaryRow {
   id: string;
@@ -14,29 +16,71 @@ export interface SummaryRow {
   lang_detected: string;
 }
 
-export default async function HistoryPage() {
+function sanitizeSearch(value: string) {
+  return value.trim().replace(/[,%]/g, " ");
+}
+
+function buildHistoryQuery(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  query: string
+) {
+  let request = supabase
+    .from("summaries")
+    .select("id, title, tldr, created_at, char_count, lang_detected", { count: "exact" })
+    .eq("user_id", userId)
+    .is("deleted_at", null);
+
+  if (query) {
+    request = request.or(`title.ilike.%${query}%,tldr.ilike.%${query}%`);
+  }
+
+  return request.order("created_at", { ascending: false });
+}
+
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; q?: string }>;
+}) {
+  const params = await searchParams;
+  const query = sanitizeSearch(params.q ?? "");
+  const requestedPage = Number.parseInt(params.page ?? "1", 10);
+  let currentPage = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   let summaries: SummaryRow[] = [];
+  let totalCount = 0;
 
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (user) {
-      const { data } = await supabase
-        .from("summaries")
-        .select("id, title, tldr, created_at, char_count, lang_detected")
-        .eq("user_id", user.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(100);
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let response = await buildHistoryQuery(supabase, user.id, query).range(from, to);
 
-      summaries = (data as SummaryRow[] | null) ?? [];
+      totalCount = response.count ?? 0;
+
+      const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+      if (totalCount > 0 && currentPage > totalPages) {
+        currentPage = totalPages;
+        const safeFrom = (currentPage - 1) * PAGE_SIZE;
+        response = await buildHistoryQuery(supabase, user.id, query).range(
+          safeFrom,
+          safeFrom + PAGE_SIZE - 1
+        );
+        totalCount = response.count ?? totalCount;
+      }
+
+      summaries = (response.data as SummaryRow[] | null) ?? [];
     }
   } catch {
     // Supabase not configured
   }
 
-  if (summaries.length === 0) {
+  if (totalCount === 0 && !query) {
     return (
       <DashboardShell>
         <EmptyState
@@ -59,8 +103,14 @@ export default async function HistoryPage() {
   }
 
   return (
-    <DashboardShell>
-      <HistoryList summaries={summaries} />
+    <DashboardShell contentClassName="max-w-6xl">
+      <HistoryList
+        summaries={summaries}
+        currentPage={currentPage}
+        pageSize={PAGE_SIZE}
+        query={query}
+        totalCount={totalCount}
+      />
     </DashboardShell>
   );
 }

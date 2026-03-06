@@ -8,19 +8,34 @@ interface AccordionItemProps {
   question: string;
   answer: string;
   defaultOpen?: boolean;
+  buttonClassName?: string;
+  contentClassName?: string;
+  questionClassName?: string;
+  answerClassName?: string;
 }
 
-export function AccordionItem({ question, answer, defaultOpen = false }: AccordionItemProps) {
+export function AccordionItem({
+  question,
+  answer,
+  defaultOpen = false,
+  buttonClassName,
+  contentClassName,
+  questionClassName,
+  answerClassName,
+}: AccordionItemProps) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
     <div className="border-b border-[var(--border)] last:border-0">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-4 rounded-[var(--radius)] py-4 text-start text-sm font-medium text-[var(--foreground)] hover:text-[var(--primary)]"
+        className={cn(
+          "flex min-h-12 w-full items-center justify-between gap-4 rounded-[var(--radius)] py-4 text-start text-[var(--text-sm)] font-medium text-[var(--foreground)] hover:text-[var(--primary)]",
+          buttonClassName
+        )}
         aria-expanded={open}
       >
-        <span>{question}</span>
+        <span className={cn("flex-1", questionClassName)}>{question}</span>
         <ChevronDown
           className={cn(
             "h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-transform duration-200",
@@ -29,8 +44,20 @@ export function AccordionItem({ question, answer, defaultOpen = false }: Accordi
         />
       </button>
       {open && (
-        <div className="pb-4 text-sm text-[var(--muted-foreground)] leading-relaxed">
-          {answer}
+        <div
+          className={cn(
+            "pb-4",
+            contentClassName
+          )}
+        >
+          <p
+            className={cn(
+              "text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]",
+              answerClassName
+            )}
+          >
+            {answer}
+          </p>
         </div>
       )}
     </div>

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 220" role="img" aria-labelledby="fazumiLockupTitle fazumiLockupDesc">
+  <title id="fazumiLockupTitle">Fazumi logo lockup</title>
+  <desc id="fazumiLockupDesc">Fazumi logo mark paired with the wordmark and a school chat clarity tagline.</desc>
+  <g transform="translate(0 8)">
+    <rect x="18" y="18" width="180" height="180" rx="52" fill="#247052" />
+    <path d="M74 48 94 78 66 90 74 48Z" fill="#d48b45" />
+    <path d="m144 48-20 30 28 12-8-42Z" fill="#d48b45" />
+    <path d="M74 62h78v23h-51v23h40v23h-40v40H74V62Z" fill="#f5f2ec" />
+    <circle cx="136" cy="154" r="8" fill="#d48b45" />
+  </g>
+  <text
+    x="246"
+    y="108"
+    fill="#193129"
+    font-family="Manrope, 'Segoe UI', Arial, sans-serif"
+    font-size="76"
+    font-weight="800"
+    letter-spacing="6"
+  >
+    FAZUMI
+  </text>
+  <text
+    x="246"
+    y="156"
+    fill="#64746d"
+    font-family="Manrope, 'Segoe UI', Arial, sans-serif"
+    font-size="24"
+    font-weight="600"
+    letter-spacing="2"
+  >
+    SCHOOL CHAT CLARITY
+  </text>
+</svg>

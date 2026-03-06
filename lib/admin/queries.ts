@@ -25,12 +25,28 @@ import type {
 const TABLE_PAGE_SIZE = 1000;
 const AUTH_PAGE_SIZE = 100;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// @price-sync — Update these when prices or fees change.
+//
+// PLAN_PRICES:   Match the variant prices in your Lemon Squeezy dashboard.
+//                Settings → Products → open each variant → "Price"
+//
+// QAR_PER_USD:   Central Bank of Qatar mid-rate. Update monthly.
+//                https://www.cbq.qa/EN/Pages/ExchangeRates.aspx
+//
+// LEMON_*:       Lemon Squeezy fee schedule (as of 2026-03).
+//                https://www.lemonsqueezy.com/pricing
+//                Platform fee: 5% + $0.50 per transaction
+//                Subscription surcharge: 0.5% (charged on top of platform fee)
+//                Non-US bank payout fee: 1%
+//                Minimum payout threshold: $50
+// ─────────────────────────────────────────────────────────────────────────────
 const PLAN_PRICES = {
   monthly: 9.99,
   annual: 99.99,
   founder: 149,
 } as const;
-const QAR_PER_USD = 3.64;
+const QAR_PER_USD = 3.64; // Last updated: 2026-03-04
 const LEMON_PAYOUT_THRESHOLD_USD = 50;
 const LEMON_PLATFORM_FEE_RATE = 0.05;
 const LEMON_SUBSCRIPTION_FEE_RATE = 0.005;
@@ -1992,9 +2008,35 @@ export async function getAdminOverviewMetrics(): Promise<AdminOverviewMetrics> {
   };
 }
 
-export async function getAdminUsersData(): Promise<AdminUsersData> {
-  const [profiles, summaries, authUsers, pushSubscriptions] = await Promise.all([
-    fetchProfiles(),
+async function fetchProfilesPage(page: number, pageSize: number): Promise<{ profiles: ProfileRow[]; total: number }> {
+  const admin = createAdminClient();
+  const offset = (page - 1) * pageSize;
+
+  const [countResult, rowsResult] = await Promise.all([
+    admin.from("profiles").select("*", { count: "exact", head: true }),
+    admin
+      .from("profiles")
+      .select("id, full_name, plan, trial_expires_at, created_at")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + pageSize - 1),
+  ]);
+
+  if (rowsResult.error) {
+    throw new Error(`Could not read profiles: ${rowsResult.error.message}`);
+  }
+
+  return {
+    profiles: (rowsResult.data ?? []) as ProfileRow[],
+    total: countResult.count ?? 0,
+  };
+}
+
+export async function getAdminUsersData(page = 1, pageSize = 50): Promise<AdminUsersData> {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.min(100, Math.max(10, pageSize));
+
+  const [{ profiles, total }, summaries, authUsers, pushSubscriptions] = await Promise.all([
+    fetchProfilesPage(safePage, safePageSize),
     fetchSummaries(),
     fetchAuthUsers(),
     fetchPushSubscriptions(),
@@ -2040,7 +2082,10 @@ export async function getAdminUsersData(): Promise<AdminUsersData> {
 
   return {
     generatedAt: new Date().toISOString(),
-    total: users.length,
+    total,
+    page: safePage,
+    pageSize: safePageSize,
+    pages: Math.max(1, Math.ceil(total / safePageSize)),
     users,
   };
 }
@@ -2205,18 +2250,117 @@ export async function getAdminFeedbackData(): Promise<AdminFeedbackData> {
   };
 }
 
-export async function getAdminInboxData(): Promise<AdminInboxData> {
-  const [feedbackRows, supportRows, authUsers] = await Promise.all([
-    fetchFeedbackRows(),
-    fetchSupportRequests(),
-    fetchAuthUsers(),
+export interface InboxFilters {
+  tab?: "feedback" | "support" | "all";
+  status?: string;
+  priority?: string;
+  locale?: string;
+  tag?: string;
+  search?: string;
+  dateWindow?: "today" | "7d" | "30d" | "all";
+  page?: number;
+  pageSize?: number;
+}
+
+async function fetchFeedbackFiltered(filters: InboxFilters) {
+  const admin = createAdminClient();
+  const { status, priority, locale, tag, search, dateWindow = "all", page = 1, pageSize = 50 } = filters;
+  const offset = (page - 1) * pageSize;
+
+  try {
+    let query = admin
+      .from("user_feedback")
+      .select(
+        "id, user_id, email, phone_e164, subject, locale, type, status, priority, message, rating, tags, admin_notes, response, responded_at, created_at, last_updated_at",
+        { count: "exact" }
+      )
+      .neq("type", "support")
+      .order("created_at", { ascending: false });
+
+    if (status && status !== "all") query = query.eq("status", status);
+    if (priority && priority !== "all") query = query.eq("priority", priority);
+    if (locale && locale !== "all") query = query.eq("locale", locale);
+    if (tag && tag !== "all") query = query.contains("tags", [tag]);
+    if (search) query = query.or(`subject.ilike.%${search}%,message.ilike.%${search}%`);
+    if (dateWindow !== "all") {
+      const msBack = dateWindow === "today" ? 86_400_000 : dateWindow === "7d" ? 604_800_000 : 2_592_000_000;
+      query = query.gte("created_at", new Date(Date.now() - msBack).toISOString());
+    }
+
+    const { data, count, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Could not read user_feedback: ${error.message}`);
+    return { rows: (data ?? []) as FeedbackRowModern[], total: count ?? 0 };
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("column") || error.message.includes("schema cache"))) {
+      // Legacy schema fallback — return all rows unfiltered
+      const legacyRows = await fetchFeedbackRows();
+      return { rows: legacyRows as FeedbackRowModern[], total: legacyRows.length };
+    }
+    if (error instanceof Error && (error.message.includes("user_feedback") || error.message.includes("relation"))) {
+      return { rows: [] as FeedbackRowModern[], total: 0 };
+    }
+    throw error;
+  }
+}
+
+async function fetchSupportFiltered(filters: InboxFilters) {
+  const admin = createAdminClient();
+  const { status, priority, search, dateWindow = "all", page = 1, pageSize = 50 } = filters;
+  const offset = (page - 1) * pageSize;
+
+  try {
+    let query = admin
+      .from("support_requests")
+      .select(
+        "id, user_id, email, phone_e164, subject, message, locale, status, priority, tags, admin_notes, resolved_at, created_at, last_updated_at",
+        { count: "exact" }
+      )
+      .order("created_at", { ascending: false });
+
+    if (status && status !== "all") query = query.eq("status", status);
+    if (priority && priority !== "all") query = query.eq("priority", priority);
+    if (search) query = query.or(`subject.ilike.%${search}%,message.ilike.%${search}%`);
+    if (dateWindow !== "all") {
+      const msBack = dateWindow === "today" ? 86_400_000 : dateWindow === "7d" ? 604_800_000 : 2_592_000_000;
+      query = query.gte("created_at", new Date(Date.now() - msBack).toISOString());
+    }
+
+    const { data, count, error } = await query.range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Could not read support_requests: ${error.message}`);
+    return { rows: (data ?? []) as SupportRequestTableRow[], total: count ?? 0 };
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("support_requests") || error.message.includes("relation"))) {
+      return { rows: [] as SupportRequestTableRow[], total: 0 };
+    }
+    throw error;
+  }
+}
+
+export async function getAdminInboxData(filters: InboxFilters = {}): Promise<AdminInboxData> {
+  const { tab = "all", page = 1, pageSize = 50 } = filters;
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.min(100, Math.max(10, pageSize));
+  const filtersWithPage = { ...filters, page: safePage, pageSize: safePageSize };
+
+  // Determine which tables to query based on tab
+  const needsFeedback = tab !== "support";
+  const needsSupport = tab !== "feedback";
+
+  const [feedbackResult, supportRawResult] = await Promise.all([
+    needsFeedback ? fetchFeedbackFiltered(filtersWithPage) : Promise.resolve({ rows: [] as FeedbackRowModern[], total: 0 }),
+    needsSupport ? fetchSupportFiltered(filtersWithPage) : Promise.resolve({ rows: [] as SupportRequestTableRow[], total: 0 }),
   ]);
+
+  const authUsers = await fetchAuthUsers();
   const authUsersById = createAuthUserMap(authUsers);
-  const mappedFeedback = feedbackRows.map((row) => mapFeedbackRow(row, authUsersById));
+
+  const mappedFeedback = feedbackResult.rows.map((row) => mapFeedbackRow(row, authUsersById));
   const feedbackItems = mappedFeedback.filter((row) => row.type !== "support");
+
+  // Support items: prefer support_requests table; fall back to support-type feedback rows
   const supportItems =
-    supportRows.length > 0
-      ? supportRows.map((row) => mapSupportRequestRow(row))
+    supportRawResult.rows.length > 0 || needsSupport
+      ? supportRawResult.rows.map((row) => mapSupportRequestRow(row))
       : mappedFeedback
           .filter((row) => row.type === "support")
           .map((row) => ({
@@ -2236,27 +2380,38 @@ export async function getAdminInboxData(): Promise<AdminInboxData> {
             lastUpdatedAt: row.lastUpdatedAt,
           }));
 
+  // For summary counts (newCount, openCount, etc.) fetch ALL unfiltered counts for this tab
+  // to avoid showing "0 new" when a status filter is active.
+  const [allFeedback, allSupport] = await Promise.all([
+    needsFeedback ? fetchFeedbackRows() : Promise.resolve([]),
+    needsSupport ? fetchSupportRequests() : Promise.resolve([]),
+  ]);
+  const allFeedbackMapped = allFeedback.map((row) => mapFeedbackRow(row, authUsersById)).filter((r) => r.type !== "support");
+  const allSupportMapped = allSupport.map((row) => mapSupportRequestRow(row));
+
   return {
     generatedAt: new Date().toISOString(),
     feedback: {
-      total: feedbackItems.length,
-      newCount: feedbackItems.filter((row) => row.status === "new").length,
-      openCount: feedbackItems.filter((row) => isOpenFeedbackStatus(row.status)).length,
-      highPriorityCount: feedbackItems.filter(
-        (row) => row.priority === "high" || row.priority === "critical"
-      ).length,
-      tags: collectTagOptions(feedbackItems),
+      total: feedbackResult.total,
+      newCount: allFeedbackMapped.filter((row) => row.status === "new").length,
+      openCount: allFeedbackMapped.filter((row) => isOpenFeedbackStatus(row.status)).length,
+      highPriorityCount: allFeedbackMapped.filter((row) => row.priority === "high" || row.priority === "critical").length,
+      tags: collectTagOptions(allFeedbackMapped),
       items: feedbackItems,
+      page: safePage,
+      pageSize: safePageSize,
+      pages: Math.max(1, Math.ceil(feedbackResult.total / safePageSize)),
     },
     support: {
-      total: supportItems.length,
-      newCount: supportItems.filter((row) => row.status === "new").length,
-      openCount: supportItems.filter((row) => isOpenSupportStatus(row.status)).length,
-      highPriorityCount: supportItems.filter(
-        (row) => row.priority === "high" || row.priority === "critical"
-      ).length,
-      tags: collectTagOptions(supportItems),
+      total: supportRawResult.total,
+      newCount: allSupportMapped.filter((row) => row.status === "new").length,
+      openCount: allSupportMapped.filter((row) => isOpenSupportStatus(row.status)).length,
+      highPriorityCount: allSupportMapped.filter((row) => row.priority === "high" || row.priority === "critical").length,
+      tags: collectTagOptions(allSupportMapped),
       items: supportItems,
+      page: safePage,
+      pageSize: safePageSize,
+      pages: Math.max(1, Math.ceil(supportRawResult.total / safePageSize)),
     },
   };
 }

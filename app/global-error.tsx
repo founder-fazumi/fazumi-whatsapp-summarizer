@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
+import { useEffect } from "react";
+import { captureRouteException } from "@/lib/sentry";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function GlobalError({
   error,
@@ -12,29 +15,35 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
+
+    void captureRouteException(error, {
+      route: "global-error",
+      requestId: "global-error",
+      digest: error.digest,
+    });
   }, [error]);
 
   return (
     <html lang="en">
-      <body className="min-h-screen bg-stone-50 text-slate-900">
-        <main className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Unexpected Error
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold">
-            We hit a problem loading this page.
-          </h1>
-          <p className="mt-3 text-sm text-slate-600">
-            Refresh and try again. If it keeps happening, the error has already been reported.
-          </p>
-          <button
-            type="button"
-            onClick={() => reset()}
-            className="mt-6 rounded-full bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            Try again
-          </button>
-        </main>
+      <body>
+        <div className="flex min-h-screen items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Something went wrong</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {error.message || "A global error occurred."}
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={reset}>Try again</Button>
+                <Button variant="outline" onClick={() => (window.location.href = "/")}>
+                  Go home
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </body>
     </html>
   );

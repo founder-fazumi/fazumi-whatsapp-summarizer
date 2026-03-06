@@ -8,7 +8,7 @@ import { BrandLogo } from "@/components/shared/BrandLogo";
 import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
-import { pick, t, type LocalizedCopy } from "@/lib/i18n";
+import { getTimeAwareGreeting, pick, t, type LocalizedCopy } from "@/lib/i18n";
 
 interface DashboardBannerProps {
   userName?: string | null;
@@ -28,12 +28,10 @@ const COPY = {
   pro: { en: "Pro", ar: "احترافي" },
   freeTrial: { en: "Free Trial", ar: "فترة تجريبية" },
   free: { en: "Free", ar: "مجاني" },
-  there: { en: "there", ar: "هناك" },
   subtitle: {
     en: "Here is what matters from your school chats today.",
     ar: "إليك ما يهم من محادثات المدرسة اليوم.",
   },
-  usageToday: { en: "Usage today", ar: "استخدام اليوم" },
   upgradeUsage: { en: "Upgrade to continue", ar: "قم بالترقية للمتابعة" },
   timeSaved: { en: "Time Saved", ar: "الوقت الموفَّر" },
 } satisfies Record<string, LocalizedCopy<string>>;
@@ -62,6 +60,8 @@ export function DashboardBanner({
   const usageLabel = summariesLimit > 0
     ? `${formatNumber(summariesUsed)}/${formatNumber(summariesLimit)}`
     : pick(COPY.upgradeUsage, locale);
+  const bannerName = userName ?? t("dashboard.name.placeholder", locale);
+  const greeting = `${getTimeAwareGreeting(locale)}${locale === "ar" ? "، " : ", "}${bannerName}`;
 
   const STATS: { icon: LucideIcon; label: string; value: string }[] = [
     { icon: FileText, label: t("dash.summaries", locale), value: usageLabel },
@@ -74,21 +74,21 @@ export function DashboardBanner({
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-xl font-bold text-[var(--foreground)] leading-snug">
-                {t("dash.greeting", locale)}, {userName ?? pick(COPY.there, locale)}
+              <h1 className="text-[var(--text-2xl)] font-bold text-[var(--foreground)] sm:text-[var(--text-3xl)]">
+                {greeting}
               </h1>
               <span className={`hidden sm:inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${badge.color}`}>
                 {pick(COPY[badge.labelKey as keyof typeof COPY], locale)}
               </span>
             </div>
-            <p className="text-sm text-[var(--muted-foreground)]">
+            <p className="text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)]">
               {pick(COPY.subtitle, locale)}
             </p>
 
             <div className="surface-panel mt-4 px-4 py-3 shadow-[var(--shadow-sm)]">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[var(--muted-foreground)]">
-                  {pick(COPY.usageToday, locale)}
+                  {t("dashboard.usage.label", locale)}
                 </span>
                 <span className="text-[var(--muted-foreground)]">
                   {usageLabel}

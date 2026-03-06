@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { AdminOverviewMetrics } from "@/lib/admin/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
+import { useLang } from "@/lib/context/LangContext";
 import { AdminLineChart } from "@/components/admin/AdminLineChart";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,79 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type RangeKey = "today" | "7d" | "30d";
+
+const COPY = {
+  en: {
+    title: "Overview",
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+    today: "Today",
+    last7: "7d",
+    last30: "30d",
+    needsAttention: "Needs attention",
+    needsAttentionSub: "Operational items that deserve a manual check.",
+    summaryVolume: "Summary volume",
+    summaryVolumeSub: "30-day trend for generated summaries.",
+    aiCostRisk: "OpenAI cost risk",
+    aiCostRiskSub: "30-day spend trend with no client-side secret exposure.",
+    recentFailures: "Recent failures",
+    noFailures: "No failed webhook deliveries logged in the last 7 days.",
+    openSentry: "Open Sentry",
+    window: "window",
+    usersWhoGenerated: "Users who generated summaries",
+    completedRuns: "Completed summary runs",
+    requests: "requests",
+    estimatedRevenue: "Estimated recognized revenue",
+    last7days: "Last 7 days",
+    waitingForResponse: "Waiting for first admin response",
+    untriagedFeedback: "Untriaged feedback items",
+    kpis: {
+      newUsers: "New users",
+      activeUsers: "Active users",
+      summaries: "Summaries",
+      openAiSpend: "OpenAI spend",
+      revenueMtd: "Revenue MTD",
+      failedWebhooks: "Failed webhooks",
+      supportNew: "Support new",
+      feedbackNew: "Feedback new",
+    },
+  },
+  ar: {
+    title: "نظرة عامة",
+    refresh: "تحديث",
+    refreshing: "جارٍ التحديث...",
+    today: "اليوم",
+    last7: "7 أيام",
+    last30: "30 يومًا",
+    needsAttention: "يحتاج انتباهًا",
+    needsAttentionSub: "بنود تشغيلية تستحق فحصًا يدويًا.",
+    summaryVolume: "حجم الملخصات",
+    summaryVolumeSub: "اتجاه 30 يومًا للملخصات المُنشأة.",
+    aiCostRisk: "مخاطر تكلفة OpenAI",
+    aiCostRiskSub: "اتجاه الإنفاق خلال 30 يومًا دون كشف أسرار على جانب العميل.",
+    recentFailures: "أحدث الإخفاقات",
+    noFailures: "لا توجد عمليات تسليم ويب هوك فاشلة مسجلة في آخر 7 أيام.",
+    openSentry: "فتح Sentry",
+    window: "نافذة",
+    usersWhoGenerated: "مستخدمون أنشأوا ملخصات",
+    completedRuns: "جلسات ملخصة مكتملة",
+    requests: "طلبات",
+    estimatedRevenue: "الإيرادات المعترف بها تقريبًا",
+    last7days: "آخر 7 أيام",
+    waitingForResponse: "بانتظار أول رد من المشرف",
+    untriagedFeedback: "ملاحظات غير مصنفة",
+    kpis: {
+      newUsers: "مستخدمون جدد",
+      activeUsers: "مستخدمون نشطون",
+      summaries: "الملخصات",
+      openAiSpend: "إنفاق OpenAI",
+      revenueMtd: "الإيرادات (الشهر)",
+      failedWebhooks: "فشل الويب هوك",
+      supportNew: "دعم جديد",
+      feedbackNew: "ملاحظات جديدة",
+    },
+  },
+} as const;
 
 async function fetchMetrics() {
   const response = await fetch("/api/admin/metrics", { cache: "no-store" });
@@ -68,35 +142,37 @@ function KpiCard({
 }
 
 export function AdminOverviewContent({ initialMetrics }: { initialMetrics: AdminOverviewMetrics }) {
+  const { locale } = useLang();
+  const copy = COPY[locale];
   const [metrics, setMetrics] = useState(initialMetrics);
   const [range, setRange] = useState<RangeKey>("7d");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const rangeLabel = range === "today" ? "Today" : range === "7d" ? "7 days" : "30 days";
+  const rangeLabel = range === "today" ? copy.today : range === "7d" ? copy.last7 : copy.last30;
   const kpis = useMemo(
     () => [
       {
         icon: Users,
-        label: "New users",
+        label: copy.kpis.newUsers,
         value: formatNumber(pickRange(metrics.overviewKpis.newUsers, range)),
-        detail: `${rangeLabel} window`,
+        detail: `${rangeLabel} ${copy.window}`,
       },
       {
         icon: Activity,
-        label: "Active users",
+        label: copy.kpis.activeUsers,
         value: formatNumber(pickRange(metrics.overviewKpis.activeUsers, range)),
-        detail: "Users who generated summaries",
+        detail: copy.usersWhoGenerated,
       },
       {
         icon: Sparkles,
-        label: "Summaries",
+        label: copy.kpis.summaries,
         value: formatNumber(pickRange(metrics.overviewKpis.summaries, range)),
-        detail: "Completed summary runs",
+        detail: copy.completedRuns,
       },
       {
         icon: DollarSign,
-        label: "OpenAI spend",
+        label: copy.kpis.openAiSpend,
         value: formatCurrency(
           range === "today"
             ? metrics.overviewKpis.openAi.todayUsd
@@ -112,34 +188,35 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
             : range === "7d"
               ? metrics.overviewKpis.openAi.last7DaysRequests
               : metrics.overviewKpis.openAi.last30DaysRequests
-        )} requests`,
+        )} ${copy.requests}`,
       },
       {
         icon: DollarSign,
-        label: "Revenue MTD",
+        label: copy.kpis.revenueMtd,
         value: formatCurrency(metrics.overviewKpis.revenueMtdUsd, "USD", 2),
-        detail: "Estimated recognized revenue",
+        detail: copy.estimatedRevenue,
       },
       {
         icon: Webhook,
-        label: "Failed webhooks",
+        label: copy.kpis.failedWebhooks,
         value: formatNumber(metrics.overviewKpis.failedWebhooks7Days),
-        detail: "Last 7 days",
+        detail: copy.last7days,
       },
       {
         icon: LifeBuoy,
-        label: "Support new",
+        label: copy.kpis.supportNew,
         value: formatNumber(metrics.overviewKpis.supportNew),
-        detail: "Waiting for first admin response",
+        detail: copy.waitingForResponse,
       },
       {
         icon: MessageSquareHeart,
-        label: "Feedback new",
+        label: copy.kpis.feedbackNew,
         value: formatNumber(metrics.overviewKpis.feedbackNew),
-        detail: "Untriaged feedback items",
+        detail: copy.untriagedFeedback,
       },
     ],
-    [metrics, range, rangeLabel]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [metrics, range, rangeLabel, locale]
   );
 
   async function refreshMetrics() {
@@ -157,18 +234,18 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
   return (
     <div className="space-y-8">
       <AdminPageHeader
-        title="Overview"
-        description={`Health, growth, revenue, usage risk, and issues at a glance. Last updated ${formatDate(metrics.generatedAt, "en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`}
+        title={copy.title}
+        description={`${formatDate(metrics.generatedAt, locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}
         actions={
           <div className="flex flex-wrap gap-2">
             {(["today", "7d", "30d"] as const).map((option) => (
               <Button key={option} type="button" variant={range === option ? "default" : "outline"} size="sm" onClick={() => setRange(option)}>
-                {option === "today" ? "Today" : option}
+                {option === "today" ? copy.today : option === "7d" ? copy.last7 : copy.last30}
               </Button>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={() => startTransition(() => void refreshMetrics())} disabled={refreshing}>
               <RefreshCcw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-              {refreshing ? "Refreshing..." : "Refresh"}
+              {refreshing ? copy.refreshing : copy.refresh}
             </Button>
           </div>
         }
@@ -188,8 +265,8 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
 
       <Card className="bg-[var(--surface-elevated)]">
         <CardHeader className="space-y-2">
-          <h2 className="text-xl font-semibold text-[var(--text-strong)]">Needs attention</h2>
-          <p className="text-sm text-[var(--muted-foreground)]">Operational items that deserve a manual check.</p>
+          <h2 className="text-xl font-semibold text-[var(--text-strong)]">{copy.needsAttention}</h2>
+          <p className="text-sm text-[var(--muted-foreground)]">{copy.needsAttentionSub}</p>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
           {metrics.attention.map((item) => (
@@ -215,8 +292,8 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,0.9fr)]">
         <Card className="bg-[var(--surface-elevated)]">
           <CardHeader>
-            <h2 className="text-lg font-semibold text-[var(--text-strong)]">Summary volume</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">30-day trend for generated summaries.</p>
+            <h2 className="text-lg font-semibold text-[var(--text-strong)]">{copy.summaryVolume}</h2>
+            <p className="text-sm text-[var(--muted-foreground)]">{copy.summaryVolumeSub}</p>
           </CardHeader>
           <CardContent>
             <AdminLineChart points={metrics.health.summaryTrend30Days} color="#247052" />
@@ -225,8 +302,8 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
 
         <Card className="bg-[var(--surface-elevated)]">
           <CardHeader>
-            <h2 className="text-lg font-semibold text-[var(--text-strong)]">OpenAI cost risk</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">30-day spend trend with no client-side secret exposure.</p>
+            <h2 className="text-lg font-semibold text-[var(--text-strong)]">{copy.aiCostRisk}</h2>
+            <p className="text-sm text-[var(--muted-foreground)]">{copy.aiCostRiskSub}</p>
           </CardHeader>
           <CardContent>
             <AdminLineChart points={metrics.health.aiSpendTrend30Days} color="#d4a373" />
@@ -235,14 +312,14 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
 
         <Card className="bg-[var(--surface-elevated)]">
           <CardHeader>
-            <h2 className="text-lg font-semibold text-[var(--text-strong)]">Recent failures</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-strong)]">{copy.recentFailures}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               Sentry {metrics.health.sentryConfigured ? "configured" : "not configured"}.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
             {metrics.health.recentWebhookFailures.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">No failed webhook deliveries logged in the last 7 days.</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{copy.noFailures}</p>
             ) : (
               metrics.health.recentWebhookFailures.map((row) => (
                 <div key={row.id} className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3">
@@ -257,7 +334,7 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
               ))
             )}
             <a href={metrics.health.sentryUrl} className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline">
-              Open Sentry
+              {copy.openSentry}
             </a>
           </CardContent>
         </Card>

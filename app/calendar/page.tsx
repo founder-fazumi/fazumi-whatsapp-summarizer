@@ -1,7 +1,7 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { CalendarWidget } from "@/components/widgets/CalendarWidget";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardDescription } from "@/components/ui/card";
 
 export default function CalendarPage() {
   return (

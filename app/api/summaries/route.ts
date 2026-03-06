@@ -25,7 +25,8 @@ export async function DELETE() {
 
   const admin = getAdminClient();
   if (!admin) {
-    return NextResponse.json({ error: "Summary deletion is not configured." }, { status: 500 });
+    console.error("[DELETE_ALL] Admin client not configured");
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
   const { data, error } = await admin
@@ -36,7 +37,8 @@ export async function DELETE() {
     .select("id");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[DELETE_ALL] Supabase error:", error);
+    return NextResponse.json({ error: "Failed to delete summaries" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, deletedCount: data?.length ?? 0 });

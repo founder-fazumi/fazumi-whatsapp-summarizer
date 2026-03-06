@@ -1,4 +1,6 @@
+import * as Sentry from "@sentry/nextjs";
 import type { NextPageContext } from "next";
+import Error from "next/error";
 import Link from "next/link";
 
 type ErrorPageProps = {
@@ -128,8 +130,18 @@ function ErrorPage({ statusCode }: ErrorPageProps) {
   );
 }
 
-ErrorPage.getInitialProps = ({ res, err }: NextPageContext): ErrorPageProps => {
-  const statusCode = res?.statusCode ?? err?.statusCode ?? 500;
+ErrorPage.getInitialProps = async (
+  contextData: NextPageContext
+): Promise<ErrorPageProps> => {
+  await Sentry.captureUnderscoreErrorException(contextData);
+
+  const errorInitialProps = await Error.getInitialProps(contextData);
+  const statusCode =
+    contextData.res?.statusCode ??
+    contextData.err?.statusCode ??
+    errorInitialProps.statusCode ??
+    500;
+
   return { statusCode };
 };
 

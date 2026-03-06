@@ -122,7 +122,11 @@ export function FAQ() {
   const current = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
-    <section className="bg-[var(--page-layer)] py-16 md:py-24">
+    <section
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      lang={locale}
+      className={cn("bg-[var(--page-layer)] py-16 md:py-24", locale === "ar" && "font-arabic")}
+    >
       <div className="page-shell">
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">

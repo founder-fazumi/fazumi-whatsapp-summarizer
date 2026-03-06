@@ -18,7 +18,7 @@ function getAdminClient() {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteContext) {
-  const { id } = await params;
+  const { id: summaryId } = await params;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -29,20 +29,22 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
   const admin = getAdminClient();
   if (!admin) {
-    return NextResponse.json({ error: "Summary deletion is not configured." }, { status: 500 });
+    console.error("[DELETE] Admin client not configured");
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
   const { data, error } = await admin
     .from("summaries")
     .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id)
+    .eq("id", summaryId)
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .select("id")
     .maybeSingle<{ id: string }>();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[DELETE] Supabase error:", error);
+    return NextResponse.json({ error: "Failed to delete summary" }, { status: 500 });
   }
 
   if (!data?.id) {

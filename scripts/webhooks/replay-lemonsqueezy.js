@@ -12,12 +12,17 @@ const DEFAULT_BASE_URL = "http://localhost:3000";
 const WEBHOOK_PATH = "/api/webhooks/lemonsqueezy";
 const USER_ID_PLACEHOLDER = "__TEST_USER_ID__";
 const FOUNDER_VARIANT_PLACEHOLDER = "__FOUNDER_VARIANT_ID__";
+const MONTHLY_VARIANT_PLACEHOLDER = "__MONTHLY_VARIANT_ID__";
 const RECURRING_SEED_PERIOD_END = "2026-03-15T00:00:00.000Z";
+const DEV_VARIANT_IDS = {
+  founder: "fazumi_dev_founder_variant",
+  monthly: "fazumi_dev_monthly_variant",
+};
 
 const FIXTURE_DEFAULT_EMAILS = {
-  order_created_founder: "free1@fazumi.local",
-  subscription_payment_success: "paid1@fazumi.local",
-  subscription_updated_active: "paid1@fazumi.local",
+  order_created_founder: "free@fazumi.test",
+  subscription_payment_success: "paid@fazumi.test",
+  subscription_updated_active: "paid@fazumi.test",
 };
 
 main().catch((error) => {
@@ -178,31 +183,53 @@ function applyPlaceholders(payload, eventName, userId) {
     payload.meta.custom_data.user_id = userId;
   }
 
-  if (eventName !== "order_created_founder") {
+  replaceVariantPlaceholder(
+    payload?.data?.attributes,
+    "variant_id",
+    FOUNDER_VARIANT_PLACEHOLDER,
+    "NEXT_PUBLIC_LS_FOUNDER_VARIANT",
+    "The founder replay fixture needs the canonical founder variant id.",
+    DEV_VARIANT_IDS.founder
+  );
+
+  replaceVariantPlaceholder(
+    payload?.data?.attributes?.first_order_item,
+    "variant_id",
+    FOUNDER_VARIANT_PLACEHOLDER,
+    "NEXT_PUBLIC_LS_FOUNDER_VARIANT",
+    "The founder replay fixture needs the canonical founder variant id.",
+    DEV_VARIANT_IDS.founder
+  );
+
+  replaceVariantPlaceholder(
+    payload?.data?.attributes,
+    "variant_id",
+    MONTHLY_VARIANT_PLACEHOLDER,
+    "NEXT_PUBLIC_LS_MONTHLY_VARIANT",
+    "The recurring payment replay fixture needs the canonical monthly variant id.",
+    DEV_VARIANT_IDS.monthly
+  );
+}
+
+function replaceVariantPlaceholder(target, key, placeholder, envName, message, devFallback) {
+  if (!target || target[key] !== placeholder) {
     return;
   }
 
-  const needsFounderVariant =
-    payload?.data?.attributes?.variant_id === FOUNDER_VARIANT_PLACEHOLDER ||
-    payload?.data?.attributes?.first_order_item?.variant_id === FOUNDER_VARIANT_PLACEHOLDER;
-
-  if (!needsFounderVariant) {
+  const variant = process.env[envName]?.trim();
+  if (variant) {
+    target[key] = variant;
     return;
   }
 
-  const founderVariant = process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT?.trim();
-  if (!founderVariant) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_LS_FOUNDER_VARIANT. The founder replay fixture needs the canonical founder variant id."
-    );
+  if (process.env.NODE_ENV !== "production" && devFallback) {
+    target[key] = devFallback;
+    console.log(`[webhook:replay] ${envName} not set; using local dev fallback ${devFallback}`);
+    return;
   }
 
-  if (payload?.data?.attributes?.variant_id === FOUNDER_VARIANT_PLACEHOLDER) {
-    payload.data.attributes.variant_id = founderVariant;
-  }
-
-  if (payload?.data?.attributes?.first_order_item?.variant_id === FOUNDER_VARIANT_PLACEHOLDER) {
-    payload.data.attributes.first_order_item.variant_id = founderVariant;
+  if (!variant) {
+    throw new Error(`Missing ${envName}. ${message}`);
   }
 }
 

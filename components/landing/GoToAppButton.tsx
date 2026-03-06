@@ -7,6 +7,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 type AccessState = {
   checked: boolean;
@@ -109,7 +110,11 @@ export function GoToAppButton({ children, className }: GoToAppButtonProps) {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen} title={pick(COPY.title, locale)}>
-        <div dir={locale === "ar" ? "rtl" : "ltr"} className="space-y-4">
+        <div
+          dir={locale === "ar" ? "rtl" : "ltr"}
+          lang={locale}
+          className={cn("space-y-4", locale === "ar" && "font-arabic")}
+        >
           <p className="text-sm leading-6 text-[var(--muted-foreground)]">
             {pick(COPY.body, locale)}
           </p>

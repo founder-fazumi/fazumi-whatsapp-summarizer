@@ -66,3 +66,17 @@ where ls_subscription_id = 'sub_test_monthly_001';
 
 -- 6) Replay subscription_updated_active.json to clear the warning again.
 --    The row above should return to status = 'active'.
+
+-- 7) Verify row-level security is enabled on the core per-user tables.
+select
+  tablename,
+  rowsecurity as rls_enabled
+from pg_tables
+where schemaname = 'public'
+  and tablename in ('summaries', 'profiles', 'subscriptions', 'usage_daily');
+
+-- Expected:
+--   summaries     | true
+--   profiles      | true
+--   subscriptions | true
+--   usage_daily   | true

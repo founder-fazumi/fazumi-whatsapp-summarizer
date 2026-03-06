@@ -36,6 +36,7 @@ The script:
 - ensures the local dev test accounts exist
 - swaps `__TEST_USER_ID__` for the matching local test user
 - swaps `__FOUNDER_VARIANT_ID__` for `NEXT_PUBLIC_LS_FOUNDER_VARIANT` when the fixture uses that placeholder
+- swaps `__MONTHLY_VARIANT_ID__` for `NEXT_PUBLIC_LS_MONTHLY_VARIANT` when the fixture uses that placeholder
 - signs the exact raw JSON body with `LEMONSQUEEZY_WEBHOOK_SECRET` or legacy `LEMON_SIGNING_SECRET`
 - posts to `http://localhost:3000/api/webhooks/lemonsqueezy`
 
@@ -43,6 +44,7 @@ Replay uses these env vars directly:
 
 - `LEMONSQUEEZY_WEBHOOK_SECRET` or legacy `LEMON_SIGNING_SECRET`
 - `NEXT_PUBLIC_LS_FOUNDER_VARIANT` only when the founder fixture placeholder is present
+- `NEXT_PUBLIC_LS_MONTHLY_VARIANT` only when a recurring fixture placeholder is present
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 

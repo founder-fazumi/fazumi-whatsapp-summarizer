@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 120" role="img" aria-labelledby="fazumiWordTitle fazumiWordDesc">
+  <title id="fazumiWordTitle">Fazumi wordmark</title>
+  <desc id="fazumiWordDesc">Bold Fazumi wordmark in the brand deep green color.</desc>
+  <text
+    x="0"
+    y="84"
+    fill="#193129"
+    font-family="Manrope, 'Segoe UI', Arial, sans-serif"
+    font-size="76"
+    font-weight="800"
+    letter-spacing="6"
+  >
+    FAZUMI
+  </text>
+</svg>
