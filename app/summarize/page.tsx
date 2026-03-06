@@ -24,6 +24,13 @@ import { cn } from "@/lib/utils";
 
 const MAX_CHARS = 30_000;
 const SOFT_COUNT_THRESHOLD = 25_000;
+const OUTPUT_LANGUAGE_OPTIONS = [
+  { value: "auto", label: "Auto" },
+  { value: "en", label: "English" },
+  { value: "ar", label: "العربية" },
+] as const;
+
+type OutputLang = (typeof OUTPUT_LANGUAGE_OPTIONS)[number]["value"];
 
 const COPY = {
   title: {
@@ -95,7 +102,7 @@ const COPY = {
     ar: "تعذر قراءة هذا الملف. حاول تصدير المحادثة مرة أخرى.",
   },
   limitBodyDaily: {
-    en: "You've reached today's summary limit. Your saved history is still available.",
+    en: "You've reached today's limit for summaries. Your saved history is still available.",
     ar: "لقد وصلت إلى حد الملخصات اليومي. لا يزال سجل الملخصات متاحًا لك.",
   },
   limitBodyLifetime: {
@@ -114,6 +121,14 @@ const COPY = {
     en: "View",
     ar: "عرض",
   },
+  outputLanguage: {
+    en: "Summary language",
+    ar: "لغة الملخص",
+  },
+  outputLanguageHint: {
+    en: "Choose a fixed output language or let Fazumi detect it from the chat.",
+    ar: "اختر لغة إخراج ثابتة أو دع Fazumi يكتشفها من المحادثة.",
+  },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 export default function SummarizePage() {
@@ -129,6 +144,7 @@ export default function SummarizePage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [outputLang, setOutputLang] = useState<OutputLang>("auto");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -136,7 +152,6 @@ export default function SummarizePage() {
   const remaining = MAX_CHARS - charCount;
   const isOverLimit = charCount > MAX_CHARS;
   const showCount = charCount >= SOFT_COUNT_THRESHOLD;
-  const outputLang = locale;
 
   useEffect(() => {
     let mounted = true;
@@ -199,7 +214,7 @@ export default function SummarizePage() {
       const response = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, lang_pref: locale }),
+        body: JSON.stringify({ text, lang_pref: outputLang }),
       });
 
       if (response.status === 401) {
@@ -232,9 +247,9 @@ export default function SummarizePage() {
       haptic("success");
       trackEvent(AnalyticsEvents.SUMMARY_CREATED, {
         charCount: text.length,
-        langPref: locale,
+        langPref: outputLang,
         saved: Boolean(payload.savedId),
-        outputLang: locale,
+        outputLang: outputLang === "auto" ? payload.summary.lang_detected : outputLang,
       });
 
       if (payload.savedId) {
@@ -355,6 +370,49 @@ export default function SummarizePage() {
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
+              <div className={cn("space-y-3", isRtl && "text-right")}>
+                <div>
+                  <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                    {pick(COPY.outputLanguage, locale)}
+                  </p>
+                  <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                    {pick(COPY.outputLanguageHint, locale)}
+                  </p>
+                </div>
+                <div
+                  className={cn(
+                    "inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1",
+                    isRtl && "flex-row-reverse"
+                  )}
+                  role="group"
+                  aria-label={pick(COPY.outputLanguage, locale)}
+                >
+                  {OUTPUT_LANGUAGE_OPTIONS.map((option) => {
+                    const active = outputLang === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        data-testid={`summary-lang-${option.value}`}
+                        aria-pressed={active}
+                        onClick={() => setOutputLang(option.value)}
+                        disabled={loading}
+                        className={cn(
+                          "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
+                          active
+                            ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
+                            : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
+                          loading && "cursor-not-allowed opacity-60"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)]">
                 <Textarea
                   data-testid="summary-input"
@@ -419,7 +477,7 @@ export default function SummarizePage() {
                     variant="ghost"
                     size="sm"
                     data-testid="summary-use-sample"
-                    onClick={() => setText(getSampleChat(locale, locale))}
+                    onClick={() => setText(getSampleChat(outputLang, locale))}
                     disabled={loading}
                   >
                     {pick(COPY.useSample, locale)}
@@ -507,7 +565,7 @@ export default function SummarizePage() {
             )}
             <SummaryDisplay
               summary={summary}
-              outputLang={outputLang}
+              outputLang={outputLang === "auto" ? (summary.lang_detected === "ar" ? "ar" : "en") : outputLang}
               actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
             />
           </div>
