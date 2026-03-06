@@ -55,12 +55,12 @@ const COPY = {
     ar: "الرجاء إدخال بريد إلكتروني صحيح",
   },
   successFeedback: {
-    en: "Feedback saved. It is now visible in the admin feedback inbox.",
-    ar: "تم حفظ الملاحظات. وهي ظاهرة الآن في صندوق ملاحظات الإدارة.",
+    en: "Thanks! Your feedback has been received. We'll review it shortly.",
+    ar: "شكرًا! تم استلام ملاحظاتك. سنراجعها قريبًا.",
   },
   successSupport: {
-    en: "Support request saved. The admin support inbox received it.",
-    ar: "تم حفظ طلب الدعم. وقد وصل إلى صندوق دعم الإدارة.",
+    en: "Thanks! Your support request has been received. We'll get back to you soon.",
+    ar: "شكرًا! تم استلام طلب الدعم. سنتواصل معك قريبًا.",
   },
   submitError: {
     en: "We could not send your message right now. Please try again.",
@@ -94,7 +94,7 @@ export function ContactForm() {
     [locale, mode, submitted, submitting]
   );
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setFormError(null);
     setSubmitted(false);
@@ -251,6 +251,7 @@ export function ContactForm() {
                       <button
                         key={item.value}
                         type="button"
+                        aria-label={item.label}
                         onClick={() => setRating(item.value)}
                         className={cn(
                           "rounded-2xl border px-3 py-3 text-center transition-colors",

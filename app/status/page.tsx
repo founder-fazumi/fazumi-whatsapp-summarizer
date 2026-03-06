@@ -10,7 +10,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { pick } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const SNAPSHOT_DATE = "2026-03-01";
+const SNAPSHOT_DATE = new Date().toISOString().split("T")[0];
 
 const COPY = {
   eyebrow: { en: "Status", ar: "الحالة" },
