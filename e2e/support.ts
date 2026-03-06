@@ -290,7 +290,20 @@ export async function loginWithEmail(page: Page, account: TestAccount) {
   }).not.toBe("pending");
 
   if (!/\/dashboard(?:$|[/?#])/.test(page.url())) {
-    await page.goto("/dashboard");
+    try {
+      await page.goto("/dashboard");
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("ERR_ABORTED")) {
+        throw error;
+      }
+    }
+
+    await expect
+      .poll(() => /\/dashboard(?:$|[/?#])/.test(page.url()), {
+        timeout: 15_000,
+        message: `Expected ${account.email} to land on /dashboard after login.`,
+      })
+      .toBeTruthy();
   }
 }
 
