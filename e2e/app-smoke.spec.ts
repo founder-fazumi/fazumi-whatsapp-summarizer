@@ -1,6 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 import {
   ensureTestAccounts,
+  getAuthCookieHeader,
+  getDailyUsageCount,
   getSummaryDeletedAt,
   getDevEnv,
   getProfileState,
@@ -110,6 +113,65 @@ test("limits + gated export: free trial blocks on the 4th summary and keeps expo
   await expect(limitBanner).toBeVisible();
   await expect(limitBanner).toContainText("You've used your 3 free summaries");
   await expect(limitBanner.getByRole("link", { name: "Upgrade" })).toBeVisible();
+});
+
+test("limits are atomic: free trial concurrent summarizes stop at 3 per day", async ({ request }) => {
+  const env = await getDevEnv(request);
+  test.skip(
+    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
+    env.hint ?? "Supabase dev env is required for atomic limit smoke."
+  );
+  test.skip(!env.env.openai, env.hint ?? "OPENAI_API_KEY is required for atomic limit smoke.");
+
+  const accounts = await ensureTestAccounts(request);
+  await resetTestUser(accounts.free.email, { plan: "free" });
+  const cookieHeader = await getAuthCookieHeader(accounts.free);
+  const api = await playwrightRequest.newContext({
+    baseURL: getPlaywrightBaseUrl(),
+    extraHTTPHeaders: {
+      cookie: cookieHeader,
+    },
+  });
+
+  const text = [
+    "[15/02/2025, 09:23] Ms. Sarah - Math Teacher: Good morning parents!",
+    "[15/02/2025, 09:25] Parent Committee: Field trip forms due Wednesday with payment.",
+    "[15/02/2025, 09:27] Science Dept: Science fair projects due Friday and slides are due Thursday night.",
+  ].join(" ");
+
+  try {
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        api.post("/api/summarize", {
+          data: {
+            text,
+            lang_pref: "auto",
+          },
+        })
+      )
+    );
+
+    const results = await Promise.all(
+      responses.map(async (response) => ({
+        status: response.status(),
+        body: await response.json().catch(() => ({})),
+      }))
+    );
+
+    const successCount = results.filter((result) => result.status === 200).length;
+    const dailyCapCount = results.filter(
+      (result) => result.status === 402 && result.body?.code === "DAILY_CAP"
+    ).length;
+
+    expect(successCount).toBe(3);
+    expect(dailyCapCount).toBe(2);
+    expect(results.every((result) => result.status === 200 || result.status === 402)).toBeTruthy();
+
+    await expect.poll(() => getDailyUsageCount(accounts.free.email)).toBe(3);
+    await expect.poll(async () => (await getVisibleSummaryIds(accounts.free.email)).length).toBe(3);
+  } finally {
+    await api.dispose();
+  }
 });
 
 test("billing smoke: paid and founder plans show the correct plan and hide free upsells", async ({ page, request }) => {

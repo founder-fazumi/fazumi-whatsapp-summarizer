@@ -3,7 +3,9 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 
 const ROOT_DIR = process.cwd();
 const FREE_EMAIL = "free@fazumi.test";
@@ -132,6 +134,31 @@ function readEnv(name: string) {
   return process.env[name] ?? envCache[name] ?? "";
 }
 
+function hasSupabaseAuthCookie(
+  cookies: Array<{
+    name: string;
+  }>
+) {
+  return cookies.some(({ name }) =>
+    name === "supabase-auth-token" ||
+    name.startsWith("supabase-auth-token.") ||
+    (name.startsWith("sb-") && name.includes("-auth-token"))
+  );
+}
+
+async function waitForReactHydration(page: Page, selector: string) {
+  await page.waitForFunction((inputSelector) => {
+    const node = document.querySelector(inputSelector) as Record<string, unknown> | null;
+    if (!node) {
+      return false;
+    }
+
+    return Object.keys(node).some((key) =>
+      key.startsWith("__reactFiber") || key.startsWith("__reactProps")
+    );
+  }, selector);
+}
+
 function getAdminClient(): SupabaseClient {
   const supabaseUrl = readEnv("SUPABASE_URL") || readEnv("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
@@ -173,8 +200,73 @@ export async function ensureTestAccounts(request: APIRequestContext) {
   };
 }
 
+export async function getAuthCookieHeader(account: TestAccount) {
+  const supabaseUrl = readEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const anonKey = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("Missing Supabase anon env vars for auth cookie creation.");
+  }
+
+  const cookies = new Map<string, string>();
+  const client = createServerClient(supabaseUrl, anonKey, {
+    cookies: {
+      getAll() {
+        return Array.from(cookies.entries()).map(([name, value]) => ({ name, value }));
+      },
+      setAll(items) {
+        for (const item of items) {
+          if (item.value) {
+            cookies.set(item.name, item.value);
+          } else {
+            cookies.delete(item.name);
+          }
+        }
+      },
+    },
+  });
+
+  const { error } = await client.auth.signInWithPassword({
+    email: account.email,
+    password: account.password,
+  });
+
+  if (error) {
+    throw new Error(`Could not create auth cookie for ${account.email}: ${error.message}`);
+  }
+
+  if (cookies.size === 0) {
+    throw new Error(`Supabase did not return auth cookies for ${account.email}.`);
+  }
+
+  return Array.from(cookies.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+export async function getAuthCookies(account: TestAccount) {
+  const cookieHeader = await getAuthCookieHeader(account);
+  const baseURL = getPlaywrightBaseUrl();
+
+  return cookieHeader
+    .split(/;\s*/)
+    .filter(Boolean)
+    .map((item) => {
+      const separatorIndex = item.indexOf("=");
+      const name = item.slice(0, separatorIndex);
+      const value = item.slice(separatorIndex + 1);
+
+      return {
+        name,
+        value,
+        url: baseURL,
+      };
+    });
+}
+
 export async function loginWithEmail(page: Page, account: TestAccount) {
   await page.goto("/login");
+  await waitForReactHydration(page, "#login-email");
   await page.locator("#login-email").fill(account.email);
   await page.locator("#login-pass").fill(account.password);
   await page
@@ -182,7 +274,22 @@ export async function loginWithEmail(page: Page, account: TestAccount) {
     .filter({ has: page.locator("#login-email") })
     .locator('button[type="submit"]')
     .click();
-  await page.waitForURL("**/dashboard");
+
+  await expect.poll(async () => {
+    if (/\/dashboard(?:$|[/?#])/.test(page.url())) {
+      return "dashboard";
+    }
+
+    const cookies = await page.context().cookies();
+    return hasSupabaseAuthCookie(cookies) ? "session" : "pending";
+  }, {
+    timeout: 30_000,
+    message: `Expected ${account.email} to establish a Supabase session.`,
+  }).not.toBe("pending");
+
+  if (!/\/dashboard(?:$|[/?#])/.test(page.url())) {
+    await page.goto("/dashboard");
+  }
 }
 
 export async function resetTestUser(
@@ -271,6 +378,23 @@ export async function getVisibleSummaryIds(email: string) {
   }
 
   return (data ?? []).map((row) => row.id as string);
+}
+
+export async function getDailyUsageCount(email: string, dateKey = new Date().toISOString().slice(0, 10)) {
+  const admin = getAdminClient();
+  const user = await findUserByEmail(admin, email);
+  const { data, error } = await admin
+    .from("usage_daily")
+    .select("summaries_used")
+    .eq("user_id", user.id)
+    .eq("date", dateKey)
+    .maybeSingle<{ summaries_used: number | null }>();
+
+  if (error) {
+    throw new Error(`Could not read daily usage for ${email}: ${error.message}`);
+  }
+
+  return data?.summaries_used ?? 0;
 }
 
 export async function getSummaryDeletedAt(summaryId: string) {
@@ -419,7 +543,7 @@ export async function postWebhookFixture(fixtureName: "subscription_payment_succ
     throw new Error("Missing webhook signing secret for payment smoke.");
   }
 
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+  const baseURL = getPlaywrightBaseUrl();
   const rawBody = JSON.stringify(payload);
   const signature = createHmac("sha256", secret).update(rawBody).digest("hex");
   const response = await fetch(`${baseURL}/api/webhooks/lemonsqueezy`, {
