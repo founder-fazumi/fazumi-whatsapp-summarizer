@@ -21,9 +21,9 @@ export const DEV_VARIANT_IDS = {
 } as const;
 
 const PUBLIC_VARIANT_IDS = {
-  monthly: process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? "",
-  annual: process.env.NEXT_PUBLIC_LS_ANNUAL_VARIANT ?? "",
-  founder: process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? "",
+  monthly: process.env.NEXT_PUBLIC_LS_MONTHLY_VARIANT ?? "88092b82-a18d-4297-9854-23620e4560d2",
+  annual: process.env.NEXT_PUBLIC_LS_ANNUAL_VARIANT ?? "a5724bda-653d-45f5-a3f8-6b5be250e8d5",
+  founder: process.env.NEXT_PUBLIC_LS_FOUNDER_VARIANT ?? "b3ec4775-5f54-4784-8b5c-0d6bd66a6bc1",
 } as const satisfies Record<PlanType, string>;
 
 const ENV_NAMES = {
