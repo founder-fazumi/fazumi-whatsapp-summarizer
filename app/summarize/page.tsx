@@ -25,6 +25,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { formatNumber } from "@/lib/format";
+import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import { haptic } from "@/lib/haptics";
 import { emitDashboardInsightsRefresh } from "@/lib/hooks/useDashboardInsights";
 import { getSampleChat } from "@/lib/sampleChats";
@@ -507,16 +508,21 @@ export default function SummarizePage() {
           return;
         }
 
-        const [{ data: profile }, { data: groups }] = await Promise.all([
+        const [{ data: profile }, { data: subscriptions }, { data: groups }] = await Promise.all([
           supabase
             .from("profiles")
-            .select("plan, family_context, summary_retention_days")
+            .select("plan, trial_expires_at, family_context, summary_retention_days")
             .eq("id", user.id)
             .maybeSingle<{
               plan: string | null;
+              trial_expires_at: string | null;
               family_context: unknown;
               summary_retention_days: number | null;
             }>(),
+          supabase
+            .from("subscriptions")
+            .select("plan_type, status, current_period_end, updated_at, created_at")
+            .eq("user_id", user.id),
           supabase
             .from("chat_groups")
             .select("id, group_title")
@@ -525,8 +531,16 @@ export default function SummarizePage() {
             .limit(6),
         ]);
 
+        const entitlement = resolveEntitlement({
+          profile: {
+            plan: profile?.plan ?? "free",
+            trial_expires_at: profile?.trial_expires_at ?? null,
+          },
+          subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+        });
+
         if (mounted) {
-          setIsSubscribed(["monthly", "annual", "founder"].includes(profile?.plan ?? ""));
+          setIsSubscribed(entitlement.hasPaidAccess);
           setCurrentUserId(user.id);
           setSavedFamilyContext(normalizeFamilyContext(profile?.family_context));
           setSummaryRetentionDays(normalizeSummaryRetentionDays(profile?.summary_retention_days));
@@ -894,6 +908,116 @@ export default function SummarizePage() {
         </div>
 
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2 text-start">
+                <div className="flex items-center gap-2">
+                  <Upload className="h-4 w-4 text-[var(--primary)]" />
+                  <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                    {pick(COPY.pasteSection, locale)}
+                  </p>
+                </div>
+                <p className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                  {pick(COPY.pasteSectionHint, locale)}
+                </p>
+              </div>
+
+              <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)]">
+                <Textarea
+                  data-testid="summary-input"
+                  aria-label={pick(COPY.title, locale)}
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={pick(COPY.placeholder, locale)}
+                  rows={12}
+                  disabled={loading}
+                  className={cn(
+                    "min-h-[300px] resize-none border-0 bg-transparent px-5 py-5 text-[var(--text-base)] leading-relaxed shadow-none focus-visible:ring-0",
+                    isOverLimit && "bg-[var(--destructive-soft)]"
+                  )}
+                />
+                {showCount && (
+                  <div className="flex items-center justify-end border-t border-[var(--border)] px-4 py-3 text-sm">
+                    <span
+                      className={cn(
+                        "tabular-nums",
+                        isOverLimit
+                          ? "font-semibold text-[var(--destructive)]"
+                          : remaining < 1500
+                            ? "text-[var(--warning)]"
+                            : "text-[var(--muted-foreground)]"
+                      )}
+                    >
+                      {formatNumber(charCount)} / {formatNumber(MAX_CHARS)} {pick(COPY.charCount, locale)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {isOverLimit && (
+                <div className="status-destructive rounded-[var(--radius)] border px-4 py-3 text-sm" role="alert" aria-live="polite">
+                  {pick(COPY.textTooLong, locale)}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={textFileInputRef}
+                    type="file"
+                    accept=".txt"
+                    className="hidden"
+                    onChange={handleTextFileChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => textFileInputRef.current?.click()}
+                    disabled={loading}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {pick(COPY.uploadText, locale)}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-testid="summary-use-sample"
+                    onClick={() => setText(getSampleChat(outputLang, locale, sourcePlatform))}
+                    disabled={loading}
+                  >
+                    {pick(COPY.useSample, locale)}
+                  </Button>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="lg"
+                  data-testid="summary-submit"
+                  className="h-12 w-full px-8 sm:w-auto"
+                  disabled={loading || !text.trim() || isOverLimit}
+                >
+                  {isTextLoading ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      {pick(COPY.summarizing, locale)}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-5 w-5" />
+                      {pick(COPY.summarize, locale)}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           <CardContent className="space-y-3 p-6 text-start">
             <div>
               <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
@@ -1057,116 +1181,6 @@ export default function SummarizePage() {
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
-          <CardContent className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2 text-start">
-                <div className="flex items-center gap-2">
-                  <Upload className="h-4 w-4 text-[var(--primary)]" />
-                  <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
-                    {pick(COPY.pasteSection, locale)}
-                  </p>
-                </div>
-                <p className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
-                  {pick(COPY.pasteSectionHint, locale)}
-                </p>
-              </div>
-
-              <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)]">
-                <Textarea
-                  data-testid="summary-input"
-                  aria-label={pick(COPY.title, locale)}
-                  value={text}
-                  onChange={(event) => setText(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={pick(COPY.placeholder, locale)}
-                  rows={12}
-                  disabled={loading}
-                  className={cn(
-                    "min-h-[300px] resize-none border-0 bg-transparent px-5 py-5 text-[var(--text-base)] leading-relaxed shadow-none focus-visible:ring-0",
-                    isOverLimit && "bg-[var(--destructive-soft)]"
-                  )}
-                />
-                {showCount && (
-                  <div className="flex items-center justify-end border-t border-[var(--border)] px-4 py-3 text-sm">
-                    <span
-                      className={cn(
-                        "tabular-nums",
-                        isOverLimit
-                          ? "font-semibold text-[var(--destructive)]"
-                          : remaining < 1500
-                            ? "text-[var(--warning)]"
-                            : "text-[var(--muted-foreground)]"
-                      )}
-                    >
-                      {formatNumber(charCount)} / {formatNumber(MAX_CHARS)} {pick(COPY.charCount, locale)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {isOverLimit && (
-                <div className="status-destructive rounded-[var(--radius)] border px-4 py-3 text-sm" role="alert" aria-live="polite">
-                  {pick(COPY.textTooLong, locale)}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    ref={textFileInputRef}
-                    type="file"
-                    accept=".txt"
-                    className="hidden"
-                    onChange={handleTextFileChange}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => textFileInputRef.current?.click()}
-                    disabled={loading}
-                  >
-                    <Upload className="h-4 w-4" />
-                    {pick(COPY.uploadText, locale)}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    data-testid="summary-use-sample"
-                    onClick={() => setText(getSampleChat(outputLang, locale, sourcePlatform))}
-                    disabled={loading}
-                  >
-                    {pick(COPY.useSample, locale)}
-                  </Button>
-                </div>
-
-                <Button
-                  type="submit"
-                  size="lg"
-                  data-testid="summary-submit"
-                  className="h-12 w-full px-8 sm:w-auto"
-                  disabled={loading || !text.trim() || isOverLimit}
-                >
-                  {isTextLoading ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      {pick(COPY.summarizing, locale)}
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-5 w-5" />
-                      {pick(COPY.summarize, locale)}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
           </CardContent>
         </Card>
 
@@ -1362,6 +1376,53 @@ export default function SummarizePage() {
           </div>
         )}
 
+        {summary && (
+          <div ref={summaryRef}>
+            {submissionSource === "zip" && zipResultMeta && (
+              <div
+                data-testid="zip-processed-banner"
+                className="mb-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm"
+                role="status"
+                aria-live="polite"
+              >
+                <p className="font-semibold text-[var(--foreground)]">
+                  {pick(COPY.zipProcessed, locale)}: {formatNumber(zipResultMeta.newMessagesProcessed)}
+                </p>
+                <p className="mt-1 text-[var(--muted-foreground)]">
+                  {zipResultMeta.groupTitle}
+                  {" • "}
+                  {pick(
+                    ZIP_RANGE_OPTIONS.find((option) => option.value === zipResultMeta.range)?.label ?? ZIP_RANGE_OPTIONS[0].label,
+                    locale
+                  )}
+                </p>
+              </div>
+            )}
+            {savedId && (
+              <div
+                data-testid="summary-saved-banner"
+                className="status-success mb-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-sm"
+                role="status"
+                aria-live="polite"
+              >
+                <Check className="h-4 w-4 shrink-0" />
+                <span>{pick(COPY.saved, locale)}</span>
+                <a
+                  href={`/history/${savedId}`}
+                  className="ms-auto text-xs underline hover:no-underline"
+                >
+                  {pick(COPY.view, locale)} →
+                </a>
+              </div>
+            )}
+            <SummaryDisplay
+              summary={summary}
+              outputLang={outputLang === "auto" ? (summary.lang_detected === "ar" ? "ar" : "en") : outputLang}
+              actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
+            />
+          </div>
+        )}
+
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           <CardContent className="grid gap-4 p-6 lg:grid-cols-2">
             <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -1442,54 +1503,12 @@ export default function SummarizePage() {
             </div>
           </CardContent>
         </Card>
-
-        {summary && (
-          <div ref={summaryRef}>
-            {submissionSource === "zip" && zipResultMeta && (
-              <div
-                data-testid="zip-processed-banner"
-                className="mb-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm"
-                role="status"
-                aria-live="polite"
-              >
-                <p className="font-semibold text-[var(--foreground)]">
-                  {pick(COPY.zipProcessed, locale)}: {formatNumber(zipResultMeta.newMessagesProcessed)}
-                </p>
-                <p className="mt-1 text-[var(--muted-foreground)]">
-                  {zipResultMeta.groupTitle}
-                  {" • "}
-                  {pick(
-                    ZIP_RANGE_OPTIONS.find((option) => option.value === zipResultMeta.range)?.label ?? ZIP_RANGE_OPTIONS[0].label,
-                    locale
-                  )}
-                </p>
-              </div>
-            )}
-            {savedId && (
-              <div
-                data-testid="summary-saved-banner"
-                className="status-success mb-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-sm"
-                role="status"
-                aria-live="polite"
-              >
-                <Check className="h-4 w-4 shrink-0" />
-                <span>{pick(COPY.saved, locale)}</span>
-                <a
-                  href={`/history/${savedId}`}
-                  className="ms-auto text-xs underline hover:no-underline"
-                >
-                  {pick(COPY.view, locale)} →
-                </a>
-              </div>
-            )}
-            <SummaryDisplay
-              summary={summary}
-              outputLang={outputLang === "auto" ? (summary.lang_detected === "ar" ? "ar" : "en") : outputLang}
-              actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
-            />
-          </div>
-        )}
       </div>
     </DashboardShell>
   );
 }
+
+
+
+
+

@@ -22,6 +22,11 @@ type AdminSessionPayload = {
   v: 1;
 };
 
+export type AdminCredentials = {
+  username: string;
+  password: string;
+};
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 let signingKeyPromise: Promise<CryptoKey> | null = null;
@@ -30,11 +35,22 @@ function getAdminDashboardUrl() {
   return process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 }
 
+export function getAdminCredentials(): AdminCredentials | null {
+  const username = process.env.ADMIN_USERNAME?.trim() ?? "";
+  const password = process.env.ADMIN_PASSWORD ?? "";
+
+  if (!username || !password) {
+    return null;
+  }
+
+  return { username, password };
+}
+
 function getAdminCookieSecret() {
-  const { username, password } = getAdminCredentials();
+  const credentials = getAdminCredentials();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
-  return `fazumi-admin:${username}:${password}:${serviceRoleKey}`;
+  return `fazumi-admin:${credentials?.username ?? "disabled"}:${credentials?.password ?? "disabled"}:${serviceRoleKey}`;
 }
 
 function getSigningKey() {
@@ -137,15 +153,6 @@ export function sanitizeAdminNextPath(value: string | null | undefined) {
   }
 }
 
-export function getAdminCredentials() {
-  // PRODUCTION WARNING: Set ADMIN_USERNAME and ADMIN_PASSWORD env vars before deploying.
-  // If these are not set the dashboard falls back to "admin"/"admin" which is insecure.
-  return {
-    username: process.env.ADMIN_USERNAME?.trim() || "admin",
-    password: process.env.ADMIN_PASSWORD ?? "admin",
-  };
-}
-
 export function getAdminCookieOptions(maxAge = ADMIN_SESSION_MAX_AGE_SECONDS) {
   return {
     httpOnly: true,
@@ -177,9 +184,7 @@ export function isValidAdminRequestOrigin(request: NextRequest) {
     return true;
   }
 
-  const allowedOrigins = new Set<string>([
-    request.nextUrl.origin,
-  ]);
+  const allowedOrigins = new Set<string>([request.nextUrl.origin]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (appUrl) {
@@ -194,15 +199,25 @@ export function isValidAdminRequestOrigin(request: NextRequest) {
 }
 
 export function isAdminDashboardEnabled() {
-  return Boolean(getAdminDashboardUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(
+    getAdminDashboardUrl() &&
+      process.env.SUPABASE_SERVICE_ROLE_KEY &&
+      getAdminCredentials()
+  );
 }
 
 export async function createAdminSessionToken() {
+  const credentials = getAdminCredentials();
+
+  if (!credentials) {
+    throw new Error("Admin credentials are not configured.");
+  }
+
   const now = Date.now();
   const payload: AdminSessionPayload = {
     exp: now + ADMIN_SESSION_MAX_AGE_SECONDS * 1000,
     iat: now,
-    login: getAdminCredentials().username,
+    login: credentials.username,
     sub: "admin",
     v: 1,
   };
@@ -213,7 +228,9 @@ export async function createAdminSessionToken() {
 }
 
 export async function verifyAdminSessionToken(token: string | null | undefined) {
-  if (!token) {
+  const credentials = getAdminCredentials();
+
+  if (!credentials || !token) {
     return false;
   }
 
@@ -237,7 +254,7 @@ export async function verifyAdminSessionToken(token: string | null | undefined) 
     return (
       payload.v === 1 &&
       payload.sub === "admin" &&
-      payload.login === getAdminCredentials().username &&
+      payload.login === credentials.username &&
       typeof payload.exp === "number" &&
       Date.now() < payload.exp
     );

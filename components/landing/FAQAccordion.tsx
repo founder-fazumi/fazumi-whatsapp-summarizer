@@ -74,8 +74,8 @@ const FAQS = [
       ar: "كيف ألغي الاشتراك؟",
     },
     answer: {
-      en: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel. Your paid access stays active until the current billing period ends.",
-      ar: "افتح صفحة الفوترة بعد تسجيل الدخول واستخدم بوابة Lemon Squeezy الخاصة بالعميل لإلغاء الاشتراك. يبقى وصولك المدفوع نشطًا حتى نهاية فترة الفوترة الحالية.",
+      en: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel. Paid access follows the latest subscription status, and billing recovery restores access once Lemon Squeezy marks it active again.",
+      ar: "افتح صفحة الفوترة بعد تسجيل الدخول واستخدم بوابة Lemon Squeezy الخاصة بالعميل لإلغاء الاشتراك. يعتمد الوصول المدفوع على آخر حالة للاشتراك، وتتم استعادته عند عودة الحالة إلى نشطة في Lemon Squeezy.",
     },
   },
 ] as const;
@@ -154,3 +154,4 @@ export function FAQAccordion({
     </section>
   );
 }
+

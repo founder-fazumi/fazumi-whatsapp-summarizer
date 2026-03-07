@@ -9,9 +9,15 @@ import { captureRouteException } from "@/lib/sentry";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
-import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
+import {
+  FREE_LIFETIME_CAP,
+  getDailyLimit,
+  getUtcDateKey,
+  resolveEntitlement,
+  type EntitlementSubscription,
+} from "@/lib/limits";
 import { sendPushToUser } from "@/lib/push/server";
-import type { Profile } from "@/lib/supabase/types";
+
 import { createRouteLogger, getRequestId } from "@/lib/logger";
 
 const MAX_CHARS = 30_000;
@@ -401,27 +407,38 @@ export async function POST(req: NextRequest) {
 
     authedUserId = user.id;
 
-    // Fetch profile + today's usage
-    const today = getUtcDateKey();
-    usageDateKey = today;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("plan, trial_expires_at, family_context, summary_retention_days")
-      .eq("id", user.id)
-      .maybeSingle<
-        Pick<Profile, "plan" | "trial_expires_at" | "family_context" | "summary_retention_days">
-      >();
+    usageDateKey = getUtcDateKey();
+    const [{ data: profile }, { data: subscriptions }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("plan, trial_expires_at, family_context, summary_retention_days")
+        .eq("id", user.id)
+        .maybeSingle<{
+          plan: string | null;
+          trial_expires_at: string | null;
+          family_context: unknown;
+          summary_retention_days: number | null;
+        }>(),
+      supabase
+        .from("subscriptions")
+        .select("plan_type, status, current_period_end, updated_at, created_at")
+        .eq("user_id", user.id),
+    ]);
 
-    const plan = profile?.plan ?? "free";
-    const trialExpires = profile?.trial_expires_at;
+    const entitlement = resolveEntitlement({
+      profile: {
+        plan: profile?.plan ?? "free",
+        trial_expires_at: profile?.trial_expires_at ?? null,
+      },
+      subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+    });
     const familyContext = normalizeFamilyContext(profile?.family_context);
 
-    tierKey = getTierKey(plan, trialExpires);
+    tierKey = entitlement.tierKey;
     summaryRetentionDays = normalizeSummaryRetentionDays(profile?.summary_retention_days);
     promptContext = {
       familyContext,
-    };
-  } catch (error) {
+    };  } catch (error) {
     logger.error("auth.lookup_failed", {
       errorCode: "AUTH_LOOKUP_FAILED",
       error: error instanceof Error ? error.message : String(error),
@@ -741,3 +758,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+

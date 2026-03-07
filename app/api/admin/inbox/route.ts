@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest) {
     return guardResponse;
   }
 
-  const adminUsername = getAdminCredentials().username;
+  const adminUsername = getAdminCredentials()?.username ?? "admin";
   if (!checkAdminRateLimit(`${adminUsername}:inbox`)) {
     return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
   }
@@ -230,3 +230,4 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+

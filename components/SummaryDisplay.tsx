@@ -825,53 +825,18 @@ export function SummaryDisplay({
           </div>
         </div>
 
-        <section className="border-b border-[var(--border)] bg-[var(--surface)]/50 px-4 py-4 sm:px-5">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
-              {copy.actionCenter}
-            </span>
-            {summary.chat_context?.group_title && (
-              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--foreground)]">
-                {summary.chat_context.group_title}
-              </span>
-            )}
-            {sourcePlatformLabel && (
-              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
-                {sourcePlatformLabel}
-              </span>
-            )}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {actionCenterSections.map((section) => (
-              <div
-                key={section.key}
-                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-3"
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
-                  {section.label}
-                </p>
-                {section.items.length > 0 ? (
-                  <ul className="mt-2 space-y-2">
-                    {section.items.map((item) => (
-                      <li key={`${section.key}:${item}`} className="flex items-start gap-2 text-sm text-[var(--foreground)]">
-                        <span className="mt-1 text-[10px] text-[var(--primary)]">●</span>
-                        <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-6">
-                          {item}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-                    {copy.bucketEmpty}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
+        <div className="divide-y divide-[var(--border)]">
+          {SECTION_ORDER.map((key) => (
+            <SectionBlock
+              key={key}
+              sectionKey={key}
+              summary={summary}
+              outputLang={outputLang}
+            />
+          ))}
+        </div>
 
-        <div className="border-b border-[var(--border)] px-4 py-3 sm:px-5">
+        <div className="border-t border-[var(--border)] px-4 py-3 sm:px-5">
           <div className="flex flex-wrap gap-2">
             {ACTIONS.map(({ key, icon: Icon }) => {
               const label =
@@ -924,7 +889,7 @@ export function SummaryDisplay({
           const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
           const isTruncated = familyActionList.length > 1500;
           const truncatedCount = formatNumber(1500);
-        const truncatedNote =
+          const truncatedNote =
             outputLang === "ar"
               ? `يتم إرسال أول ${truncatedCount} حرف`
               : `Only the first ${truncatedCount} chars are sent`;
@@ -1000,16 +965,52 @@ export function SummaryDisplay({
           );
         })()}
 
-        <div className="divide-y divide-[var(--border)]">
-          {SECTION_ORDER.map((key) => (
-            <SectionBlock
-              key={key}
-              sectionKey={key}
-              summary={summary}
-              outputLang={outputLang}
-            />
-          ))}
-        </div>
+        <section className="border-t border-[var(--border)] bg-[var(--surface)]/50 px-4 py-4 sm:px-5">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+              {copy.actionCenter}
+            </span>
+            {summary.chat_context?.group_title && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--foreground)]">
+                {summary.chat_context.group_title}
+              </span>
+            )}
+            {sourcePlatformLabel && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
+                {sourcePlatformLabel}
+              </span>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {actionCenterSections.map((section) => (
+              <div
+                key={section.key}
+                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-3"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                  {section.label}
+                </p>
+                {section.items.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {section.items.map((item) => (
+                      <li key={`${section.key}:${item}`} className="flex items-start gap-2 text-sm text-[var(--foreground)]">
+                        <span className="mt-1 text-[10px] text-[var(--primary)]">●</span>
+                        <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-6">
+                          {item}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                    {copy.bucketEmpty}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
         <div className="border-t border-[var(--border)] bg-[var(--surface)]/60 px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-medium text-[var(--foreground)]">
@@ -1114,3 +1115,5 @@ export function SummaryDisplay({
     </div>
   );
 }
+
+

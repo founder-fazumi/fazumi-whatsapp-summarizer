@@ -5,10 +5,14 @@ import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/
 import { CreditCard, Check, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
-import type { Profile } from "@/lib/supabase/types";
+import {
+  resolveEntitlement,
+  type EntitlementSubscription,
+  type PlanKey,
+} from "@/lib/limits";
 import { formatDate, formatNumber, formatPrice } from "@/lib/format";
 
-const PLAN_LABELS: Record<string, { name: { en: string; ar: string }; price: { en: string; ar: string }; color: string }> = {
+const PLAN_LABELS: Record<PlanKey, { name: { en: string; ar: string }; price: { en: string; ar: string }; color: string }> = {
   free: {
     name: { en: "Free", ar: "مجاني" },
     price: { en: formatPrice(0), ar: formatPrice(0) },
@@ -31,7 +35,7 @@ const PLAN_LABELS: Record<string, { name: { en: string; ar: string }; price: { e
   },
 };
 
-const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
+const PLAN_FEATURES: Record<PlanKey, { en: string; ar: string }[]> = {
   free: [
     { en: "3 lifetime summaries", ar: "3 ملخصات مدى الحياة" },
     { en: "Summary history", ar: "سجل الملخصات" },
@@ -58,54 +62,64 @@ const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
   ],
 };
 
+const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
+  active: { en: "Active", ar: "نشط" },
+  past_due: { en: "Payment issue", ar: "مشكلة دفع" },
+  cancelled: { en: "Cancelled", ar: "ملغي" },
+  expired: { en: "Expired", ar: "منتهي" },
+};
+
 export default async function BillingPage() {
   let isLoggedIn = false;
-  let plan = "free";
+  let billingPlan: PlanKey = "free";
+  let hasPaidAccess = false;
   let trialExpiresAt: string | null = null;
   let portalUrl: string | null = null;
   let pastDuePortalUrl: string | null = null;
   let periodEnd: string | null = null;
-  let isPastDue = false;
+  let subscriptionStatus: string | null = null;
 
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (user) {
       isLoggedIn = true;
-      const [{ data: profile }, { data: sub }] = await Promise.all([
+      const [{ data: profile }, { data: subscriptions }] = await Promise.all([
         supabase
           .from("profiles")
           .select("plan, trial_expires_at")
           .eq("id", user.id)
-          .single<Pick<Profile, "plan" | "trial_expires_at">>(),
+          .maybeSingle<{ plan: string | null; trial_expires_at: string | null }>(),
         supabase
           .from("subscriptions")
           .select(
-            "ls_subscription_id, status, current_period_end, ls_customer_portal_url, ls_update_payment_method_url"
+            "plan_type, status, current_period_end, updated_at, created_at, ls_customer_portal_url, ls_update_payment_method_url, ls_subscription_id, ls_order_id"
           )
           .eq("user_id", user.id)
-          .in("status", ["active", "cancelled", "past_due"])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle<{
-            ls_subscription_id: string | null;
-            status: string;
-            current_period_end: string | null;
-            ls_customer_portal_url: string | null;
-            ls_update_payment_method_url: string | null;
-          }>(),
+          .order("updated_at", { ascending: false }),
       ]);
 
-      plan = profile?.plan ?? "free";
-      trialExpiresAt = profile?.trial_expires_at ?? null;
-      periodEnd = sub?.current_period_end ?? null;
-      isPastDue = sub?.status === "past_due";
-      portalUrl = sub?.ls_customer_portal_url ?? sub?.ls_update_payment_method_url ?? null;
-      pastDuePortalUrl = sub?.ls_update_payment_method_url ?? sub?.ls_customer_portal_url ?? null;
+      const entitlement = resolveEntitlement({
+        profile: {
+          plan: profile?.plan ?? "free",
+          trial_expires_at: profile?.trial_expires_at ?? null,
+        },
+        subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+      });
 
-      if (!portalUrl && sub?.ls_subscription_id) {
-        portalUrl = await getCustomerPortalUrl(sub.ls_subscription_id);
+      billingPlan = entitlement.billingPlan;
+      hasPaidAccess = entitlement.hasPaidAccess;
+      trialExpiresAt = profile?.trial_expires_at ?? null;
+      subscriptionStatus = entitlement.subscriptionStatus;
+      periodEnd = entitlement.currentPeriodEnd;
+      portalUrl = entitlement.customerPortalUrl ?? entitlement.updatePaymentMethodUrl;
+      pastDuePortalUrl = entitlement.updatePaymentMethodUrl ?? entitlement.customerPortalUrl;
+
+      if (!portalUrl && entitlement.subscriptionId) {
+        portalUrl = await getCustomerPortalUrl(entitlement.subscriptionId);
       }
 
       if (!pastDuePortalUrl) {
@@ -116,17 +130,22 @@ export default async function BillingPage() {
     // Supabase not configured
   }
 
-  const planInfo = PLAN_LABELS[plan] ?? PLAN_LABELS.free;
-  const features = PLAN_FEATURES[plan] ?? PLAN_FEATURES.free;
-  const isPaid = ["monthly", "annual", "founder"].includes(plan);
-  const isTrialActive = !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
+  const planInfo = PLAN_LABELS[billingPlan] ?? PLAN_LABELS.free;
+  const features = PLAN_FEATURES[billingPlan] ?? PLAN_FEATURES.free;
+  const isTrialActive = !hasPaidAccess && !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
+  const isPastDue = subscriptionStatus === "past_due";
+  const statusLabel = subscriptionStatus ? STATUS_LABELS[subscriptionStatus] ?? null : null;
 
   const trialDaysLeft = trialExpiresAt
     ? Math.max(0, Math.ceil((new Date(trialExpiresAt).getTime() - Date.now()) / 86_400_000))
     : null;
 
-  const periodEndEn = periodEnd ? formatDate(periodEnd, "en", { year: "numeric", month: "long", day: "numeric" }) : null;
-  const periodEndAr = periodEnd ? formatDate(periodEnd, "ar", { year: "numeric", month: "long", day: "numeric" }) : null;
+  const periodEndEn = periodEnd
+    ? formatDate(periodEnd, "en", { year: "numeric", month: "long", day: "numeric" })
+    : null;
+  const periodEndAr = periodEnd
+    ? formatDate(periodEnd, "ar", { year: "numeric", month: "long", day: "numeric" })
+    : null;
 
   return (
     <DashboardShell contentClassName="max-w-6xl">
@@ -137,8 +156,8 @@ export default async function BillingPage() {
             <div className="space-y-1">
               <p>
                 <LocalizedText
-                  en="Your last payment failed. Please update your payment method in the customer portal to avoid losing access."
-                  ar="فشل آخر دفع. يرجى تحديث طريقة الدفع في بوابة العملاء لتجنب فقدان الوصول."
+                  en="Your last payment failed. Paid access is paused until you update your payment method in the customer portal."
+                  ar="فشل آخر دفع. تم إيقاف الوصول المدفوع مؤقتًا حتى تحدّث طريقة الدفع من بوابة العملاء."
                 />
               </p>
               {pastDuePortalUrl ? (
@@ -179,14 +198,20 @@ export default async function BillingPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Current plan */}
             <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
-              <p className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
                 <LocalizedText en="Current plan" ar="الخطة الحالية" />
               </p>
-              <p data-testid="billing-current-plan" className={`mt-1 text-2xl font-bold ${planInfo.color}`}>
-                <LocalizedText en={planInfo.name.en} ar={planInfo.name.ar} />
-              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p data-testid="billing-current-plan" className={`text-2xl font-bold ${planInfo.color}`}>
+                  <LocalizedText en={planInfo.name.en} ar={planInfo.name.ar} />
+                </p>
+                {statusLabel && (
+                  <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]">
+                    <LocalizedText en={statusLabel.en} ar={statusLabel.ar} />
+                  </span>
+                )}
+              </div>
               <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
                 <LocalizedText en={planInfo.price.en} ar={planInfo.price.ar} />
               </p>
@@ -199,21 +224,36 @@ export default async function BillingPage() {
                   />
                 </p>
               )}
-              {periodEndEn && periodEndAr && (
+
+              {periodEndEn && periodEndAr && subscriptionStatus === "active" && (
                 <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  {plan === "free" ? (
-                    <LocalizedText en={`Access until: ${periodEndEn}`} ar={`الوصول حتى: ${periodEndAr}`} />
-                  ) : (
-                    <LocalizedText en={`Renews: ${periodEndEn}`} ar={`يتجدد: ${periodEndAr}`} />
-                  )}
+                  <LocalizedText en={`Renews: ${periodEndEn}`} ar={`يتجدد: ${periodEndAr}`} />
+                </p>
+              )}
+
+              {periodEndEn && periodEndAr && subscriptionStatus === "cancelled" && (
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  <LocalizedText en={`Access ended: ${periodEndEn}`} ar={`انتهى الوصول: ${periodEndAr}`} />
+                </p>
+              )}
+
+              {periodEndEn && periodEndAr && subscriptionStatus === "expired" && (
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  <LocalizedText en={`Expired: ${periodEndEn}`} ar={`انتهت الصلاحية: ${periodEndAr}`} />
+                </p>
+              )}
+
+              {periodEndEn && periodEndAr && subscriptionStatus === "past_due" && (
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  <LocalizedText en={`Payment update due by: ${periodEndEn}`} ar={`يجب تحديث الدفع قبل: ${periodEndAr}`} />
                 </p>
               )}
 
               <ul className="mt-3 space-y-1.5">
-                {features.map((f) => (
-                  <li key={f.en} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+                {features.map((feature) => (
+                  <li key={feature.en} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
                     <Check className="h-3.5 w-3.5 shrink-0 text-[var(--success)]" />
-                    <LocalizedText en={f.en} ar={f.ar} />
+                    <LocalizedText en={feature.en} ar={feature.ar} />
                   </li>
                 ))}
               </ul>
@@ -221,8 +261,8 @@ export default async function BillingPage() {
 
             <BillingPlansPanel
               isLoggedIn={isLoggedIn}
-              plan={plan as "free" | "monthly" | "annual" | "founder"}
-              portalUrl={isPaid ? portalUrl : null}
+              plan={billingPlan}
+              portalUrl={portalUrl}
             />
 
             <p className="text-xs text-[var(--muted-foreground)]">

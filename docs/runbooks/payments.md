@@ -1,7 +1,7 @@
 # Runbook: Payments & Subscriptions
 
 **Skill:** `/payments-entitlements`
-**Last updated:** 2026-03-01
+**Last updated:** 2026-03-07
 
 ---
 
@@ -10,8 +10,9 @@
 ```
 User clicks Checkout → /api/checkout → LS checkout URL (307 redirect)
 User pays → LS fires webhook → /api/webhooks/lemonsqueezy
-Webhook updates: subscriptions table + profiles.plan
-UI reads profiles.plan to determine entitlements
+Webhook updates subscriptions rows, then reconciles the mirrored profiles.plan value
+Backend entitlements resolve from subscription state first, with profiles.plan as a legacy fallback only when no paid subscription row exists
+Billing UI and summarize limits read that shared entitlement decision path
 ```
 
 ---
@@ -31,14 +32,14 @@ UI reads profiles.plan to determine entitlements
 
 ## Webhook events handled
 
-| Event | DB change | profiles.plan |
+| Event | DB change | Entitlement result |
 |---|---|---|
-| `order_created` | Insert subscription | → plan type |
-| `subscription_created` | Upsert subscription | → plan type |
-| `subscription_updated` | Update status + period | unchanged |
-| `subscription_cancelled` | status = cancelled | unchanged (until expired) |
-| `subscription_payment_success` | status = active | → plan type (defensive) |
-| `subscription_expired` | status = expired | → "free" |
+| `order_created` | Insert order/subscription seed row | Reconcile shared entitlement |
+| `subscription_created` | Upsert subscription | Reconcile shared entitlement |
+| `subscription_updated` | Update status + period (+ plan when variant changes) | Reconcile shared entitlement |
+| `subscription_cancelled` | status = cancelled | Paid access removed by resolver |
+| `subscription_payment_success` | status = active | Paid access restored by resolver |
+| `subscription_expired` | status = expired | Paid access removed by resolver |
 
 ---
 
@@ -46,27 +47,39 @@ UI reads profiles.plan to determine entitlements
 
 1. Check LS webhook logs (LS dashboard → Webhooks → Recent deliveries)
 2. Check Vercel function logs for `/api/webhooks/lemonsqueezy`
-3. Check `subscriptions` table:
+3. Check `subscriptions` rows first:
    ```sql
-   SELECT * FROM subscriptions WHERE user_id = '<user-id>' ORDER BY updated_at DESC LIMIT 1;
+   SELECT plan_type, status, current_period_end, updated_at
+   FROM subscriptions
+   WHERE user_id = '<user-id>'
+   ORDER BY updated_at DESC;
    ```
-4. Check `profiles.plan`:
+4. Check the mirrored profile value:
    ```sql
-   SELECT id, plan FROM profiles WHERE id = '<user-id>';
+   SELECT id, plan, trial_expires_at
+   FROM profiles
+   WHERE id = '<user-id>';
    ```
 5. If webhook delivered but DB not updated → check `LEMONSQUEEZY_WEBHOOK_SECRET` matches
 6. If webhook not delivered → re-register webhook URL in LS dashboard
 
 ---
 
-## Manual plan fix (emergency)
+## Manual entitlement fix (emergency)
 
-If a paying user's plan is wrong and webhook cannot be replayed:
+If a paying user's access is wrong and webhook replay is unavailable, update the latest subscription state first and keep the profile mirror aligned:
 
 ```sql
--- Run in Supabase SQL editor with service role (or dashboard)
+-- Example: restore monthly access
+UPDATE public.subscriptions
+SET plan_type = 'monthly',
+    status = 'active',
+    updated_at = now()
+WHERE user_id = '<user-id>';
+
 UPDATE public.profiles
-SET plan = 'monthly', updated_at = now()
+SET plan = 'monthly',
+    updated_at = now()
 WHERE id = '<user-id>';
 ```
 
@@ -102,4 +115,4 @@ SELECT COUNT(*) FROM subscriptions WHERE ls_order_id = 'order_test_founder_001';
 
 - Monthly/Annual: 7-day money-back guarantee (process via LS dashboard → Orders → Refund)
 - Founder LTD: no refund (per `docs/decisions.md` D007)
-- After refund: manually set `profiles.plan = 'free'` (webhook does not fire on refund)
+- After refund: mark the latest paid subscription row inactive/expired and mirror `profiles.plan` back to `free`

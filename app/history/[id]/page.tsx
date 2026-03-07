@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock, FileText } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { toImportantDateArray, parseChatType, parseChatContext } from "@/lib/ai/summarize";
+import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import { formatDate, formatNumber } from "@/lib/format";
 
 interface PageProps {
@@ -19,10 +20,12 @@ export default async function SummaryDetailPage({ params }: PageProps) {
   const { id } = await params;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: row }, { data: profile }] = await Promise.all([
+  const [{ data: row }, { data: profile }, { data: subscriptions }] = await Promise.all([
     supabase
       .from("summaries")
       .select("*")
@@ -51,9 +54,13 @@ export default async function SummaryDetailPage({ params }: PageProps) {
       }>(),
     supabase
       .from("profiles")
-      .select("plan")
+      .select("plan, trial_expires_at")
       .eq("id", user.id)
-      .maybeSingle<{ plan: string | null }>(),
+      .maybeSingle<{ plan: string | null; trial_expires_at: string | null }>(),
+    supabase
+      .from("subscriptions")
+      .select("plan_type, status, current_period_end, updated_at, created_at")
+      .eq("user_id", user.id),
   ]);
 
   if (!row) notFound();
@@ -75,6 +82,14 @@ export default async function SummaryDetailPage({ params }: PageProps) {
     char_count: row.char_count,
   };
 
+  const entitlement = resolveEntitlement({
+    profile: {
+      plan: profile?.plan ?? "free",
+      trial_expires_at: profile?.trial_expires_at ?? null,
+    },
+    subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+  });
+
   const outputLang: "en" | "ar" = row.lang_detected === "ar" ? "ar" : "en";
   const dateEn = formatDate(row.created_at, "en", {
     year: "numeric", month: "short", day: "numeric",
@@ -86,18 +101,17 @@ export default async function SummaryDetailPage({ params }: PageProps) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   })}k`;
-  const actionMode = ["monthly", "annual", "founder"].includes(profile?.plan ?? "") ? "active" : "gated";
+  const actionMode = entitlement.hasPaidAccess ? "active" : "gated";
 
   return (
     <DashboardShell>
-      {/* Back + meta bar */}
       <Card className="mb-4 bg-[var(--surface-elevated)]">
-        <CardHeader className="py-3 px-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+        <CardHeader className="px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <Link
                 href="/history"
-                className="flex items-center gap-1 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                className="flex items-center gap-1 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
               >
                 <ArrowLeft className="h-4 w-4" />
                 <LocalizedText en="History" ar="السجل" />

@@ -20,7 +20,7 @@ import { normalizeFamilyContext, normalizeSummaryRetentionDays } from "@/lib/fam
 import { applySummaryRetentionPolicy } from "@/lib/server/retention";
 import { captureRouteException } from "@/lib/sentry";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile } from "@/lib/supabase/types";
+
 import {
   PersistError,
   MAX_SUMMARY_CHARS,
@@ -36,7 +36,13 @@ import {
   type UsageReservation,
 } from "@/lib/server/summaries";
 import { sendPushToUser } from "@/lib/push/server";
-import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
+import {
+  FREE_LIFETIME_CAP,
+  getDailyLimit,
+  getUtcDateKey,
+  resolveEntitlement,
+  type EntitlementSubscription,
+} from "@/lib/limits";
 import { createRouteLogger, getRequestId } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -474,21 +480,37 @@ export async function POST(req: NextRequest) {
 
     authedUserId = user.id;
     usageDateKey = getUtcDateKey();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("plan, trial_expires_at, family_context, summary_retention_days")
-      .eq("id", user.id)
-      .maybeSingle<
-        Pick<Profile, "plan" | "trial_expires_at" | "family_context" | "summary_retention_days">
-      >();
+    const [{ data: profile }, { data: subscriptions }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("plan, trial_expires_at, family_context, summary_retention_days")
+        .eq("id", user.id)
+        .maybeSingle<{
+          plan: string | null;
+          trial_expires_at: string | null;
+          family_context: unknown;
+          summary_retention_days: number | null;
+        }>(),
+      supabase
+        .from("subscriptions")
+        .select("plan_type, status, current_period_end, updated_at, created_at")
+        .eq("user_id", user.id),
+    ]);
 
-    tierKey = getTierKey(profile?.plan ?? "free", profile?.trial_expires_at);
+    const entitlement = resolveEntitlement({
+      profile: {
+        plan: profile?.plan ?? "free",
+        trial_expires_at: profile?.trial_expires_at ?? null,
+      },
+      subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+    });
+
+    tierKey = entitlement.tierKey;
     summaryRetentionDays = normalizeSummaryRetentionDays(profile?.summary_retention_days);
     promptContext = {
       sourcePlatform: "whatsapp",
       familyContext: normalizeFamilyContext(profile?.family_context),
-    };
-  } catch (error) {
+    };  } catch (error) {
     logger.error("auth.lookup_failed", {
       errorCode: "AUTH_LOOKUP_FAILED",
       error: error instanceof Error ? error.message : String(error),
@@ -875,3 +897,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+

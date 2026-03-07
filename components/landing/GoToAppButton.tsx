@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -42,17 +43,31 @@ async function readAccessState(): Promise<AccessState> {
     }
 
     try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("plan, trial_expires_at")
-        .eq("id", user.id)
-        .single<{ plan: string | null; trial_expires_at: string | null }>();
+      const [{ data: profile }, { data: subscriptions }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("plan, trial_expires_at")
+          .eq("id", user.id)
+          .maybeSingle<{ plan: string | null; trial_expires_at: string | null }>(),
+        supabase
+          .from("subscriptions")
+          .select("plan_type, status, current_period_end, updated_at, created_at")
+          .eq("user_id", user.id),
+      ]);
 
-      const hasAccess =
-        ["monthly", "annual", "founder"].includes(profile?.plan ?? "") ||
-        (!!profile?.trial_expires_at && new Date(profile.trial_expires_at) > new Date());
+      const entitlement = resolveEntitlement({
+        profile: {
+          plan: profile?.plan ?? "free",
+          trial_expires_at: profile?.trial_expires_at ?? null,
+        },
+        subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+      });
 
-      return { checked: true, hasAccess, isLoggedIn: true };
+      return {
+        checked: true,
+        hasAccess: entitlement.hasPaidAccess || entitlement.isTrialActive,
+        isLoggedIn: true,
+      };
     } catch {
       return { checked: true, hasAccess: false, isLoggedIn: true };
     }
