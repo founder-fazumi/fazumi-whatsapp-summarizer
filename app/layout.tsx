@@ -32,6 +32,17 @@ export const metadata: Metadata = {
   },
   description:
     "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, fees, forms, supplies, and reminders.",
+  keywords: [
+    "school WhatsApp summarizer",
+    "school chat summary",
+    "WhatsApp group summarizer",
+    "school chat AI",
+    "parent school communication",
+    "GCC school app",
+    "ملخص مجموعة واتساب",
+    "تلخيص محادثات المدرسة",
+    "تطبيق مدرسة الخليج",
+  ],
   applicationName: "Fazumi",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app"
@@ -70,6 +81,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: "@FazumiApp",
+    creator: "@FazumiApp",
     title: "Fazumi — Family Dashboard for School Chats",
     description:
       "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard without storing raw chat text.",
