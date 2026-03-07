@@ -47,15 +47,7 @@ drop policy if exists "chat_groups_select_own_or_admin" on public.chat_groups;
 create policy "chat_groups_select_own_or_admin"
   on public.chat_groups
   for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles
-      where profiles.id = auth.uid()
-        and profiles.role = 'admin'
-    )
-  );
+  using (auth.uid() = user_id);
 
 drop policy if exists "chat_groups_insert_own" on public.chat_groups;
 create policy "chat_groups_insert_own"
@@ -67,38 +59,14 @@ drop policy if exists "chat_groups_update_own_or_admin" on public.chat_groups;
 create policy "chat_groups_update_own_or_admin"
   on public.chat_groups
   for update
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles
-      where profiles.id = auth.uid()
-        and profiles.role = 'admin'
-    )
-  )
-  with check (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles
-      where profiles.id = auth.uid()
-        and profiles.role = 'admin'
-    )
-  );
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 drop policy if exists "processed_message_fingerprints_select_own_or_admin" on public.processed_message_fingerprints;
 create policy "processed_message_fingerprints_select_own_or_admin"
   on public.processed_message_fingerprints
   for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles
-      where profiles.id = auth.uid()
-        and profiles.role = 'admin'
-    )
-  );
+  using (auth.uid() = user_id);
 
 drop policy if exists "processed_message_fingerprints_insert_own" on public.processed_message_fingerprints;
 create policy "processed_message_fingerprints_insert_own"
@@ -110,15 +78,7 @@ drop policy if exists "group_state_select_own_or_admin" on public.group_state;
 create policy "group_state_select_own_or_admin"
   on public.group_state
   for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles
-      where profiles.id = auth.uid()
-        and profiles.role = 'admin'
-    )
-  );
+  using (auth.uid() = user_id);
 
 drop policy if exists "group_state_insert_own" on public.group_state;
 create policy "group_state_insert_own"
@@ -130,24 +90,8 @@ drop policy if exists "group_state_update_own_or_admin" on public.group_state;
 create policy "group_state_update_own_or_admin"
   on public.group_state
   for update
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles
-      where profiles.id = auth.uid()
-        and profiles.role = 'admin'
-    )
-  )
-  with check (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.profiles
-      where profiles.id = auth.uid()
-        and profiles.role = 'admin'
-    )
-  );
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 alter table public.summaries
   add column if not exists group_id uuid references public.chat_groups(id) on delete set null,

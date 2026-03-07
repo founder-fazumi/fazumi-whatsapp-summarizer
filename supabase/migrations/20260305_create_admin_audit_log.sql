@@ -16,5 +16,6 @@ ALTER TABLE public.admin_audit_log ENABLE ROW LEVEL SECURITY;
 
 -- No authenticated user (including admins) can read or write via client SDK.
 -- All writes happen through the service-role key on the server only.
+DROP POLICY IF EXISTS "admin_audit_log_no_access" ON public.admin_audit_log;
 CREATE POLICY "admin_audit_log_no_access" ON public.admin_audit_log
   FOR ALL USING (false);
