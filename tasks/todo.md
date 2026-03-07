@@ -87,6 +87,17 @@
 - [ ] `/about` is a server component with English SSR defaults while keeping the existing copy and structure intact.
 - [ ] `pnpm lint` and `pnpm typecheck` pass after the SEO changes.
 
+#### SEO3 - Round 2 schema drift, metadata, RTL, and LCP fixes [Codex]
+**Why:** The first SEO hardening pass still leaves schema drift, incomplete Twitter metadata, non-cookie-aware `/about` SSR, and a missing first-viewport image preload on the landing steps.
+**Files:** `app/page.tsx`, `app/layout.tsx`, `app/pricing/page.tsx`, `app/about/page.tsx`, `components/landing/HowItWorks.tsx`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `app/page.tsx` sets `softwareSchema.operatingSystem` to `Web`, removes unverified `organizationSchema.sameAs`, and adds `SearchAction` to `webSiteSchema`.
+- [x] `app/layout.tsx` adds `twitter.site`, `twitter.creator`, and the requested `keywords` metadata list without changing other fields.
+- [x] `app/pricing/page.tsx` adds `image` and `brand` to `pricingSchema` and preserves the existing product/offer structure.
+- [x] `app/about/page.tsx` reads `fazumi_lang` from cookies server-side, uses locale-aware `pick()` calls throughout, and keeps the current structure/classes intact.
+- [x] `components/landing/HowItWorks.tsx` sets `priority={step === "01"}` on the mapped step image.
+- [x] `pnpm lint` and `pnpm typecheck` pass after the Round 2 changes.
+
 ---
 ## PHASE 0 — PLAN (done before "Proceed")
 

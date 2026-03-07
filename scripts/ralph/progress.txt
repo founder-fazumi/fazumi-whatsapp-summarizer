@@ -95,3 +95,9 @@ S010 = PENDING  # Referral system
 # SEO hardening pass in progress: production canonicals/hreflang metadata, route-level metadata layouts, structured data expansion, sitemap/robots updates, and crawlable SSR output for `/about`.
 # Files: app/layout.tsx, app/page.tsx, app/pricing/page.tsx, app/sitemap.ts, app/robots.ts, app/about/page.tsx, app/pricing/layout.tsx, app/about/layout.tsx, app/faq/layout.tsx, app/contact/layout.tsx, app/terms/layout.tsx, app/privacy/layout.tsx, app/help/layout.tsx, app/cookie-policy/layout.tsx, app/refunds/layout.tsx, app/status/layout.tsx, tasks/todo.md, scripts/ralph/progress.txt
 # Pattern: when locale is cookie-based without URL prefixes, keep canonicals stable on the public path and expose language alternates from metadata rather than duplicating routes.
+
+# 2026-03-07
+# SEO hardening Round 2 completed: fixed homepage schema drift, added Twitter handle metadata and keyword coverage, enriched pricing product schema, made `/about` SSR cookie-aware for locale/RTL, and prioritized the first How It Works illustration for LCP.
+# Files: app/page.tsx, app/layout.tsx, app/pricing/page.tsx, app/about/page.tsx, components/landing/HowItWorks.tsx, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass. `pnpm test` was attempted twice in local CI mode and timed out instead of producing a reliable pass/fail result.
+# Pattern: when SEO hardening depends on locale-specific rendering, use the same server cookie source as the root layout so SSR language, `dir`, and schema metadata do not drift from the hydrated app state.
