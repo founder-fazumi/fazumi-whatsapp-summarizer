@@ -9,6 +9,11 @@ const pricingSchema = {
   "@context": "https://schema.org",
   "@type": "Product",
   name: "Fazumi Pro",
+  image: `${APP_URL}/og-image.png`,
+  brand: {
+    "@type": "Brand",
+    name: "Fazumi",
+  },
   description:
     "School chat summarizer for parents. Paste WhatsApp, Telegram, or Facebook school group messages and get structured summaries with dates, tasks, and follow-ups.",
   url: `${APP_URL}/pricing`,
