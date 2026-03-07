@@ -14,6 +14,9 @@ export interface SummaryRow {
   created_at: string;
   char_count: number;
   lang_detected: string;
+  source_kind: "text" | "zip";
+  source_range: "24h" | "7d" | null;
+  new_messages_count: number | null;
 }
 
 function sanitizeSearch(value: string) {
@@ -27,7 +30,7 @@ function buildHistoryQuery(
 ) {
   let request = supabase
     .from("summaries")
-    .select("id, title, tldr, created_at, char_count, lang_detected", { count: "exact" })
+    .select("id, title, tldr, created_at, char_count, lang_detected, source_kind, source_range, new_messages_count", { count: "exact" })
     .eq("user_id", userId)
     .is("deleted_at", null);
 

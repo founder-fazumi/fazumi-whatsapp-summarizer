@@ -5,6 +5,7 @@ import { createHmac } from "node:crypto";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { normalizeGroupKey } from "@/lib/chat-import/whatsapp";
 import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 
 const ROOT_DIR = process.cwd();
@@ -60,6 +61,20 @@ type SubscriptionRow = {
   ls_customer_portal_url: string | null;
   ls_update_payment_method_url: string | null;
 };
+
+type ZipSummaryState = {
+  groupId: string;
+  groupKey: string;
+  dedupeKeys: string[];
+  processedFingerprintCount: number;
+  summaries: Array<{
+    id: string;
+    source_range: string | null;
+    new_messages_count: number | null;
+    important_dates: string[] | null;
+    action_items: string[] | null;
+  }>;
+} | null;
 
 const envCache = loadLocalEnv();
 
@@ -322,11 +337,22 @@ export async function resetTestUser(
 
   const { error: summariesError } = await admin.from("summaries").delete().eq("user_id", user.id);
   const { error: usageError } = await admin.from("usage_daily").delete().eq("user_id", user.id);
+  const { error: todosError } = await admin.from("user_todos").delete().eq("user_id", user.id);
+  const { error: groupStateError } = await admin.from("group_state").delete().eq("user_id", user.id);
+  const { error: fingerprintError } = await admin
+    .from("processed_message_fingerprints")
+    .delete()
+    .eq("user_id", user.id);
+  const { error: chatGroupsError } = await admin.from("chat_groups").delete().eq("user_id", user.id);
 
-  if (summariesError || usageError) {
+  if (summariesError || usageError || todosError || groupStateError || fingerprintError || chatGroupsError) {
     throw new Error(
       summariesError?.message ??
       usageError?.message ??
+      todosError?.message ??
+      groupStateError?.message ??
+      fingerprintError?.message ??
+      chatGroupsError?.message ??
       "Could not clear test user state."
     );
   }
@@ -531,6 +557,64 @@ export async function getLatestFeedback(email: string) {
   }
 
   return data;
+}
+
+export async function getZipSummaryState(email: string, groupName: string): Promise<ZipSummaryState> {
+  const admin = getAdminClient();
+  const user = await findUserByEmail(admin, email);
+  const normalizedGroupKey = normalizeGroupKey(groupName);
+  const { data: group, error: groupError } = await admin
+    .from("chat_groups")
+    .select("id, group_key")
+    .eq("user_id", user.id)
+    .eq("group_key", normalizedGroupKey)
+    .maybeSingle<{ id: string; group_key: string }>();
+
+  if (groupError) {
+    throw new Error(`Could not load chat group ${groupName}: ${groupError.message}`);
+  }
+
+  if (!group) {
+    return null;
+  }
+
+  const [{ count, error: fingerprintError }, { data: stateRow, error: stateError }, { data: summaries, error: summariesError }] = await Promise.all([
+    admin
+      .from("processed_message_fingerprints")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("group_id", group.id),
+    admin
+      .from("group_state")
+      .select("state_json")
+      .eq("user_id", user.id)
+      .eq("group_id", group.id)
+      .maybeSingle<{ state_json: { dedupe_keys?: string[] } | null }>(),
+    admin
+      .from("summaries")
+      .select("id, source_range, new_messages_count, important_dates, action_items")
+      .eq("user_id", user.id)
+      .eq("group_id", group.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (fingerprintError || stateError || summariesError) {
+    throw new Error(
+      fingerprintError?.message ??
+      stateError?.message ??
+      summariesError?.message ??
+      `Could not inspect zip summary state for ${groupName}.`
+    );
+  }
+
+  return {
+    groupId: group.id,
+    groupKey: group.group_key,
+    dedupeKeys: stateRow?.state_json?.dedupe_keys ?? [],
+    processedFingerprintCount: count ?? 0,
+    summaries: (summaries ?? []) as NonNullable<ZipSummaryState>["summaries"],
+  };
 }
 
 export async function updateSubscriptionStatus(subscriptionId: string, status: string) {
