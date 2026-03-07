@@ -49,7 +49,8 @@ export function isValidCheckoutVariantId(value?: string | null) {
     return true;
   }
 
-  return /^\d+$/.test(normalized);
+  // Accept numeric IDs (legacy) or UUID-format checkout buy IDs
+  return /^\d+$/.test(normalized) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized);
 }
 
 export function getCheckoutVariantConfig(plan: PlanType): CheckoutVariantConfig {

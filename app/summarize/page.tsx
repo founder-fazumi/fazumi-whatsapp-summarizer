@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpCircle, Check, Sparkles, Upload } from "lucide-react";
+import { Archive, ArrowUpCircle, Check, Sparkles, Upload } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { inferGroupLabelFromFilename, type SummarizeZipRange } from "@/lib/chat-import/whatsapp";
 import { useLang } from "@/lib/context/LangContext";
 import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
 import { createClient } from "@/lib/supabase/client";
@@ -29,8 +31,52 @@ const OUTPUT_LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
   { value: "ar", label: "العربية" },
 ] as const;
+const ZIP_RANGE_OPTIONS: Array<{
+  value: SummarizeZipRange;
+  label: LocalizedCopy<string>;
+}> = [
+  {
+    value: "24h",
+    label: {
+      en: "Last 24 hours",
+      ar: "آخر 24 ساعة",
+    },
+  },
+  {
+    value: "7d",
+    label: {
+      en: "Last 7 days",
+      ar: "آخر 7 أيام",
+    },
+  },
+];
 
 type OutputLang = (typeof OUTPUT_LANGUAGE_OPTIONS)[number]["value"];
+type SubmissionSource = "text" | "zip";
+type ZipApiResponse =
+  | {
+    status: "ok";
+    summary: SummaryResult;
+    savedId?: string | null;
+    range: SummarizeZipRange;
+    newMessagesProcessed: number;
+    group?: {
+      title?: string | null;
+    };
+  }
+  | {
+    status: "no_new_messages";
+    range: SummarizeZipRange;
+    newMessagesProcessed: 0;
+    group?: {
+      title?: string | null;
+    };
+  }
+  | {
+    status: "error";
+    error?: string;
+    code?: string;
+  };
 
 const COPY = {
   title: {
@@ -38,16 +84,20 @@ const COPY = {
     ar: "لخّص محادثة المدرسة",
   },
   subtitle: {
-    en: "Paste the WhatsApp conversation and get one clear summary with dates, tasks, and announcements.",
-    ar: "الصق محادثة واتساب واحصل على ملخص واضح واحد يتضمن التواريخ والمهام والإعلانات.",
+    en: "Paste a school chat or upload a ZIP export to get one clear summary with dates, tasks, and announcements.",
+    ar: "الصق محادثة المدرسة أو ارفع ملف ZIP لتحصل على ملخص واضح واحد يتضمن التواريخ والمهام والإعلانات.",
   },
   placeholder: {
     en: "Paste the school chat here...",
     ar: "الصق محادثة المدرسة هنا...",
   },
-  upload: {
-    en: "Upload chat",
-    ar: "رفع المحادثة",
+  uploadText: {
+    en: "Import .txt",
+    ar: "استيراد .txt",
+  },
+  uploadZip: {
+    en: "Choose ZIP",
+    ar: "اختر ZIP",
   },
   useSample: {
     en: "Use sample",
@@ -64,6 +114,74 @@ const COPY = {
   privacy: {
     en: "Only the saved summary is kept. Raw chat text is not stored.",
     ar: "يتم حفظ الملخص فقط. لا يتم تخزين نص المحادثة الخام.",
+  },
+  pasteSection: {
+    en: "Paste or import text",
+    ar: "الصق النص أو استورد ملفًا نصيًا",
+  },
+  pasteSectionHint: {
+    en: "Use the existing text flow for a pasted chat or a plain .txt export.",
+    ar: "استخدم مسار النص الحالي للمحادثة الملصقة أو لملف .txt عادي.",
+  },
+  zipSection: {
+    en: "Incremental ZIP upload",
+    ar: "رفع ZIP التدريجي",
+  },
+  zipSectionHint: {
+    en: "Upload a ZIP with text exports only. Fazumi summarizes only new messages in the selected range and skips already-processed ones for the same group.",
+    ar: "ارفع ملف ZIP يحتوي على تصديرات نصية فقط. يقوم Fazumi بتلخيص الرسائل الجديدة فقط ضمن المدة المحددة ويتجاوز ما تمّت معالجته سابقًا للمجموعة نفسها.",
+  },
+  zipPrivacy: {
+    en: "Only summary metadata and message fingerprints are stored for incremental matching. Raw chat text is still not saved.",
+    ar: "يتم حفظ بيانات وصفية للملخص وبصمات الرسائل فقط للمطابقة التدريجية. لا يتم حفظ نص المحادثة الخام.",
+  },
+  zipSelectedFile: {
+    en: "Selected ZIP",
+    ar: "ملف ZIP المحدد",
+  },
+  zipNoFile: {
+    en: "No ZIP selected yet.",
+    ar: "لم يتم اختيار ملف ZIP بعد.",
+  },
+  zipGroupName: {
+    en: "Group name",
+    ar: "اسم المجموعة",
+  },
+  zipGroupHint: {
+    en: "Use the same group name on later uploads so Fazumi can match fingerprints correctly.",
+    ar: "استخدم اسم المجموعة نفسه في الرفعات اللاحقة حتى يطابق Fazumi البصمات بشكل صحيح.",
+  },
+  zipRange: {
+    en: "Summarize window",
+    ar: "نافذة التلخيص",
+  },
+  zipSubmit: {
+    en: "Summarize ZIP",
+    ar: "لخّص ملف ZIP",
+  },
+  zipSubmitting: {
+    en: "Processing ZIP...",
+    ar: "جارٍ معالجة ZIP...",
+  },
+  zipSelectFirst: {
+    en: "Choose a ZIP export first.",
+    ar: "اختر تصدير ZIP أولًا.",
+  },
+  zipProcessed: {
+    en: "New messages processed",
+    ar: "الرسائل الجديدة التي تمت معالجتها",
+  },
+  zipNoNewMessages: {
+    en: "No new messages in this range since the last upload.",
+    ar: "لا توجد رسائل جديدة ضمن هذه المدة منذ آخر رفع.",
+  },
+  zipNoNewMessagesHint: {
+    en: "Try a wider range or upload a newer export from the same group.",
+    ar: "جرّب مدة أوسع أو ارفع تصديرًا أحدث من المجموعة نفسها.",
+  },
+  zipParseError: {
+    en: "We could not detect WhatsApp-style messages in that export.",
+    ar: "تعذر اكتشاف رسائل واتساب في هذا التصدير.",
   },
   textTooLong: {
     en: "This chat is over the 30,000 character limit. Shorten it, then try again.",
@@ -137,21 +255,38 @@ export default function SummarizePage() {
   const isRtl = locale === "ar";
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingSource, setLoadingSource] = useState<SubmissionSource | null>(null);
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
   const [limitCode, setLimitCode] = useState<"DAILY_CAP" | "LIFETIME_CAP">("DAILY_CAP");
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [submissionSource, setSubmissionSource] = useState<SubmissionSource>("text");
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [outputLang, setOutputLang] = useState<OutputLang>("auto");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const [zipGroupName, setZipGroupName] = useState("");
+  const [zipRange, setZipRange] = useState<SummarizeZipRange>("24h");
+  const [zipResultMeta, setZipResultMeta] = useState<{
+    range: SummarizeZipRange;
+    groupTitle: string;
+    newMessagesProcessed: number;
+  } | null>(null);
+  const [zipNoNewMessages, setZipNoNewMessages] = useState<{
+    range: SummarizeZipRange;
+    groupTitle: string;
+  } | null>(null);
+  const textFileInputRef = useRef<HTMLInputElement>(null);
+  const zipFileInputRef = useRef<HTMLInputElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
   const charCount = text.length;
   const remaining = MAX_CHARS - charCount;
   const isOverLimit = charCount > MAX_CHARS;
   const showCount = charCount >= SOFT_COUNT_THRESHOLD;
+  const isTextLoading = loading && loadingSource === "text";
+  const isZipLoading = loading && loadingSource === "zip";
 
   useEffect(() => {
     let mounted = true;
@@ -195,6 +330,94 @@ export default function SummarizePage() {
     };
   }, []);
 
+  function resetOutputState() {
+    setSummary(null);
+    setSavedId(null);
+    setZipResultMeta(null);
+    setZipNoNewMessages(null);
+    setLimitReached(false);
+    setLimitCode("DAILY_CAP");
+  }
+
+  function scrollToSummary() {
+    setTimeout(() => {
+      summaryRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
+  }
+
+  async function applySummaryResult(
+    nextSummary: SummaryResult,
+    options: {
+      source: SubmissionSource;
+      savedId?: string | null;
+      newMessagesProcessed?: number;
+      range?: SummarizeZipRange;
+      groupTitle?: string;
+    }
+  ) {
+    setSubmissionSource(options.source);
+    setSummary(nextSummary);
+    setSavedId(options.savedId ?? null);
+    setZipNoNewMessages(null);
+    setZipResultMeta(
+      options.source === "zip" && options.range
+        ? {
+          range: options.range,
+          groupTitle: (options.groupTitle ?? zipGroupName.trim()) || inferGroupLabelFromFilename(zipFile?.name ?? "chat.zip"),
+          newMessagesProcessed: options.newMessagesProcessed ?? 0,
+        }
+        : null
+    );
+    haptic("success");
+    trackEvent(AnalyticsEvents.SUMMARY_CREATED, {
+      charCount: nextSummary.char_count,
+      langPref: outputLang,
+      saved: Boolean(options.savedId),
+      outputLang: outputLang === "auto" ? nextSummary.lang_detected : outputLang,
+      source: options.source,
+    });
+
+    if (options.savedId) {
+      emitDashboardInsightsRefresh();
+      window.dispatchEvent(new Event("fazumi-todos-changed"));
+    }
+
+    if (currentUserId && nextSummary.action_items.length > 0) {
+      const health = await getClientHealthSnapshot();
+      if (getTodoStorageMode(health) === "local") {
+        mergeLocalTodoLabels(currentUserId, nextSummary.action_items);
+        window.dispatchEvent(new Event("fazumi-todos-changed"));
+      }
+    }
+
+    scrollToSummary();
+  }
+
+  function resolveZipError(payload: ZipApiResponse) {
+    const errPayload = payload as { error?: string; code?: string };
+
+    if (errPayload.code === "INVALID_FILE") {
+      return pick(COPY.fileTooLarge, locale);
+    }
+
+    if (errPayload.code === "UNSUPPORTED_FILE") {
+      return pick(COPY.unsupportedFile, locale);
+    }
+
+    if (errPayload.code === "NO_TEXT_FILES") {
+      return pick(COPY.noTextFiles, locale);
+    }
+
+    if (errPayload.code === "PARSE_FAILED") {
+      return pick(COPY.zipParseError, locale);
+    }
+
+    return errPayload.error ?? pick(COPY.unknownError, locale);
+  }
+
   async function handleSubmit(event?: React.FormEvent) {
     event?.preventDefault();
     haptic("medium");
@@ -204,11 +427,9 @@ export default function SummarizePage() {
     }
 
     setLoading(true);
+    setLoadingSource("text");
     setError(null);
-    setSummary(null);
-    setLimitReached(false);
-    setLimitCode("DAILY_CAP");
-    setSavedId(null);
+    resetOutputState();
 
     try {
       const response = await fetch("/api/summarize", {
@@ -243,40 +464,16 @@ export default function SummarizePage() {
         return;
       }
 
-      setSummary(payload.summary);
-      haptic("success");
-      trackEvent(AnalyticsEvents.SUMMARY_CREATED, {
-        charCount: text.length,
-        langPref: outputLang,
-        saved: Boolean(payload.savedId),
-        outputLang: outputLang === "auto" ? payload.summary.lang_detected : outputLang,
+      await applySummaryResult(payload.summary, {
+        source: "text",
+        savedId: payload.savedId,
       });
-
-      if (payload.savedId) {
-        setSavedId(payload.savedId);
-        emitDashboardInsightsRefresh();
-        window.dispatchEvent(new Event("fazumi-todos-changed"));
-      }
-
-      if (currentUserId && payload.summary.action_items.length > 0) {
-        const health = await getClientHealthSnapshot();
-        if (getTodoStorageMode(health) === "local") {
-          mergeLocalTodoLabels(currentUserId, payload.summary.action_items);
-          window.dispatchEvent(new Event("fazumi-todos-changed"));
-        }
-      }
-
-      setTimeout(() => {
-        summaryRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 100);
     } catch {
       setError(pick(COPY.networkError, locale));
       haptic("error");
     } finally {
       setLoading(false);
+      setLoadingSource(null);
     }
   }
 
@@ -287,7 +484,7 @@ export default function SummarizePage() {
     }
   }
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleTextFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -308,43 +505,120 @@ export default function SummarizePage() {
         return;
       }
 
-      if (file.name.endsWith(".zip")) {
-        const JSZip = (await import("jszip")).default;
-        const zip = await JSZip.loadAsync(file);
-        const textParts: string[] = [];
-        let hasMedia = false;
-
-        await Promise.all(
-          Object.values(zip.files).map(async (entry) => {
-            if (entry.dir) {
-              return;
-            }
-
-            if (entry.name.match(/\.(txt|TXT)$/)) {
-              textParts.push(await entry.async("string"));
-              return;
-            }
-
-            hasMedia = true;
-          })
-        );
-
-        if (textParts.length === 0) {
-          setError(pick(COPY.noTextFiles, locale));
-          return;
-        }
-
-        if (hasMedia) {
-          setError(pick(COPY.ignoredMedia, locale));
-        }
-
-        setText(textParts.join("\n").slice(0, MAX_CHARS));
-        return;
-      }
-
       setError(pick(COPY.unsupportedFile, locale));
     } catch {
       setError(pick(COPY.fileReadError, locale));
+    }
+  }
+
+  function handleZipFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    event.target.value = "";
+    setError(null);
+    setZipNoNewMessages(null);
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError(pick(COPY.fileTooLarge, locale));
+      return;
+    }
+
+    if (!file.name.endsWith(".zip")) {
+      setError(pick(COPY.unsupportedFile, locale));
+      return;
+    }
+
+    setZipFile(file);
+    setZipGroupName(inferGroupLabelFromFilename(file.name));
+  }
+
+  async function handleZipSubmit(event?: React.FormEvent) {
+    event?.preventDefault();
+    haptic("medium");
+
+    if (!zipFile || loading) {
+      setError(pick(COPY.zipSelectFirst, locale));
+      haptic("error");
+      return;
+    }
+
+    setLoading(true);
+    setLoadingSource("zip");
+    setError(null);
+    resetOutputState();
+
+    try {
+      const formData = new FormData();
+      formData.append("file", zipFile);
+      formData.append("range", zipRange);
+      formData.append("group_key", zipGroupName.trim());
+      formData.append("lang_pref", outputLang);
+
+      const response = await fetch("/api/summarize-zip", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      if (response.status === 402) {
+        const payload = (await response.json().catch(() => ({}))) as { code?: string };
+        const code = payload.code === "LIFETIME_CAP" ? "LIFETIME_CAP" : "DAILY_CAP";
+        setLimitCode(code);
+        setLimitReached(true);
+        trackEvent(AnalyticsEvents.LIMIT_REACHED, { code, source: "zip" });
+        return;
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as ZipApiResponse;
+
+      if (!response.ok) {
+        setError(resolveZipError(payload));
+        haptic("error");
+        return;
+      }
+
+      if (payload.status === "no_new_messages") {
+        setSubmissionSource("zip");
+        setZipNoNewMessages({
+          range: payload.range,
+          groupTitle:
+            payload.group?.title?.trim() ||
+            zipGroupName.trim() ||
+            inferGroupLabelFromFilename(zipFile.name),
+        });
+        haptic("success");
+        return;
+      }
+
+      if (payload.status !== "ok" || !payload.summary) {
+        setError(resolveZipError(payload));
+        haptic("error");
+        return;
+      }
+
+      await applySummaryResult(payload.summary, {
+        source: "zip",
+        savedId: payload.savedId,
+        newMessagesProcessed: payload.newMessagesProcessed,
+        range: payload.range,
+        groupTitle:
+          payload.group?.title?.trim() ||
+          zipGroupName.trim() ||
+          inferGroupLabelFromFilename(zipFile.name),
+      });
+    } catch {
+      setError(pick(COPY.networkError, locale));
+      haptic("error");
+    } finally {
+      setLoading(false);
+      setLoadingSource(null);
     }
   }
 
@@ -368,46 +642,60 @@ export default function SummarizePage() {
         </div>
 
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
+          <CardContent className="space-y-3 p-6 text-start">
+            <div>
+              <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                {pick(COPY.outputLanguage, locale)}
+              </p>
+              <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                {pick(COPY.outputLanguageHint, locale)}
+              </p>
+            </div>
+            <div
+              className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
+              role="group"
+              aria-label={pick(COPY.outputLanguage, locale)}
+            >
+              {OUTPUT_LANGUAGE_OPTIONS.map((option) => {
+                const active = outputLang === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    data-testid={`summary-lang-${option.value}`}
+                    aria-pressed={active}
+                    onClick={() => setOutputLang(option.value)}
+                    disabled={loading}
+                    className={cn(
+                      "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
+                      active
+                        ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
+                        : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
+                      loading && "cursor-not-allowed opacity-60"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-3 text-start">
-                <div>
+              <div className="space-y-2 text-start">
+                <div className="flex items-center gap-2">
+                  <Upload className="h-4 w-4 text-[var(--primary)]" />
                   <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
-                    {pick(COPY.outputLanguage, locale)}
-                  </p>
-                  <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
-                    {pick(COPY.outputLanguageHint, locale)}
+                    {pick(COPY.pasteSection, locale)}
                   </p>
                 </div>
-                <div
-                  className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
-                  role="group"
-                  aria-label={pick(COPY.outputLanguage, locale)}
-                >
-                  {OUTPUT_LANGUAGE_OPTIONS.map((option) => {
-                    const active = outputLang === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        data-testid={`summary-lang-${option.value}`}
-                        aria-pressed={active}
-                        onClick={() => setOutputLang(option.value)}
-                        disabled={loading}
-                        className={cn(
-                          "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
-                          active
-                            ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
-                            : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
-                          loading && "cursor-not-allowed opacity-60"
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <p className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                  {pick(COPY.pasteSectionHint, locale)}
+                </p>
               </div>
 
               <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)]">
@@ -452,22 +740,22 @@ export default function SummarizePage() {
               <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <input
-                    ref={fileInputRef}
+                    ref={textFileInputRef}
                     type="file"
-                    accept=".txt,.zip"
+                    accept=".txt"
                     className="hidden"
-                    onChange={handleFileChange}
+                    onChange={handleTextFileChange}
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     className="gap-1.5"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => textFileInputRef.current?.click()}
                     disabled={loading}
                   >
                     <Upload className="h-4 w-4" />
-                    {pick(COPY.upload, locale)}
+                    {pick(COPY.uploadText, locale)}
                   </Button>
                   <Button
                     type="button"
@@ -488,7 +776,7 @@ export default function SummarizePage() {
                   className="h-12 w-full px-8 sm:w-auto"
                   disabled={loading || !text.trim() || isOverLimit}
                 >
-                  {loading ? (
+                  {isTextLoading ? (
                     <>
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                       {pick(COPY.summarizing, locale)}
@@ -497,6 +785,138 @@ export default function SummarizePage() {
                     <>
                       <Sparkles className="h-5 w-5" />
                       {pick(COPY.summarize, locale)}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
+          <CardContent className="p-6">
+            <form onSubmit={handleZipSubmit} className="space-y-5">
+              <div className="space-y-2 text-start">
+                <div className="flex items-center gap-2">
+                  <Archive className="h-4 w-4 text-[var(--primary)]" />
+                  <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                    {pick(COPY.zipSection, locale)}
+                  </p>
+                </div>
+                <p className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                  {pick(COPY.zipSectionHint, locale)}
+                </p>
+                <p className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                  {pick(COPY.zipPrivacy, locale)}
+                </p>
+              </div>
+
+              <div className="rounded-[var(--radius-xl)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                      {pick(COPY.zipSelectedFile, locale)}
+                    </p>
+                    <p
+                      data-testid="zip-selected-file"
+                      className="mt-1 truncate text-[var(--text-sm)] text-[var(--muted-foreground)]"
+                    >
+                      {zipFile?.name ?? pick(COPY.zipNoFile, locale)}
+                    </p>
+                  </div>
+
+                  <input
+                    ref={zipFileInputRef}
+                    type="file"
+                    accept=".zip"
+                    className="hidden"
+                    onChange={handleZipFileChange}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    data-testid="zip-select-file"
+                    onClick={() => zipFileInputRef.current?.click()}
+                    disabled={loading}
+                  >
+                    <Archive className="h-4 w-4" />
+                    {pick(COPY.uploadZip, locale)}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 text-start">
+                  <label htmlFor="zip-group-name" className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                    {pick(COPY.zipGroupName, locale)}
+                  </label>
+                  <Input
+                    id="zip-group-name"
+                    data-testid="zip-group-input"
+                    value={zipGroupName}
+                    onChange={(event) => setZipGroupName(event.target.value)}
+                    placeholder={locale === "ar" ? "مثال: أولياء أمور الصف الرابع" : "Example: Grade 4 Parents"}
+                    disabled={loading}
+                  />
+                  <p className="text-[var(--text-xs)] text-[var(--muted-foreground)]">
+                    {pick(COPY.zipGroupHint, locale)}
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-start">
+                  <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                    {pick(COPY.zipRange, locale)}
+                  </p>
+                  <div
+                    className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
+                    role="group"
+                    aria-label={pick(COPY.zipRange, locale)}
+                  >
+                    {ZIP_RANGE_OPTIONS.map((option) => {
+                      const active = zipRange === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          data-testid={`zip-range-${option.value}`}
+                          aria-pressed={active}
+                          onClick={() => setZipRange(option.value)}
+                          disabled={loading}
+                          className={cn(
+                            "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
+                            active
+                              ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
+                              : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
+                            loading && "cursor-not-allowed opacity-60"
+                          )}
+                        >
+                          {pick(option.label, locale)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-[var(--border)] pt-4">
+                <Button
+                  type="submit"
+                  size="lg"
+                  data-testid="zip-submit"
+                  className="h-12 w-full sm:w-auto"
+                  disabled={loading || !zipFile}
+                >
+                  {isZipLoading ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      {pick(COPY.zipSubmitting, locale)}
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="h-5 w-5" />
+                      {pick(COPY.zipSubmit, locale)}
                     </>
                   )}
                 </Button>
@@ -541,8 +961,52 @@ export default function SummarizePage() {
           </div>
         )}
 
+        {zipNoNewMessages && (
+          <div
+            data-testid="zip-no-new-messages"
+            className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-4"
+            role="status"
+            aria-live="polite"
+          >
+            <p className="text-sm font-semibold text-[var(--foreground)]">
+              {pick(COPY.zipNoNewMessages, locale)}
+            </p>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              {zipNoNewMessages.groupTitle}
+              {" • "}
+              {pick(
+                ZIP_RANGE_OPTIONS.find((option) => option.value === zipNoNewMessages.range)?.label ?? ZIP_RANGE_OPTIONS[0].label,
+                locale
+              )}
+            </p>
+            <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+              {pick(COPY.zipNoNewMessagesHint, locale)}
+            </p>
+          </div>
+        )}
+
         {summary && (
           <div ref={summaryRef}>
+            {submissionSource === "zip" && zipResultMeta && (
+              <div
+                data-testid="zip-processed-banner"
+                className="mb-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm"
+                role="status"
+                aria-live="polite"
+              >
+                <p className="font-semibold text-[var(--foreground)]">
+                  {pick(COPY.zipProcessed, locale)}: {formatNumber(zipResultMeta.newMessagesProcessed)}
+                </p>
+                <p className="mt-1 text-[var(--muted-foreground)]">
+                  {zipResultMeta.groupTitle}
+                  {" • "}
+                  {pick(
+                    ZIP_RANGE_OPTIONS.find((option) => option.value === zipResultMeta.range)?.label ?? ZIP_RANGE_OPTIONS[0].label,
+                    locale
+                  )}
+                </p>
+              </div>
+            )}
             {savedId && (
               <div
                 data-testid="summary-saved-banner"

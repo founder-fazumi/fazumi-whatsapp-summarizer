@@ -14,6 +14,18 @@ import { cn } from "@/lib/utils";
 
 const LANG_LABEL: Record<string, string> = { en: "EN", ar: "AR" };
 
+function getRangeLabel(range: "24h" | "7d" | null, locale: "en" | "ar") {
+  if (range === "24h") {
+    return locale === "ar" ? "آخر 24 ساعة" : "Last 24 hours";
+  }
+
+  if (range === "7d") {
+    return locale === "ar" ? "آخر 7 أيام" : "Last 7 days";
+  }
+
+  return null;
+}
+
 interface Props {
   summaries: SummaryRow[];
   currentPage: number;
@@ -285,6 +297,11 @@ export function HistoryList({
                         <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-semibold text-[var(--text-strong)]">
                           {LANG_LABEL[summary.lang_detected] ?? summary.lang_detected.toUpperCase()}
                         </span>
+                        {summary.source_kind === "zip" && (
+                          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-semibold text-[var(--primary)]">
+                            ZIP
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
                         {formatDate(summary.created_at, locale, {
@@ -293,6 +310,18 @@ export function HistoryList({
                           year: "numeric",
                         })}
                       </p>
+                      {summary.source_kind === "zip" && (
+                        <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                          {[
+                            getRangeLabel(summary.source_range, locale),
+                            typeof summary.new_messages_count === "number"
+                              ? locale === "ar"
+                                ? `${formatNumber(summary.new_messages_count)} رسالة جديدة`
+                                : `${formatNumber(summary.new_messages_count)} new messages`
+                              : null,
+                          ].filter(Boolean).join(" • ")}
+                        </p>
+                      )}
                       <p className="mt-2 line-clamp-2 text-[var(--text-sm)] leading-6 text-[var(--muted-foreground)]">
                         {summary.tldr}
                       </p>

@@ -40,6 +40,9 @@ export default async function SummaryDetailPage({ params }: PageProps) {
         char_count: number;
         lang_detected: string;
         created_at: string;
+        source_kind: "text" | "zip";
+        source_range: "24h" | "7d" | null;
+        new_messages_count: number | null;
       }>(),
     supabase
       .from("profiles")
@@ -100,6 +103,34 @@ export default async function SummaryDetailPage({ params }: PageProps) {
               <span className="rounded-full border border-[var(--border)] px-2 py-px text-xs font-medium text-[var(--muted-foreground)]">
                 {row.lang_detected.toUpperCase()}
               </span>
+              {row.source_kind === "zip" && (
+                <span className="rounded-full border border-[var(--border)] px-2 py-px text-xs font-medium text-[var(--primary)]">
+                  <LocalizedText
+                    en={
+                      row.source_range === "24h"
+                        ? "ZIP • 24h"
+                        : row.source_range === "7d"
+                          ? "ZIP • 7d"
+                          : "ZIP"
+                    }
+                    ar={
+                      row.source_range === "24h"
+                        ? "ZIP • 24 ساعة"
+                        : row.source_range === "7d"
+                          ? "ZIP • 7 أيام"
+                          : "ZIP"
+                    }
+                  />
+                </span>
+              )}
+              {row.source_kind === "zip" && typeof row.new_messages_count === "number" && (
+                <span className="rounded-full border border-[var(--border)] px-2 py-px text-xs font-medium text-[var(--muted-foreground)]">
+                  <LocalizedText
+                    en={`${formatNumber(row.new_messages_count)} new messages`}
+                    ar={`${formatNumber(row.new_messages_count)} رسالة جديدة`}
+                  />
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Link

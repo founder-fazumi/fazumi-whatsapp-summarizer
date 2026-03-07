@@ -14,7 +14,7 @@ interface CheckoutParams {
 }
 
 export function buildCheckoutUrl({ variantId, email, userId, appUrl }: CheckoutParams): string {
-  const base = `https://fazumi.lemonsqueezy.com/buy/${variantId}`;
+  const base = `https://fazumi.lemonsqueezy.com/checkout/buy/${variantId}`;
   const url = new URL(base);
   url.searchParams.set("checkout[email]", email);
   url.searchParams.set("checkout[custom][user_id]", userId);
