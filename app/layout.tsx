@@ -26,13 +26,24 @@ const alexandria = Alexandria({
 });
 
 export const metadata: Metadata = {
-  title: "Fazumi — Family Dashboard for School Chats",
+  title: {
+    default: "Fazumi — School Chat Summarizer for Parents",
+    template: "%s — Fazumi",
+  },
   description:
     "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, fees, forms, supplies, and reminders.",
   applicationName: "Fazumi",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app"
   ),
+  alternates: {
+    canonical: "/",
+    languages: {
+      en: "/",
+      ar: "/",
+      "x-default": "/",
+    },
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -46,6 +57,8 @@ export const metadata: Metadata = {
     url: "/",
     siteName: "Fazumi",
     type: "website",
+    locale: "en_US",
+    alternateLocale: "ar_AE",
     images: [
       {
         url: "/og-image.png",
@@ -80,7 +93,6 @@ export const viewport: Viewport = {
   themeColor: "#247052",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default async function RootLayout({
