@@ -1,5 +1,8 @@
 import OpenAI from "openai";
 import { estimateAiCostUsd, estimateTokenCount } from "@/lib/ai/usage";
+import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
+import type { FamilyContext } from "@/lib/family-context";
+import { buildFamilyContextPrompt } from "@/lib/family-context";
 
 export type LangPref = "auto" | "en" | "ar";
 
@@ -20,6 +23,11 @@ export type ChatType =
 export interface ChatContext {
   message_count_estimate: number | null;
   date_range: string | null;
+  source_platform?: ImportSourcePlatform | null;
+  group_title?: string | null;
+  school_name?: string | null;
+  child_name?: string | null;
+  class_name?: string | null;
 }
 
 export interface SummaryResult {
@@ -47,12 +55,20 @@ export interface SummaryUsage {
 
 type ResolvedLang = Exclude<LangPref, "auto">;
 
-const SYSTEM_PROMPT = `You are Fazumi, an AI assistant that summarizes school WhatsApp group chats for parents.
+export interface SummaryPromptContext {
+  sourcePlatform?: ImportSourcePlatform | null;
+  groupTitle?: string | null;
+  familyContext?: FamilyContext | null;
+}
+
+const SYSTEM_PROMPT = `You are Fazumi, an AI assistant that turns school parent chats into an action-ready family dashboard.
+
+The source may be pasted from WhatsApp, Telegram, or Facebook parent groups.
 
 Analyze the provided chat text and return a JSON object with EXACTLY these fields (no extra keys):
 
 {
-  "tldr": "A 2-3 sentence plain-language summary of the most important points.",
+  "tldr": "A calm 2-3 sentence plain-language summary of the most important points for a family dashboard.",
   "important_dates": [
     {
       "label": "Human-readable description e.g. 'Parent meeting at school hall'",
@@ -62,7 +78,7 @@ Analyze the provided chat text and return a JSON object with EXACTLY these field
       "urgent": true if the event is today or tomorrow relative to the most recent message, otherwise false
     }
   ],
-  "action_items": ["All things parents or students need to DO. Be specific and actionable. If none, return empty array."],
+  "action_items": ["All things parents or students need to DO. Include fees, forms, permission slips, portal uploads, supplies, and reminders when relevant. If none, return empty array."],
   "urgent_action_items": ["Strict subset of action_items due today or tomorrow only — same exact wording. If none, return empty array."],
   "people_classes": ["Names of teachers, people, subjects, or class sections mentioned. If none, return empty array."],
   "contacts": ["Phone numbers, email addresses, or explicit contact details shared in the chat. Do NOT invent. If none, return empty array."],
@@ -80,10 +96,15 @@ RULES:
 - date field must be ISO format YYYY-MM-DD. If year is ambiguous, use the current year.
 - urgent: true only if the event or deadline is within the next 48 hours of the most recent message date.
 - urgent_action_items must be a strict subset of action_items with identical wording.
+- The output will feed these buckets: Due today, Upcoming dates, Payments/forms, Supplies, Questions, and Urgent items. Write with those buckets in mind.
+- Explicitly call out payments, forms, permission slips, supplies to bring, portal uploads, school-fee reminders, and approval requests when they matter.
+- When a task has a due date or time, include that exact date or time in the action item wording.
+- Preserve local currency wording exactly as written when possible, especially SAR, AED, QAR, KWD, BHD, OMR, and USD.
 - contacts: only explicitly stated phone numbers, emails, or contact handles — never invent.
 - chat_type values: "routine_update" = regular school news; "urgent_notice" = requires immediate action; "event_announcement" = specific upcoming event; "noisy_general_chat" = mostly off-topic chatter with little actionable content.
 - Be concise. Bullet points, not paragraphs, for list fields.
 - Follow the output language requested in the user message. If no output language is requested, reply in the SAME language as the chat.
+- If saved family context is provided, use it only to disambiguate names, classes, recurring links, and expected currency. Never invent facts that are not supported by the chat.
 - Never include raw message text in your output.
 - If the chat is too short or unclear to summarize, set tldr to a brief note explaining that, and return empty arrays and safe defaults for all other fields.
 
@@ -120,13 +141,28 @@ function resolveOutputLanguage(text: string, langPref: LangPref): ResolvedLang {
   return langPref === "auto" ? detectInputLanguage(text) : langPref;
 }
 
-function buildUserMessage(text: string, outputLang: ResolvedLang): string {
+function buildUserMessage(
+  text: string,
+  outputLang: ResolvedLang,
+  context?: SummaryPromptContext
+): string {
   const langInstruction =
     outputLang === "en"
       ? "\n\nIMPORTANT: Reply in English only, regardless of the chat language."
       : "\n\nIMPORTANT: Reply in Standard Arabic (فصحى) only, regardless of the chat language.";
+  const familyContext = context?.familyContext ? buildFamilyContextPrompt(context.familyContext) : null;
+  const metaLines = [
+    context?.sourcePlatform ? `Source platform: ${context.sourcePlatform}` : null,
+    context?.groupTitle ? `Saved group name: ${context.groupTitle}` : null,
+    familyContext,
+  ].filter((line): line is string => Boolean(line));
+  const metaBlock = metaLines.length > 0
+    ? `\n\nUse this saved context only to reduce ambiguity:\n${metaLines.join("\n")}`
+    : "";
 
-  return `Here is the WhatsApp chat to summarize:
+  return `Here is the school chat to summarize:
+
+${metaBlock}
 
 ---
 ${text.slice(0, 30000)}
@@ -189,9 +225,44 @@ export function parseChatContext(val: unknown): ChatContext {
           : null,
       date_range:
         typeof obj.date_range === "string" && obj.date_range ? obj.date_range : null,
+      source_platform:
+        obj.source_platform === "whatsapp" ||
+        obj.source_platform === "telegram" ||
+        obj.source_platform === "facebook"
+          ? obj.source_platform
+          : null,
+      group_title:
+        typeof obj.group_title === "string" && obj.group_title ? obj.group_title : null,
+      school_name:
+        typeof obj.school_name === "string" && obj.school_name ? obj.school_name : null,
+      child_name:
+        typeof obj.child_name === "string" && obj.child_name ? obj.child_name : null,
+      class_name:
+        typeof obj.class_name === "string" && obj.class_name ? obj.class_name : null,
     };
   }
   return { message_count_estimate: null, date_range: null };
+}
+
+export function applySummaryPromptContext(
+  summary: SummaryResult,
+  context?: SummaryPromptContext
+): SummaryResult {
+  if (!context) {
+    return summary;
+  }
+
+  return {
+    ...summary,
+    chat_context: {
+      ...summary.chat_context,
+      source_platform: context.sourcePlatform ?? null,
+      group_title: context.groupTitle ?? null,
+      school_name: context.familyContext?.school_name ?? null,
+      child_name: context.familyContext?.child_name ?? null,
+      class_name: context.familyContext?.class_name ?? null,
+    },
+  };
 }
 
 function buildUsage(
@@ -210,7 +281,8 @@ function buildUsage(
 
 export async function summarizeChat(
   text: string,
-  langPref: LangPref = "auto"
+  langPref: LangPref = "auto",
+  context?: SummaryPromptContext
 ): Promise<{
   summary: SummaryResult;
   usage: SummaryUsage;
@@ -226,7 +298,7 @@ export async function summarizeChat(
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: buildUserMessage(text, outputLang) },
+      { role: "user", content: buildUserMessage(text, outputLang, context) },
     ],
   });
 
@@ -255,12 +327,12 @@ export async function summarizeChat(
   };
 
   const promptTokens =
-    completion.usage?.prompt_tokens ?? estimateTokenCount(buildUserMessage(text, outputLang));
+    completion.usage?.prompt_tokens ?? estimateTokenCount(buildUserMessage(text, outputLang, context));
   const completionTokens =
     completion.usage?.completion_tokens ?? estimateTokenCount(raw);
 
   return {
-    summary,
+    summary: applySummaryPromptContext(summary, context),
     usage: buildUsage(model, promptTokens, completionTokens),
   };
 }

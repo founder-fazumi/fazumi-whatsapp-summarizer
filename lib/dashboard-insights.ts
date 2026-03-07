@@ -1,3 +1,5 @@
+import { type ImportantDate, toImportantDateArray } from "@/lib/ai/summarize";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_WINDOW_DAYS = 30;
 const MAX_CALENDAR_ITEMS = 6;
@@ -62,7 +64,7 @@ const MONTH_INDEX_BY_NAME: Record<string, number> = {
 export interface SummaryInsightRow {
   id: string;
   created_at: string;
-  important_dates: string[] | null;
+  important_dates: unknown;
   action_items: string[] | null;
 }
 
@@ -100,6 +102,22 @@ export const EMPTY_DASHBOARD_INSIGHTS: DashboardInsights = {
   todoItems: [],
   notifications: [],
 };
+
+function resolveImportantDateValue(item: ImportantDate, now: Date): Date | null {
+  if (item.date) {
+    const [year, month, day] = item.date.split("-").map(Number);
+    if (year && month && day) {
+      return buildUtcDate(year, month - 1, day);
+    }
+  }
+
+  return parseDateFromLabel(item.label, now);
+}
+
+function formatImportantDateLabel(item: ImportantDate) {
+  const meta = [item.time, item.location].filter(Boolean).join(" • ");
+  return meta ? `${item.label} (${meta})` : item.label;
+}
 
 function normalizeDigits(value: string): string {
   return value.replace(/[٠-٩]/g, (char) => ARABIC_DIGIT_MAP[char] ?? char);
@@ -244,13 +262,13 @@ export function buildDashboardInsights(
     rows
       .filter((row) => isRecentSummary(row.created_at, now))
       .flatMap((row) =>
-        (row.important_dates ?? [])
-          .map((label, index) => {
-            const parsedDate = parseDateFromLabel(label, now);
+        toImportantDateArray(row.important_dates)
+          .map((item, index) => {
+            const parsedDate = resolveImportantDateValue(item, now);
             return {
               id: `${row.id}:date:${index}`,
               summaryId: row.id,
-              label,
+              label: formatImportantDateLabel(item),
               createdAt: row.created_at,
               isoDate: parsedDate ? parsedDate.toISOString() : null,
               dateKey: parsedDate ? parsedDate.toISOString().slice(0, 10) : null,

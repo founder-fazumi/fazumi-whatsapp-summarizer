@@ -10,7 +10,7 @@ interface LangContextValue {
 }
 
 const LangContext = createContext<LangContextValue>({
-  locale: "en",
+  locale: "ar",
   setLocale: () => {},
 });
 
@@ -41,7 +41,7 @@ function writeLocaleCookie(locale: Locale) {
 
 export function LangProvider({
   children,
-  initialLocale = "en",
+  initialLocale = "ar",
 }: {
   children: React.ReactNode;
   initialLocale?: Locale;

@@ -14,8 +14,8 @@ const FAQS = [
       ar: "كيف يعمل فازومي؟",
     },
     answer: {
-      en: "Paste your school WhatsApp chat or upload the export. Fazumi reads the conversation, extracts dates, tasks, announcements, links, and follow-up questions, then saves the clean summary to your history.",
-      ar: "الصق محادثة واتساب الخاصة بالمدرسة أو ارفع ملف التصدير. يقرأ فازومي المحادثة ويستخرج التواريخ والمهام والإعلانات والروابط وأسئلة المتابعة ثم يحفظ الملخص الواضح في سجلك.",
+      en: "Paste school chat text from WhatsApp, Telegram, or Facebook, or upload the export. Fazumi turns it into one action-ready family dashboard with dates, tasks, fees, forms, supplies, and follow-up questions.",
+      ar: "الصق نص محادثة المدرسة من واتساب أو تيليجرام أو فيسبوك، أو ارفع ملف التصدير. يحوله فازومي إلى لوحة عائلية واحدة جاهزة للتنفيذ تضم التواريخ والمهام والرسوم والنماذج والمستلزمات وأسئلة المتابعة.",
     },
   },
   {
@@ -24,8 +24,8 @@ const FAQS = [
       ar: "هل بيانات المحادثة خاصة؟",
     },
     answer: {
-      en: "Yes. Fazumi does not store your raw chat messages in the database. Only the generated summary and structured items are saved to your account history.",
-      ar: "نعم. لا يحفظ فازومي رسائل المحادثة الخام في قاعدة البيانات. يتم حفظ الملخص الناتج والعناصر المنظمة فقط في سجل حسابك.",
+      en: "Yes. Fazumi does not store your raw chat messages in the summaries database. It stores the generated summary, saved group name, and any memory settings you choose. ZIP imports also keep message fingerprints for repeat-import matching.",
+      ar: "نعم. لا يحفظ فازومي رسائل المحادثة الخام في قاعدة بيانات الملخصات. بل يحفظ الملخص الناتج واسم المجموعة المحفوظ وأي إعدادات ذاكرة تختارها. كما يحتفظ استيراد ZIP ببصمات الرسائل لمطابقة الاستيراد المتكرر.",
     },
   },
   {
@@ -44,8 +44,8 @@ const FAQS = [
       ar: "هل يمكنني مشاركة الملخصات مع زوجي أو زوجتي؟",
     },
     answer: {
-      en: "Yes. You can copy the summary, export it, or share the key dates and tasks with family so both parents stay aligned.",
-      ar: "نعم. يمكنك نسخ الملخص أو تصديره أو مشاركة التواريخ والمهام المهمة مع العائلة حتى يبقى كلا الوالدين على اطلاع.",
+      en: "Yes. Fazumi includes spouse or caregiver sharing, a shared calendar export, and a clean family action list so everyone can stay aligned without full multi-user setup.",
+      ar: "نعم. يتضمن فازومي مشاركة مع الزوج أو الزوجة أو مقدم الرعاية، وتصديرًا لتقويم مشترك، وقائمة إجراءات عائلية واضحة حتى يبقى الجميع على اطلاع من دون إعداد تعاون كامل بين عدة مستخدمين.",
     },
   },
   {

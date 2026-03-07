@@ -16,7 +16,7 @@ const organizationSchema = {
   url: APP_URL,
   logo: `${APP_URL}/brand/logo-mark.png`,
   description:
-    "Fazumi turns messy school WhatsApp chats into structured summaries — dates, action items, and key links — without storing raw chat text.",
+    "Fazumi turns WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, forms, fees, and reminders without storing raw chat text.",
   sameAs: ["https://x.com/FazumiApp", "https://instagram.com/fazumi.app"],
 };
 
@@ -30,6 +30,14 @@ const faqSchema = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Paste your school WhatsApp chat or upload the export. Fazumi reads the conversation, extracts dates, tasks, announcements, links, and follow-up questions, then saves the clean summary to your history.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Which school chat apps does Fazumi support?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Fazumi supports pasted or uploaded school chat text from WhatsApp, Telegram, and Facebook Messenger. WhatsApp ZIP exports also support incremental uploads.",
       },
     },
     {

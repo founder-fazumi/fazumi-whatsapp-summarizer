@@ -1,3 +1,5 @@
+import type { FamilyContext } from "@/lib/family-context";
+
 export interface Profile {
   id: string;
   full_name: string | null;
@@ -8,6 +10,8 @@ export interface Profile {
   lifetime_free_used: number;
   lang_pref: "en" | "ar";
   theme_pref: "light" | "dark";
+  family_context: FamilyContext;
+  summary_retention_days: number | null;
   created_at: string;
   updated_at: string;
 }

@@ -26,9 +26,9 @@ const alexandria = Alexandria({
 });
 
 export const metadata: Metadata = {
-  title: "Fazumi — WhatsApp Summary in Seconds",
+  title: "Fazumi — Family Dashboard for School Chats",
   description:
-    "Paste your WhatsApp school chat and get a clean summary: dates, action items, and questions — in seconds.",
+    "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, fees, forms, supplies, and reminders.",
   applicationName: "Fazumi",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
@@ -40,9 +40,9 @@ export const metadata: Metadata = {
     title: "Fazumi",
   },
   openGraph: {
-    title: "Fazumi — WhatsApp Summary in Seconds",
+    title: "Fazumi — Family Dashboard for School Chats",
     description:
-      "Turn busy school chats into clear summaries, dates, and action items without storing raw chat text.",
+      "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard without storing raw chat text.",
     url: "/",
     siteName: "Fazumi",
     type: "website",
@@ -57,9 +57,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Fazumi — WhatsApp Summary in Seconds",
+    title: "Fazumi — Family Dashboard for School Chats",
     description:
-      "Turn busy school chats into clear summaries, dates, and action items without storing raw chat text.",
+      "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard without storing raw chat text.",
     images: ["/twitter-card.png"],
   },
   icons: {
@@ -90,7 +90,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const initialLocale: Locale =
-    cookieStore.get(LANG_STORAGE_KEY)?.value === "ar" ? "ar" : "en";
+    cookieStore.get(LANG_STORAGE_KEY)?.value === "en" ? "en" : "ar";
   const disableServiceWorkerBootstrap =
     process.env.NODE_ENV !== "production" ? "true" : "false";
 
@@ -114,7 +114,7 @@ export default async function RootLayout({
         {/* Prevent flash of wrong theme/direction before React hydrates */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('fazumi_theme');if(t==='dark')document.documentElement.classList.add('dark');var m=document.cookie.match(/(?:^|; )${LANG_STORAGE_KEY}=([^;]+)/);var l=m?decodeURIComponent(m[1]):(localStorage.getItem('${LANG_STORAGE_KEY}')||'en');document.documentElement.lang=l;document.documentElement.dir=l==='ar'?'rtl':'ltr';document.cookie='${LANG_STORAGE_KEY}='+l+'; path=/; max-age=31536000; samesite=lax';var disableSw=${disableServiceWorkerBootstrap};if(disableSw&&'serviceWorker' in navigator){var cleanupKey='fazumi_sw_cleanup_v1';navigator.serviceWorker.getRegistrations().then(function(registrations){return Promise.all(registrations.map(function(registration){return registration.unregister().catch(function(){return false;});}));}).then(function(unregisterResults){var unregistered=unregisterResults.some(Boolean);if(!('caches' in window)){return unregistered;}return caches.keys().then(function(keys){var fazumiKeys=keys.filter(function(key){return key.indexOf('fazumi-')===0;});if(fazumiKeys.length===0){return unregistered;}return Promise.all(fazumiKeys.map(function(key){return caches.delete(key);})).then(function(deleteResults){return unregistered||deleteResults.some(Boolean);});});}).then(function(changed){if(changed&&!sessionStorage.getItem(cleanupKey)){sessionStorage.setItem(cleanupKey,'1');window.location.reload();}else if(!changed){sessionStorage.removeItem(cleanupKey);}}).catch(function(){});}}catch(e){document.documentElement.lang='en';document.documentElement.dir='ltr';}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('fazumi_theme');if(t==='dark')document.documentElement.classList.add('dark');var m=document.cookie.match(/(?:^|; )${LANG_STORAGE_KEY}=([^;]+)/);var l=m?decodeURIComponent(m[1]):(localStorage.getItem('${LANG_STORAGE_KEY}')||'ar');document.documentElement.lang=l;document.documentElement.dir=l==='ar'?'rtl':'ltr';document.cookie='${LANG_STORAGE_KEY}='+l+'; path=/; max-age=31536000; samesite=lax';var disableSw=${disableServiceWorkerBootstrap};if(disableSw&&'serviceWorker' in navigator){var cleanupKey='fazumi_sw_cleanup_v1';navigator.serviceWorker.getRegistrations().then(function(registrations){return Promise.all(registrations.map(function(registration){return registration.unregister().catch(function(){return false;});}));}).then(function(unregisterResults){var unregistered=unregisterResults.some(Boolean);if(!('caches' in window)){return unregistered;}return caches.keys().then(function(keys){var fazumiKeys=keys.filter(function(key){return key.indexOf('fazumi-')===0;});if(fazumiKeys.length===0){return unregistered;}return Promise.all(fazumiKeys.map(function(key){return caches.delete(key);})).then(function(deleteResults){return unregistered||deleteResults.some(Boolean);});});}).then(function(changed){if(changed&&!sessionStorage.getItem(cleanupKey)){sessionStorage.setItem(cleanupKey,'1');window.location.reload();}else if(!changed){sessionStorage.removeItem(cleanupKey);}}).catch(function(){});}}catch(e){document.documentElement.lang='ar';document.documentElement.dir='rtl';}})();`,
           }}
         />
       </head>

@@ -18,8 +18,8 @@ const STEPS = [
       ar: "ولي أمر يلصق محادثة المدرسة في فازومي",
     },
     desc: {
-      en: "Copy the WhatsApp conversation or upload the exported text file.",
-      ar: "انسخ محادثة واتساب أو ارفع ملف النص المصدّر منها.",
+      en: "Copy text from WhatsApp, Telegram, or Facebook, or upload the export you already have.",
+      ar: "انسخ النص من واتساب أو تيليجرام أو فيسبوك، أو ارفع ملف التصدير الذي لديك بالفعل.",
     },
   },
   {
@@ -32,8 +32,8 @@ const STEPS = [
       ar: "فازومي يحول رسائل المدرسة إلى ملخص ذكي",
     },
     desc: {
-      en: "Fazumi pulls out dates, tasks, announcements, questions, and links in seconds.",
-      ar: "يستخرج Fazumi التواريخ والمهام والإعلانات والأسئلة والروابط خلال ثوانٍ.",
+      en: "Fazumi sorts the noise into due today, upcoming dates, payments/forms, supplies, questions, and urgent items.",
+      ar: "يرتب Fazumi الضوضاء إلى مطلوب اليوم والمواعيد القادمة والرسوم والنماذج والمستلزمات والأسئلة والعناصر العاجلة.",
     },
   },
   {
@@ -46,8 +46,8 @@ const STEPS = [
       ar: "ولي أمر يتخذ إجراءً بناءً على ملخص فازومي",
     },
     desc: {
-      en: "Review one clear summary, then copy, share, or plan the next step.",
-      ar: "راجع ملخصًا واضحًا واحدًا ثم انسخه أو شاركه أو خطط للخطوة التالية.",
+      en: "Share with family, export the calendar, seed your action list, and let reminders do the follow-up.",
+      ar: "شاركها مع العائلة، وصدّر التقويم، وابدأ قائمة الإجراءات، ودع التذكيرات تتولى المتابعة.",
     },
   },
 ] as const;
@@ -56,8 +56,8 @@ const COPY = {
   eyebrow: { en: "How it works", ar: "كيف يعمل" },
   title: { en: "From noisy chats to clear next steps", ar: "من ضوضاء المجموعات إلى خطوات واضحة" },
   subtitle: {
-    en: "See deadlines, payments, supplies, and exams without reading every message.",
-    ar: "شاهد المواعيد والرسوم والمستلزمات والاختبارات من دون قراءة كل رسالة.",
+    en: "See deadlines, fees, forms, supplies, and urgent follow-up without reading every message.",
+    ar: "شاهد المواعيد والرسوم والنماذج والمستلزمات والمتابعة العاجلة من دون قراءة كل رسالة.",
   },
   videoBadge: { en: "90-second demo", ar: "عرض خلال 90 ثانية" },
   videoTitle: { en: "See a real school chat turn into clarity", ar: "شاهد محادثة مدرسية تتحول إلى وضوح" },

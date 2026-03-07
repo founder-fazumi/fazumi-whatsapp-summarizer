@@ -29,8 +29,8 @@ const COPY = {
   freeTrial: { en: "Free Trial", ar: "فترة تجريبية" },
   free: { en: "Free", ar: "مجاني" },
   subtitle: {
-    en: "Here is what matters from your school chats today.",
-    ar: "إليك ما يهم من محادثات المدرسة اليوم.",
+    en: "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard with reminders, dates, and urgent follow-ups.",
+    ar: "حوّل محادثات المدرسة من واتساب وتيليجرام وفيسبوك إلى لوحة عائلية واحدة جاهزة للتنفيذ مع التذكيرات والمواعيد والمتابعات العاجلة.",
   },
   upgradeUsage: { en: "Upgrade to continue", ar: "قم بالترقية للمتابعة" },
   timeSaved: { en: "Time Saved", ar: "الوقت الموفَّر" },

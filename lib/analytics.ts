@@ -13,9 +13,18 @@ let analyticsInitialized = false;
 export const AnalyticsEvents = {
   SUMMARY_CREATED: "summary_created",
   SUMMARY_VIEWED: "summary_viewed",
+  ACTIVATION_COMPLETED: "activation_completed",
+  WEEKLY_REPEAT_USED: "weekly_repeat_used",
   LIMIT_REACHED: "limit_reached",
   NOTIFICATION_ENABLED: "notification_enabled",
   NOTIFICATION_DISMISSED: "notification_dismissed",
+  SOURCE_SELECTED: "source_selected",
+  GROUP_SAVED: "group_saved",
+  FAMILY_CONTEXT_SAVED: "family_context_saved",
+  RETENTION_UPDATED: "retention_updated",
+  ACCOUNT_DELETED: "account_deleted",
+  PMF_SURVEY_SUBMITTED: "pmf_survey_submitted",
+  ACTION_CENTER_USED: "action_center_used",
 } as const;
 
 function analyticsConfigured() {

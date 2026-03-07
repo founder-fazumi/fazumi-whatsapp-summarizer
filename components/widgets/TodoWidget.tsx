@@ -26,17 +26,17 @@ let _cachedItems: TodoPreview[] = [];
 let _cachedCount = 0;
 
 const COPY = {
-  title: { en: "To-Do", ar: "المهام" },
+  title: { en: "Family action list", ar: "قائمة الإجراءات العائلية" },
   emptyTitle: { en: "Nothing here yet.", ar: "لا يوجد شيء هنا بعد." },
   emptyBody: {
     en: "Nothing here yet.",
     ar: "لا يوجد شيء هنا بعد.",
   },
   viewAll: { en: "View all →", ar: "عرض الكل ←" },
-  deviceBadge: { en: "This device", ar: "هذا الجهاز" },
+  deviceBadge: { en: "Local fallback", ar: "حفظ محلي مؤقت" },
   deviceBody: {
-    en: "Tasks are stored locally in this environment until database sync is enabled.",
-    ar: "يتم حفظ المهام محليًا في هذه البيئة حتى يتم تفعيل مزامنة قاعدة البيانات.",
+    en: "Tasks are being kept in this browser temporarily because synced task storage is not enabled in this environment yet.",
+    ar: "يتم الاحتفاظ بالمهام في هذا المتصفح مؤقتًا لأن تخزين المهام المتزامن غير مفعّل في هذه البيئة بعد.",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 

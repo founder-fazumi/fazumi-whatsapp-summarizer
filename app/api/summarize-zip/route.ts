@@ -3,7 +3,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
 import { summarizeZipMessages, type ZipFactCategory, type ZipFactItem, type ZipFactsBlock } from "@/lib/ai/summarize-zip";
-import type { LangPref, SummaryResult, SummaryUsage } from "@/lib/ai/summarize";
+import type { LangPref, SummaryResult, SummaryUsage, SummaryPromptContext } from "@/lib/ai/summarize";
+import { ensureChatGroup } from "@/lib/chat-groups";
 import { toImportantDateArray } from "@/lib/ai/summarize";
 import { extractTextFilesFromZip } from "@/lib/chat-import/zip";
 import {
@@ -15,6 +16,8 @@ import {
   type ParsedChatMessage,
   type SummarizeZipRange,
 } from "@/lib/chat-import/whatsapp";
+import { normalizeFamilyContext, normalizeSummaryRetentionDays } from "@/lib/family-context";
+import { applySummaryRetentionPolicy } from "@/lib/server/retention";
 import { captureRouteException } from "@/lib/sentry";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
@@ -43,12 +46,6 @@ const MAX_MODEL_BODY_CHARS = 1_200;
 const FINGERPRINT_LOOKUP_BATCH_SIZE = 500;
 const FACT_ORDER: ZipFactCategory[] = ["events", "tasks", "deadlines", "supplies", "exams"];
 
-interface ChatGroupRow {
-  id: string;
-  group_key: string;
-  group_title: string | null;
-}
-
 interface GroupStateRow {
   state_json: {
     dedupe_keys?: unknown;
@@ -68,9 +65,25 @@ interface SelectedMessage extends CandidateMessage {
 }
 
 function buildSummaryReadyPayload(summary: SummaryResult, savedId: string) {
+  const urgentItem =
+    summary.urgent_action_items[0] ??
+    summary.important_dates.find((item) => item.urgent)?.label ??
+    summary.tldr;
+  const isArabic = summary.lang_detected === "ar";
+  const isUrgent =
+    summary.chat_type === "urgent_notice" ||
+    summary.urgent_action_items.length > 0 ||
+    summary.important_dates.some((item) => item.urgent);
+
   return {
-    title: "Summary ready",
-    body: makeSummaryTitle(summary.tldr),
+    title: isUrgent
+      ? isArabic
+        ? "تنبيه مدرسي عاجل"
+        : "Urgent school update"
+      : isArabic
+        ? "ملخص فازومي جاهز"
+        : "Summary ready",
+    body: makeSummaryTitle(isUrgent ? urgentItem : summary.tldr),
     url: `/history/${savedId}`,
     id: `summary-ready-${savedId}`,
   };
@@ -272,35 +285,6 @@ function dedupeSummaryFacts(summary: SummaryResult, facts: ZipFactsBlock, knownK
   };
 }
 
-async function ensureChatGroup(
-  admin: SupabaseClient,
-  userId: string,
-  groupKey: string,
-  groupTitle: string
-) {
-  const { data, error } = await admin
-    .from("chat_groups")
-    .upsert(
-      {
-        user_id: userId,
-        group_key: groupKey,
-        group_title: groupTitle,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "user_id,group_key",
-      }
-    )
-    .select("id, group_key, group_title")
-    .single<ChatGroupRow>();
-
-  if (error || !data) {
-    throw new PersistError("Could not store the chat group.", "GROUP_SAVE_FAILED");
-  }
-
-  return data;
-}
-
 async function findExistingFingerprints(
   admin: SupabaseClient,
   userId: string,
@@ -451,6 +435,8 @@ export async function POST(req: NextRequest) {
   let aiUsage: SummaryUsage | null = null;
   let usageReservation: UsageReservation | null = null;
   let savedId: string | null = null;
+  let summaryRetentionDays: number | null = null;
+  let promptContext: SummaryPromptContext | undefined;
 
   if (!hasSupabaseAuthCookie(req)) {
     logger.warn("auth.required", { errorCode: "AUTH_REQUIRED" });
@@ -490,11 +476,18 @@ export async function POST(req: NextRequest) {
     usageDateKey = getUtcDateKey();
     const { data: profile } = await supabase
       .from("profiles")
-      .select("plan, trial_expires_at")
+      .select("plan, trial_expires_at, family_context, summary_retention_days")
       .eq("id", user.id)
-      .maybeSingle<Pick<Profile, "plan" | "trial_expires_at">>();
+      .maybeSingle<
+        Pick<Profile, "plan" | "trial_expires_at" | "family_context" | "summary_retention_days">
+      >();
 
     tierKey = getTierKey(profile?.plan ?? "free", profile?.trial_expires_at);
+    summaryRetentionDays = normalizeSummaryRetentionDays(profile?.summary_retention_days);
+    promptContext = {
+      sourcePlatform: "whatsapp",
+      familyContext: normalizeFamilyContext(profile?.family_context),
+    };
   } catch (error) {
     logger.error("auth.lookup_failed", {
       errorCode: "AUTH_LOOKUP_FAILED",
@@ -590,7 +583,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const chatGroup = await ensureChatGroup(admin, authedUserId, groupKey, groupTitle);
+    const chatGroup = await ensureChatGroup(admin, authedUserId, groupTitle);
     const uploadMessages = dedupeUploadMessages(parsedMessages, groupKey);
     const existingFingerprints = await findExistingFingerprints(
       admin,
@@ -675,6 +668,10 @@ export async function POST(req: NextRequest) {
 
     const aiResult = await summarizeZipMessages(transcript, langPref, {
       testAiResponseHeader: req.headers.get("x-fazumi-test-ai-response"),
+      context: {
+        ...promptContext,
+        groupTitle,
+      },
     });
     aiUsage = aiResult.usage;
     openAiDurationMs = Date.now() - openAiStartedAt;
@@ -708,6 +705,26 @@ export async function POST(req: NextRequest) {
       sourceRange: range as SummarySourceRange,
       newMessagesCount: selectedMessages.length,
     });
+
+    try {
+      const retained = await applySummaryRetentionPolicy(
+        admin,
+        authedUserId,
+        summaryRetentionDays
+      );
+      if (retained > 0) {
+        logger.info("db.retention_applied", {
+          userId: authedUserId,
+          retained,
+          summaryRetentionDays,
+        });
+      }
+    } catch (retentionError) {
+      logger.warn("db.retention_failed", {
+        userId: authedUserId,
+        error: retentionError instanceof Error ? retentionError.message : String(retentionError),
+      });
+    }
 
     await insertProcessedFingerprints(admin, authedUserId, chatGroup.id, selectedMessages);
     await saveGroupState(

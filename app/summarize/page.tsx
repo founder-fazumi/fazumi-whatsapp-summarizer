@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArrowUpCircle, Check, Sparkles, Upload } from "lucide-react";
+import { Archive, ArrowUpCircle, BellRing, Check, ShieldCheck, Sparkles, Upload } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
+import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +15,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { inferGroupLabelFromFilename, type SummarizeZipRange } from "@/lib/chat-import/whatsapp";
 import { useLang } from "@/lib/context/LangContext";
 import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
+import { detectImportSource } from "@/lib/chat-import/source-detect";
+import {
+  familyContextHasSignal,
+  normalizeFamilyContext,
+  normalizeSummaryRetentionDays,
+  type FamilyContext,
+} from "@/lib/family-context";
 import { createClient } from "@/lib/supabase/client";
 import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { formatNumber } from "@/lib/format";
@@ -26,6 +34,23 @@ import { cn } from "@/lib/utils";
 
 const MAX_CHARS = 30_000;
 const SOFT_COUNT_THRESHOLD = 25_000;
+const SOURCE_OPTIONS: Array<{
+  value: ImportSourcePlatform;
+  label: LocalizedCopy<string>;
+}> = [
+  {
+    value: "whatsapp",
+    label: { en: "WhatsApp", ar: "واتساب" },
+  },
+  {
+    value: "telegram",
+    label: { en: "Telegram", ar: "تيليجرام" },
+  },
+  {
+    value: "facebook",
+    label: { en: "Facebook", ar: "فيسبوك" },
+  },
+];
 const OUTPUT_LANGUAGE_OPTIONS = [
   { value: "auto", label: "Auto" },
   { value: "en", label: "English" },
@@ -53,6 +78,10 @@ const ZIP_RANGE_OPTIONS: Array<{
 
 type OutputLang = (typeof OUTPUT_LANGUAGE_OPTIONS)[number]["value"];
 type SubmissionSource = "text" | "zip";
+type SavedGroupOption = {
+  id: string;
+  title: string;
+};
 type ZipApiResponse =
   | {
     status: "ok";
@@ -80,12 +109,12 @@ type ZipApiResponse =
 
 const COPY = {
   title: {
-    en: "Summarize your school chat",
-    ar: "لخّص محادثة المدرسة",
+    en: "Turn school chats into one action-ready family dashboard",
+    ar: "حوّل محادثات المدرسة إلى لوحة عائلية جاهزة للتنفيذ",
   },
   subtitle: {
-    en: "Paste a school chat or upload a ZIP export to get one clear summary with dates, tasks, and announcements.",
-    ar: "الصق محادثة المدرسة أو ارفع ملف ZIP لتحصل على ملخص واضح واحد يتضمن التواريخ والمهام والإعلانات.",
+    en: "Paste or upload school chats from WhatsApp, Telegram, or Facebook and get one calm dashboard for dates, tasks, fees, forms, and urgent follow-up.",
+    ar: "الصق أو ارفع محادثات المدرسة من واتساب أو تيليجرام أو فيسبوك واحصل على لوحة هادئة واحدة للتواريخ والمهام والرسوم والنماذج والمتابعة العاجلة.",
   },
   placeholder: {
     en: "Paste the school chat here...",
@@ -115,13 +144,81 @@ const COPY = {
     en: "Only the saved summary is kept. Raw chat text is not stored.",
     ar: "يتم حفظ الملخص فقط. لا يتم تخزين نص المحادثة الخام.",
   },
+  sourceTitle: {
+    en: "Chat source",
+    ar: "مصدر المحادثة",
+  },
+  sourceHint: {
+    en: "Pick the app you copied from. Fazumi also auto-detects pasted formats when it can.",
+    ar: "اختر التطبيق الذي نسخت منه. يحاول Fazumi أيضًا اكتشاف التنسيق الملصق تلقائيًا عندما يستطيع.",
+  },
+  sourceAutoDetected: {
+    en: "Auto-detected from your pasted chat",
+    ar: "تم اكتشافه تلقائيًا من المحادثة الملصقة",
+  },
+  groupName: {
+    en: "Saved group name",
+    ar: "اسم المجموعة المحفوظ",
+  },
+  groupHint: {
+    en: "Use the same name next time so repeat imports and history stay organized.",
+    ar: "استخدم الاسم نفسه لاحقًا حتى تبقى الاستيرادات المتكررة والسجل منظمين.",
+  },
+  savedGroups: {
+    en: "Recent groups",
+    ar: "المجموعات الأخيرة",
+  },
+  savedGroupsHint: {
+    en: "Tap a saved group to speed up repeat imports.",
+    ar: "اضغط على مجموعة محفوظة لتسريع الاستيرادات المتكررة.",
+  },
+  importFit: {
+    en: "Paste text for WhatsApp, Telegram, or Facebook. ZIP uploads remain best for WhatsApp exports only.",
+    ar: "الصق النص لواتساب أو تيليجرام أو فيسبوك. يظل رفع ZIP الأفضل لتصديرات واتساب فقط.",
+  },
+  memoryTitle: {
+    en: "Saved family context",
+    ar: "سياق العائلة المحفوظ",
+  },
+  memoryBody: {
+    en: "Help Fazumi remember your school, child, class, teachers, and recurring links so the second summary is smarter than the first.",
+    ar: "ساعد Fazumi على تذكّر المدرسة والطفل والصف والمعلمين والروابط المتكررة حتى يصبح الملخص الثاني أذكى من الأول.",
+  },
+  memoryEmpty: {
+    en: "No family context saved yet. Add it in Settings for better fee, form, and class-aware summaries.",
+    ar: "لا يوجد سياق عائلي محفوظ بعد. أضِفه من الإعدادات للحصول على ملخصات أفضل للرسوم والنماذج والصف.",
+  },
+  memoryEdit: {
+    en: "Edit memory",
+    ar: "عدّل الذاكرة",
+  },
+  retention: {
+    en: "Summary retention",
+    ar: "مدة الاحتفاظ بالملخصات",
+  },
+  retentionKeep: {
+    en: "Keep until I delete",
+    ar: "الاحتفاظ حتى أحذفها",
+  },
+  retentionDays: {
+    en: "days",
+    ar: "يومًا",
+  },
+  autopilotTitle: {
+    en: "Autopilot-lite is already live",
+    ar: "وضع الطيار الآلي الخفيف متاح الآن",
+  },
+  autopilotBody: {
+    en: "Morning digest, urgent alerts, calendar export, to-do seeding, and family sharing are all built around the same summary.",
+    ar: "الملخص الصباحي والتنبيهات العاجلة وتصدير التقويم وإنشاء المهام ومشاركة العائلة كلها مبنية حول الملخص نفسه.",
+  },
   pasteSection: {
-    en: "Paste or import text",
-    ar: "الصق النص أو استورد ملفًا نصيًا",
+    en: "Paste or import chat text",
+    ar: "الصق نص المحادثة أو استورد ملفًا نصيًا",
   },
   pasteSectionHint: {
-    en: "Use the existing text flow for a pasted chat or a plain .txt export.",
-    ar: "استخدم مسار النص الحالي للمحادثة الملصقة أو لملف .txt عادي.",
+    en: "Manual import is the main launch flow. Paste directly or use a plain .txt export.",
+    ar: "الاستيراد اليدوي هو مسار الإطلاق الأساسي. الصق مباشرة أو استخدم ملف .txt عادي.",
   },
   zipSection: {
     en: "Incremental ZIP upload",
@@ -247,7 +344,99 @@ const COPY = {
     en: "Choose a fixed output language or let Fazumi detect it from the chat.",
     ar: "اختر لغة إخراج ثابتة أو دع Fazumi يكتشفها من المحادثة.",
   },
+  detectedLanguage: {
+    en: "Detected input language",
+    ar: "لغة الإدخال المكتشفة",
+  },
+  detectedArabic: {
+    en: "Arabic",
+    ar: "العربية",
+  },
+  detectedEnglish: {
+    en: "English",
+    ar: "الإنجليزية",
+  },
+  setupTitle: {
+    en: "Manual import setup",
+    ar: "إعداد الاستيراد اليدوي",
+  },
+  setupHint: {
+    en: "Choose the chat source, save the group name, and reuse recent groups so repeat imports stay fast.",
+    ar: "اختر مصدر المحادثة واحفظ اسم المجموعة وأعد استخدام المجموعات الأخيرة حتى تبقى الاستيرادات المتكررة سريعة.",
+  },
+  noSavedGroups: {
+    en: "No saved groups yet. Your recent school groups will appear here after the first saved summary.",
+    ar: "لا توجد مجموعات محفوظة بعد. ستظهر مجموعات المدرسة الأخيرة هنا بعد أول ملخص محفوظ.",
+  },
+  trustTitle: {
+    en: "Trust and retention",
+    ar: "الثقة والاحتفاظ",
+  },
+  trustStoredLabel: {
+    en: "Stored",
+    ar: "يتم حفظه",
+  },
+  trustStoredBody: {
+    en: "Saved summaries, saved group names, family memory, and your retention choice.",
+    ar: "الملخصات المحفوظة وأسماء المجموعات المحفوظة وذاكرة العائلة وخيار الاحتفاظ الذي اخترته.",
+  },
+  trustNotStoredLabel: {
+    en: "Not stored",
+    ar: "لا يتم حفظه",
+  },
+  trustNotStoredBody: {
+    en: "Raw pasted chat text and raw upload contents after processing.",
+    ar: "نص المحادثة الخام الملصق ومحتويات الرفع الخام بعد انتهاء المعالجة.",
+  },
+  trustZipBody: {
+    en: "ZIP repeat imports keep message fingerprints only so Fazumi can skip messages it already processed.",
+    ar: "تحتفظ استيرادات ZIP المتكررة ببصمات الرسائل فقط حتى يتجاوز Fazumi الرسائل التي عالجها بالفعل.",
+  },
+  trustCta: {
+    en: "Open privacy controls",
+    ar: "افتح عناصر تحكم الخصوصية",
+  },
+  autopilotDigest: {
+    en: "Morning digest at the start of the day",
+    ar: "ملخص صباحي في بداية اليوم",
+  },
+  autopilotAlerts: {
+    en: "Urgent alerts when a school chat needs action fast",
+    ar: "تنبيهات عاجلة عندما تحتاج محادثة المدرسة إلى تصرف سريع",
+  },
+  autopilotReminders: {
+    en: "Reminders seeded from dates, fees, forms, and supplies",
+    ar: "تذكيرات مبنية من التواريخ والرسوم والنماذج والمستلزمات",
+  },
+  autopilotActions: {
+    en: "One-click add to calendar or family action list",
+    ar: "إضافة بنقرة واحدة إلى التقويم أو قائمة الإجراءات العائلية",
+  },
+  autopilotCta: {
+    en: "Open dashboard",
+    ar: "افتح اللوحة",
+  },
 } satisfies Record<string, LocalizedCopy<string>>;
+
+function detectDraftLanguage(text: string): "en" | "ar" | null {
+  const arabicChars = text.match(/[\u0600-\u06FF]/g)?.length ?? 0;
+  const latinChars = text.match(/[A-Za-z]/g)?.length ?? 0;
+  const totalAlpha = arabicChars + latinChars;
+
+  if (totalAlpha === 0) {
+    return null;
+  }
+
+  return arabicChars / totalAlpha >= 0.3 ? "ar" : "en";
+}
+
+function formatRetentionLabel(days: number | null, locale: "en" | "ar") {
+  if (days === null) {
+    return pick(COPY.retentionKeep, locale);
+  }
+
+  return `${formatNumber(days)} ${pick(COPY.retentionDays, locale)}`;
+}
 
 export default function SummarizePage() {
   const router = useRouter();
@@ -264,10 +453,16 @@ export default function SummarizePage() {
   const [submissionSource, setSubmissionSource] = useState<SubmissionSource>("text");
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [outputLang, setOutputLang] = useState<OutputLang>("auto");
+  const [outputLang, setOutputLang] = useState<OutputLang>(locale === "ar" ? "ar" : "auto");
+  const [sourcePlatform, setSourcePlatform] = useState<ImportSourcePlatform>("whatsapp");
+  const [sourceLocked, setSourceLocked] = useState(false);
+  const [textGroupName, setTextGroupName] = useState("");
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipGroupName, setZipGroupName] = useState("");
   const [zipRange, setZipRange] = useState<SummarizeZipRange>("24h");
+  const [savedGroups, setSavedGroups] = useState<SavedGroupOption[]>([]);
+  const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext | null>(null);
+  const [summaryRetentionDays, setSummaryRetentionDays] = useState<number | null>(null);
   const [zipResultMeta, setZipResultMeta] = useState<{
     range: SummarizeZipRange;
     groupTitle: string;
@@ -287,6 +482,10 @@ export default function SummarizePage() {
   const showCount = charCount >= SOFT_COUNT_THRESHOLD;
   const isTextLoading = loading && loadingSource === "text";
   const isZipLoading = loading && loadingSource === "zip";
+  const detectedSource = detectImportSource(text);
+  const detectedDraftLanguage = detectDraftLanguage(text);
+  const sourceWasAutoDetected = Boolean(text.trim()) && !sourceLocked && detectedSource === sourcePlatform;
+  const hasSavedMemory = savedFamilyContext ? familyContextHasSignal(savedFamilyContext) : false;
 
   useEffect(() => {
     let mounted = true;
@@ -301,19 +500,44 @@ export default function SummarizePage() {
           if (mounted) {
             setIsSubscribed(false);
             setCurrentUserId(null);
+            setSavedGroups([]);
+            setSavedFamilyContext(null);
+            setSummaryRetentionDays(null);
           }
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("plan")
-          .eq("id", user.id)
-          .maybeSingle<{ plan: string | null }>();
+        const [{ data: profile }, { data: groups }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("plan, family_context, summary_retention_days")
+            .eq("id", user.id)
+            .maybeSingle<{
+              plan: string | null;
+              family_context: unknown;
+              summary_retention_days: number | null;
+            }>(),
+          supabase
+            .from("chat_groups")
+            .select("id, group_title")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false })
+            .limit(6),
+        ]);
 
         if (mounted) {
           setIsSubscribed(["monthly", "annual", "founder"].includes(profile?.plan ?? ""));
           setCurrentUserId(user.id);
+          setSavedFamilyContext(normalizeFamilyContext(profile?.family_context));
+          setSummaryRetentionDays(normalizeSummaryRetentionDays(profile?.summary_retention_days));
+          setSavedGroups(
+            ((groups ?? []) as Array<{ id: string; group_title: string | null }>)
+              .map((group) => ({
+                id: group.id,
+                title: group.group_title?.trim() ?? "",
+              }))
+              .filter((group) => group.title.length > 0)
+          );
         }
       } catch {
         if (mounted) {
@@ -329,6 +553,17 @@ export default function SummarizePage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (sourceLocked || !text.trim()) {
+      return;
+    }
+
+    const detected = detectImportSource(text);
+    if (detected) {
+      setSourcePlatform(detected);
+    }
+  }, [sourceLocked, text]);
 
   function resetOutputState() {
     setSummary(null);
@@ -379,6 +614,18 @@ export default function SummarizePage() {
       outputLang: outputLang === "auto" ? nextSummary.lang_detected : outputLang,
       source: options.source,
     });
+
+    const nextGroupTitle =
+      options.source === "zip"
+        ? (options.groupTitle ?? zipGroupName.trim())
+        : textGroupName.trim();
+    if (nextGroupTitle) {
+      trackEvent(AnalyticsEvents.GROUP_SAVED, {
+        groupTitle: nextGroupTitle,
+        source: options.source,
+        sourcePlatform: options.source === "zip" ? "whatsapp" : sourcePlatform,
+      });
+    }
 
     if (options.savedId) {
       emitDashboardInsightsRefresh();
@@ -435,7 +682,12 @@ export default function SummarizePage() {
       const response = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, lang_pref: outputLang }),
+        body: JSON.stringify({
+          text,
+          lang_pref: outputLang,
+          source_platform: sourcePlatform,
+          group_name: textGroupName.trim(),
+        }),
       });
 
       if (response.status === 401) {
@@ -684,6 +936,131 @@ export default function SummarizePage() {
         </Card>
 
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
+          <CardContent className="space-y-5 p-6 text-start">
+            <div className="space-y-2">
+              <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                {pick(COPY.setupTitle, locale)}
+              </p>
+              <p className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                {pick(COPY.setupHint, locale)}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                  {pick(COPY.sourceTitle, locale)}
+                </p>
+                <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                  {pick(COPY.sourceHint, locale)}
+                </p>
+              </div>
+              <div
+                className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
+                role="group"
+                aria-label={pick(COPY.sourceTitle, locale)}
+              >
+                {SOURCE_OPTIONS.map((option) => {
+                  const active = sourcePlatform === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      data-testid={`summary-source-${option.value}`}
+                      aria-pressed={active}
+                      onClick={() => {
+                        setSourceLocked(true);
+                        setSourcePlatform(option.value);
+                        trackEvent(AnalyticsEvents.SOURCE_SELECTED, {
+                          sourcePlatform: option.value,
+                          manual: true,
+                        });
+                      }}
+                      disabled={loading}
+                      className={cn(
+                        "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
+                        active
+                          ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
+                          : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
+                        loading && "cursor-not-allowed opacity-60"
+                      )}
+                    >
+                      {pick(option.label, locale)}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-[var(--muted-foreground)]">
+                {sourceWasAutoDetected && (
+                  <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
+                    {pick(COPY.sourceAutoDetected, locale)}
+                  </span>
+                )}
+                {detectedDraftLanguage && (
+                  <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
+                    {pick(COPY.detectedLanguage, locale)}:{" "}
+                    {pick(detectedDraftLanguage === "ar" ? COPY.detectedArabic : COPY.detectedEnglish, locale)}
+                  </span>
+                )}
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
+                  {pick(COPY.importFit, locale)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="summary-group-name" className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                  {pick(COPY.groupName, locale)}
+                </label>
+                <Input
+                  id="summary-group-name"
+                  data-testid="summary-group-input"
+                  value={textGroupName}
+                  onChange={(event) => setTextGroupName(event.target.value)}
+                  placeholder={locale === "ar" ? "مثال: أولياء أمور الصف الرابع" : "Example: Grade 4 Parents"}
+                  disabled={loading}
+                />
+                <p className="text-[var(--text-xs)] text-[var(--muted-foreground)]">
+                  {pick(COPY.groupHint, locale)}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                  {pick(COPY.savedGroups, locale)}
+                </p>
+                <p className="text-[var(--text-xs)] text-[var(--muted-foreground)]">
+                  {savedGroups.length > 0 ? pick(COPY.savedGroupsHint, locale) : pick(COPY.noSavedGroups, locale)}
+                </p>
+                {savedGroups.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {savedGroups.map((group) => (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => {
+                          setTextGroupName(group.title);
+                          trackEvent(AnalyticsEvents.GROUP_SAVED, {
+                            groupTitle: group.title,
+                            source: "text",
+                            reused: true,
+                          });
+                        }}
+                        className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)]"
+                      >
+                        {group.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2 text-start">
@@ -762,7 +1139,7 @@ export default function SummarizePage() {
                     variant="ghost"
                     size="sm"
                     data-testid="summary-use-sample"
-                    onClick={() => setText(getSampleChat(outputLang, locale))}
+                    onClick={() => setText(getSampleChat(outputLang, locale, sourcePlatform))}
                     disabled={loading}
                   >
                     {pick(COPY.useSample, locale)}
@@ -984,6 +1361,87 @@ export default function SummarizePage() {
             </p>
           </div>
         )}
+
+        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
+          <CardContent className="grid gap-4 p-6 lg:grid-cols-2">
+            <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-[var(--primary)]" />
+                <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                  {pick(COPY.memoryTitle, locale)}
+                </p>
+              </div>
+              <p className="mt-2 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
+                {pick(COPY.memoryBody, locale)}
+              </p>
+              {hasSavedMemory && savedFamilyContext ? (
+                <ul className="mt-3 space-y-2 text-sm text-[var(--foreground)]">
+                  {savedFamilyContext.school_name && <li>• {savedFamilyContext.school_name}</li>}
+                  {savedFamilyContext.child_name && <li>• {savedFamilyContext.child_name}</li>}
+                  {savedFamilyContext.class_name && <li>• {savedFamilyContext.class_name}</li>}
+                  {savedFamilyContext.teacher_names.map((name) => (
+                    <li key={name}>• {name}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-[var(--muted-foreground)]">
+                  {pick(COPY.memoryEmpty, locale)}
+                </p>
+              )}
+              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                {pick(COPY.retention, locale)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--foreground)]">
+                {formatRetentionLabel(summaryRetentionDays, locale)}
+              </p>
+              <Link href="/settings" className="mt-4 inline-flex text-sm font-semibold text-[var(--primary)] hover:underline">
+                {pick(COPY.memoryEdit, locale)}
+              </Link>
+            </div>
+
+            <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4">
+              <div className="flex items-center gap-2">
+                <BellRing className="h-4 w-4 text-[var(--primary)]" />
+                <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                  {pick(COPY.autopilotTitle, locale)}
+                </p>
+              </div>
+              <p className="mt-2 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
+                {pick(COPY.autopilotBody, locale)}
+              </p>
+              <ul className="mt-3 space-y-2 text-sm text-[var(--foreground)]">
+                <li>• {pick(COPY.autopilotDigest, locale)}</li>
+                <li>• {pick(COPY.autopilotAlerts, locale)}</li>
+                <li>• {pick(COPY.autopilotReminders, locale)}</li>
+                <li>• {pick(COPY.autopilotActions, locale)}</li>
+              </ul>
+              <div className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm">
+                <p className="font-semibold text-[var(--foreground)]">
+                  {pick(COPY.trustTitle, locale)}
+                </p>
+                <p className="mt-2 text-[var(--foreground)]">
+                  <span className="font-semibold">{pick(COPY.trustStoredLabel, locale)}:</span>{" "}
+                  {pick(COPY.trustStoredBody, locale)}
+                </p>
+                <p className="mt-2 text-[var(--foreground)]">
+                  <span className="font-semibold">{pick(COPY.trustNotStoredLabel, locale)}:</span>{" "}
+                  {pick(COPY.trustNotStoredBody, locale)}
+                </p>
+                <p className="mt-2 text-[var(--muted-foreground)]">
+                  {pick(COPY.trustZipBody, locale)}
+                </p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link href="/dashboard" className={buttonVariants({ size: "sm" })}>
+                  {pick(COPY.autopilotCta, locale)}
+                </Link>
+                <Link href="/settings" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  {pick(COPY.trustCta, locale)}
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {summary && (
           <div ref={summaryRef}>

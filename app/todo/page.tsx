@@ -9,12 +9,12 @@ export default function TodoPage() {
       <Card className="mb-4">
         <CardHeader>
           <h1 className="text-[var(--text-2xl)] font-semibold text-[var(--text-strong)] sm:text-[var(--text-3xl)]">
-            <LocalizedText en="To-Do" ar="المهام" />
+            <LocalizedText en="Family action list" ar="قائمة الإجراءات العائلية" />
           </h1>
           <CardDescription>
             <LocalizedText
-              en="Action items extracted from your summaries will appear here automatically."
-              ar="ستظهر هنا تلقائيًا بنود المهام المستخرجة من ملخصاتك."
+              en="Action items extracted from your summaries appear here automatically so your family has one clean list to work from."
+              ar="تظهر هنا تلقائيًا عناصر الإجراءات المستخرجة من ملخصاتك حتى تمتلك العائلة قائمة واحدة واضحة للعمل منها."
             />
           </CardDescription>
         </CardHeader>
