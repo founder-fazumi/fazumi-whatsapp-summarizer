@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { HelpCircle, Mail } from "lucide-react";
 import { Accordion } from "@/components/ui/accordion";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
@@ -273,6 +274,20 @@ export default function HelpPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+      <div className={cn("flex flex-wrap gap-4 text-sm text-[var(--muted-foreground)]", isArabic && "justify-end")}>
+        <Link href="/faq" className="hover:text-[var(--foreground)] hover:underline underline-offset-4">
+          <LocalizedText en="FAQ" ar="الأسئلة الشائعة" />
+        </Link>
+        <Link href="/contact" className="hover:text-[var(--foreground)] hover:underline underline-offset-4">
+          <LocalizedText en="Contact" ar="تواصل معنا" />
+        </Link>
+        <Link href="/pricing" className="hover:text-[var(--foreground)] hover:underline underline-offset-4">
+          <LocalizedText en="Pricing" ar="الأسعار" />
+        </Link>
+        <Link href="/status" className="hover:text-[var(--foreground)] hover:underline underline-offset-4">
+          <LocalizedText en="System status" ar="حالة النظام" />
+        </Link>
       </div>
     </PublicPageShell>
   );

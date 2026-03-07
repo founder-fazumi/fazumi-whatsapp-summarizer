@@ -110,6 +110,17 @@
 - [x] `app/layout.tsx` sets `preload: false` for Alexandria while leaving Manrope preload unchanged.
 - [x] `pnpm lint` and `pnpm typecheck` pass after the Round 3 changes.
 
+#### SEO5 - Round 4 noindex layouts and support/status linking [Codex]
+**Why:** Logged-in and internal app surfaces should not be indexed, while `/help` and `/status` still need stronger internal linking and route-level `WebPage` schema coverage.
+**Files:** `app/login/layout.tsx`, `app/dashboard/layout.tsx`, `app/summarize/layout.tsx`, `app/history/layout.tsx`, `app/billing/layout.tsx`, `app/settings/layout.tsx`, `app/profile/layout.tsx`, `app/calendar/layout.tsx`, `app/admin_dashboard/(dashboard)/layout.tsx`, `app/help/page.tsx`, `app/status/page.tsx`, `app/help/layout.tsx`, `app/status/layout.tsx`, `specs/seo-round-4-noindex-internal-links.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `/login`, `/dashboard`, `/summarize`, `/history`, `/billing`, `/settings`, `/profile`, and `/calendar` each export route metadata with `robots: { index: false, follow: false }`.
+- [x] `app/admin_dashboard/(dashboard)/layout.tsx` adds route metadata with the same noindex directive while keeping the existing default export logic unchanged.
+- [x] `/help` adds internal links to `/faq`, `/contact`, `/pricing`, and `/status`.
+- [x] `/status` adds internal links to `/help` and `/contact`.
+- [x] `app/help/layout.tsx` and `app/status/layout.tsx` emit the requested `WebPage` JSON-LD metadata wrappers and canonical metadata.
+- [x] `pnpm lint` and `pnpm typecheck` pass after the Round 4 changes.
+
 ---
 ## PHASE 0 — PLAN (done before "Proceed")
 

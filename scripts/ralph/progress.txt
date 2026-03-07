@@ -107,3 +107,9 @@ S010 = PENDING  # Referral system
 # Files: app/page.tsx, public/manifest.json, app/faq/page.tsx, app/about/page.tsx, app/faq/layout.tsx, app/layout.tsx, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint` and `pnpm typecheck` pass.
 # Pattern: when a route already depends on client-only locale state, emit static JSON-LD with inline `<script type="application/ld+json">` blocks at the page/layout boundary instead of rewriting the route just for SEO metadata.
+
+# 2026-03-07
+# SEO hardening Round 4 completed: added noindex route layouts for logged-in surfaces, kept the admin dashboard layout behavior intact while blocking indexing, strengthened help/status internal linking, and upgraded `/help` plus `/status` layouts to `WebPage` JSON-LD wrappers.
+# Files: app/login/layout.tsx, app/dashboard/layout.tsx, app/summarize/layout.tsx, app/history/layout.tsx, app/billing/layout.tsx, app/settings/layout.tsx, app/profile/layout.tsx, app/calendar/layout.tsx, app/admin_dashboard/(dashboard)/layout.tsx, app/help/page.tsx, app/status/page.tsx, app/help/layout.tsx, app/status/layout.tsx, specs/seo-round-4-noindex-internal-links.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when a route should remain functional but stay out of search results, add route-level metadata in a thin App Router layout instead of threading robots flags through unrelated page logic.

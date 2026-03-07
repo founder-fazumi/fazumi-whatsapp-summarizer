@@ -201,6 +201,14 @@ export default function StatusPage() {
           </Card>
         </div>
       </div>
+      <div className={cn("flex flex-wrap gap-4 text-sm text-[var(--muted-foreground)]", isArabic && "justify-end")}>
+        <Link href="/help" className="hover:text-[var(--foreground)] hover:underline underline-offset-4">
+          <LocalizedText en="Help & Support" ar="المساعدة والدعم" />
+        </Link>
+        <Link href="/contact" className="hover:text-[var(--foreground)] hover:underline underline-offset-4">
+          <LocalizedText en="Contact" ar="تواصل معنا" />
+        </Link>
+      </div>
     </PublicPageShell>
   );
 }
