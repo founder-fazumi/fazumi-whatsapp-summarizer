@@ -178,3 +178,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Arabic (`ar`, RTL) remains the explicit first-render locale when neither the cookie nor local storage has a saved language preference.
 **Consequences:** Public-route smoke tests must clear stored locale state before navigation and assert Arabic-first copy/direction by default. English remains a supported explicit preference, not the fallback default.
 
+---
+
+## D020 - Public JSON-LD stays inline at the route boundary
+**Date:** 2026-03-07
+**Context:** The SEO Round 3 pass needed richer schema on `/faq` and `/about`, but `/faq` already depends on client hooks for locale state and Next.js metadata APIs do not directly expose arbitrary JSON-LD blocks from layouts/pages.
+**Decision:** Keep route-specific JSON-LD as inline `<script type="application/ld+json">` blocks rendered directly from the page or layout boundary. Do not rewrite a client page into a server component solely to add static schema.
+**Consequences:** `/faq` can keep its existing `useLang()` client logic while still shipping `FAQPage`, `BreadcrumbList`, and `WebPage` schema. Future public SEO schema should prefer boundary-level inline scripts before changing component ownership.
+

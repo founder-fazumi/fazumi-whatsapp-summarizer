@@ -2,16 +2,16 @@
   "id": "/",
   "name": "Fazumi",
   "short_name": "Fazumi",
-  "description": "Summarize school chats into clear tasks, dates, and updates.",
-  "start_url": "/dashboard",
+  "description": "Turn WhatsApp, Telegram, and Facebook school chats into structured summaries for parents — dates, fees, tasks, and questions in seconds.",
+  "start_url": "/summarize",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "browser"],
   "background_color": "#f5f2ec",
   "theme_color": "#247052",
   "orientation": "portrait",
-  "lang": "en",
-  "dir": "ltr",
+  "lang": "ar",
+  "dir": "rtl",
   "categories": ["productivity", "education", "utilities"],
   "icons": [
     {
@@ -43,6 +43,22 @@
       "name": "History",
       "short_name": "History",
       "url": "/history"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard-light.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Fazumi dashboard — summary history"
+    },
+    {
+      "src": "/screenshots/summarize-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Fazumi summarizer — paste and go"
     }
   ]
 }

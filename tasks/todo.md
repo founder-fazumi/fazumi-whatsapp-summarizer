@@ -98,6 +98,18 @@
 - [x] `components/landing/HowItWorks.tsx` sets `priority={step === "01"}` on the mapped step image.
 - [x] `pnpm lint` and `pnpm typecheck` pass after the Round 2 changes.
 
+#### SEO4 - Round 3 schema, manifest, and GEO signals [Codex]
+**Why:** The SEO hardening pass still needs the confirmed social profiles, GCC geography hints, Arabic-first manifest defaults, route-level FAQ/About schema, and lighter global font preload behavior.
+**Files:** `app/page.tsx`, `public/manifest.json`, `app/faq/page.tsx`, `app/about/page.tsx`, `app/faq/layout.tsx`, `app/layout.tsx`, `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `app/page.tsx` restores the confirmed `Organization.sameAs` social URLs and adds GCC `areaServed`.
+- [x] `public/manifest.json` points `start_url` to `/summarize`, defaults to Arabic RTL, uses the richer description, and includes install screenshots metadata.
+- [x] `app/faq/page.tsx` keeps its client boundary and emits `FAQPage` plus `BreadcrumbList` JSON-LD via inline scripts.
+- [x] `app/about/page.tsx` emits `Person` plus `WebPage` JSON-LD with `datePublished` and `dateModified` while preserving the cookie-driven locale logic and copy.
+- [x] `app/faq/layout.tsx` emits a layout-level `WebPage` JSON-LD script for `/faq`.
+- [x] `app/layout.tsx` sets `preload: false` for Alexandria while leaving Manrope preload unchanged.
+- [x] `pnpm lint` and `pnpm typecheck` pass after the Round 3 changes.
+
 ---
 ## PHASE 0 — PLAN (done before "Proceed")
 

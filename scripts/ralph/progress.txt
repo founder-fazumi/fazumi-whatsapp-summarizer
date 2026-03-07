@@ -101,3 +101,9 @@ S010 = PENDING  # Referral system
 # Files: app/page.tsx, app/layout.tsx, app/pricing/page.tsx, app/about/page.tsx, components/landing/HowItWorks.tsx, tasks/todo.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint` and `pnpm typecheck` pass. `pnpm test` was attempted twice in local CI mode and timed out instead of producing a reliable pass/fail result.
 # Pattern: when SEO hardening depends on locale-specific rendering, use the same server cookie source as the root layout so SSR language, `dir`, and schema metadata do not drift from the hydrated app state.
+
+# 2026-03-07
+# SEO hardening Round 3 completed: restored the confirmed homepage social profiles and GCC geography signals, aligned the PWA manifest with the Arabic-first summarize flow, added FAQ/About JSON-LD at the route boundary, and stopped globally preloading Alexandria.
+# Files: app/page.tsx, public/manifest.json, app/faq/page.tsx, app/about/page.tsx, app/faq/layout.tsx, app/layout.tsx, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when a route already depends on client-only locale state, emit static JSON-LD with inline `<script type="application/ld+json">` blocks at the page/layout boundary instead of rewriting the route just for SEO metadata.

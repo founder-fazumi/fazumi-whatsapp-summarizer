@@ -14,6 +14,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { pick } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
+const TODAY = new Date().toISOString().split("T")[0] ?? "2026-03-07";
+
+const personSchema = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: "Fazumi Team",
+  jobTitle: "Founders",
+  description:
+    "Parents based in Doha, Qatar, who built Fazumi after missing a school deadline buried in a WhatsApp group.",
+  worksFor: {
+    "@type": "Organization",
+    name: "Fazumi",
+    url: APP_URL,
+  },
+  knowsAbout: [
+    "School communication",
+    "WhatsApp summarization",
+    "Arabic-English bilingual tools",
+    "Family productivity",
+  ],
+};
+
+const aboutWebPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "About Fazumi",
+  url: `${APP_URL}/about`,
+  description:
+    "Fazumi was built by parents in Doha to turn noisy school WhatsApp chats into structured summaries.",
+  datePublished: "2026-02-27",
+  dateModified: TODAY,
+  author: personSchema,
+  inLanguage: ["en", "ar"],
+  breadcrumb: {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: APP_URL },
+      { "@type": "ListItem", position: 2, name: "About", item: `${APP_URL}/about` },
+    ],
+  },
+};
+
 const COPY = {
   eyebrow: { en: "About", ar: "من نحن" },
   title: { en: "Built by parents, for parents", ar: "صُمم من قبل أولياء الأمور، لأولياء الأمور" },
@@ -128,6 +171,14 @@ export default async function AboutPage() {
       title={COPY.title}
       description={COPY.description}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutWebPageSchema) }}
+      />
       <div
         dir={isArabic ? "rtl" : "ltr"}
         lang={locale}

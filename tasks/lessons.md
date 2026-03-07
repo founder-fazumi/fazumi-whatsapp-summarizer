@@ -151,3 +151,11 @@
 **Quick test:** Set `fazumi_lang=en`, rerun the public-route suite, and confirm the default-route assertions still see `lang="ar" dir="rtl"` on first load.
 
 ---
+
+## L019 — Add schema to client routes with inline JSON-LD before changing the component boundary
+**Mistake:** It is easy to treat SEO schema as a reason to convert an existing client page into a server component, even when the route already depends on client hooks for locale behavior.
+**Why:** Static JSON-LD does not require a server-component rewrite; changing the boundary just for schema creates unnecessary risk around hydration and client-only state.
+**Rule:** When a route already needs client hooks, emit static JSON-LD with inline `<script type="application/ld+json">` tags at the page/layout boundary instead of rewriting the route solely for SEO metadata.
+**Quick test:** Load `/faq`, confirm the page still renders with `useLang()` behavior intact, and inspect the HTML for the expected JSON-LD script tags.
+
+---

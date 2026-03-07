@@ -21,7 +21,7 @@ const alexandria = Alexandria({
   subsets: ["arabic", "latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
-  preload: true,
+  preload: false,
   fallback: ["system-ui", "sans-serif"],
 });
 
