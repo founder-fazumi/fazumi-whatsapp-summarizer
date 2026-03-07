@@ -58,9 +58,7 @@ export function validateServerRuntimeEnv() {
 
   const message = `[env] Missing required runtime env vars: ${missing.join(", ")}`;
 
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(message);
-  }
-
-  console.warn(message);
+  // Warn only — never throw. A missing env var should degrade individual
+  // features at request time, not crash the entire server at startup.
+  console.error(message);
 }
