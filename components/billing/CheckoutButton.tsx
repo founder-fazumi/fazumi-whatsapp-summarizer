@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useLang } from "@/lib/context/LangContext";
 import { lsVariantsConfigured } from "@/lib/config/public";
 import {
@@ -16,88 +15,34 @@ interface Props {
   isLoggedIn?: boolean;
 }
 
-export function CheckoutButton({ variantId, children, className, isLoggedIn = false }: Props) {
-  const router = useRouter();
+export function CheckoutButton({ variantId, children, className }: Props) {
   const { locale } = useLang();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false); // stays true after click (navigating away)
   const normalizedVariantId = normalizeVariantId(variantId);
-  // Non-logged-in users are always redirected to /login — billing config irrelevant for them.
-  const checkoutState = isLoggedIn
-    ? (!lsVariantsConfigured
-        ? "billing_missing"
-        : !normalizedVariantId
-        ? "missing"
-        : isValidCheckoutVariantId(normalizedVariantId)
-          ? "ready"
-          : "invalid")
-    : "ready";
-  const billingNotConfiguredMessage =
-    locale === "ar" ? "لم يتم إعداد الدفع بعد." : "Billing is not configured yet.";
+  const checkoutState = !lsVariantsConfigured
+    ? "billing_missing"
+    : !normalizedVariantId
+    ? "missing"
+    : isValidCheckoutVariantId(normalizedVariantId)
+      ? "ready"
+      : "invalid";
 
   const unavailableMessage = checkoutState === "billing_missing"
-    ? billingNotConfiguredMessage
+    ? (locale === "ar" ? "لم يتم إعداد الدفع بعد." : "Billing is not configured yet.")
     : checkoutState === "missing"
-      ? locale === "ar"
-        ? "قريبًا. سيتفعل الدفع فور إضافة معرفات خطط Lemon Squeezy."
-        : "Coming soon. Checkout unlocks once the Lemon Squeezy plan IDs are configured."
-      : locale === "ar"
-        ? "الدفع غير متاح مؤقتًا لأن إعداد هذه الخطة غير صحيح."
-        : "Checkout is temporarily unavailable because this plan is misconfigured.";
+      ? (locale === "ar"
+          ? "قريبًا. سيتفعل الدفع فور إضافة معرفات الخطط."
+          : "Coming soon. Checkout unlocks once plan IDs are configured.")
+      : (locale === "ar"
+          ? "الدفع غير متاح مؤقتًا."
+          : "Checkout is temporarily unavailable.");
 
-  async function handleClick() {
-    if (!isLoggedIn) {
-      router.push("/login?next=/pricing");
-      return;
-    }
-
+  function handleClick() {
     setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variant: normalizedVariantId }),
-      });
-
-      if (res.status === 401) {
-        router.push("/login?next=/pricing");
-        return;
-      }
-
-      const payload = (await res.json().catch(() => null)) as
-        | { url?: string; error?: string; code?: string }
-        | null;
-
-      if (!res.ok) {
-        if (payload?.code === "CHECKOUT_NOT_CONFIGURED") {
-          throw new Error(
-            locale === "ar"
-              ? "الدفع غير مهيأ بعد."
-              : "Checkout is not configured yet."
-          );
-        }
-        throw new Error(payload?.error ?? "Checkout failed. Please try again.");
-      }
-
-      if (payload?.url?.includes("lemonsqueezy.com")) {
-        window.location.href = payload.url;
-      } else {
-        throw new Error("Checkout did not return a valid payment link.");
-      }
-    } catch (err) {
-      console.error("[Checkout] Error:", err);
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : locale === "ar"
-            ? "تعذر بدء الدفع"
-            : "Could not start checkout"
-      );
-    } finally {
-      setLoading(false);
-    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
+    const redirectUrl = `${appUrl}/dashboard?upgraded=1`;
+    const checkoutUrl = `https://fazumi.lemonsqueezy.com/checkout/buy/${normalizedVariantId}?checkout[redirect_url]=${encodeURIComponent(redirectUrl)}`;
+    window.location.href = checkoutUrl;
   }
 
   if (checkoutState !== "ready") {
@@ -124,20 +69,13 @@ export function CheckoutButton({ variantId, children, className, isLoggedIn = fa
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={loading}
-        className={className}
-      >
-        {loading ? (locale === "ar" ? "جارٍ التحويل…" : "Redirecting…") : children}
-      </button>
-      {error ? (
-        <p className="mt-2 text-sm text-[var(--destructive)]" role="alert" aria-live="polite">
-          {error}
-        </p>
-      ) : null}
-    </>
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className={className}
+    >
+      {loading ? (locale === "ar" ? "جارٍ التحويل…" : "Redirecting…") : children}
+    </button>
   );
 }
