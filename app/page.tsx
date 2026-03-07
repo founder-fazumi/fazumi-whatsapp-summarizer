@@ -83,6 +83,31 @@ const faqSchema = {
   ],
 };
 
+const softwareSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Fazumi",
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "Web, iOS, Android",
+  offers: {
+    "@type": "Offer",
+    price: "9.99",
+    priceCurrency: "USD",
+    priceValidUntil: "2027-01-01",
+  },
+  description:
+    "Turn WhatsApp, Telegram, and Facebook school chats into structured summaries with dates, action items, and follow-up questions.",
+  url: APP_URL,
+  inLanguage: ["en", "ar"],
+};
+
+const webSiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Fazumi",
+  url: APP_URL,
+};
+
 export default async function LandingPage() {
   // Server-side session check — users with an active paid entitlement or trial go straight to the app
   let isLoggedIn = false;
@@ -131,6 +156,14 @@ export default async function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteSchema) }}
       />
       <Nav isLoggedIn={isLoggedIn} />
       <main>
