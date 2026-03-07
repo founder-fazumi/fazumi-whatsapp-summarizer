@@ -67,6 +67,27 @@
 - [x] Progress, decisions, lessons, and smoke results are recorded.
 
 ---
+## Story - SEO Hardening Pass (2026-03-07) [IN PROGRESS]
+
+#### SEO1 - Root metadata and public route canonicals [Codex]
+**Why:** Public pages need stable production canonicals, hreflang metadata, title templating, and route-level canonical declarations before indexing hardening.
+**Files:** `app/layout.tsx`, `app/pricing/layout.tsx`, `app/about/layout.tsx`, `app/faq/layout.tsx`, `app/contact/layout.tsx`, `app/terms/layout.tsx`, `app/privacy/layout.tsx`, `app/help/layout.tsx`, `app/cookie-policy/layout.tsx`, `app/refunds/layout.tsx`, `app/status/layout.tsx`
+**Acceptance:**
+- [ ] Root metadata uses the production domain fallback, canonical/hreflang alternates, OG locale fields, and a shared title template.
+- [ ] Public layouts expose canonical alternates for their route paths.
+- [ ] Missing metadata layouts for `/help`, `/cookie-policy`, `/refunds`, and `/status` exist with the requested title/description copy.
+
+#### SEO2 - Structured data, crawl directives, and SSR crawlability [Codex]
+**Why:** The landing and pricing pages need richer schema coverage, crawl directives need route-aware rules, and `/about` should render crawlable English HTML on the server.
+**Files:** `app/page.tsx`, `app/pricing/page.tsx`, `app/sitemap.ts`, `app/robots.ts`, `app/about/page.tsx`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [ ] Homepage renders Organization, FAQPage, SoftwareApplication, and WebSite schema blocks.
+- [ ] Pricing renders Product/Offer plus BreadcrumbList schema blocks.
+- [ ] Sitemap change frequencies are set per route and robots rules include the requested AI retrieval/training directives.
+- [ ] `/about` is a server component with English SSR defaults while keeping the existing copy and structure intact.
+- [ ] `pnpm lint` and `pnpm typecheck` pass after the SEO changes.
+
+---
 ## PHASE 0 — PLAN (done before "Proceed")
 
 - [x] P0.1 Inspect current repo and produce plain-English summary

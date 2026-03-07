@@ -90,3 +90,8 @@ S010 = PENDING  # Referral system
 # Verification update: `pnpm lint`, `pnpm typecheck`, and `pnpm build` now pass after the blocker patch set. `pnpm exec playwright test e2e/public-routes.spec.ts` also passes for the locale/status smoke path. The full `pnpm test` suite is still blocked locally by Playwright instability (`port 3100 already used` on one run, then worker `spawn EPERM` / timeout on follow-up runs).
 # Files: tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt
 # Pattern: when the full browser suite is unstable locally, record the exact failing runner condition separately from the code fixes so product risk and environment risk do not get conflated.
+
+# 2026-03-07
+# SEO hardening pass in progress: production canonicals/hreflang metadata, route-level metadata layouts, structured data expansion, sitemap/robots updates, and crawlable SSR output for `/about`.
+# Files: app/layout.tsx, app/page.tsx, app/pricing/page.tsx, app/sitemap.ts, app/robots.ts, app/about/page.tsx, app/pricing/layout.tsx, app/about/layout.tsx, app/faq/layout.tsx, app/contact/layout.tsx, app/terms/layout.tsx, app/privacy/layout.tsx, app/help/layout.tsx, app/cookie-policy/layout.tsx, app/refunds/layout.tsx, app/status/layout.tsx, tasks/todo.md, scripts/ralph/progress.txt
+# Pattern: when locale is cookie-based without URL prefixes, keep canonicals stable on the public path and expose language alternates from metadata rather than duplicating routes.
