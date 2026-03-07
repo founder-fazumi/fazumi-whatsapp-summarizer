@@ -17,7 +17,6 @@ const organizationSchema = {
   logo: `${APP_URL}/brand/logo-mark.png`,
   description:
     "Fazumi turns WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, forms, fees, and reminders without storing raw chat text.",
-  sameAs: ["https://x.com/FazumiApp", "https://instagram.com/fazumi.app"],
 };
 
 const faqSchema = {
@@ -88,7 +87,7 @@ const softwareSchema = {
   "@type": "SoftwareApplication",
   name: "Fazumi",
   applicationCategory: "ProductivityApplication",
-  operatingSystem: "Web, iOS, Android",
+  operatingSystem: "Web",
   offers: {
     "@type": "Offer",
     price: "9.99",
@@ -106,6 +105,14 @@ const webSiteSchema = {
   "@type": "WebSite",
   name: "Fazumi",
   url: APP_URL,
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${APP_URL}/help?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
 };
 
 export default async function LandingPage() {
