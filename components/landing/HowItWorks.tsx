@@ -277,6 +277,7 @@ export function HowItWorks() {
                       fill
                       sizes="(min-width: 768px) 30vw, 100vw"
                       className="z-10 object-contain"
+                      priority={step === "01"}
                     />
                   </div>
                 </div>
