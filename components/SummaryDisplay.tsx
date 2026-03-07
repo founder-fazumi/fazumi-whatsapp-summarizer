@@ -16,6 +16,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { parseDateFromLabel } from "@/lib/dashboard-insights";
 import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
 import { formatNumber } from "@/lib/format";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
+import { deriveActionCenter } from "@/lib/summary-action-center";
 import { createClient } from "@/lib/supabase/client";
 import { mergeLocalTodoLabels, normalizeTodoLabel } from "@/lib/todos/local";
 import { cn } from "@/lib/utils";
@@ -113,21 +115,22 @@ const EXPORT_DIGIT_MAP: Record<string, string> = {
 
 const UI_COPY = {
   en: {
-    latestSummary: "Latest Summary",
+    latestSummary: "Family dashboard",
     justNow: "Just now",
     chars: "chars",
-    addToCalendar: "Add to Calendar",
-    addToTodo: "Add to To-Do",
-    export: "Export",
-    helpful: "Was this summary helpful?",
-    noStorage: "No chat text was stored — only this summary.",
+    addToCalendar: "Export calendar",
+    addToTodo: "Send to action list",
+    export: "Share with family",
+    helpful: "Was this dashboard useful?",
+    noStorage: "Stored here: this summary card. Raw chat text was not stored.",
     comingSoon: "Coming soon",
     subscribeTitle: "Subscribe to use this feature",
-    subscribeBody: "Upgrade to unlock calendar, to-do, and export actions from your summaries.",
+    subscribeBody: "Upgrade to unlock calendar export, action-list sync, and family sharing from your summaries.",
     upgradeCta: "View plans",
     later: "Maybe later",
     empty: "empty",
     nothingMentioned: "Nothing mentioned",
+    bucketEmpty: "Nothing to add here yet",
     soonTitle: "Feature coming soon",
     soonBody: "This action is reserved for paid plans and is still being finished.",
     calendarEmptyTitle: "No calendar-ready dates",
@@ -139,27 +142,38 @@ const UI_COPY = {
     close: "Close",
     urgent: "Urgent",
     urgentBannerText: "Requires action today or tomorrow",
+    actionCenter: "Family Action Center",
+    dueToday: "Due today",
+    upcomingDates: "Upcoming dates",
+    paymentsForms: "Payments and forms",
+    supplies: "Supplies to send",
+    familyShare: "Copy family action list",
+    shareHint: "Send this action list to your spouse or caregiver.",
     chatTypeUrgent: "Urgent notice",
     chatTypeEvent: "Event",
     chatTypeNoisy: "General chat",
     chatContextMessages: "messages",
+    sourceWhatsApp: "WhatsApp",
+    sourceTelegram: "Telegram",
+    sourceFacebook: "Facebook",
   },
   ar: {
-    latestSummary: "أحدث ملخص",
+    latestSummary: "اللوحة العائلية",
     justNow: "الآن",
     chars: "حرفًا",
-    addToCalendar: "أضف إلى التقويم",
-    addToTodo: "أضف إلى المهام",
-    export: "تصدير",
-    helpful: "هل كان هذا الملخص مفيدًا؟",
-    noStorage: "لم يتم حفظ نص المحادثة، بل هذا الملخص فقط.",
+    addToCalendar: "صدّر التقويم",
+    addToTodo: "أرسل إلى قائمة الإجراءات",
+    export: "شارك مع العائلة",
+    helpful: "هل كانت هذه اللوحة مفيدة؟",
+    noStorage: "المحفوظ هنا هو بطاقة الملخص فقط. لا يتم حفظ نص المحادثة الخام.",
     comingSoon: "قريبًا",
     subscribeTitle: "اشترك لاستخدام هذه الميزة",
-    subscribeBody: "قم بالترقية لفتح ميزات التقويم والمهام والتصدير من الملخص.",
+    subscribeBody: "قم بالترقية لفتح تصدير التقويم ومزامنة قائمة الإجراءات والمشاركة العائلية من الملخص.",
     upgradeCta: "عرض الخطط",
     later: "لاحقًا",
     empty: "فارغ",
     nothingMentioned: "لا يوجد شيء مذكور",
+    bucketEmpty: "لا يوجد ما يضاف هنا بعد",
     soonTitle: "الميزة قيد الإعداد",
     soonBody: "هذه الميزة مخصصة للخطط المدفوعة وما زالت قيد الإكمال.",
     calendarEmptyTitle: "لا توجد تواريخ جاهزة للتقويم",
@@ -171,10 +185,20 @@ const UI_COPY = {
     close: "إغلاق",
     urgent: "عاجل",
     urgentBannerText: "يتطلب إجراءً اليوم أو غدًا",
+    actionCenter: "لوحة الإجراءات العائلية",
+    dueToday: "مطلوب اليوم",
+    upcomingDates: "المواعيد القادمة",
+    paymentsForms: "الرسوم والنماذج",
+    supplies: "مستلزمات يجب إرسالها",
+    familyShare: "انسخ قائمة الإجراءات للعائلة",
+    shareHint: "أرسل هذه القائمة إلى الزوج/الزوجة أو مقدم الرعاية.",
     chatTypeUrgent: "إشعار عاجل",
     chatTypeEvent: "حدث",
     chatTypeNoisy: "محادثة عامة",
     chatContextMessages: "رسالة",
+    sourceWhatsApp: "واتساب",
+    sourceTelegram: "تيليجرام",
+    sourceFacebook: "فيسبوك",
   },
 } as const;
 
@@ -250,10 +274,30 @@ function buildPlainTextExport(summary: SummaryResult, outputLang: OutputLang, em
   return buildSummaryExportText(summary, outputLang, emptyLabel);
 }
 
-function buildSocialShareExport(summary: SummaryResult, outputLang: OutputLang, emptyLabel: string): string {
-  return buildSummaryExportText(summary, outputLang, emptyLabel, {
-    includeHeadingEmojis: true,
-  });
+function buildActionCenterShareText(
+  sections: Array<{ label: string; items: string[] }>,
+  outputLang: OutputLang,
+  emptyLabel: string,
+  groupTitle?: string | null
+) {
+  const heading = outputLang === "ar" ? "قائمة الإجراءات العائلية" : "Family action list";
+  const body = normalizeExportDigits(
+    [
+      groupTitle ? `${heading} - ${groupTitle}` : heading,
+      "",
+      ...sections.flatMap((section) => {
+        const items = section.items.length > 0 ? section.items : [emptyLabel];
+        return [
+          section.label,
+          "-".repeat(Math.max(5, section.label.length)),
+          ...items.map((item) => `• ${item}`),
+          "",
+        ];
+      }),
+    ].join("\n").trim()
+  );
+
+  return formatSocialShareExport(body, outputLang);
 }
 
 function formatSocialShareExport(text: string, outputLang: OutputLang): string {
@@ -359,6 +403,25 @@ function buildCalendarExport(summary: SummaryResult): string | null {
     ...events,
     "END:VCALENDAR",
   ].join("\r\n");
+}
+
+function getSourcePlatformLabel(summary: SummaryResult, outputLang: OutputLang) {
+  const platform = summary.chat_context?.source_platform;
+  const copy = UI_COPY[outputLang];
+
+  if (platform === "telegram") {
+    return copy.sourceTelegram;
+  }
+
+  if (platform === "facebook") {
+    return copy.sourceFacebook;
+  }
+
+  if (platform === "whatsapp") {
+    return copy.sourceWhatsApp;
+  }
+
+  return null;
 }
 
 function downloadCalendarExport(contents: string) {
@@ -543,6 +606,16 @@ export function SummaryDisplay({
   const copy = UI_COPY[outputLang];
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
+  const actionCenter = deriveActionCenter(summary);
+  const sourcePlatformLabel = getSourcePlatformLabel(summary, outputLang);
+  const actionCenterSections = [
+    { key: "due_today", label: copy.dueToday, items: actionCenter.due_today },
+    { key: "upcoming_dates", label: copy.upcomingDates, items: actionCenter.upcoming_dates },
+    { key: "payments_forms", label: copy.paymentsForms, items: actionCenter.payments_forms },
+    { key: "supplies", label: copy.supplies, items: actionCenter.supplies },
+    { key: "questions", label: SECTION_META.questions[outputLang], items: actionCenter.questions },
+    { key: "urgent_items", label: copy.urgent, items: actionCenter.urgent_items },
+  ];
 
   async function runAction(actionKey: ActionKey, action: () => Promise<void> | void) {
     setPendingAction(actionKey);
@@ -580,6 +653,12 @@ export function SummaryDisplay({
     if (actionMode !== "active") {
       return;
     }
+
+    trackEvent(AnalyticsEvents.ACTION_CENTER_USED, {
+      action: actionKey,
+      outputLang,
+      sourcePlatform: summary.chat_context?.source_platform ?? null,
+    });
 
     if (actionKey === "export") {
       await runAction("export", async () => {
@@ -746,6 +825,52 @@ export function SummaryDisplay({
           </div>
         </div>
 
+        <section className="border-b border-[var(--border)] bg-[var(--surface)]/50 px-4 py-4 sm:px-5">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+              {copy.actionCenter}
+            </span>
+            {summary.chat_context?.group_title && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--foreground)]">
+                {summary.chat_context.group_title}
+              </span>
+            )}
+            {sourcePlatformLabel && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
+                {sourcePlatformLabel}
+              </span>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {actionCenterSections.map((section) => (
+              <div
+                key={section.key}
+                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-3"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                  {section.label}
+                </p>
+                {section.items.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {section.items.map((item) => (
+                      <li key={`${section.key}:${item}`} className="flex items-start gap-2 text-sm text-[var(--foreground)]">
+                        <span className="mt-1 text-[10px] text-[var(--primary)]">●</span>
+                        <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-6">
+                          {item}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                    {copy.bucketEmpty}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
         <div className="border-b border-[var(--border)] px-4 py-3 sm:px-5">
           <div className="flex flex-wrap gap-2">
             {ACTIONS.map(({ key, icon: Icon }) => {
@@ -787,14 +912,19 @@ export function SummaryDisplay({
 
         {showSharePanel && (() => {
           const exportText = buildPlainTextExport(summary, outputLang, copy.nothingMentioned);
-          const socialShareBody = buildSocialShareExport(summary, outputLang, copy.nothingMentioned);
-          const socialShareText = formatSocialShareExport(socialShareBody, outputLang);
-          const short = formatSocialShareExport(socialShareBody.slice(0, 1500), outputLang);
+          const familyActionList = buildActionCenterShareText(
+            actionCenterSections,
+            outputLang,
+            copy.bucketEmpty,
+            summary.chat_context?.group_title
+          );
+          const socialShareText = familyActionList;
+          const short = familyActionList.slice(0, 1500);
           const waUrl = `https://wa.me/?text=${encodeURIComponent(short)}`;
           const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
-          const isTruncated = socialShareBody.length > 1500;
+          const isTruncated = familyActionList.length > 1500;
           const truncatedCount = formatNumber(1500);
-          const truncatedNote =
+        const truncatedNote =
             outputLang === "ar"
               ? `يتم إرسال أول ${truncatedCount} حرف`
               : `Only the first ${truncatedCount} chars are sent`;
@@ -846,7 +976,7 @@ export function SummaryDisplay({
                 >
                   {copiedTarget === "fb"
                     ? (outputLang === "ar" ? "تم النسخ ✓" : "Copied ✓")
-                    : (outputLang === "ar" ? "نسخ للفيسبوك" : "Copy for Facebook")}
+                    : copy.familyShare}
                 </button>
 
                 <button
@@ -863,6 +993,9 @@ export function SummaryDisplay({
                   {truncatedNote}
                 </p>
               )}
+              <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
+                {copy.shareHint}
+              </p>
             </div>
           );
         })()}
