@@ -22,13 +22,16 @@ export function CheckoutButton({ variantId, children, className, isLoggedIn = fa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const normalizedVariantId = normalizeVariantId(variantId);
-  const checkoutState = !lsVariantsConfigured
-    ? "billing_missing"
-    : !normalizedVariantId
-    ? "missing"
-    : isValidCheckoutVariantId(normalizedVariantId)
-      ? "ready"
-      : "invalid";
+  // Non-logged-in users are always redirected to /login — billing config irrelevant for them.
+  const checkoutState = isLoggedIn
+    ? (!lsVariantsConfigured
+        ? "billing_missing"
+        : !normalizedVariantId
+        ? "missing"
+        : isValidCheckoutVariantId(normalizedVariantId)
+          ? "ready"
+          : "invalid")
+    : "ready";
   const billingNotConfiguredMessage =
     locale === "ar" ? "لم يتم إعداد الدفع بعد." : "Billing is not configured yet.";
 
