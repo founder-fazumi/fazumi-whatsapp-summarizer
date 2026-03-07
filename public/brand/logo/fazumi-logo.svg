@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="fazumiLogoTitle fazumiLogoDesc">
   <title id="fazumiLogoTitle">Fazumi logo mark</title>
-  <desc id="fazumiLogoDesc">Rounded green mark with a cream Fazumi monogram and warm amber accents.</desc>
+  <desc id="fazumiLogoDesc">Rounded green mark with a cream Fazumi F lettermark and amber accent dot.</desc>
   <defs>
     <linearGradient id="fazumiPanel" x1="28" y1="20" x2="228" y2="236" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2b7d5c" />
@@ -8,8 +8,6 @@
     </linearGradient>
   </defs>
   <rect x="16" y="16" width="224" height="224" rx="64" fill="url(#fazumiPanel)" />
-  <path d="M88 54 112 90 77 104 88 54Z" fill="#d48b45" />
-  <path d="m168 54-24 36 35 14-11-50Z" fill="#d48b45" />
-  <path d="M96 72h95v28h-63v28h50v28h-50v52H96V72Z" fill="#f5f2ec" />
-  <circle cx="170" cy="186" r="10" fill="#d48b45" />
+  <path d="M80 64h96v32H112v32h56v32h-56v56H80V64Z" fill="#f5f2ec" />
+  <circle cx="172" cy="188" r="12" fill="#d48b45" />
 </svg>
