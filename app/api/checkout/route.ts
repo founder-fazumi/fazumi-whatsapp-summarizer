@@ -66,5 +66,7 @@ export async function POST(req: NextRequest) {
     appUrl: process.env.NEXT_PUBLIC_APP_URL,
   });
 
-  return NextResponse.redirect(checkoutUrl, 307);
+  // Return the URL as JSON so the client can navigate without opaque-redirect issues.
+  // (fetch with redirect:"manual" makes 307 responses opaque — Location header inaccessible)
+  return NextResponse.json({ url: checkoutUrl });
 }

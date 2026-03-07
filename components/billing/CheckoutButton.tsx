@@ -59,20 +59,18 @@ export function CheckoutButton({ variantId, children, className, isLoggedIn = fa
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ variant: normalizedVariantId }),
-        redirect: "manual",
       });
 
-      // The API returns a 307 redirect to LS checkout
-      const location = res.headers.get("location") ?? res.url;
-      if (location && location.includes("lemonsqueezy.com")) {
-        window.location.href = location;
-      } else if (res.status === 401) {
+      if (res.status === 401) {
         router.push("/login?next=/pricing");
-      } else {
-        const payload = (await res.json().catch(() => null)) as
-          | { error?: string; code?: string }
-          | null;
+        return;
+      }
 
+      const payload = (await res.json().catch(() => null)) as
+        | { url?: string; error?: string; code?: string }
+        | null;
+
+      if (!res.ok) {
         if (payload?.code === "CHECKOUT_NOT_CONFIGURED") {
           throw new Error(
             locale === "ar"
@@ -80,8 +78,13 @@ export function CheckoutButton({ variantId, children, className, isLoggedIn = fa
               : "Checkout is not configured yet."
           );
         }
+        throw new Error(payload?.error ?? "Checkout failed. Please try again.");
+      }
 
-        throw new Error(payload?.error ?? "Checkout did not return a valid redirect.");
+      if (payload?.url?.includes("lemonsqueezy.com")) {
+        window.location.href = payload.url;
+      } else {
+        throw new Error("Checkout did not return a valid payment link.");
       }
     } catch (err) {
       console.error("[Checkout] Error:", err);
