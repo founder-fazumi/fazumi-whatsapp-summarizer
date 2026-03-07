@@ -29,7 +29,7 @@ export function BrandLogo({ size = "md", className }: BrandLogoProps) {
       )}
     >
       <Image
-        src="/brand/logo/fazumi-logo.svg"
+        src="/brand/logo/Fazumi-logo-transparend.png"
         alt="Fazumi"
         width={px}
         height={px}

@@ -28,6 +28,15 @@ export async function PATCH(req: NextRequest) {
     nextRetentionDays = normalizeSummaryRetentionDays(body.summary_retention_days);
     allowed.summary_retention_days = nextRetentionDays;
   }
+  if (typeof body.full_name === "string") {
+    allowed.full_name = body.full_name.trim().slice(0, 100);
+  }
+  if (typeof body.avatar_url === "string") {
+    const trimmed = body.avatar_url.trim();
+    if (trimmed === "" || trimmed.startsWith("https://")) {
+      allowed.avatar_url = trimmed === "" ? null : trimmed;
+    }
+  }
 
   if (Object.keys(allowed).length === 0) {
     return NextResponse.json({ error: "No valid fields" }, { status: 400 });

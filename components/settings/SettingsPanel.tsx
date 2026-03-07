@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   Sun,
   Trash2,
+  UserCircle,
 } from "lucide-react";
 
 type Locale = "en" | "ar";
@@ -39,6 +40,8 @@ type ProfilePatch = {
   lang_pref?: string;
   family_context?: FamilyContext;
   summary_retention_days?: number | null;
+  full_name?: string;
+  avatar_url?: string;
 };
 
 const GROUP_TYPE_OPTIONS: Array<{ value: FamilyGroupType; en: string; ar: string }> = [
@@ -157,6 +160,12 @@ const COPY = {
   otherNotice: { en: "You can change analytics choices here at any time.", ar: "يمكنك تغيير خيارات التحليلات هنا في أي وقت." },
   retentionUpdated: { en: "Retention updated.", ar: "تم تحديث مدة الاحتفاظ." },
   retentionDeleted: { en: "Older summaries deleted", ar: "تم حذف الملخصات الأقدم" },
+  profileTitle: { en: "Profile", ar: "الملف الشخصي" },
+  profileBody: { en: "Update your display name and avatar URL.", ar: "حدّث اسمك وصورتك الشخصية." },
+  displayName: { en: "Display name", ar: "الاسم المعروض" },
+  avatarUrl: { en: "Avatar URL", ar: "رابط الصورة الشخصية" },
+  avatarUrlHint: { en: "Paste a public https:// image URL, or leave blank to use the default.", ar: "الصق رابط صورة https:// عام، أو اتركه فارغًا للصورة الافتراضية." },
+  saveProfile: { en: "Save profile", ar: "حفظ الملف الشخصي" },
 } as const;
 
 function pick(locale: Locale, value: { en: string; ar: string }) {
@@ -237,6 +246,11 @@ export function SettingsPanel() {
   } = useConsentManager();
   const [savedKey, setSavedKey] = useState<"theme" | "lang" | null>(null);
   const [consentDraft, setConsentDraft] = useState<ConsentPreferences>(consent);
+  const [displayName, setDisplayName] = useState("");
+  const [savedDisplayName, setSavedDisplayName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [savedAvatarUrl, setSavedAvatarUrl] = useState("");
+  const [profileStatus, setProfileStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [profileLoading, setProfileLoading] = useState(true);
   const [familyContext, setFamilyContext] = useState<FamilyContext>(getEmptyFamilyContext());
   const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext>(getEmptyFamilyContext());
@@ -271,9 +285,9 @@ export function SettingsPanel() {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("family_context, summary_retention_days")
+          .select("family_context, summary_retention_days, full_name, avatar_url")
           .eq("id", user.id)
-          .maybeSingle<{ family_context: unknown; summary_retention_days: number | null }>();
+          .maybeSingle<{ family_context: unknown; summary_retention_days: number | null; full_name: string | null; avatar_url: string | null }>();
 
         if (!active) {
           return;
@@ -292,6 +306,12 @@ export function SettingsPanel() {
         setSavedLinksDraft(nextLinks);
         setRetentionDays(nextRetention);
         setSavedRetentionDays(nextRetention);
+        const name = profile?.full_name ?? "";
+        const avatar = profile?.avatar_url ?? "";
+        setDisplayName(name);
+        setSavedDisplayName(name);
+        setAvatarUrl(avatar);
+        setSavedAvatarUrl(avatar);
       } catch {
         // Keep the settings page usable even if profile sync is unavailable.
       } finally {
@@ -408,6 +428,19 @@ export function SettingsPanel() {
     teachersDraft !== savedTeachersDraft ||
     linksDraft !== savedLinksDraft;
   const retentionChanged = retentionDays !== savedRetentionDays;
+  const profileChanged = displayName !== savedDisplayName || avatarUrl !== savedAvatarUrl;
+
+  async function handleSaveProfile() {
+    setProfileStatus("saving");
+    try {
+      await saveProfilePatch({ full_name: displayName, avatar_url: avatarUrl });
+      setSavedDisplayName(displayName);
+      setSavedAvatarUrl(avatarUrl);
+      setProfileStatus("saved");
+    } catch {
+      setProfileStatus("error");
+    }
+  }
 
   return (
     <div dir={isRtl ? "rtl" : "ltr"} lang={locale} className={cn("space-y-4", isRtl && "font-arabic")}>
@@ -419,6 +452,63 @@ export function SettingsPanel() {
           {pick(locale, COPY.description)}
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--primary-soft)] text-[var(--primary)]">
+              <UserCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle>{pick(locale, COPY.profileTitle)}</CardTitle>
+              <CardDescription>{pick(locale, COPY.profileBody)}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            {(avatarUrl || savedAvatarUrl) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl || savedAvatarUrl}
+                alt="Avatar preview"
+                className="h-14 w-14 rounded-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--text-xl)] font-bold text-[var(--primary)]">
+                {displayName.trim().charAt(0).toUpperCase() || "?"}
+              </div>
+            )}
+            <div className="flex-1 space-y-1">
+              <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.displayName)}</p>
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder={pick(locale, COPY.notSet)}
+                maxLength={100}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.avatarUrl)}</label>
+            <Input
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              placeholder="https://..."
+              type="url"
+            />
+            <p className="text-xs text-[var(--muted-foreground)]">{pick(locale, COPY.avatarUrlHint)}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" onClick={() => void handleSaveProfile()} disabled={!profileChanged || profileStatus === "saving"}>
+              {profileStatus === "saving" ? pick(locale, COPY.saving) : pick(locale, COPY.saveProfile)}
+            </Button>
+            {profileStatus === "saved" && <span className="text-sm text-[var(--success)]">{pick(locale, COPY.saved)}</span>}
+            {profileStatus === "error" && <span className="text-sm text-[var(--destructive)]">{pick(locale, COPY.saveError)}</span>}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -132,7 +132,7 @@ const PLANS: Plan[] = [
       { en: "Future top tier included for one year", ar: "يشمل أعلى فئة مستقبلية لمدة سنة" },
       { en: "Final sale", ar: "بيع نهائي" },
     ],
-    seatsLeft: 127,
+    seatsLeft: 350,
   },
 ];
 
@@ -153,6 +153,18 @@ export function Pricing({
 }: PricingProps) {
   const { locale } = useLang();
   const [billing, setBilling] = useState<Billing>(() => (currentPlan === "monthly" ? "monthly" : "yearly"));
+  const [founderSeatsLeft, setFounderSeatsLeft] = useState<number>(350);
+
+  useEffect(() => {
+    fetch("/api/public/founder-seats")
+      .then((r) => r.json())
+      .then((data: { remaining?: number }) => {
+        if (typeof data.remaining === "number") {
+          setFounderSeatsLeft(data.remaining);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
   const HeadingTag = headingTag;
   const currentPlanId =
     currentPlan === "founder"
@@ -299,7 +311,7 @@ export function Pricing({
                       </p>
                       {"seatsLeft" in plan && (
                         <p className="mt-1 text-[var(--text-xs)] font-semibold text-[var(--accent-fox-deep)]">
-                          {pick(getSeatsRemainingCopy(formatNumber(plan.seatsLeft)), locale)}
+                          {pick(getSeatsRemainingCopy(formatNumber(founderSeatsLeft)), locale)}
                         </p>
                       )}
                     </div>
@@ -355,7 +367,7 @@ export function Pricing({
                       plan.featured
                         ? "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
                         : plan.id === "founder"
-                          ? "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
+                          ? "bg-[var(--accent-fox)] text-white shadow-[var(--shadow-sm)] hover:opacity-90"
                           : "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]",
                       "disabled:cursor-not-allowed disabled:opacity-70"
                     )}
