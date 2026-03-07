@@ -116,7 +116,7 @@ const COPY = {
 } as const;
 
 export default function AboutPage() {
-  const isArabic = "en" === "ar";
+  const isArabic = false;
   const founderList = pick<readonly string[]>(COPY.founderList, "en");
 
   return (
