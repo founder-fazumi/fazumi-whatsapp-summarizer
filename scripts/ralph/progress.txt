@@ -15,7 +15,7 @@ S010 = PENDING  # Referral system
 
 # 2026-02-28
 # Hydration mismatch fix completed for theme/lang client preferences and browser-injected attributes.
-# Files: app/layout.tsx, public/hydration-sanitize.js, lib/context/ThemeContext.tsx, lib/context/LangContext.tsx, lib/hooks/useMounted.ts, components/landing/Nav.tsx, components/layout/TopBar.tsx, components/layout/SearchDialog.tsx, tasks/lessons.md
+# Files: app/layout.tsx, public/hydration-sanitize.js, lib/context/ThemeContext.tsx, lib/context/LangContext.tsx, lib/hooks/useMounted.ts, components/landing/Nav.tsx, components/layout/TopBar.tsx, tasks/lessons.md
 # Pattern: use useSyncExternalStore for browser preference state that must match SSR on the first hydration pass.
 
 # 2026-02-28
@@ -80,3 +80,13 @@ S010 = PENDING  # Referral system
 # Files: package.json, pnpm-lock.yaml, specs/nextjs-version-fix.md, tasks/todo.md, scripts/ralph/progress.txt, tasks/lessons.md
 # Build status: two clean `pnpm build` runs pass on Next.js `16.0.0` and reach `Generating static pages (36/36)` with exit code `0`; `pnpm lint` and `pnpm typecheck` pass. `pnpm test` is still blocked by `e2e/app-smoke.spec.ts` timing out while waiting for `summary-use-sample`.
 # Pattern: when a production build failure points at framework internals, pin the framework version first and verify with clean caches before adding app-side suppression or route-level workarounds.
+
+# 2026-03-07
+# Audit blocker pass in progress: admin auth now fails closed without explicit credentials, shared billing entitlements derive from subscription state first, Arabic-first public route coverage is explicit, and /status no longer claims live operational health.
+# Files: lib/admin/auth.ts, app/api/admin/login/route.ts, app/api/webhooks/lemonsqueezy/route.ts, lib/limits.ts, app/api/summarize/route.ts, app/api/summarize-zip/route.ts, app/billing/page.tsx, app/history/[id]/page.tsx, app/summarize/page.tsx, app/page.tsx, components/landing/GoToAppButton.tsx, app/status/page.tsx, e2e/admin-dashboard.spec.ts, e2e/public-routes.spec.ts, docs/decisions.md, docs/runbooks/payments.md, tasks/todo.md
+# Pattern: when access control depends on mirrored billing/profile fields, resolve entitlements from one shared subscription-aware helper and keep every UI mirror fail-safe instead of letting stale rows grant access.
+
+# 2026-03-07
+# Verification update: `pnpm lint`, `pnpm typecheck`, and `pnpm build` now pass after the blocker patch set. `pnpm exec playwright test e2e/public-routes.spec.ts` also passes for the locale/status smoke path. The full `pnpm test` suite is still blocked locally by Playwright instability (`port 3100 already used` on one run, then worker `spawn EPERM` / timeout on follow-up runs).
+# Files: tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt
+# Pattern: when the full browser suite is unstable locally, record the exact failing runner condition separately from the code fixes so product risk and environment risk do not get conflated.

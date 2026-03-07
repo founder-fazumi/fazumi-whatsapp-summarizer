@@ -6,15 +6,18 @@ import Link from "next/link";
 import {
   ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap,
   AlignLeft, Calendar, Users, Link2, HelpCircle, ShieldCheck, X,
+  AlertTriangle, Phone, MapPin, Clock as ClockIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { SummaryResult } from "@/lib/ai/summarize";
+import type { SummaryResult, ImportantDate } from "@/lib/ai/summarize";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { buttonVariants } from "@/components/ui/button";
 import { parseDateFromLabel } from "@/lib/dashboard-insights";
 import { getClientHealthSnapshot, getTodoStorageMode } from "@/lib/feature-health";
 import { formatNumber } from "@/lib/format";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
+import { deriveActionCenter } from "@/lib/summary-action-center";
 import { createClient } from "@/lib/supabase/client";
 import { mergeLocalTodoLabels, normalizeTodoLabel } from "@/lib/todos/local";
 import { cn } from "@/lib/utils";
@@ -33,6 +36,7 @@ const SECTION_META: Record<
   important_dates:  { en: "Important Dates",           ar: "المواعيد المهمة",       icon: Calendar    },
   action_items:     { en: "Action Items / To-Do",      ar: "الإجراءات المطلوبة",    icon: ListChecks  },
   people_classes:   { en: "People / Classes",          ar: "الأشخاص / المواد",      icon: Users       },
+  contacts:         { en: "Contacts",                  ar: "جهات الاتصال",          icon: Phone       },
   links:            { en: "Links & Attachments",       ar: "الروابط والمرفقات",     icon: Link2       },
   questions:        { en: "Questions to Ask",          ar: "أسئلة للمعلم / المدرسة", icon: HelpCircle },
 };
@@ -42,6 +46,7 @@ const SECTION_ORDER = [
   "important_dates",
   "action_items",
   "people_classes",
+  "contacts",
   "links",
   "questions",
 ] as const;
@@ -54,6 +59,7 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
     important_dates: "Important Dates",
     action_items: "Action Items",
     people_classes: "People / Classes",
+    contacts: "Contacts",
     links: "Links",
     questions: "Questions",
   },
@@ -62,6 +68,7 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
     important_dates: "المواعيد المهمة",
     action_items: "المهام المطلوبة",
     people_classes: "الأشخاص / المواد",
+    contacts: "جهات الاتصال",
     links: "الروابط",
     questions: "الأسئلة",
   },
@@ -72,6 +79,7 @@ const EXPORT_HEADING_EMOJIS: Record<SectionKey, string> = {
   important_dates: "📅",
   action_items: "✅",
   people_classes: "👥",
+  contacts: "📞",
   links: "🔗",
   questions: "❓",
 };
@@ -107,21 +115,22 @@ const EXPORT_DIGIT_MAP: Record<string, string> = {
 
 const UI_COPY = {
   en: {
-    latestSummary: "Latest Summary",
+    latestSummary: "Family dashboard",
     justNow: "Just now",
     chars: "chars",
-    addToCalendar: "Add to Calendar",
-    addToTodo: "Add to To-Do",
-    export: "Export",
-    helpful: "Was this summary helpful?",
-    noStorage: "No chat text was stored — only this summary.",
+    addToCalendar: "Export calendar",
+    addToTodo: "Send to action list",
+    export: "Share with family",
+    helpful: "Was this dashboard useful?",
+    noStorage: "Stored here: this summary card. Raw chat text was not stored.",
     comingSoon: "Coming soon",
     subscribeTitle: "Subscribe to use this feature",
-    subscribeBody: "Upgrade to unlock calendar, to-do, and export actions from your summaries.",
+    subscribeBody: "Upgrade to unlock calendar export, action-list sync, and family sharing from your summaries.",
     upgradeCta: "View plans",
     later: "Maybe later",
     empty: "empty",
     nothingMentioned: "Nothing mentioned",
+    bucketEmpty: "Nothing to add here yet",
     soonTitle: "Feature coming soon",
     soonBody: "This action is reserved for paid plans and is still being finished.",
     calendarEmptyTitle: "No calendar-ready dates",
@@ -131,23 +140,40 @@ const UI_COPY = {
     actionErrorTitle: "Could not complete this action",
     actionErrorBody: "Please try again in a moment.",
     close: "Close",
+    urgent: "Urgent",
+    urgentBannerText: "Requires action today or tomorrow",
+    actionCenter: "Family Action Center",
+    dueToday: "Due today",
+    upcomingDates: "Upcoming dates",
+    paymentsForms: "Payments and forms",
+    supplies: "Supplies to send",
+    familyShare: "Copy family action list",
+    shareHint: "Send this action list to your spouse or caregiver.",
+    chatTypeUrgent: "Urgent notice",
+    chatTypeEvent: "Event",
+    chatTypeNoisy: "General chat",
+    chatContextMessages: "messages",
+    sourceWhatsApp: "WhatsApp",
+    sourceTelegram: "Telegram",
+    sourceFacebook: "Facebook",
   },
   ar: {
-    latestSummary: "أحدث ملخص",
+    latestSummary: "اللوحة العائلية",
     justNow: "الآن",
     chars: "حرفًا",
-    addToCalendar: "أضف إلى التقويم",
-    addToTodo: "أضف إلى المهام",
-    export: "تصدير",
-    helpful: "هل كان هذا الملخص مفيدًا؟",
-    noStorage: "لم يتم حفظ نص المحادثة، بل هذا الملخص فقط.",
+    addToCalendar: "صدّر التقويم",
+    addToTodo: "أرسل إلى قائمة الإجراءات",
+    export: "شارك مع العائلة",
+    helpful: "هل كانت هذه اللوحة مفيدة؟",
+    noStorage: "المحفوظ هنا هو بطاقة الملخص فقط. لا يتم حفظ نص المحادثة الخام.",
     comingSoon: "قريبًا",
     subscribeTitle: "اشترك لاستخدام هذه الميزة",
-    subscribeBody: "قم بالترقية لفتح ميزات التقويم والمهام والتصدير من الملخص.",
+    subscribeBody: "قم بالترقية لفتح تصدير التقويم ومزامنة قائمة الإجراءات والمشاركة العائلية من الملخص.",
     upgradeCta: "عرض الخطط",
     later: "لاحقًا",
     empty: "فارغ",
     nothingMentioned: "لا يوجد شيء مذكور",
+    bucketEmpty: "لا يوجد ما يضاف هنا بعد",
     soonTitle: "الميزة قيد الإعداد",
     soonBody: "هذه الميزة مخصصة للخطط المدفوعة وما زالت قيد الإكمال.",
     calendarEmptyTitle: "لا توجد تواريخ جاهزة للتقويم",
@@ -157,6 +183,22 @@ const UI_COPY = {
     actionErrorTitle: "تعذر إكمال هذا الإجراء",
     actionErrorBody: "حاول مرة أخرى بعد قليل.",
     close: "إغلاق",
+    urgent: "عاجل",
+    urgentBannerText: "يتطلب إجراءً اليوم أو غدًا",
+    actionCenter: "لوحة الإجراءات العائلية",
+    dueToday: "مطلوب اليوم",
+    upcomingDates: "المواعيد القادمة",
+    paymentsForms: "الرسوم والنماذج",
+    supplies: "مستلزمات يجب إرسالها",
+    familyShare: "انسخ قائمة الإجراءات للعائلة",
+    shareHint: "أرسل هذه القائمة إلى الزوج/الزوجة أو مقدم الرعاية.",
+    chatTypeUrgent: "إشعار عاجل",
+    chatTypeEvent: "حدث",
+    chatTypeNoisy: "محادثة عامة",
+    chatContextMessages: "رسالة",
+    sourceWhatsApp: "واتساب",
+    sourceTelegram: "تيليجرام",
+    sourceFacebook: "فيسبوك",
   },
 } as const;
 
@@ -203,12 +245,20 @@ function buildSummaryExportText(
       const lines =
         sectionKey === "tldr"
           ? [typeof value === "string" && value.trim() ? value.trim() : emptyLabel]
-          : Array.isArray(value)
-            ? value
-                .map((item) => item.trim())
-                .filter(Boolean)
-                .map((item) => `• ${item}`)
-            : [];
+          : sectionKey === "important_dates"
+            ? (value as ImportantDate[]).map((d) => {
+                let text = d.label;
+                if (d.time) text += ` — ${d.time}`;
+                if (d.location) text += ` (${d.location})`;
+                if (d.urgent) text = `⚠️ ${text}`;
+                return text;
+              }).filter(Boolean).map((item) => `• ${item}`)
+            : Array.isArray(value)
+              ? (value as string[])
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .map((item) => `• ${item}`)
+              : [];
 
       const sectionLines = lines.length > 0 ? lines : [emptyLabel];
       const separator = "-".repeat(Math.max(5, baseHeading.length + (includeHeadingEmojis ? 3 : 0)));
@@ -224,10 +274,30 @@ function buildPlainTextExport(summary: SummaryResult, outputLang: OutputLang, em
   return buildSummaryExportText(summary, outputLang, emptyLabel);
 }
 
-function buildSocialShareExport(summary: SummaryResult, outputLang: OutputLang, emptyLabel: string): string {
-  return buildSummaryExportText(summary, outputLang, emptyLabel, {
-    includeHeadingEmojis: true,
-  });
+function buildActionCenterShareText(
+  sections: Array<{ label: string; items: string[] }>,
+  outputLang: OutputLang,
+  emptyLabel: string,
+  groupTitle?: string | null
+) {
+  const heading = outputLang === "ar" ? "قائمة الإجراءات العائلية" : "Family action list";
+  const body = normalizeExportDigits(
+    [
+      groupTitle ? `${heading} - ${groupTitle}` : heading,
+      "",
+      ...sections.flatMap((section) => {
+        const items = section.items.length > 0 ? section.items : [emptyLabel];
+        return [
+          section.label,
+          "-".repeat(Math.max(5, section.label.length)),
+          ...items.map((item) => `• ${item}`),
+          "",
+        ];
+      }),
+    ].join("\n").trim()
+  );
+
+  return formatSocialShareExport(body, outputLang);
 }
 
 function formatSocialShareExport(text: string, outputLang: OutputLang): string {
@@ -278,24 +348,43 @@ function formatIcsTimestamp(value: Date): string {
 function buildCalendarExport(summary: SummaryResult): string | null {
   const now = new Date();
   const events = summary.important_dates
-    .map((label, index) => {
-      const parsed = parseDateFromLabel(label, now);
-      if (!parsed) {
-        return null;
+    .map((item, index) => {
+      // Prefer the structured ISO date; fall back to text parsing for legacy strings
+      let start: Date | null = null;
+      if (item.date) {
+        const [y, m, d] = item.date.split("-").map(Number);
+        if (y && m && d) start = new Date(Date.UTC(y, m - 1, d));
+      }
+      if (!start) start = parseDateFromLabel(item.label, now);
+      if (!start) return null;
+
+      let dtstart: string;
+      let dtend: string;
+      if (item.time) {
+        const [hour = 0, minute = 0] = item.time.split(":").map(Number);
+        const startDt = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), hour, minute));
+        const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+        dtstart = `DTSTART:${formatIcsTimestamp(startDt)}`;
+        dtend = `DTEND:${formatIcsTimestamp(endDt)}`;
+      } else {
+        const end = new Date(start);
+        end.setUTCDate(end.getUTCDate() + 1);
+        dtstart = `DTSTART;VALUE=DATE:${formatIcsDate(start)}`;
+        dtend = `DTEND;VALUE=DATE:${formatIcsDate(end)}`;
       }
 
-      const start = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
-      const end = new Date(start);
-      end.setUTCDate(end.getUTCDate() + 1);
+      const descParts = [summary.tldr];
+      if (item.location) descParts.push(`Location: ${item.location}`);
 
       return [
         "BEGIN:VEVENT",
         `UID:${formatIcsDate(start)}-${index}@fazumi.app`,
         `DTSTAMP:${formatIcsTimestamp(now)}`,
-        `DTSTART;VALUE=DATE:${formatIcsDate(start)}`,
-        `DTEND;VALUE=DATE:${formatIcsDate(end)}`,
-        `SUMMARY:${escapeIcsText(label)}`,
-        `DESCRIPTION:${escapeIcsText(summary.tldr)}`,
+        dtstart,
+        dtend,
+        `SUMMARY:${escapeIcsText(item.label)}`,
+        `DESCRIPTION:${escapeIcsText(descParts.join(" | "))}`,
+        ...(item.location ? [`LOCATION:${escapeIcsText(item.location)}`] : []),
         "END:VEVENT",
       ].join("\r\n");
     })
@@ -314,6 +403,25 @@ function buildCalendarExport(summary: SummaryResult): string | null {
     ...events,
     "END:VCALENDAR",
   ].join("\r\n");
+}
+
+function getSourcePlatformLabel(summary: SummaryResult, outputLang: OutputLang) {
+  const platform = summary.chat_context?.source_platform;
+  const copy = UI_COPY[outputLang];
+
+  if (platform === "telegram") {
+    return copy.sourceTelegram;
+  }
+
+  if (platform === "facebook") {
+    return copy.sourceFacebook;
+  }
+
+  if (platform === "whatsapp") {
+    return copy.sourceWhatsApp;
+  }
+
+  return null;
 }
 
 function downloadCalendarExport(contents: string) {
@@ -391,6 +499,67 @@ function SectionBlock({
         >
           {String(value)}
         </p>
+      ) : sectionKey === "important_dates" ? (
+        <ul className="space-y-3">
+          {(value as ImportantDate[]).map((item, i) => (
+            <li key={i} className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]">
+              <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span dir="auto" style={BIDI_TEXT_STYLE} className="font-medium leading-6">
+                    {item.label}
+                  </span>
+                  {item.urgent && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      {copy.urgent}
+                    </span>
+                  )}
+                </div>
+                {(item.time ?? item.location) && (
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-[var(--muted-foreground)]">
+                    {item.time && (
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="h-3 w-3" />
+                        {item.time}
+                      </span>
+                    )}
+                    {item.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {item.location}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : sectionKey === "action_items" && (summary.urgent_action_items?.length ?? 0) > 0 ? (
+        <>
+          <div className="mb-3 rounded-[var(--radius)] border border-orange-200 bg-orange-50 px-3 py-2.5 dark:border-orange-800/50 dark:bg-orange-900/20">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-orange-700 dark:text-orange-400">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {copy.urgentBannerText}
+            </div>
+            <ul className="space-y-1">
+              {summary.urgent_action_items.map((item, i) => (
+                <li key={i} dir="auto" style={BIDI_TEXT_STYLE} className="text-xs text-orange-900 dark:text-orange-200">
+                  • {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <ul className="space-y-2.5">
+            {(value as string[]).map((item, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]">
+                <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+                <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-7">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : (
         <ul className="space-y-2.5">
           {(value as string[]).map((item, i) => (
@@ -437,6 +606,16 @@ export function SummaryDisplay({
   const copy = UI_COPY[outputLang];
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
+  const actionCenter = deriveActionCenter(summary);
+  const sourcePlatformLabel = getSourcePlatformLabel(summary, outputLang);
+  const actionCenterSections = [
+    { key: "due_today", label: copy.dueToday, items: actionCenter.due_today },
+    { key: "upcoming_dates", label: copy.upcomingDates, items: actionCenter.upcoming_dates },
+    { key: "payments_forms", label: copy.paymentsForms, items: actionCenter.payments_forms },
+    { key: "supplies", label: copy.supplies, items: actionCenter.supplies },
+    { key: "questions", label: SECTION_META.questions[outputLang], items: actionCenter.questions },
+    { key: "urgent_items", label: copy.urgent, items: actionCenter.urgent_items },
+  ];
 
   async function runAction(actionKey: ActionKey, action: () => Promise<void> | void) {
     setPendingAction(actionKey);
@@ -474,6 +653,12 @@ export function SummaryDisplay({
     if (actionMode !== "active") {
       return;
     }
+
+    trackEvent(AnalyticsEvents.ACTION_CENTER_USED, {
+      action: actionKey,
+      outputLang,
+      sourcePlatform: summary.chat_context?.source_platform ?? null,
+    });
 
     if (actionKey === "export") {
       await runAction("export", async () => {
@@ -603,7 +788,7 @@ export function SummaryDisplay({
     >
       <Card className="overflow-hidden bg-[var(--surface-elevated)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)]/60 px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Zap className="h-4 w-4 text-[var(--primary)]" />
             <h2 className="text-sm font-semibold text-[var(--foreground)]">
               {copy.latestSummary}
@@ -612,13 +797,46 @@ export function SummaryDisplay({
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
               {copy.justNow}
             </span>
+            {summary.chat_type === "urgent_notice" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {copy.chatTypeUrgent}
+              </span>
+            )}
+            {summary.chat_type === "event_announcement" && (
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                {copy.chatTypeEvent}
+              </span>
+            )}
+            {summary.chat_type === "noisy_general_chat" && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
+                {copy.chatTypeNoisy}
+              </span>
+            )}
           </div>
-          <span className="text-xs text-[var(--muted-foreground)]">
-            {formattedCharCount} {copy.chars}
-          </span>
+          <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+            {summary.chat_context?.message_count_estimate != null && (
+              <span>~{summary.chat_context.message_count_estimate} {copy.chatContextMessages}</span>
+            )}
+            {summary.chat_context?.date_range && (
+              <span className="hidden sm:inline">{summary.chat_context.date_range}</span>
+            )}
+            <span>{formattedCharCount} {copy.chars}</span>
+          </div>
         </div>
 
-        <div className="border-b border-[var(--border)] px-4 py-3 sm:px-5">
+        <div className="divide-y divide-[var(--border)]">
+          {SECTION_ORDER.map((key) => (
+            <SectionBlock
+              key={key}
+              sectionKey={key}
+              summary={summary}
+              outputLang={outputLang}
+            />
+          ))}
+        </div>
+
+        <div className="border-t border-[var(--border)] px-4 py-3 sm:px-5">
           <div className="flex flex-wrap gap-2">
             {ACTIONS.map(({ key, icon: Icon }) => {
               const label =
@@ -659,12 +877,17 @@ export function SummaryDisplay({
 
         {showSharePanel && (() => {
           const exportText = buildPlainTextExport(summary, outputLang, copy.nothingMentioned);
-          const socialShareBody = buildSocialShareExport(summary, outputLang, copy.nothingMentioned);
-          const socialShareText = formatSocialShareExport(socialShareBody, outputLang);
-          const short = formatSocialShareExport(socialShareBody.slice(0, 1500), outputLang);
+          const familyActionList = buildActionCenterShareText(
+            actionCenterSections,
+            outputLang,
+            copy.bucketEmpty,
+            summary.chat_context?.group_title
+          );
+          const socialShareText = familyActionList;
+          const short = familyActionList.slice(0, 1500);
           const waUrl = `https://wa.me/?text=${encodeURIComponent(short)}`;
           const tgUrl = `https://t.me/share/url?text=${encodeURIComponent(short)}`;
-          const isTruncated = socialShareBody.length > 1500;
+          const isTruncated = familyActionList.length > 1500;
           const truncatedCount = formatNumber(1500);
           const truncatedNote =
             outputLang === "ar"
@@ -718,7 +941,7 @@ export function SummaryDisplay({
                 >
                   {copiedTarget === "fb"
                     ? (outputLang === "ar" ? "تم النسخ ✓" : "Copied ✓")
-                    : (outputLang === "ar" ? "نسخ للفيسبوك" : "Copy for Facebook")}
+                    : copy.familyShare}
                 </button>
 
                 <button
@@ -735,20 +958,59 @@ export function SummaryDisplay({
                   {truncatedNote}
                 </p>
               )}
+              <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
+                {copy.shareHint}
+              </p>
             </div>
           );
         })()}
 
-        <div className="divide-y divide-[var(--border)]">
-          {SECTION_ORDER.map((key) => (
-            <SectionBlock
-              key={key}
-              sectionKey={key}
-              summary={summary}
-              outputLang={outputLang}
-            />
-          ))}
-        </div>
+        <section className="border-t border-[var(--border)] bg-[var(--surface)]/50 px-4 py-4 sm:px-5">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+              {copy.actionCenter}
+            </span>
+            {summary.chat_context?.group_title && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--foreground)]">
+                {summary.chat_context.group_title}
+              </span>
+            )}
+            {sourcePlatformLabel && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
+                {sourcePlatformLabel}
+              </span>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {actionCenterSections.map((section) => (
+              <div
+                key={section.key}
+                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-3"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                  {section.label}
+                </p>
+                {section.items.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {section.items.map((item) => (
+                      <li key={`${section.key}:${item}`} className="flex items-start gap-2 text-sm text-[var(--foreground)]">
+                        <span className="mt-1 text-[10px] text-[var(--primary)]">●</span>
+                        <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-6">
+                          {item}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                    {copy.bucketEmpty}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
         <div className="border-t border-[var(--border)] bg-[var(--surface)]/60 px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-medium text-[var(--foreground)]">
@@ -853,3 +1115,5 @@ export function SummaryDisplay({
     </div>
   );
 }
+
+

@@ -154,3 +154,27 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Context:** Internal admin metrics are needed locally, but shipping a public hardcoded admin credential or a production-facing service-role dashboard would be unsafe at MVP stage.
 **Decision:** Add `/admin_dashboard` only for local development. Access is gated by a dev-only HttpOnly cookie set from `/admin_dashboard/login`, using `ADMIN_USER` and `ADMIN_PASS` when present or `admin / admin` by default. All `/api/admin/*` endpoints are server-only, require the same cookie, and use the Supabase service role strictly on the server. Production blocks the entire admin dashboard surface.
 **Consequences:** Local admin diagnostics stay simple and cheap, while production avoids exposing a second auth surface or any client-visible service-role behavior. Any future production admin panel should replace this with real operator auth instead of extending the dev gate.
+---
+
+## D017 - Admin auth fails closed without explicit credentials
+**Date:** 2026-03-07
+**Context:** The audit found that the local admin dashboard enabled itself whenever Supabase admin env vars existed and silently fell back to `admin / admin`, which is unsafe even for a launch candidate.
+**Decision:** The admin dashboard now requires both `ADMIN_USERNAME` and `ADMIN_PASSWORD` in addition to the existing server-side Supabase admin env vars. If either credential is missing, `/admin/login`, `/admin_dashboard`, and `/api/admin/*` all stay disabled through the normal auth flow.
+**Consequences:** There are no fallback admin credentials anywhere in the repo. Local admin smoke tests must use explicit env-configured credentials or assert the dashboard is disabled.
+
+---
+
+## D018 - Paid entitlements resolve from subscription state first
+**Date:** 2026-03-07
+**Context:** Paid gating and summarize quotas were drifting because webhook updates changed `subscriptions.status` while large parts of the app still trusted `profiles.plan` alone.
+**Decision:** One shared entitlement resolver now derives access from the latest relevant subscription state first, with `profiles.plan` kept only as a legacy fallback when no paid subscription row exists. `past_due`, `cancelled`, and `expired` remove paid access immediately; recovery restores access when Lemon Squeezy reports the subscription as `active` again.
+**Consequences:** Summarize limits, billing state, and paid feature gating use the same decision path. Webhook handling now reconciles `profiles.plan` from that resolver so older UI surfaces fail safe instead of drifting on stale paid plans.
+
+---
+
+## D019 - Arabic-first is the explicit first-render locale
+**Date:** 2026-03-07
+**Context:** The app already rendered Arabic on first load when no stored preference existed, but Playwright public-route coverage still assumed English defaults and could leak prior locale state.
+**Decision:** Arabic (`ar`, RTL) remains the explicit first-render locale when neither the cookie nor local storage has a saved language preference.
+**Consequences:** Public-route smoke tests must clear stored locale state before navigation and assert Arabic-first copy/direction by default. English remains a supported explicit preference, not the fallback default.
+

@@ -6,6 +6,67 @@
 
 ---
 
+## Story - Audit Launch Blockers Pass (2026-03-07) [IN PROGRESS]
+
+#### T1 - Fail closed on admin auth [Codex]
+**Why:** The current admin gate falls back to default credentials and enables access when only Supabase admin env exists.
+**Files:** `lib/admin/auth.ts`, `app/api/admin/login/route.ts`, `lib/supabase/middleware.ts`, `app/admin/login/page.tsx`, `e2e/admin-dashboard.spec.ts`
+**Changes:** Remove default admin credentials, require explicit `ADMIN_USERNAME` and `ADMIN_PASSWORD`, and keep both admin pages and admin APIs unreachable through the normal flow when either credential is missing.
+**Acceptance:**
+- [x] No default admin credentials remain in code or tests.
+- [x] Missing admin credentials disable admin login and dashboard access.
+- [x] Invalid credentials return unauthorized and do not create an admin session.
+- [x] Valid configured credentials still work.
+
+#### T2 - Centralize paid entitlement resolution [Codex]
+**Why:** Summarize limits, billing UI, and webhook state currently drift between `profiles.plan` and `subscriptions.status`.
+**Files:** `lib/limits.ts`, `lib/server/summaries.ts`, `app/api/summarize/route.ts`, `app/api/summarize-zip/route.ts`, `app/api/webhooks/lemonsqueezy/route.ts`, `app/billing/page.tsx`, `app/page.tsx`, `app/history/[id]/page.tsx`, `app/summarize/page.tsx`, `components/layout/Sidebar.tsx`, `components/layout/TopBar.tsx`, `e2e/payments.spec.ts`, `e2e/app-smoke.spec.ts`
+**Changes:** Add one shared entitlement decision path that reconciles profile and subscription state, use it for summarize quota and paid gating, and make webhook transitions deterministically remove or restore paid access.
+**Acceptance:**
+- [x] Summarize and ZIP limits no longer rely on `profiles.plan` alone.
+- [x] Billing and paid-feature gating reflect the same entitlement logic.
+- [x] `past_due`, `cancelled`, and `expired` lose paid access deterministically.
+- [x] Recovery/reactivation restores the correct paid entitlement without manual DB fixes.
+
+#### T3 - Make default locale explicit and stabilize public-route tests [Codex]
+**Why:** The app renders Arabic-first on first load, but the public-route suite still assumes English defaults and can leak prior locale state.
+**Files:** `app/layout.tsx`, `e2e/public-routes.spec.ts`, `playwright.config.ts`, `README.md`, `docs/decisions.md`
+**Changes:** Document the intended default locale, align public-route assertions to it, and ensure tests do not depend on leftover cookies or browser storage.
+**Acceptance:**
+- [x] Default locale behavior is explicit in code/docs.
+- [x] Public-route tests assert the intended locale/copy.
+- [x] No public-route test depends on prior-run locale state.
+
+#### T4 - Replace fake uptime copy on `/status` [Codex]
+**Why:** The current page claims full operational health without runtime-backed monitoring.
+**Files:** `app/status/page.tsx`, `e2e/public-routes.spec.ts`
+**Changes:** Replace the unsupported blanket status language with honest static copy that matches the actual implementation and internal `/api/health` scope.
+**Acceptance:**
+- [x] `/status` no longer claims unsupported real-time uptime or blanket operational status.
+- [x] Status copy matches the real checks available in the repo.
+
+#### T5 - Trim summarize to the strict MVP path [Codex]
+**Why:** The first viewport and result hierarchy compete with the paste-first summarization flow on mobile.
+**Files:** `app/summarize/page.tsx`, `components/SummaryDisplay.tsx`
+**Changes:** Keep the existing feature set, but demote non-essential setup/trust/autopilot surfaces and move the primary paste CTA plus top result sections higher in the visual hierarchy.
+**Acceptance:**
+- [x] The initial mobile viewport is clearly paste-first.
+- [x] The result card surfaces TL;DR, Important Dates, and Action Items first.
+- [x] Existing summary/history behavior stays intact.
+
+#### T6 - Verify and document the blocker pass [Codex]
+**Why:** This pass is not done until the required checks, smoke coverage, and project docs are updated.
+**Files:** `scripts/ralph/progress.txt`, `docs/decisions.md`, `tasks/lessons.md`
+**Changes:** Record meaningful decisions and lessons, then run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` plus targeted smoke checks for admin, locale/status, summarize/history, billing, and account deletion feasibility.
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [ ] `pnpm test` passes.
+**Verification note:** pnpm test is still blocked in this local environment. The full Playwright suite hit a port-3100 conflict on one run and worker-process spawn EPERM / tool-timeout failures on follow-up runs, but the changed public-route smoke suite passes via pnpm exec playwright test e2e/public-routes.spec.ts.
+- [x] `pnpm build` passes.
+- [x] Progress, decisions, lessons, and smoke results are recorded.
+
+---
 ## PHASE 0 — PLAN (done before "Proceed")
 
 - [x] P0.1 Inspect current repo and produce plain-English summary
@@ -1965,3 +2026,6 @@ Manual smoke:
 - [x] NVF6. Run `pnpm lint` and `pnpm typecheck`
 - [x] NVF7. Confirm no `.env*` files are staged
 - [!] NVF8. Commit only the version-fix changes if verification passes; blocked by existing `pnpm test` failure in `e2e/app-smoke.spec.ts` timing out on `summary-use-sample`
+
+
+

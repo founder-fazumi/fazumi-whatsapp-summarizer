@@ -150,6 +150,17 @@ function readEnv(name: string) {
   return process.env[name] ?? envCache[name] ?? "";
 }
 
+export function getConfiguredAdminCredentials() {
+  const username = readEnv("ADMIN_USERNAME").trim();
+  const password = readEnv("ADMIN_PASSWORD");
+
+  if (!username || !password) {
+    return null;
+  }
+
+  return { username, password };
+}
+
 function hasSupabaseAuthCookie(
   cookies: Array<{
     name: string;
@@ -344,8 +355,12 @@ export async function resetTestUser(
     .delete()
     .eq("user_id", user.id);
   const { error: chatGroupsError } = await admin.from("chat_groups").delete().eq("user_id", user.id);
+  const { error: subscriptionsError } = await admin
+    .from("subscriptions")
+    .delete()
+    .eq("user_id", user.id);
 
-  if (summariesError || usageError || todosError || groupStateError || fingerprintError || chatGroupsError) {
+  if (summariesError || usageError || todosError || groupStateError || fingerprintError || chatGroupsError || subscriptionsError) {
     throw new Error(
       summariesError?.message ??
       usageError?.message ??
@@ -353,15 +368,9 @@ export async function resetTestUser(
       groupStateError?.message ??
       fingerprintError?.message ??
       chatGroupsError?.message ??
+      subscriptionsError?.message ??
       "Could not clear test user state."
     );
-  }
-
-  if (options.clearSubscriptions) {
-    const { error: subscriptionsError } = await admin.from("subscriptions").delete().eq("user_id", user.id);
-    if (subscriptionsError) {
-      throw new Error(`Could not clear subscriptions for ${email}: ${subscriptionsError.message}`);
-    }
   }
 
   const trialExpiresAt =
@@ -385,9 +394,41 @@ export async function resetTestUser(
     throw new Error(`Could not reset test profile for ${email}: ${error.message}`);
   }
 
+  if (!options.clearSubscriptions && options.plan !== "free") {
+    const subscriptionSeed =
+      options.plan === "founder"
+        ? {
+            user_id: user.id,
+            ls_subscription_id: null,
+            ls_order_id: `order-test-${user.id}`,
+            plan_type: "founder",
+            status: "active",
+            current_period_end: null,
+            created_at: nowIso,
+            updated_at: nowIso,
+          }
+        : {
+            user_id: user.id,
+            ls_subscription_id: `sub-test-${user.id}`,
+            ls_order_id: null,
+            plan_type: "monthly",
+            status: "active",
+            current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+
+    const { error: seedSubscriptionError } = await admin
+      .from("subscriptions")
+      .insert(subscriptionSeed);
+
+    if (seedSubscriptionError) {
+      throw new Error(`Could not seed subscription for ${email}: ${seedSubscriptionError.message}`);
+    }
+  }
+
   return user.id;
 }
-
 export async function getProfileState(email: string) {
   const admin = getAdminClient();
   const user = await findUserByEmail(admin, email);
@@ -777,3 +818,6 @@ async function findUserByEmail(admin: SupabaseClient, email: string) {
     page += 1;
   }
 }
+
+
+

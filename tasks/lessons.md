@@ -127,3 +127,27 @@
 **Quick test:** After pinning the framework version and clearing `.next` plus `node_modules/.cache`, run `pnpm build` and confirm the original internal-error signature is gone before touching route/page code again.
 
 ---
+
+## L016 — Operator auth must fail closed unless its own credentials are explicitly set
+**Mistake:** The local admin dashboard enabled itself whenever the Supabase admin env vars existed and silently fell back to default credentials.
+**Why:** The gate treated unrelated service-role configuration as proof that operator auth was ready, and convenience defaults were left in the auth path.
+**Rule:** Any operator-only surface must require its own explicit credentials or secret values and must return `404`/unauthorized when they are missing. Never derive operator access from unrelated infrastructure env vars alone.
+**Quick test:** Remove `ADMIN_USERNAME` or `ADMIN_PASSWORD`, load `/admin_dashboard`, and confirm the page returns `404` and `POST /api/admin/login` returns `404`.
+
+---
+
+## L017 — Billing mirrors must never outrank authoritative subscription state
+**Mistake:** Summarize limits and paid gating drifted because `profiles.plan` and stale order rows could still look paid after Lemon Squeezy had moved the real subscription to `past_due`, `cancelled`, or `expired`.
+**Why:** The code mixed a mirrored profile field with live subscription state and did not distinguish recurring subscription rows from one-time order seed rows.
+**Rule:** Resolve entitlements from one shared subscription-aware helper. Treat `profiles.plan` as a fail-safe mirror only, and ignore order-only rows whenever recurring subscription rows exist for the same user.
+**Quick test:** Seed an active order row plus a later `past_due` subscription row for the same paid plan and confirm the resolver returns no paid access.
+
+---
+
+## L018 — Locale smoke tests must start from a clean browser state
+**Mistake:** Public-route tests assumed a default locale without clearing the cookie and localStorage state that previous runs left behind.
+**Why:** Locale preferences are persisted in both browser storage and cookies, so the first-render assertions became dependent on test order and prior manual browsing.
+**Rule:** Clear locale cookies/storage before each public-route smoke test and assert the intended first-render locale explicitly.
+**Quick test:** Set `fazumi_lang=en`, rerun the public-route suite, and confirm the default-route assertions still see `lang="ar" dir="rtl"` on first load.
+
+---

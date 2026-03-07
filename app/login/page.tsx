@@ -259,7 +259,7 @@ export default function LoginPage() {
           <BrandLogo size="lg" className="h-10 w-10 sm:h-12 sm:w-12" />
           <span className="text-lg font-bold text-[var(--foreground)] sm:text-xl">Fazumi</span>
           <span className="text-center text-xs text-[var(--muted-foreground)] sm:text-sm">
-            {locale === "ar" ? "ملخصات محادثات المدرسة فورًا" : "School chat summaries, instantly"}
+            {locale === "ar" ? "لوحة عائلية جاهزة من محادثات المدرسة" : "An action-ready family dashboard from school chats"}
           </span>
         </div>
 

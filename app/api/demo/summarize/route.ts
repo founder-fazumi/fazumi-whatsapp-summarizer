@@ -61,7 +61,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       tldr: summary.tldr,
       actionItems: summary.action_items,
-      importantDates: summary.important_dates,
+      importantDates: summary.important_dates.map((item) => {
+        const parts = [item.label, item.time, item.location].filter(Boolean);
+        return parts.join(" — ");
+      }),
       followUpQuestions: summary.questions,
       helpfulLinks: summary.links,
     });

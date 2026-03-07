@@ -4,6 +4,22 @@ import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 const BASE_URL = getPlaywrightBaseUrl();
 const LANG_STORAGE_KEY = "fazumi_lang";
 
+async function clearLocaleState(page: Page) {
+  await page.context().clearCookies();
+  await page.addInitScript(({ storageKey }) => {
+    try {
+      window.localStorage.removeItem(storageKey);
+      window.sessionStorage.removeItem(storageKey);
+    } catch {
+      // Ignore storage failures in restrictive documents.
+    }
+
+    document.cookie = `${storageKey}=; path=/; max-age=0`;
+    document.documentElement.lang = "ar";
+    document.documentElement.dir = "rtl";
+  }, { storageKey: LANG_STORAGE_KEY });
+}
+
 async function setLocale(page: Page, locale: "en" | "ar") {
   await page.context().addCookies([
     {
@@ -30,6 +46,10 @@ async function setLocale(page: Page, locale: "en" | "ar") {
   );
 }
 
+test.beforeEach(async ({ page }) => {
+  await clearLocaleState(page);
+});
+
 type PublicRoute = {
   path: string;
   assertVisible: (page: Page) => ReturnType<Page["locator"]>;
@@ -39,49 +59,51 @@ const PUBLIC_ROUTES: PublicRoute[] = [
   {
     path: "/",
     assertVisible: (page) =>
-      page.getByRole("link", { name: /Get your summary/i }),
+      page.getByRole("button", { name: /أنشئ ملخصًا تجريبيًا/i }),
   },
   {
     path: "/pricing",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /Three plans\. One clear path\./i }),
+      page.getByRole("heading", { name: /ثلاث خطط\. مسار واضح واحد\./i }),
   },
   {
     path: "/about",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /Built by parents, for parents/i }),
+      page.getByRole("heading", { name: /صُمم من قبل أولياء الأمور، لأولياء الأمور/i }),
   },
   {
     path: "/help",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /Help & Support/i }),
+      page.getByRole("heading", { name: /المساعدة والدعم/i }),
   },
   {
     path: "/privacy",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /Privacy Policy/i }),
+      page.getByRole("heading", { name: /سياسة الخصوصية/i }),
   },
   {
     path: "/cookie-policy",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /Cookie Policy/i }),
+      page.getByRole("heading", { name: /سياسة ملفات الارتباط/i }),
   },
   {
     path: "/terms",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /Terms of Service/i }),
+      page.getByRole("heading", { name: /شروط الخدمة/i }),
   },
   {
     path: "/status",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /System Status/i }),
+      page.getByRole("heading", { name: /حالة النظام/i }),
   },
 ];
 
 for (const route of PUBLIC_ROUTES) {
-  test(`public smoke: ${route.path} renders`, async ({ page }) => {
+  test(`public smoke: ${route.path} renders with the Arabic-first default`, async ({ page }) => {
     const response = await page.goto(route.path);
     expect(response?.status(), `Expected ${route.path} to return 200.`).toBe(200);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ar");
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(route.assertVisible(page)).toBeVisible();
   });

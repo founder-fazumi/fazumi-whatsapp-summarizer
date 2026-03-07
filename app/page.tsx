@@ -5,7 +5,7 @@ import { Nav } from "@/components/landing/Nav";
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Pricing } from "@/components/landing/Pricing";
-import type { Profile } from "@/lib/supabase/types";
+import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
 
@@ -16,7 +16,7 @@ const organizationSchema = {
   url: APP_URL,
   logo: `${APP_URL}/brand/logo-mark.png`,
   description:
-    "Fazumi turns messy school WhatsApp chats into structured summaries — dates, action items, and key links — without storing raw chat text.",
+    "Fazumi turns WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, forms, fees, and reminders without storing raw chat text.",
   sameAs: ["https://x.com/FazumiApp", "https://instagram.com/fazumi.app"],
 };
 
@@ -30,6 +30,14 @@ const faqSchema = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Paste your school WhatsApp chat or upload the export. Fazumi reads the conversation, extracts dates, tasks, announcements, links, and follow-up questions, then saves the clean summary to your history.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Which school chat apps does Fazumi support?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Fazumi supports pasted or uploaded school chat text from WhatsApp, Telegram, and Facebook Messenger. WhatsApp ZIP exports also support incremental uploads.",
       },
     },
     {
@@ -69,32 +77,46 @@ const faqSchema = {
       name: "How do I cancel my subscription?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel. Your paid access stays active until the current billing period ends.",
+        text: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel. Paid access follows the latest subscription status, and billing recovery restores it once Lemon Squeezy marks the subscription active again.",
       },
     },
   ],
 };
 
 export default async function LandingPage() {
-  // Server-side session check — active-plan users go straight to dashboard
+  // Server-side session check — users with an active paid entitlement or trial go straight to the app
   let isLoggedIn = false;
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (user) {
       isLoggedIn = true;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("plan, trial_expires_at")
-        .eq("id", user.id)
-        .single<Pick<Profile, "plan" | "trial_expires_at">>();
+      const [{ data: profile }, { data: subscriptions }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("plan, trial_expires_at")
+          .eq("id", user.id)
+          .maybeSingle<{ plan: string | null; trial_expires_at: string | null }>(),
+        supabase
+          .from("subscriptions")
+          .select("plan_type, status, current_period_end, updated_at, created_at")
+          .eq("user_id", user.id),
+      ]);
 
-      const isActivePlan =
-        ["monthly", "annual", "founder"].includes(profile?.plan ?? "") ||
-        (!!profile?.trial_expires_at && new Date(profile.trial_expires_at) > new Date());
+      const entitlement = resolveEntitlement({
+        profile: {
+          plan: profile?.plan ?? "free",
+          trial_expires_at: profile?.trial_expires_at ?? null,
+        },
+        subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+      });
 
-      if (isActivePlan) redirect("/dashboard");
+      if (entitlement.hasPaidAccess || entitlement.isTrialActive) {
+        redirect("/dashboard");
+      }
     }
   } catch {
     // Supabase env vars not configured — show landing normally

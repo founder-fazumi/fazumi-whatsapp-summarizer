@@ -23,15 +23,33 @@ const HEADLINE_SWAP_DELAY_MS = 200;
 const DEMO_MAX_CHARS = 500;
 
 const HEADLINES = [
-  { en: "School chats, summarized.", ar: "محادثات المدرسة، ملخصة." },
-  { en: "Know what matters in 10 seconds.", ar: "اعرف المهم خلال 10 ثوانٍ." },
-  { en: "From noisy chats to clear next steps.", ar: "من ضوضاء المجموعات إلى خطوات واضحة." },
+  {
+    en: "Stop reading 300 messages to find one deadline. Your school group, summarised in seconds.",
+    ar: "توقف عن قراءة 300 رسالة للعثور على موعد واحد. مجموعتك المدرسية، ملخّصة في ثوانٍ.",
+  },
+  {
+    en: "Every fee, form, date, and supply list. Pulled from your school WhatsApp group — automatically.",
+    ar: "كل رسوم ونموذج وموعد وقائمة مستلزمات. مستخرجة من مجموعة واتساب مدرستك — تلقائيًا.",
+  },
+  {
+    en: "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard.",
+    ar: "حوّل محادثات المدرسة من واتساب وتيليجرام وفيسبوك إلى لوحة عائلية واحدة جاهزة للتنفيذ.",
+  },
 ] as const satisfies readonly LocalizedCopy<string>[];
 
 const SUBTITLES = [
-  { en: "Paste WhatsApp chat. Get a clear summary in seconds.", ar: "الصق محادثة واتساب. احصل على ملخص واضح خلال ثوانٍ." },
-  { en: "Deadlines, payments, supplies, and exams in one card.", ar: "المواعيد والرسوم والمستلزمات والاختبارات في بطاقة واحدة." },
-  { en: "Built for GCC parents. Arabic and English by default.", ar: "مصمم لأولياء الأمور في الخليج. العربية والإنجليزية افتراضيًا." },
+  {
+    en: "Paste your school group chat and get urgent actions, upcoming dates, fees, forms, and supplies separated and sorted — not buried in 300 messages.",
+    ar: "الصق محادثة مجموعتك المدرسية واحصل على الإجراءات العاجلة والمواعيد والرسوم والنماذج والمستلزمات مفصولة ومرتبة — لا مدفونة في 300 رسالة.",
+  },
+  {
+    en: "Built for GCC families. Arabic-first output, real school fee wording in SAR, AED, and QAR, and one-click calendar or to-do for every extracted date.",
+    ar: "مصمّم لعائلات الخليج. إخراج عربي أولًا، رسوم مدرسية بالريال والدرهم والريال القطري، وإضافة بنقرة للتقويم أو المهام لكل موعد مستخرج.",
+  },
+  {
+    en: "Manual import first. Autopilot-lite second: morning digest, urgent alerts, reminders, and one-click calendar or to-do actions.",
+    ar: "الاستيراد اليدوي أولًا. ثم الطيار الآلي الخفيف: ملخص صباحي وتنبيهات عاجلة وتذكيرات وإجراءات بنقرة واحدة للتقويم أو قائمة المهام.",
+  },
 ] as const satisfies readonly LocalizedCopy<string>[];
 
 const SAMPLE_CHAT = `[15/02/2025, 09:23] Ms. Sarah - Math Teacher: Good morning parents! Reminder: math test on Monday covering chapters 4-6. Please review practice problems.
@@ -41,28 +59,28 @@ const SAMPLE_CHAT = `[15/02/2025, 09:23] Ms. Sarah - Math Teacher: Good morning 
 
 const COPY = {
   badge: {
-    en: "Trusted by GCC parents",
-    ar: "موثوق به من أولياء الأمور في الخليج",
+    en: "The #1 AI WhatsApp Group Chat Summarizer for Schools",
+    ar: "الملخّص الأول بالذكاء الاصطناعي لمجموعات واتساب المدرسية",
   },
   cta: {
-    en: "Get your summary",
-    ar: "احصل على الملخّص",
+    en: "Try it free — no card needed",
+    ar: "جرّبه مجانًا — بدون بطاقة",
   },
   trustLine: {
-    en: "Privacy-first · Raw chats not stored · One-tap delete",
-    ar: "الخصوصية أولًا · لا نحتفظ بالمحادثات الخام · حذف بنقرة واحدة",
+    en: "Raw chats never stored · Arabic & English output · Works with WhatsApp, Telegram & Facebook",
+    ar: "المحادثات لا تُحفظ أبدًا · إخراج عربي وإنجليزي · يعمل مع واتساب وتيليجرام وفيسبوك",
   },
   demoEyebrow: {
-    en: "Interactive demo",
-    ar: "تجربة تفاعلية",
+    en: "Live demo — paste your own chat",
+    ar: "تجربة مباشرة — الصق محادثتك",
   },
   demoBody: {
-    en: "Paste a school chat and preview the calm summary parents get before they sign up.",
-    ar: "الصق محادثة مدرسية وشاهد معاينة الملخص الهادئ الذي يحصل عليه أولياء الأمور قبل التسجيل.",
+    en: "Paste any school WhatsApp, Telegram, or Facebook group chat and see what Fazumi extracts in seconds.",
+    ar: "الصق أي محادثة من مجموعة واتساب أو تيليجرام أو فيسبوك المدرسية واكتشف ما يستخرجه Fazumi في ثوانٍ.",
   },
   demoPlaceholder: {
-    en: "Paste a sample school chat here…",
-    ar: "الصق نموذج محادثة مدرسية هنا…",
+    en: "Paste your school group chat here — WhatsApp, Telegram, or Facebook…",
+    ar: "الصق محادثة مجموعتك المدرسية هنا — واتساب أو تيليجرام أو فيسبوك…",
   },
   demoHint: {
     en: "Demo limit: 500 characters",
@@ -81,12 +99,12 @@ const COPY = {
     ar: "جارٍ إنشاء ملخّصك...",
   },
   previewEyebrow: {
-    en: "Summary preview",
-    ar: "معاينة الملخص",
+    en: "Family dashboard preview",
+    ar: "معاينة اللوحة العائلية",
   },
   previewBadge: {
-    en: "Blurred below the essentials",
-    ar: "مموّه أسفل الأساسيات",
+    en: "Action Center first",
+    ar: "لوحة الإجراءات أولًا",
   },
   tldr: {
     en: "TL;DR",
@@ -109,22 +127,22 @@ const COPY = {
     ar: "روابط مفيدة",
   },
   overlayTitle: {
-    en: "Subscribe free to unlock the full summary",
-    ar: "اشترك مجانًا لفتح الملخص الكامل",
+    en: "Sign up free to see the full summary — dates, fees, forms, and supplies included",
+    ar: "سجّل مجانًا لرؤية الملخص كاملًا — المواعيد والرسوم والنماذج والمستلزمات مشمولة",
   },
   overlayBody: {
-    en: "Share with family, add dates to calendar, and keep every school update in one calm view.",
-    ar: "شارك الملخص مع العائلة وأضف المواعيد إلى التقويم واحتفظ بكل تحديثات المدرسة في عرض واحد هادئ.",
+    en: "Save to history, add dates to your calendar, share with your spouse, and never miss a school deadline again.",
+    ar: "احفظ في السجل، أضف المواعيد لتقويمك، شارك مع شريكك، ولا تفوّت موعدًا مدرسيًا بعد الآن.",
   },
   startTrial: {
-    en: "Start free trial",
-    ar: "ابدأ التجربة المجانية",
+    en: "Start free — takes 30 seconds",
+    ar: "ابدأ مجانًا — 30 ثانية فقط",
   },
 } as const;
 
 const OVERLAY_FEATURES: LocalizedCopy<readonly string[]> = {
-  en: ["Share with family", "Add to calendar", "Export to PDF"],
-  ar: ["شارك مع العائلة", "أضف إلى التقويم", "صدّر PDF"],
+  en: ["Fees & forms extracted", "Dates → calendar in one click", "Share with co-parent"],
+  ar: ["استخراج الرسوم والنماذج", "المواعيد → التقويم بنقرة", "شارك مع الشريك"],
 };
 
 const SAMPLE_SUMMARY = {

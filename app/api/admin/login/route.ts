@@ -74,6 +74,12 @@ export async function POST(request: NextRequest) {
   const password = typeof body.password === "string" ? body.password : "";
   const expected = getAdminCredentials();
 
+  if (!expected) {
+    return noStore(
+      NextResponse.json({ ok: false, error: "Not found." }, { status: 404 })
+    );
+  }
+
   if (
     !username ||
     !password ||

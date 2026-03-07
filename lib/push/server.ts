@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { toImportantDateArray } from "@/lib/ai/summarize";
 import type {
   PushNotificationPayload,
   WebPushSubscriptionPayload,
@@ -24,7 +25,8 @@ interface MorningDigestSummaryRow {
   id: string;
   title: string;
   tldr: string;
-  important_dates: string[] | null;
+  important_dates: unknown;
+  lang_detected: string | null;
 }
 
 let vapidConfigured = false;
@@ -198,7 +200,7 @@ async function getMorningDigestSummariesForRange(
   const admin = createAdminClient();
   let query = admin
     .from("summaries")
-    .select("id, title, tldr, important_dates")
+    .select("id, title, tldr, important_dates, lang_detected")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .gte("created_at", createdAfterIso)
@@ -216,6 +218,16 @@ async function getMorningDigestSummariesForRange(
   }
 
   return (data ?? []) as MorningDigestSummaryRow[];
+}
+
+function formatDigestDate(value: unknown) {
+  const item = toImportantDateArray(value)[0];
+  if (!item) {
+    return null;
+  }
+
+  const parts = [item.label, item.time].filter(Boolean);
+  return parts.join(" • ");
 }
 
 export async function sendMorningDigest(now = new Date()) {
@@ -297,15 +309,22 @@ export async function sendMorningDigest(now = new Date()) {
     }
 
     const firstSummary = summaries[0];
-    const upcomingDate = firstSummary.important_dates?.[0];
+    const upcomingDate = formatDigestDate(firstSummary.important_dates);
+    const isArabic = firstSummary.lang_detected === "ar";
     const payload: PushNotificationPayload = {
       title:
         summaries.length === 1
-          ? "Good morning! 1 summary from yesterday is ready"
-          : `Good morning! ${summaries.length} summaries from yesterday are ready`,
+          ? isArabic
+            ? "صباح الخير! ملخص المدرسة جاهز"
+            : "Good morning! Your school digest is ready"
+          : isArabic
+            ? `صباح الخير! لديك ${summaries.length} تحديثات مدرسية`
+            : `Good morning! You have ${summaries.length} school updates`,
       body: truncateNotificationText(
         upcomingDate
-          ? `${firstSummary.title}. Next up: ${upcomingDate}.`
+          ? isArabic
+            ? `${firstSummary.title}. الموعد التالي: ${upcomingDate}.`
+            : `${firstSummary.title}. Next up: ${upcomingDate}.`
           : firstSummary.tldr
       ),
       url: "/dashboard",

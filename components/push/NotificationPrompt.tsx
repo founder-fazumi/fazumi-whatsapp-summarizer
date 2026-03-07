@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Bell, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
+import { useLang } from "@/lib/context/LangContext";
 import {
   requestNotificationPermission,
   supportsPushNotifications,
@@ -14,7 +15,26 @@ const PERMISSION_KEY = "fazumi_notification_permission";
 const DISMISS_KEY = "fazumi_notification_prompt_dismissed_at";
 const DISMISS_TTL_MS = 1000 * 60 * 60 * 24;
 
+const COPY = {
+  en: {
+    title: "Enable autopilot-lite",
+    body: "Get a morning digest, urgent school alerts, and reminder nudges when new family actions are detected.",
+    enable: "Enable notifications",
+    later: "Maybe later",
+    dismiss: "Dismiss notification prompt",
+  },
+  ar: {
+    title: "فعّل الطيار الآلي الخفيف",
+    body: "احصل على ملخص صباحي وتنبيهات مدرسية عاجلة وتذكيرات عندما يكتشف Fazumi إجراءات عائلية جديدة.",
+    enable: "فعّل الإشعارات",
+    later: "لاحقًا",
+    dismiss: "إغلاق نافذة الإشعارات",
+  },
+} as const;
+
 export function NotificationPrompt() {
+  const { locale } = useLang();
+  const copy = COPY[locale];
   const [permission, setPermission] = useState<NotificationPermission>(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       return "default";
@@ -89,20 +109,20 @@ export function NotificationPrompt() {
           <Bell className="h-5 w-5 text-[var(--primary)]" />
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" dir={locale === "ar" ? "rtl" : "ltr"} lang={locale}>
           <h3 className="text-sm font-semibold text-[var(--foreground)]">
-            Never miss an update
+            {copy.title}
           </h3>
           <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-            Get a 7 AM local digest plus a notification whenever a new summary is ready.
+            {copy.body}
           </p>
 
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={() => void handleEnable()}>
-              Enable notifications
+              {copy.enable}
             </Button>
             <Button size="sm" variant="ghost" onClick={handleDismiss}>
-              Maybe later
+              {copy.later}
             </Button>
           </div>
         </div>
@@ -111,7 +131,7 @@ export function NotificationPrompt() {
           type="button"
           onClick={handleDismiss}
           className="rounded-full p-1 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
-          aria-label="Dismiss notification prompt"
+          aria-label={copy.dismiss}
         >
           <X className="h-4 w-4" />
         </button>

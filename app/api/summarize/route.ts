@@ -1,13 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { summarizeChat, type LangPref, type SummaryResult, type SummaryUsage } from "@/lib/ai/summarize";
+import { summarizeChat, type LangPref, type SummaryResult, type SummaryUsage, type SummaryPromptContext } from "@/lib/ai/summarize";
 import { estimateTokenCount } from "@/lib/ai/usage";
+import { ensureChatGroup } from "@/lib/chat-groups";
+import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
+import { normalizeFamilyContext, normalizeSummaryRetentionDays } from "@/lib/family-context";
+import { applySummaryRetentionPolicy } from "@/lib/server/retention";
 import { captureRouteException } from "@/lib/sentry";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
-import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
+import {
+  FREE_LIFETIME_CAP,
+  getDailyLimit,
+  getUtcDateKey,
+  resolveEntitlement,
+  type EntitlementSubscription,
+} from "@/lib/limits";
 import { sendPushToUser } from "@/lib/push/server";
-import type { Profile } from "@/lib/supabase/types";
+
 import { createRouteLogger, getRequestId } from "@/lib/logger";
 
 const MAX_CHARS = 30_000;
@@ -29,9 +39,25 @@ function hasSupabaseAuthCookie(req: NextRequest) {
 }
 
 function buildSummaryReadyPayload(summary: SummaryResult, savedId: string) {
+  const urgentItem =
+    summary.urgent_action_items[0] ??
+    summary.important_dates.find((item) => item.urgent)?.label ??
+    summary.tldr;
+  const isArabic = summary.lang_detected === "ar";
+  const isUrgent =
+    summary.chat_type === "urgent_notice" ||
+    summary.urgent_action_items.length > 0 ||
+    summary.important_dates.some((item) => item.urgent);
+
   return {
-    title: "Summary ready",
-    body: makeTitle(summary.tldr),
+    title: isUrgent
+      ? isArabic
+        ? "تنبيه مدرسي عاجل"
+        : "Urgent school update"
+      : isArabic
+        ? "ملخص فازومي جاهز"
+        : "Summary ready",
+    body: makeTitle(isUrgent ? urgentItem : summary.tldr),
     url: `/history/${savedId}`,
     id: `summary-ready-${savedId}`,
   };
@@ -158,7 +184,14 @@ async function logAiRequest(params: {
   }
 }
 
-async function saveSummary(userId: string, summary: SummaryResult, charCount: number): Promise<string> {
+async function saveSummary(
+  userId: string,
+  summary: SummaryResult,
+  charCount: number,
+  options?: {
+    groupId?: string | null;
+  }
+): Promise<string> {
   const admin = getAdminClient();
   if (!admin) {
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
@@ -170,11 +203,16 @@ async function saveSummary(userId: string, summary: SummaryResult, charCount: nu
     tldr: summary.tldr,
     important_dates: summary.important_dates,
     action_items: summary.action_items,
+    urgent_action_items: summary.urgent_action_items,
     people_classes: summary.people_classes,
+    contacts: summary.contacts,
     links: summary.links,
     questions: summary.questions,
+    chat_type: summary.chat_type,
+    chat_context: summary.chat_context,
     char_count: charCount,
     lang_detected: summary.lang_detected ?? "en",
+    ...(options?.groupId ? { group_id: options.groupId, source_kind: "text" } : { source_kind: "text" }),
   }).select("id").single<{ id: string }>();
 
   if (error || !data?.id) {
@@ -334,6 +372,8 @@ export async function POST(req: NextRequest) {
   let aiUsage: SummaryUsage | null = null;
   let savedId: string | null = null;
   let usageReservation: UsageReservation | null = null;
+  let summaryRetentionDays: number | null = null;
+  let promptContext: SummaryPromptContext | undefined;
 
   if (!hasSupabaseAuthCookie(req)) {
     logger.warn("auth.required", { errorCode: "AUTH_REQUIRED" });
@@ -367,20 +407,38 @@ export async function POST(req: NextRequest) {
 
     authedUserId = user.id;
 
-    // Fetch profile + today's usage
-    const today = getUtcDateKey();
-    usageDateKey = today;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("plan, trial_expires_at")
-      .eq("id", user.id)
-      .maybeSingle<Pick<Profile, "plan" | "trial_expires_at">>();
+    usageDateKey = getUtcDateKey();
+    const [{ data: profile }, { data: subscriptions }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("plan, trial_expires_at, family_context, summary_retention_days")
+        .eq("id", user.id)
+        .maybeSingle<{
+          plan: string | null;
+          trial_expires_at: string | null;
+          family_context: unknown;
+          summary_retention_days: number | null;
+        }>(),
+      supabase
+        .from("subscriptions")
+        .select("plan_type, status, current_period_end, updated_at, created_at")
+        .eq("user_id", user.id),
+    ]);
 
-    const plan = profile?.plan ?? "free";
-    const trialExpires = profile?.trial_expires_at;
+    const entitlement = resolveEntitlement({
+      profile: {
+        plan: profile?.plan ?? "free",
+        trial_expires_at: profile?.trial_expires_at ?? null,
+      },
+      subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+    });
+    const familyContext = normalizeFamilyContext(profile?.family_context);
 
-    tierKey = getTierKey(plan, trialExpires);
-  } catch (error) {
+    tierKey = entitlement.tierKey;
+    summaryRetentionDays = normalizeSummaryRetentionDays(profile?.summary_retention_days);
+    promptContext = {
+      familyContext,
+    };  } catch (error) {
     logger.error("auth.lookup_failed", {
       errorCode: "AUTH_LOOKUP_FAILED",
       error: error instanceof Error ? error.message : String(error),
@@ -394,7 +452,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { text?: string; lang_pref?: string };
+  let body: {
+    text?: string;
+    lang_pref?: string;
+    source_platform?: string;
+    group_name?: string;
+  };
   try {
     body = (await req.json()) as { text?: string; lang_pref?: string };
   } catch {
@@ -440,6 +503,21 @@ export async function POST(req: NextRequest) {
   const langPref: LangPref = validLangPrefs.includes(body.lang_pref ?? "")
     ? (body.lang_pref as LangPref)
     : "auto";
+  const sourcePlatform: ImportSourcePlatform | null =
+    body.source_platform === "whatsapp" ||
+    body.source_platform === "telegram" ||
+    body.source_platform === "facebook"
+      ? body.source_platform
+      : null;
+  const groupName =
+    typeof body.group_name === "string" && body.group_name.trim().length > 0
+      ? body.group_name.trim().slice(0, 120)
+      : null;
+  promptContext = {
+    ...promptContext,
+    sourcePlatform,
+    groupTitle: groupName,
+  };
 
   try {
     const reservation = await reserveUsageQuota({
@@ -480,7 +558,7 @@ export async function POST(req: NextRequest) {
       langPref,
     });
     openAiStartedAt = Date.now();
-    const result = await summarizeChat(text, langPref);
+    const result = await summarizeChat(text, langPref, promptContext);
     const summary = result.summary;
     aiUsage = result.usage;
     openAiDurationMs = Date.now() - openAiStartedAt;
@@ -510,12 +588,52 @@ export async function POST(req: NextRequest) {
     });
 
     if (authedUserId) {
-      savedId = await saveSummary(authedUserId, summary, charCount);
+      let groupId: string | null = null;
+      const admin = getAdminClient();
+
+      if (admin && groupName) {
+        try {
+          const group = await ensureChatGroup(admin, authedUserId, groupName);
+          groupId = group.id;
+        } catch (groupError) {
+          logger.warn("db.group_save_failed", {
+            userId: authedUserId,
+            groupName,
+            error: groupError instanceof Error ? groupError.message : String(groupError),
+          });
+        }
+      }
+
+      savedId = await saveSummary(authedUserId, summary, charCount, {
+        groupId,
+      });
       logger.info("db.summary_saved", {
         userId: authedUserId,
         summaryId: savedId,
         charCount,
       });
+
+      if (admin) {
+        try {
+          const retained = await applySummaryRetentionPolicy(
+            admin,
+            authedUserId,
+            summaryRetentionDays
+          );
+          if (retained > 0) {
+            logger.info("db.retention_applied", {
+              userId: authedUserId,
+              retained,
+              summaryRetentionDays,
+            });
+          }
+        } catch (retentionError) {
+          logger.warn("db.retention_failed", {
+            userId: authedUserId,
+            error: retentionError instanceof Error ? retentionError.message : String(retentionError),
+          });
+        }
+      }
 
       // Seed action items into user_todos (best-effort, non-blocking)
       if (summary.action_items && summary.action_items.length > 0) {
@@ -640,3 +758,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+

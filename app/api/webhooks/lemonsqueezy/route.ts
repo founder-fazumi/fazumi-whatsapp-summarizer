@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient, type SupabaseClient } from "@supabase/supabase-js";
 import { verifyWebhookSignature, getPlanType } from "@/lib/lemonsqueezy";
+import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import { captureRouteException } from "@/lib/sentry";
 import { createRouteLogger, getRequestId } from "@/lib/logger";
 
@@ -233,6 +234,44 @@ async function recordWebhookDelivery(
   }
 }
 
+async function reconcileProfilePlan(admin: AdminClient, userId: string) {
+  const [{ data: profile }, { data: subscriptions, error: subscriptionsError }] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("plan, trial_expires_at")
+      .eq("id", userId)
+      .maybeSingle<{ plan: string | null; trial_expires_at: string | null }>(),
+    admin
+      .from("subscriptions")
+      .select(
+        "plan_type, status, current_period_end, updated_at, created_at, ls_customer_portal_url, ls_update_payment_method_url, ls_subscription_id, ls_order_id"
+      )
+      .eq("user_id", userId),
+  ]);
+
+  if (subscriptionsError) {
+    throw new Error(`Could not read subscriptions: ${subscriptionsError.message}`);
+  }
+
+  const entitlement = resolveEntitlement({
+    profile: {
+      plan: profile?.plan ?? "free",
+      trial_expires_at: profile?.trial_expires_at ?? null,
+    },
+    subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+  });
+
+  const nextPlan = entitlement.hasPaidAccess ? entitlement.effectivePlan : "free";
+  const { error } = await admin
+    .from("profiles")
+    .update({ plan: nextPlan, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+
+  if (error) {
+    throw new Error(`Could not update profile plan: ${error.message}`);
+  }
+}
+
 async function routeEvent(
   admin: AdminClient,
   event: string,
@@ -247,7 +286,6 @@ async function routeEvent(
 
   switch (event) {
     case "order_created": {
-      // One-time purchase (Founder LTD) — variant_id from first_order_item
       const variantId = String(attrs.first_order_item?.variant_id ?? attrs.variant_id);
       const planType = getPlanType(variantId);
       if (!planType) {
@@ -269,7 +307,7 @@ async function routeEvent(
         status: "active",
         currentPeriodEnd: null,
       });
-      await setPlan(admin, userId, planType);
+      await reconcileProfilePlan(admin, userId);
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,
@@ -294,7 +332,7 @@ async function routeEvent(
         currentPeriodEnd: attrs.renews_at ?? null,
         ...portalUrls,
       });
-      await setPlan(admin, userId, planType);
+      await reconcileProfilePlan(admin, userId);
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,
@@ -306,11 +344,13 @@ async function routeEvent(
     }
 
     case "subscription_updated": {
+      const planType = getPlanType(String(attrs.variant_id));
       const { error } = await admin
         .from("subscriptions")
         .update({
           status: attrs.status,
           current_period_end: attrs.renews_at ?? attrs.ends_at ?? null,
+          ...(planType ? { plan_type: planType } : {}),
           ...toSubscriptionUrlColumns(portalUrls),
           updated_at: new Date().toISOString(),
         })
@@ -318,21 +358,25 @@ async function routeEvent(
       if (error) {
         throw new Error(`Could not update subscription: ${error.message}`);
       }
+      await reconcileProfilePlan(admin, userId);
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,
         lsId,
+        planType: planType ?? undefined,
         status: attrs.status,
       });
       break;
     }
 
     case "subscription_cancelled": {
+      const planType = getPlanType(String(attrs.variant_id));
       const { error } = await admin
         .from("subscriptions")
         .update({
           status: "cancelled",
           current_period_end: attrs.ends_at ?? attrs.renews_at ?? null,
+          ...(planType ? { plan_type: planType } : {}),
           ...toSubscriptionUrlColumns(portalUrls),
           updated_at: new Date().toISOString(),
         })
@@ -340,23 +384,25 @@ async function routeEvent(
       if (error) {
         throw new Error(`Could not cancel subscription: ${error.message}`);
       }
-      // Access continues until period_end — do NOT change profiles.plan yet
+      await reconcileProfilePlan(admin, userId);
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,
         lsId,
+        planType: planType ?? undefined,
         status: "cancelled",
       });
       break;
     }
 
     case "subscription_payment_success": {
-      // Recurring payment succeeded — refresh period end and keep status active
+      const planType = getPlanType(String(attrs.variant_id));
       const { error } = await admin
         .from("subscriptions")
         .update({
           status: "active",
           current_period_end: attrs.renews_at ?? null,
+          ...(planType ? { plan_type: planType } : {}),
           ...toSubscriptionUrlColumns(portalUrls),
           updated_at: new Date().toISOString(),
         })
@@ -364,26 +410,25 @@ async function routeEvent(
       if (error) {
         throw new Error(`Could not refresh subscription period: ${error.message}`);
       }
-      // Defensive re-set: restore plan if it drifted to "free" during past_due
-      const variantId = String(attrs.variant_id);
-      const planType = getPlanType(variantId);
-      if (planType && userId) {
-        await setPlan(admin, userId, planType);
-      }
+      await reconcileProfilePlan(admin, userId);
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,
         lsId,
+        planType: planType ?? undefined,
         status: "active",
       });
       break;
     }
 
     case "subscription_expired": {
+      const planType = getPlanType(String(attrs.variant_id));
       const { error } = await admin
         .from("subscriptions")
         .update({
           status: "expired",
+          current_period_end: attrs.ends_at ?? attrs.renews_at ?? null,
+          ...(planType ? { plan_type: planType } : {}),
           ...toSubscriptionUrlColumns(portalUrls),
           updated_at: new Date().toISOString(),
         })
@@ -391,19 +436,18 @@ async function routeEvent(
       if (error) {
         throw new Error(`Could not expire subscription: ${error.message}`);
       }
-      // Revoke paid access
-      await setPlan(admin, userId, "free");
+      await reconcileProfilePlan(admin, userId);
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,
         lsId,
+        planType: planType ?? undefined,
         status: "expired",
       });
       break;
     }
 
     default:
-      // Unknown event — log and ignore
       logger.info("webhook.unhandled_event", {
         userId,
         eventType: event,
@@ -411,7 +455,6 @@ async function routeEvent(
       });
   }
 }
-
 // ── DB helpers ───────────────────────────────────────────────────────────────
 
 interface SubscriptionRow {
@@ -480,12 +523,3 @@ function toSubscriptionUrlColumns(urls: {
   };
 }
 
-async function setPlan(admin: AdminClient, userId: string, plan: string) {
-  const { error } = await admin
-    .from("profiles")
-    .update({ plan, updated_at: new Date().toISOString() })
-    .eq("id", userId);
-  if (error) {
-    throw new Error(`Could not update profile plan: ${error.message}`);
-  }
-}

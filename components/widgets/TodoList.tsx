@@ -56,12 +56,12 @@ const COPY = {
   toggleTask: { en: "Toggle task", ar: "تبديل حالة المهمة" },
   undoTask: { en: "Undo task", ar: "التراجع عن المهمة" },
   localModeTitle: {
-    en: "Tasks are saved on this device in this environment.",
-    ar: "يتم حفظ المهام على هذا الجهاز في هذه البيئة.",
+    en: "Local fallback is active in this environment.",
+    ar: "وضع الحفظ المحلي المؤقت مفعّل في هذه البيئة.",
   },
   localModeBody: {
-    en: "Cloud sync stays off until the to-do table is available in the database.",
-    ar: "لن تظهر المزامنة السحابية حتى يتم تفعيل جدول المهام في قاعدة البيانات.",
+    en: "Tasks stay in this browser temporarily because synced task storage is not enabled here yet.",
+    ar: "تبقى المهام في هذا المتصفح مؤقتًا لأن تخزين المهام المتزامن غير مفعّل هنا بعد.",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 

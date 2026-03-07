@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
-import { User } from "lucide-react";
-import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { Trash2, User } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 const COPY = {
@@ -18,60 +20,85 @@ const COPY = {
   description: { en: "Your account details", ar: "تفاصيل حسابك" },
   deleteTitle: { en: "Delete account", ar: "حذف الحساب" },
   deleteBody: {
-    en: "Account deletion is handled manually for now. Open the prepared email and send the request to the Fazumi team.",
-    ar: "حذف الحساب يتم يدويًا في الوقت الحالي. افتح البريد الجاهز وأرسل الطلب إلى فريق Fazumi.",
+    en: "One click deletes your Fazumi account and the saved summaries, todos, saved groups, PMF answers, and preferences tied to it.",
+    ar: "بنقرة واحدة يتم حذف حسابك في Fazumi والملخصات والمهام والمجموعات المحفوظة وإجابات PMF والتفضيلات المرتبطة به.",
   },
   deleteHint: {
-    en: "No in-app deletion action is performed from this page.",
-    ar: "لن يتم تنفيذ أي حذف داخل التطبيق من هذه الصفحة.",
+    en: "Raw pasted chat text is not stored in the first place, so there is no raw chat archive to remove.",
+    ar: "لا يتم حفظ نص المحادثة الخام من الأساس، لذلك لا توجد أرشيفات محادثة خام لإزالتها.",
   },
   managePreferences: { en: "Manage preferences", ar: "إدارة التفضيلات" },
-  deleteButton: { en: "Email delete account request", ar: "إرسال طلب حذف الحساب" },
-  deleteFallbackBody: {
-    en: "If your email app did not open, send an email to:",
-    ar: "إذا لم يفتح تطبيق البريد، أرسل بريدًا إلى:",
+  deleteButton: { en: "Delete account now", ar: "احذف الحساب الآن" },
+  deleting: { en: "Deleting...", ar: "جارٍ الحذف..." },
+  deleteError: {
+    en: "Could not delete the account right now. Please try again.",
+    ar: "تعذر حذف الحساب الآن. حاول مرة أخرى.",
   },
-  deleteFallbackHint: {
-    en: "Include your account email in the message",
-    ar: "تضمين بريد حسابك في الرسالة",
-  },
-  showFallback: { en: "Can't open email app?", ar: "لا يمكنك فتح تطبيق البريد؟" },
-  hideFallback: { en: "Hide email instructions", ar: "إخفاء تعليمات البريد" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { locale } = useLang();
   const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [showDeleteFallback, setShowDeleteFallback] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    import("@/lib/supabase/client")
-      .then(({ createClient }) => {
-        const supabase = createClient();
-        supabase.auth.getUser().then(({ data }) => {
-          if (!cancelled) setUser(data.user);
-        });
-      })
-      .catch(() => {
-        // env vars not configured
+    try {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data }) => {
+        if (!cancelled) {
+          setUser(data.user);
+        }
+      }).catch(() => {
+        // Ignore missing client env configuration.
       });
+    } catch {
+      // Ignore missing client env configuration.
+    }
     return () => { cancelled = true; };
   }, []);
 
   const name = user?.user_metadata?.full_name as string | undefined;
   const email = user?.email;
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
-  const deleteAccountHref = `mailto:${LEGAL_CONTACT_EMAIL}?subject=${encodeURIComponent("Delete my account")}&body=${encodeURIComponent(
-    [
-      "Hello Fazumi team,",
-      "",
-      "I would like to request manual deletion of my account.",
-      "",
-      `Email: ${email ?? "Not available"}`,
-      `User ID: ${user?.id ?? "Not available"}`,
-    ].join("\n")
-  )}`;
+
+  async function handleDeleteAccount() {
+    if (isDeleting) {
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch("/api/account/delete", {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Could not delete the account.");
+      }
+
+      trackEvent(AnalyticsEvents.ACCOUNT_DELETED, {
+        hadEmail: Boolean(email),
+      });
+
+      try {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+      } catch {
+        // Best effort only.
+      }
+
+      router.replace("/?account_deleted=1");
+    } catch {
+      setDeleteError(pick(COPY.deleteError, locale));
+      setIsDeleting(false);
+    }
+  }
 
   return (
     <DashboardShell>
@@ -99,10 +126,13 @@ export default function ProfilePage() {
           </div>
           <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">
             <div>
-              <p className="text-sm font-semibold text-[var(--foreground)]">
-                {pick(COPY.deleteTitle, locale)}
-              </p>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              <div className="flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-[var(--destructive)]" />
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  {pick(COPY.deleteTitle, locale)}
+                </p>
+              </div>
+              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
                 {pick(COPY.deleteBody, locale)}
               </p>
               <p className="mt-2 text-xs text-[var(--muted-foreground)]">
@@ -117,35 +147,17 @@ export default function ProfilePage() {
             <div className={cn("space-y-3", locale === "ar" && "text-right")}>
               <button
                 type="button"
-                onClick={() => {
-                  window.location.href = deleteAccountHref;
-                }}
-                className="inline-flex h-10 items-center rounded-[var(--radius)] bg-[var(--destructive)] px-4 text-sm font-semibold text-white"
+                onClick={() => void handleDeleteAccount()}
+                disabled={isDeleting}
+                className="inline-flex h-10 items-center rounded-[var(--radius)] bg-[var(--destructive)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {pick(COPY.deleteButton, locale)}
+                {isDeleting ? pick(COPY.deleting, locale) : pick(COPY.deleteButton, locale)}
               </button>
-
-              {showDeleteFallback ? (
-                <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
-                  <p className="text-sm text-[var(--foreground)]">
-                    {pick(COPY.deleteFallbackBody, locale)}
-                  </p>
-                  <code className="mt-2 block rounded bg-[var(--surface-muted)] p-2 text-sm font-mono text-[var(--primary)]">
-                    {LEGAL_CONTACT_EMAIL}
-                  </code>
-                  <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                    {pick(COPY.deleteFallbackHint, locale)}
-                  </p>
-                </div>
+              {deleteError ? (
+                <p className="text-sm text-[var(--destructive)]">
+                  {deleteError}
+                </p>
               ) : null}
-
-              <button
-                type="button"
-                onClick={() => setShowDeleteFallback((current) => !current)}
-                className="text-xs text-[var(--muted-foreground)] underline"
-              >
-                {pick(showDeleteFallback ? COPY.hideFallback : COPY.showFallback, locale)}
-              </button>
             </div>
           </div>
         </CardContent>

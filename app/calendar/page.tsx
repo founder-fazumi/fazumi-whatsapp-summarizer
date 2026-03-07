@@ -9,12 +9,12 @@ export default function CalendarPage() {
       <Card className="mb-4">
         <CardHeader>
           <h1 className="text-[var(--text-2xl)] font-semibold text-[var(--text-strong)] sm:text-[var(--text-3xl)]">
-            <LocalizedText en="Calendar" ar="التقويم" />
+            <LocalizedText en="Shared calendar" ar="التقويم المشترك" />
           </h1>
           <CardDescription>
             <LocalizedText
-              en="Important dates extracted from your summaries will appear here automatically."
-              ar="ستظهر هنا تلقائيًا التواريخ المهمة المستخرجة من ملخصاتك."
+              en="Important dates extracted from your summaries appear here automatically so the whole family can plan from one place."
+              ar="تظهر هنا تلقائيًا التواريخ المهمة المستخرجة من ملخصاتك حتى تخطط العائلة كلها من مكان واحد."
             />
           </CardDescription>
         </CardHeader>

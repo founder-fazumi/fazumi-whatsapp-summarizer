@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { estimateAiCostUsd, estimateTokenCount } from "@/lib/ai/usage";
-import type { LangPref, SummaryResult, SummaryUsage } from "@/lib/ai/summarize";
+import type { LangPref, SummaryResult, SummaryUsage, SummaryPromptContext } from "@/lib/ai/summarize";
+import { toImportantDateArray, parseChatType, parseChatContext, applySummaryPromptContext } from "@/lib/ai/summarize";
+import { buildFamilyContextPrompt } from "@/lib/family-context";
 
 export type ZipFactCategory = "events" | "tasks" | "deadlines" | "supplies" | "exams";
 
@@ -24,17 +26,24 @@ export interface ZipFactsBlock {
 
 const FACT_CATEGORIES: ZipFactCategory[] = ["events", "tasks", "deadlines", "supplies", "exams"];
 
-const ZIP_SYSTEM_PROMPT = `You are Fazumi, an AI assistant that summarizes school WhatsApp group chats for parents.
+const ZIP_SYSTEM_PROMPT = `You are Fazumi, an AI assistant that turns school parent chats into an action-ready family dashboard.
 
 You will receive ONLY new messages from a single school chat group. Return a JSON object with EXACTLY these keys:
 
 {
-  "tldr": "A 2-3 sentence summary of only the important new information in these messages.",
+  "tldr": "A calm 2-3 sentence summary of only the important new information in these messages for a family dashboard.",
   "important_dates": ["Specific dates, times, deadlines, or event reminders mentioned in the new messages."],
-  "action_items": ["Specific things parents or students need to do based on the new messages."],
+  "action_items": ["Specific things parents or students need to do based on the new messages. Include payments, forms, permission slips, supplies, and uploads when relevant."],
+  "urgent_action_items": ["Strict subset of action_items due today or tomorrow only."],
   "people_classes": ["Teachers, staff, people, classes, grades, or subjects mentioned."],
+  "contacts": ["Phone numbers, email addresses, or explicit contact details in the messages."],
   "links": ["URLs, portals, or file references mentioned."],
   "questions": ["Questions parents may need to ask for clarification."],
+  "chat_type": "One of: routine_update | urgent_notice | event_announcement | noisy_general_chat",
+  "chat_context": {
+    "message_count_estimate": <estimated integer count of messages, or null>,
+    "date_range": "Human-readable date range if clear, else null"
+  },
   "facts": {
     "events": [
       {
@@ -56,10 +65,15 @@ You will receive ONLY new messages from a single school chat group. Return a JSO
 RULES:
 - Use absolute dates, never relative words like "tomorrow" or "next week" without resolving them.
 - Keep the output concise and parent-friendly.
+- The output will feed these buckets: Due today, Upcoming dates, Payments/forms, Supplies, Questions, and Urgent items. Write with those buckets in mind.
+- Include exact due dates or times in action items whenever the messages provide them.
+- Call out GCC-style school fee and form language clearly, and preserve local currency codes such as SAR, AED, QAR, KWD, BHD, OMR, and USD exactly when they appear.
 - Follow the requested output language exactly. If the output language is not specified, reply in the same language as the messages.
 - Never include raw quoted chat transcripts in the output.
 - Put each structured fact into the correct category. If a category has nothing, return [].
+- Explicitly call out payments, forms, permission slips, supplies to bring, and portal uploads when they matter.
 - Make dedupe_key deterministic and low-variance: lowercase, concise, and based on title + date + type + class_name.
+- If saved family context is provided, use it only to disambiguate names, classes, recurring links, and expected currency. Never invent facts that are not supported by the messages.
 - If the messages are too short or unclear, use a short tldr note and return empty arrays.
 
 Return ONLY valid JSON. No markdown code blocks. No explanation outside the JSON.`;
@@ -98,13 +112,25 @@ function resolveOutputLanguage(text: string, langPref: LangPref) {
   return langPref === "auto" ? detectInputLanguage(text) : langPref;
 }
 
-function buildUserPrompt(text: string, outputLang: "en" | "ar") {
+function buildUserPrompt(
+  text: string,
+  outputLang: "en" | "ar",
+  context?: SummaryPromptContext
+) {
   const langInstruction =
     outputLang === "en"
       ? "IMPORTANT: Reply in English only, even if the source messages include Arabic."
       : "IMPORTANT: Reply in Standard Arabic (فصحى) only, even if the source messages include English.";
+  const familyContext = context?.familyContext ? buildFamilyContextPrompt(context.familyContext) : null;
+  const metaLines = [
+    context?.groupTitle ? `Saved group name: ${context.groupTitle}` : null,
+    familyContext,
+  ].filter((line): line is string => Boolean(line));
+  const metaBlock = metaLines.length > 0
+    ? `Use this saved context only to reduce ambiguity:\n${metaLines.join("\n")}\n\n`
+    : "";
 
-  return `Here are the new chat messages to summarize:
+  return `${metaBlock}Here are the new chat messages to summarize:
 
 ---
 ${text.slice(0, 30000)}
@@ -207,11 +233,15 @@ function parseModelPayload(raw: string, outputLang: "en" | "ar") {
 
   const summary: SummaryResult = {
     tldr: String(parsed.tldr ?? "").trim(),
-    important_dates: toStringArray(parsed.important_dates),
+    important_dates: toImportantDateArray(parsed.important_dates),
     action_items: toStringArray(parsed.action_items),
+    urgent_action_items: toStringArray(parsed.urgent_action_items),
     people_classes: toStringArray(parsed.people_classes),
+    contacts: toStringArray(parsed.contacts),
     links: toStringArray(parsed.links),
     questions: toStringArray(parsed.questions),
+    chat_type: parseChatType(parsed.chat_type),
+    chat_context: parseChatContext(parsed.chat_context),
     lang_detected: outputLang,
     char_count: 0,
   };
@@ -253,11 +283,15 @@ function buildOverridePayload(
 
   const summary: SummaryResult = {
     tldr: String(summarySource.tldr ?? "").trim(),
-    important_dates: toStringArray(summarySource.important_dates),
+    important_dates: toImportantDateArray(summarySource.important_dates),
     action_items: toStringArray(summarySource.action_items),
+    urgent_action_items: toStringArray(summarySource.urgent_action_items),
     people_classes: toStringArray(summarySource.people_classes),
+    contacts: toStringArray(summarySource.contacts),
     links: toStringArray(summarySource.links),
     questions: toStringArray(summarySource.questions),
+    chat_type: parseChatType(summarySource.chat_type),
+    chat_context: parseChatContext(summarySource.chat_context),
     lang_detected: outputLang,
     char_count: inputText.length,
   };
@@ -279,6 +313,7 @@ export async function summarizeZipMessages(
   langPref: LangPref,
   options?: {
     testAiResponseHeader?: string | null;
+    context?: SummaryPromptContext;
   }
 ): Promise<{
   summary: SummaryResult;
@@ -294,7 +329,7 @@ export async function summarizeZipMessages(
 
   const openai = getOpenAI();
   const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-  const userPrompt = buildUserPrompt(text, outputLang);
+  const userPrompt = buildUserPrompt(text, outputLang, options?.context);
   const completion = await openai.chat.completions.create({
     model,
     temperature: 0.2,
@@ -308,7 +343,13 @@ export async function summarizeZipMessages(
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
   const { summary, facts } = parseModelPayload(raw, outputLang);
-  summary.char_count = text.length;
+  const summaryWithContext = applySummaryPromptContext(
+    {
+      ...summary,
+      char_count: text.length,
+    },
+    options?.context
+  );
 
   const promptTokens =
     completion.usage?.prompt_tokens ?? estimateTokenCount(`${ZIP_SYSTEM_PROMPT}\n${userPrompt}`);
@@ -316,7 +357,7 @@ export async function summarizeZipMessages(
     completion.usage?.completion_tokens ?? estimateTokenCount(raw);
 
   return {
-    summary,
+    summary: summaryWithContext,
     facts,
     usage: buildUsage(model, promptTokens, completionTokens),
   };
