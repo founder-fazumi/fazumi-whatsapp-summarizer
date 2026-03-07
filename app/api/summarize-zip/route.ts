@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
 import { summarizeZipMessages, type ZipFactCategory, type ZipFactItem, type ZipFactsBlock } from "@/lib/ai/summarize-zip";
 import type { LangPref, SummaryResult, SummaryUsage } from "@/lib/ai/summarize";
-import { estimateTokenCount } from "@/lib/ai/usage";
 import { extractTextFilesFromZip } from "@/lib/chat-import/zip";
 import {
   inferGroupLabelFromFilename,
@@ -320,14 +319,13 @@ async function findExistingFingerprints(
       .select("msg_fingerprint")
       .eq("user_id", userId)
       .eq("group_id", groupId)
-      .in("msg_fingerprint", chunk)
-      .returns<ProcessedFingerprintRow[]>();
+      .in("msg_fingerprint", chunk);
 
     if (error) {
       throw new PersistError("Could not read processed messages.", "FINGERPRINT_LOOKUP_FAILED");
     }
 
-    for (const row of data ?? []) {
+    for (const row of (data ?? []) as ProcessedFingerprintRow[]) {
       existing.add(row.msg_fingerprint);
     }
   }
@@ -513,8 +511,18 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const rangeValue = getFormString(formData, "range");
-    const range: SummarizeZipRange =
-      rangeValue === "24h" || rangeValue === "7d" ? rangeValue : "24h";
+    if (rangeValue !== "24h" && rangeValue !== "7d") {
+      logger.warn("request.rejected", { userId: authedUserId, errorCode: "INVALID_RANGE" });
+      return NextResponse.json(
+        {
+          error: "Range must be 24h or 7d.",
+          code: "INVALID_RANGE",
+        },
+        { status: 400 }
+      );
+    }
+
+    const range: SummarizeZipRange = rangeValue;
     const groupInput = getFormString(formData, "group_key");
     const langInput = getFormString(formData, "lang_pref");
     const langPref: LangPref =
@@ -771,6 +779,8 @@ export async function POST(req: NextRequest) {
     const statusCode = message.includes("OPENAI_API_KEY") ? 503 : 500;
     const failedOpenAiLatencyMs =
       openAiStartedAt !== null ? Date.now() - openAiStartedAt : 0;
+    const estimatedPromptTokens =
+      selectedCharCount > 0 ? Math.max(Math.ceil(selectedCharCount / 4), 1) : 0;
 
     if (!(err instanceof PersistError) && openAiStartedAt !== null && !aiUsage) {
       await logAiRequest({
@@ -779,9 +789,9 @@ export async function POST(req: NextRequest) {
         model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
         status: "error",
         inputChars: selectedCharCount,
-        promptTokens: estimateTokenCount(selectedCharCount > 0 ? "x".repeat(selectedCharCount) : ""),
+        promptTokens: estimatedPromptTokens,
         completionTokens: 0,
-        totalTokens: estimateTokenCount(selectedCharCount > 0 ? "x".repeat(selectedCharCount) : ""),
+        totalTokens: estimatedPromptTokens,
         estimatedCostUsd: 0,
         latencyMs: failedOpenAiLatencyMs,
         errorCode,
@@ -847,4 +857,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

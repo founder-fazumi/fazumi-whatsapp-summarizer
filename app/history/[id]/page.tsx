@@ -105,11 +105,22 @@ export default async function SummaryDetailPage({ params }: PageProps) {
               </span>
               {row.source_kind === "zip" && (
                 <span className="rounded-full border border-[var(--border)] px-2 py-px text-xs font-medium text-[var(--primary)]">
-                  {row.source_range === "24h"
-                    ? "ZIP • 24h"
-                    : row.source_range === "7d"
-                      ? "ZIP • 7d"
-                      : "ZIP"}
+                  <LocalizedText
+                    en={
+                      row.source_range === "24h"
+                        ? "ZIP • 24h"
+                        : row.source_range === "7d"
+                          ? "ZIP • 7d"
+                          : "ZIP"
+                    }
+                    ar={
+                      row.source_range === "24h"
+                        ? "ZIP • 24 ساعة"
+                        : row.source_range === "7d"
+                          ? "ZIP • 7 أيام"
+                          : "ZIP"
+                    }
+                  />
                 </span>
               )}
               {row.source_kind === "zip" && typeof row.new_messages_count === "number" && (

@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import type { SummaryResult, SummaryUsage } from "@/lib/ai/summarize";
+import type { SummaryResult } from "@/lib/ai/summarize";
 import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
 
 export const MAX_SUMMARY_CHARS = 30_000;
@@ -350,4 +350,3 @@ export async function resolveUserTier(params: {
     tierKey: getTierKey(params.plan ?? "free", params.trialExpiresAt),
   };
 }
-
