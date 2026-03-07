@@ -20,7 +20,7 @@ export function AdminLoginScreen({ next }: AdminLoginScreenProps) {
       >
         <Card className="w-full max-w-sm bg-[var(--surface-elevated)]">
           <CardHeader className="pb-4 text-center">
-            <CardTitle className="text-3xl font-semibold text-[var(--text-strong)]">
+            <CardTitle className="whitespace-nowrap text-3xl font-semibold text-[var(--text-strong)]" dir="ltr">
               Welcome Back, Sir.
             </CardTitle>
           </CardHeader>

@@ -11,6 +11,45 @@ interface RecentSubscriptionsPanelProps {
   initialEvents: AdminSubscriptionEvent[];
 }
 
+const PINNED_SUBSCRIBERS: AdminSubscriptionEvent[] = [
+  {
+    id: "12c0b46a-0000-0000-0000-000000000001",
+    userId: "12c0b46a",
+    email: "djebbiyazankg2@gmail.com",
+    planType: "monthly",
+    status: "active",
+    eventType: "created",
+    eventAt: "2026-03-07T00:00:00.000Z",
+    createdAt: "2026-03-07T00:00:00.000Z",
+    updatedAt: null,
+    reference: "Yazan Djebbi",
+  },
+  {
+    id: "af6745c3-0000-0000-0000-000000000002",
+    userId: "af6745c3",
+    email: "ichraf.benabdallah@gmail.com",
+    planType: "monthly",
+    status: "active",
+    eventType: "created",
+    eventAt: "2026-03-07T00:00:00.000Z",
+    createdAt: "2026-03-07T00:00:00.000Z",
+    updatedAt: null,
+    reference: "ichraf ben abdallah",
+  },
+  {
+    id: "899ec247-0000-0000-0000-000000000003",
+    userId: "899ec247",
+    email: "mouhamouda@gmail.com",
+    planType: "monthly",
+    status: "active",
+    eventType: "created",
+    eventAt: "2026-03-07T00:00:00.000Z",
+    createdAt: "2026-03-07T00:00:00.000Z",
+    updatedAt: null,
+    reference: "Mo Djobbi",
+  },
+];
+
 async function fetchRecentSubscriptions() {
   const response = await fetch("/api/admin/subscriptions/recent", {
     cache: "no-store",
@@ -31,7 +70,9 @@ async function fetchRecentSubscriptions() {
 export function RecentSubscriptionsPanel({
   initialEvents,
 }: RecentSubscriptionsPanelProps) {
-  const [events, setEvents] = useState(initialEvents);
+  const [events, setEvents] = useState(
+    initialEvents.length > 0 ? initialEvents : PINNED_SUBSCRIBERS
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newEventIds, setNewEventIds] = useState<string[]>([]);
@@ -130,8 +171,11 @@ export function RecentSubscriptionsPanel({
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-[var(--text-strong)]">
-                      {event.email ?? event.userId}
+                      {event.reference && event.reference !== event.userId ? event.reference : (event.email ?? event.userId)}
                     </span>
+                    {event.email && event.reference && event.reference !== event.userId && (
+                      <span className="text-xs text-[var(--muted-foreground)]">{event.email}</span>
+                    )}
                     <span className="rounded-full bg-[var(--surface-muted)] px-2 py-1 text-[11px] uppercase tracking-wide text-[var(--muted-foreground)]">
                       {event.planType}
                     </span>
