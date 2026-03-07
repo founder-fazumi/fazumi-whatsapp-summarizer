@@ -34,9 +34,9 @@ function encodeAiOverride(payload: {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
-async function buildZipBuffer(fileName: string, contents: string) {
+async function buildZipBuffer(contents: string, innerFileName = "chat.txt") {
   const zip = new JSZip();
-  zip.file(fileName, contents);
+  zip.file(innerFileName, contents);
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
@@ -60,7 +60,7 @@ async function uploadZipSummary(params: {
   range?: "24h" | "7d";
   aiOverride: string;
 }) {
-  const buffer = await buildZipBuffer(params.zipName, params.zipContents);
+  const buffer = await buildZipBuffer(params.zipContents);
 
   return params.api.post("/api/summarize-zip", {
     headers: {
