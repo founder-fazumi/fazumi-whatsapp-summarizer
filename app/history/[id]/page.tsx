@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import Link from "next/link";
 import { ArrowLeft, Clock, FileText } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
+import { toImportantDateArray, parseChatType, parseChatContext } from "@/lib/ai/summarize";
 import { formatDate, formatNumber } from "@/lib/format";
 
 interface PageProps {
@@ -32,11 +33,15 @@ export default async function SummaryDetailPage({ params }: PageProps) {
         id: string;
         title: string;
         tldr: string;
-        important_dates: string[];
+        important_dates: unknown;
         action_items: string[];
+        urgent_action_items: unknown;
         people_classes: string[];
+        contacts: unknown;
         links: string[];
         questions: string[];
+        chat_type: string | null;
+        chat_context: unknown;
         char_count: number;
         lang_detected: string;
         created_at: string;
@@ -55,11 +60,17 @@ export default async function SummaryDetailPage({ params }: PageProps) {
 
   const summary: SummaryResult = {
     tldr: row.tldr,
-    important_dates: row.important_dates ?? [],
+    important_dates: toImportantDateArray(row.important_dates),
     action_items: row.action_items ?? [],
+    urgent_action_items: Array.isArray(row.urgent_action_items)
+      ? (row.urgent_action_items as string[])
+      : [],
     people_classes: row.people_classes ?? [],
+    contacts: Array.isArray(row.contacts) ? (row.contacts as string[]) : [],
     links: row.links ?? [],
     questions: row.questions ?? [],
+    chat_type: parseChatType(row.chat_type),
+    chat_context: parseChatContext(row.chat_context),
     lang_detected: row.lang_detected,
     char_count: row.char_count,
   };

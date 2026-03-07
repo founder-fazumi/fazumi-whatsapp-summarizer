@@ -170,9 +170,13 @@ async function saveSummary(userId: string, summary: SummaryResult, charCount: nu
     tldr: summary.tldr,
     important_dates: summary.important_dates,
     action_items: summary.action_items,
+    urgent_action_items: summary.urgent_action_items,
     people_classes: summary.people_classes,
+    contacts: summary.contacts,
     links: summary.links,
     questions: summary.questions,
+    chat_type: summary.chat_type,
+    chat_context: summary.chat_context,
     char_count: charCount,
     lang_detected: summary.lang_detected ?? "en",
   }).select("id").single<{ id: string }>();

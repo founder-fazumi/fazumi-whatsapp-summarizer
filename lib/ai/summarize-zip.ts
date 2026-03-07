@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { estimateAiCostUsd, estimateTokenCount } from "@/lib/ai/usage";
 import type { LangPref, SummaryResult, SummaryUsage } from "@/lib/ai/summarize";
+import { toImportantDateArray, parseChatType, parseChatContext } from "@/lib/ai/summarize";
 
 export type ZipFactCategory = "events" | "tasks" | "deadlines" | "supplies" | "exams";
 
@@ -207,11 +208,15 @@ function parseModelPayload(raw: string, outputLang: "en" | "ar") {
 
   const summary: SummaryResult = {
     tldr: String(parsed.tldr ?? "").trim(),
-    important_dates: toStringArray(parsed.important_dates),
+    important_dates: toImportantDateArray(parsed.important_dates),
     action_items: toStringArray(parsed.action_items),
+    urgent_action_items: toStringArray(parsed.urgent_action_items),
     people_classes: toStringArray(parsed.people_classes),
+    contacts: toStringArray(parsed.contacts),
     links: toStringArray(parsed.links),
     questions: toStringArray(parsed.questions),
+    chat_type: parseChatType(parsed.chat_type),
+    chat_context: parseChatContext(parsed.chat_context),
     lang_detected: outputLang,
     char_count: 0,
   };
@@ -253,11 +258,15 @@ function buildOverridePayload(
 
   const summary: SummaryResult = {
     tldr: String(summarySource.tldr ?? "").trim(),
-    important_dates: toStringArray(summarySource.important_dates),
+    important_dates: toImportantDateArray(summarySource.important_dates),
     action_items: toStringArray(summarySource.action_items),
+    urgent_action_items: toStringArray(summarySource.urgent_action_items),
     people_classes: toStringArray(summarySource.people_classes),
+    contacts: toStringArray(summarySource.contacts),
     links: toStringArray(summarySource.links),
     questions: toStringArray(summarySource.questions),
+    chat_type: parseChatType(summarySource.chat_type),
+    chat_context: parseChatContext(summarySource.chat_context),
     lang_detected: outputLang,
     char_count: inputText.length,
   };

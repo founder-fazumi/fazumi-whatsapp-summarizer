@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatNumber } from "@/lib/format";
 import { summarizeZipMessages, type ZipFactCategory, type ZipFactItem, type ZipFactsBlock } from "@/lib/ai/summarize-zip";
 import type { LangPref, SummaryResult, SummaryUsage } from "@/lib/ai/summarize";
+import { toImportantDateArray } from "@/lib/ai/summarize";
 import { extractTextFilesFromZip } from "@/lib/chat-import/zip";
 import {
   inferGroupLabelFromFilename,
@@ -258,8 +259,8 @@ function dedupeSummaryFacts(summary: SummaryResult, facts: ZipFactsBlock, knownK
       ...summary,
       important_dates:
         structuredImportantDates.length > 0 || originalFactCount > 0
-          ? structuredImportantDates
-          : uniqueStrings(summary.important_dates),
+          ? toImportantDateArray(structuredImportantDates)
+          : summary.important_dates,
       action_items:
         structuredActionItems.length > 0 || originalFactCount > 0
           ? structuredActionItems

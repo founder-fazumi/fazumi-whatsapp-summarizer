@@ -6,9 +6,10 @@ import Link from "next/link";
 import {
   ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap,
   AlignLeft, Calendar, Users, Link2, HelpCircle, ShieldCheck, X,
+  AlertTriangle, Phone, MapPin, Clock as ClockIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { SummaryResult } from "@/lib/ai/summarize";
+import type { SummaryResult, ImportantDate } from "@/lib/ai/summarize";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { buttonVariants } from "@/components/ui/button";
@@ -33,6 +34,7 @@ const SECTION_META: Record<
   important_dates:  { en: "Important Dates",           ar: "المواعيد المهمة",       icon: Calendar    },
   action_items:     { en: "Action Items / To-Do",      ar: "الإجراءات المطلوبة",    icon: ListChecks  },
   people_classes:   { en: "People / Classes",          ar: "الأشخاص / المواد",      icon: Users       },
+  contacts:         { en: "Contacts",                  ar: "جهات الاتصال",          icon: Phone       },
   links:            { en: "Links & Attachments",       ar: "الروابط والمرفقات",     icon: Link2       },
   questions:        { en: "Questions to Ask",          ar: "أسئلة للمعلم / المدرسة", icon: HelpCircle },
 };
@@ -42,6 +44,7 @@ const SECTION_ORDER = [
   "important_dates",
   "action_items",
   "people_classes",
+  "contacts",
   "links",
   "questions",
 ] as const;
@@ -54,6 +57,7 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
     important_dates: "Important Dates",
     action_items: "Action Items",
     people_classes: "People / Classes",
+    contacts: "Contacts",
     links: "Links",
     questions: "Questions",
   },
@@ -62,6 +66,7 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
     important_dates: "المواعيد المهمة",
     action_items: "المهام المطلوبة",
     people_classes: "الأشخاص / المواد",
+    contacts: "جهات الاتصال",
     links: "الروابط",
     questions: "الأسئلة",
   },
@@ -72,6 +77,7 @@ const EXPORT_HEADING_EMOJIS: Record<SectionKey, string> = {
   important_dates: "📅",
   action_items: "✅",
   people_classes: "👥",
+  contacts: "📞",
   links: "🔗",
   questions: "❓",
 };
@@ -131,6 +137,12 @@ const UI_COPY = {
     actionErrorTitle: "Could not complete this action",
     actionErrorBody: "Please try again in a moment.",
     close: "Close",
+    urgent: "Urgent",
+    urgentBannerText: "Requires action today or tomorrow",
+    chatTypeUrgent: "Urgent notice",
+    chatTypeEvent: "Event",
+    chatTypeNoisy: "General chat",
+    chatContextMessages: "messages",
   },
   ar: {
     latestSummary: "أحدث ملخص",
@@ -157,6 +169,12 @@ const UI_COPY = {
     actionErrorTitle: "تعذر إكمال هذا الإجراء",
     actionErrorBody: "حاول مرة أخرى بعد قليل.",
     close: "إغلاق",
+    urgent: "عاجل",
+    urgentBannerText: "يتطلب إجراءً اليوم أو غدًا",
+    chatTypeUrgent: "إشعار عاجل",
+    chatTypeEvent: "حدث",
+    chatTypeNoisy: "محادثة عامة",
+    chatContextMessages: "رسالة",
   },
 } as const;
 
@@ -203,12 +221,20 @@ function buildSummaryExportText(
       const lines =
         sectionKey === "tldr"
           ? [typeof value === "string" && value.trim() ? value.trim() : emptyLabel]
-          : Array.isArray(value)
-            ? value
-                .map((item) => item.trim())
-                .filter(Boolean)
-                .map((item) => `• ${item}`)
-            : [];
+          : sectionKey === "important_dates"
+            ? (value as ImportantDate[]).map((d) => {
+                let text = d.label;
+                if (d.time) text += ` — ${d.time}`;
+                if (d.location) text += ` (${d.location})`;
+                if (d.urgent) text = `⚠️ ${text}`;
+                return text;
+              }).filter(Boolean).map((item) => `• ${item}`)
+            : Array.isArray(value)
+              ? (value as string[])
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .map((item) => `• ${item}`)
+              : [];
 
       const sectionLines = lines.length > 0 ? lines : [emptyLabel];
       const separator = "-".repeat(Math.max(5, baseHeading.length + (includeHeadingEmojis ? 3 : 0)));
@@ -278,24 +304,43 @@ function formatIcsTimestamp(value: Date): string {
 function buildCalendarExport(summary: SummaryResult): string | null {
   const now = new Date();
   const events = summary.important_dates
-    .map((label, index) => {
-      const parsed = parseDateFromLabel(label, now);
-      if (!parsed) {
-        return null;
+    .map((item, index) => {
+      // Prefer the structured ISO date; fall back to text parsing for legacy strings
+      let start: Date | null = null;
+      if (item.date) {
+        const [y, m, d] = item.date.split("-").map(Number);
+        if (y && m && d) start = new Date(Date.UTC(y, m - 1, d));
+      }
+      if (!start) start = parseDateFromLabel(item.label, now);
+      if (!start) return null;
+
+      let dtstart: string;
+      let dtend: string;
+      if (item.time) {
+        const [hour = 0, minute = 0] = item.time.split(":").map(Number);
+        const startDt = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), hour, minute));
+        const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+        dtstart = `DTSTART:${formatIcsTimestamp(startDt)}`;
+        dtend = `DTEND:${formatIcsTimestamp(endDt)}`;
+      } else {
+        const end = new Date(start);
+        end.setUTCDate(end.getUTCDate() + 1);
+        dtstart = `DTSTART;VALUE=DATE:${formatIcsDate(start)}`;
+        dtend = `DTEND;VALUE=DATE:${formatIcsDate(end)}`;
       }
 
-      const start = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
-      const end = new Date(start);
-      end.setUTCDate(end.getUTCDate() + 1);
+      const descParts = [summary.tldr];
+      if (item.location) descParts.push(`Location: ${item.location}`);
 
       return [
         "BEGIN:VEVENT",
         `UID:${formatIcsDate(start)}-${index}@fazumi.app`,
         `DTSTAMP:${formatIcsTimestamp(now)}`,
-        `DTSTART;VALUE=DATE:${formatIcsDate(start)}`,
-        `DTEND;VALUE=DATE:${formatIcsDate(end)}`,
-        `SUMMARY:${escapeIcsText(label)}`,
-        `DESCRIPTION:${escapeIcsText(summary.tldr)}`,
+        dtstart,
+        dtend,
+        `SUMMARY:${escapeIcsText(item.label)}`,
+        `DESCRIPTION:${escapeIcsText(descParts.join(" | "))}`,
+        ...(item.location ? [`LOCATION:${escapeIcsText(item.location)}`] : []),
         "END:VEVENT",
       ].join("\r\n");
     })
@@ -391,6 +436,67 @@ function SectionBlock({
         >
           {String(value)}
         </p>
+      ) : sectionKey === "important_dates" ? (
+        <ul className="space-y-3">
+          {(value as ImportantDate[]).map((item, i) => (
+            <li key={i} className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]">
+              <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span dir="auto" style={BIDI_TEXT_STYLE} className="font-medium leading-6">
+                    {item.label}
+                  </span>
+                  {item.urgent && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      {copy.urgent}
+                    </span>
+                  )}
+                </div>
+                {(item.time ?? item.location) && (
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-[var(--muted-foreground)]">
+                    {item.time && (
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="h-3 w-3" />
+                        {item.time}
+                      </span>
+                    )}
+                    {item.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {item.location}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : sectionKey === "action_items" && (summary.urgent_action_items?.length ?? 0) > 0 ? (
+        <>
+          <div className="mb-3 rounded-[var(--radius)] border border-orange-200 bg-orange-50 px-3 py-2.5 dark:border-orange-800/50 dark:bg-orange-900/20">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-orange-700 dark:text-orange-400">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {copy.urgentBannerText}
+            </div>
+            <ul className="space-y-1">
+              {summary.urgent_action_items.map((item, i) => (
+                <li key={i} dir="auto" style={BIDI_TEXT_STYLE} className="text-xs text-orange-900 dark:text-orange-200">
+                  • {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <ul className="space-y-2.5">
+            {(value as string[]).map((item, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]">
+                <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+                <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-7">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : (
         <ul className="space-y-2.5">
           {(value as string[]).map((item, i) => (
@@ -603,7 +709,7 @@ export function SummaryDisplay({
     >
       <Card className="overflow-hidden bg-[var(--surface-elevated)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)]/60 px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Zap className="h-4 w-4 text-[var(--primary)]" />
             <h2 className="text-sm font-semibold text-[var(--foreground)]">
               {copy.latestSummary}
@@ -612,10 +718,32 @@ export function SummaryDisplay({
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
               {copy.justNow}
             </span>
+            {summary.chat_type === "urgent_notice" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {copy.chatTypeUrgent}
+              </span>
+            )}
+            {summary.chat_type === "event_announcement" && (
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                {copy.chatTypeEvent}
+              </span>
+            )}
+            {summary.chat_type === "noisy_general_chat" && (
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
+                {copy.chatTypeNoisy}
+              </span>
+            )}
           </div>
-          <span className="text-xs text-[var(--muted-foreground)]">
-            {formattedCharCount} {copy.chars}
-          </span>
+          <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+            {summary.chat_context?.message_count_estimate != null && (
+              <span>~{summary.chat_context.message_count_estimate} {copy.chatContextMessages}</span>
+            )}
+            {summary.chat_context?.date_range && (
+              <span className="hidden sm:inline">{summary.chat_context.date_range}</span>
+            )}
+            <span>{formattedCharCount} {copy.chars}</span>
+          </div>
         </div>
 
         <div className="border-b border-[var(--border)] px-4 py-3 sm:px-5">
