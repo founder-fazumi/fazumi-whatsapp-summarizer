@@ -113,3 +113,9 @@ S010 = PENDING  # Referral system
 # Files: app/login/layout.tsx, app/dashboard/layout.tsx, app/summarize/layout.tsx, app/history/layout.tsx, app/billing/layout.tsx, app/settings/layout.tsx, app/profile/layout.tsx, app/calendar/layout.tsx, app/admin_dashboard/(dashboard)/layout.tsx, app/help/page.tsx, app/status/page.tsx, app/help/layout.tsx, app/status/layout.tsx, specs/seo-round-4-noindex-internal-links.md, tasks/todo.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint` and `pnpm typecheck` pass.
 # Pattern: when a route should remain functional but stay out of search results, add route-level metadata in a thin App Router layout instead of threading robots flags through unrelated page logic.
+
+# 2026-03-08
+# SEO hardening Round 6 completed: the remaining public layouts now share hreflang alternates, and contact/help/status/legal layouts expose consistent `WebPage` plus `BreadcrumbList` JSON-LD wrappers with stable route canonicals.
+# Files: app/about/layout.tsx, app/contact/layout.tsx, app/faq/layout.tsx, app/help/layout.tsx, app/status/layout.tsx, app/pricing/layout.tsx, app/terms/layout.tsx, app/privacy/layout.tsx, app/cookie-policy/layout.tsx, app/refunds/layout.tsx, specs/seo-round-6-public-layout-breadcrumbs.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when locale uses one canonical public path, expose language alternates at the metadata layer and reuse breadcrumb schema across static public layouts instead of inventing localized route variants.

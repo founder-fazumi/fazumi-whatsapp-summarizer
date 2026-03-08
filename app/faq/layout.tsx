@@ -4,7 +4,10 @@ export const metadata: Metadata = {
   title: "FAQ",
   description:
     "Answers to the most common questions about Fazumi — privacy, Arabic support, billing, upload limits, and how school chat summaries work.",
-  alternates: { canonical: "/faq" },
+  alternates: {
+    canonical: "/faq",
+    languages: { en: "/faq", ar: "/faq", "x-default": "/faq" },
+  },
 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";

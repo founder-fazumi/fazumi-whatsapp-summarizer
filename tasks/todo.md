@@ -121,6 +121,15 @@
 - [x] `app/help/layout.tsx` and `app/status/layout.tsx` emit the requested `WebPage` JSON-LD metadata wrappers and canonical metadata.
 - [x] `pnpm lint` and `pnpm typecheck` pass after the Round 4 changes.
 
+#### SEO6 - Round 6 public layout hreflang and breadcrumb schema [Codex]
+**Why:** The remaining public layouts still need consistent hreflang alternates, and contact/legal/support surfaces need breadcrumb schema so crawlers see stable route relationships without URL-prefixed locales.
+**Files:** `app/about/layout.tsx`, `app/contact/layout.tsx`, `app/faq/layout.tsx`, `app/help/layout.tsx`, `app/status/layout.tsx`, `app/pricing/layout.tsx`, `app/terms/layout.tsx`, `app/privacy/layout.tsx`, `app/cookie-policy/layout.tsx`, `app/refunds/layout.tsx`, `specs/seo-round-6-public-layout-breadcrumbs.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] All 10 public layout metadata exports include `alternates.languages` for `en`, `ar`, and `x-default` on the route path.
+- [x] `app/contact/layout.tsx`, `app/help/layout.tsx`, and `app/status/layout.tsx` emit `WebPage` plus `BreadcrumbList` JSON-LD with the requested copy and route names.
+- [x] `app/terms/layout.tsx`, `app/privacy/layout.tsx`, `app/cookie-policy/layout.tsx`, and `app/refunds/layout.tsx` emit `WebPage` plus `BreadcrumbList` JSON-LD while preserving their existing metadata copy.
+- [x] `pnpm lint` and `pnpm typecheck` pass after the Round 6 changes.
+
 ---
 ## PHASE 0 — PLAN (done before "Proceed")
 
