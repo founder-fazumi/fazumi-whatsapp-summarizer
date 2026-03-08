@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
-import { buttonVariants } from "@/components/ui/button";
-import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
@@ -18,30 +16,21 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 const COPY = {
   title: { en: "Profile", ar: "الملف الشخصي" },
   description: { en: "Your account details", ar: "تفاصيل حسابك" },
-  deleteTitle: { en: "Delete account", ar: "حذف الحساب" },
+  deleteTitle: { en: "Account actions", ar: "إجراءات الحساب" },
   deleteBody: {
-    en: "One click deletes your Fazumi account and the saved summaries, todos, saved groups, PMF answers, and preferences tied to it.",
-    ar: "بنقرة واحدة يتم حذف حسابك في Fazumi والملخصات والمهام والمجموعات المحفوظة وإجابات PMF والتفضيلات المرتبطة به.",
+    en: "Open your settings or contact support if you need your Fazumi account and saved data removed.",
+    ar: "افتح الإعدادات أو تواصل مع الدعم إذا كنت بحاجة إلى إزالة حساب Fazumi وبياناتك المحفوظة.",
   },
   deleteHint: {
     en: "Raw pasted chat text is not stored in the first place, so there is no raw chat archive to remove.",
     ar: "لا يتم حفظ نص المحادثة الخام من الأساس، لذلك لا توجد أرشيفات محادثة خام لإزالتها.",
   },
-  managePreferences: { en: "Manage preferences", ar: "إدارة التفضيلات" },
-  deleteButton: { en: "Delete account now", ar: "احذف الحساب الآن" },
-  deleting: { en: "Deleting...", ar: "جارٍ الحذف..." },
-  deleteError: {
-    en: "Could not delete the account right now. Please try again.",
-    ar: "تعذر حذف الحساب الآن. حاول مرة أخرى.",
-  },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 export default function ProfilePage() {
-  const router = useRouter();
   const { locale } = useLang();
   const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const isRtl = locale === "ar";
 
   useEffect(() => {
     let cancelled = false;
@@ -64,42 +53,6 @@ export default function ProfilePage() {
   const email = user?.email;
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
-  async function handleDeleteAccount() {
-    if (isDeleting) {
-      return;
-    }
-
-    setDeleteError(null);
-    setIsDeleting(true);
-
-    try {
-      const response = await fetch("/api/account/delete", {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? "Could not delete the account.");
-      }
-
-      trackEvent(AnalyticsEvents.ACCOUNT_DELETED, {
-        hadEmail: Boolean(email),
-      });
-
-      try {
-        const supabase = createClient();
-        await supabase.auth.signOut();
-      } catch {
-        // Best effort only.
-      }
-
-      router.replace("/?account_deleted=1");
-    } catch {
-      setDeleteError(pick(COPY.deleteError, locale));
-      setIsDeleting(false);
-    }
-  }
-
   return (
     <DashboardShell>
       <Card>
@@ -116,7 +69,11 @@ export default function ProfilePage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className={cn("space-y-6", locale === "ar" && "text-right")}>
+        <CardContent
+          dir={isRtl ? "rtl" : "ltr"}
+          lang={locale}
+          className={cn("space-y-6", isRtl && "text-right")}
+        >
           <div className="flex items-center gap-4 mb-6">
             <Avatar name={name} src={avatarUrl} size="lg" />
             <div>
@@ -139,25 +96,22 @@ export default function ProfilePage() {
                 {pick(COPY.deleteHint, locale)}
               </p>
             </div>
-            <div className={cn("flex flex-wrap gap-3", locale === "ar" && "justify-end")}>
-              <Link href="/settings" className={buttonVariants({ variant: "outline" })}>
-                {pick(COPY.managePreferences, locale)}
-              </Link>
-            </div>
-            <div className={cn("space-y-3", locale === "ar" && "text-right")}>
-              <button
-                type="button"
-                onClick={() => void handleDeleteAccount()}
-                disabled={isDeleting}
-                className="inline-flex h-10 items-center rounded-[var(--radius)] bg-[var(--destructive)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            <div
+              dir={isRtl ? "rtl" : "ltr"}
+              className={cn("flex flex-col items-start gap-2", isRtl && "items-end")}
+            >
+              <Link
+                href="/settings"
+                className="text-sm font-semibold text-[var(--primary)] underline-offset-4 hover:underline"
               >
-                {isDeleting ? pick(COPY.deleting, locale) : pick(COPY.deleteButton, locale)}
-              </button>
-              {deleteError ? (
-                <p className="text-sm text-[var(--destructive)]">
-                  {deleteError}
-                </p>
-              ) : null}
+                <LocalizedText en="Manage preferences →" ar="إدارة التفضيلات ←" />
+              </Link>
+              <a
+                href="mailto:support@fazumi.com?subject=Delete%20my%20account"
+                className="text-xs font-medium text-[var(--destructive)] underline-offset-4 hover:underline"
+              >
+                <LocalizedText en="Request account deletion" ar="طلب حذف الحساب" />
+              </a>
             </div>
           </div>
         </CardContent>

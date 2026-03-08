@@ -227,6 +227,7 @@ export default async function AboutPage() {
               </div>
             </CardHeader>
             <CardContent className={cn(isArabic && "text-right")}>
+              {/* TODO: verify metric before launch */}
               <p className="text-sm leading-7 text-[var(--muted-foreground)]">
                 {pick(COPY.storyBody, locale)}
               </p>

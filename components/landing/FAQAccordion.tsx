@@ -24,8 +24,8 @@ const FAQS = [
       ar: "هل بيانات المحادثة خاصة؟",
     },
     answer: {
-      en: "Yes. Fazumi does not store your raw chat messages in the database. Only the generated summary and structured items are saved to your account history.",
-      ar: "نعم. لا يحفظ فازومي رسائل محادثتك الخام في قاعدة البيانات. يُحفظ فقط الملخص الناتج والبنود المستخرجة في سجل حسابك.",
+      en: "Your raw chat text is never stored. Only the structured summary — dates, action items, links — is saved to your history. The original messages are processed in memory and discarded.",
+      ar: "نص محادثتك الأصلي لا يُخزَّن أبدًا. يتم حفظ الملخص المنظَّم فقط — المواعيد وبنود الإجراءات والروابط. تتم معالجة الرسائل الأصلية في الذاكرة وتجاهلها.",
     },
   },
   {
@@ -54,8 +54,8 @@ const FAQS = [
       ar: "هل يعمل مع المحادثات العربية؟",
     },
     answer: {
-      en: "Yes. Fazumi supports Arabic and English chats, including mixed-language school groups. You can choose Auto, English, or Arabic output before summarizing.",
-      ar: "نعم. يدعم فازومي المحادثات العربية والإنجليزية بما فيها مجموعات المدرسة المختلطة. يمكنك اختيار الإخراج التلقائي أو الإنجليزية أو العربية قبل التلخيص.",
+      en: "Yes. Fazumi auto-detects Arabic input and returns summaries in Arabic. You can also force Arabic output for any language input using the language selector.",
+      ar: "نعم. يكتشف Fazumi العربية تلقائيًا ويُنتج الملخصات بالعربية. يمكنك أيضًا إجبار الإخراج بالعربية لأي لغة مدخلة باستخدام محدد اللغة.",
     },
   },
   {

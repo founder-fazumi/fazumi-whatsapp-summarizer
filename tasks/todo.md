@@ -1306,6 +1306,8 @@ Alternatively if that feels cheap: POST to a new `/api/contact` route that sends
 
 ### MEDIUM — RC Slice 3 (RC7 + RC8 + RC9)
 
+- [x] RC8. /profile — add account deletion via support email in `app/profile/page.tsx`
+
 #### RC7 — pnpm build smoke [Codex]
 **Why:** Production build may surface type errors or missing env var guards not caught by `pnpm typecheck`.
 
@@ -1329,9 +1331,9 @@ Alternatively if that feels cheap: POST to a new `/api/contact` route that sends
 2. A `mailto:support@fazumi.com?subject=Delete%20my%20account` link labelled "Request account deletion" (styled as a small danger-colored text link, not a button)
 
 **Acceptance:**
-- [ ] `/profile` shows "Request account deletion →" with correct mailto link
-- [ ] Also shows "Manage preferences →" linking to `/settings`
-- [ ] `pnpm lint && pnpm typecheck` pass
+- [x] `/profile` shows "Request account deletion" with correct mailto link
+- [x] Also shows "Manage preferences →" linking to `/settings`
+- [x] `pnpm lint && pnpm typecheck` pass
 
 ---
 
@@ -2155,9 +2157,9 @@ Manual smoke:
 - [x] BV1. Landing Page Hero — update headline, subtitle, CTA, and trust line in `components/landing/Hero.tsx`
 - [x] BV2. How It Works — update title and step copy in `components/landing/HowItWorks.tsx`
 - [x] BV3. Pricing — calibrate descriptions and refund note in `components/landing/Pricing.tsx`
-- [ ] BV4. FAQ — calibrate Arabic support and privacy answers in `components/landing/FAQAccordion.tsx`
-- [ ] BV5. About — keep founder-led tone and verify factual metrics in `app/about/page.tsx`
-- [ ] BV6. Summarize — update in-app title, subtitle, loading, error, and limit copy in `app/summarize/page.tsx`
+- [x] BV4. FAQ — calibrate Arabic support and privacy answers in `components/landing/FAQAccordion.tsx`
+- [x] BV5. About — keep founder-led tone and verify factual metrics in `app/about/page.tsx`
+- [x] BV6. Summarize — update in-app title, subtitle, loading, error, and limit copy in `app/summarize/page.tsx`
 - [ ] BV7. Contact — update contact page and form microcopy in `app/contact/page.tsx` and `components/contact/ContactForm.tsx`
 - [ ] BV8. Dashboard — update empty, loading, and delete states in dashboard pages
 - [ ] BV9. Trust Block — create `components/shared/TrustBlock.tsx` and add it to landing/about
@@ -2173,9 +2175,9 @@ Manual smoke:
 - [x] HR2. Hero — add the rotating bilingual headline/subtitle with a 3-second cycle, fade transition, and `prefers-reduced-motion` support in `components/landing/Hero.tsx`
 - [x] HR3. Hero — replace the static preview with an interactive demo flow (textarea, sample chat, loading state, blurred summary gate, signup CTA) in `components/landing/Hero.tsx`
 - [x] HR4. How It Works — replace icon-first step cards with screenshot placeholders and update the step copy in `components/landing/HowItWorks.tsx`
-- [ ] HR5. FAQ — add the Arabic-support accuracy guardrail and the updated privacy answer in `components/landing/FAQAccordion.tsx`
-- [ ] HR6. About — add a founder-verification TODO comment for the placeholder metrics in `app/about/page.tsx`
-- [ ] HR7. Summarize — update loading, error, and limit copy in `app/summarize/page.tsx`
+- [x] HR5. FAQ — add the Arabic-support accuracy guardrail and the updated privacy answer in `components/landing/FAQAccordion.tsx`
+- [x] HR6. About — add a founder-verification TODO comment for the placeholder metrics in `app/about/page.tsx`
+- [x] HR7. Summarize — update loading, error, and limit copy in `app/summarize/page.tsx`
 - [ ] HR8. Verify — run `pnpm lint`, `pnpm typecheck`, confirm no `.env*` files are staged, and do a manual mobile landing smoke check
 
 ---

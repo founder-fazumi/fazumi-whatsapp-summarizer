@@ -139,8 +139,8 @@ const COPY = {
     ar: "لخّص",
   },
   summarizing: {
-    en: "Summarizing...",
-    ar: "جارٍ التلخيص...",
+    en: "Reading your chat…",
+    ar: "جاري قراءة محادثتك…",
   },
   privacy: {
     en: "Only the saved summary is kept. Raw chat text is not stored.",
@@ -295,8 +295,8 @@ const COPY = {
     ar: "تعذر الوصول إلى Fazumi الآن. تحقّق من الاتصال ثم حاول مرة أخرى.",
   },
   unknownError: {
-    en: "We could not summarize that chat. Try again in a moment.",
-    ar: "تعذر تلخيص هذه المحادثة. حاول مرة أخرى بعد قليل.",
+    en: "Something went wrong. Please try again.",
+    ar: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
   },
   fileTooLarge: {
     en: "That file is over 10 MB. Upload a smaller export.",
@@ -319,8 +319,8 @@ const COPY = {
     ar: "تعذر قراءة هذا الملف. حاول تصدير المحادثة مرة أخرى.",
   },
   limitBodyDaily: {
-    en: "You've reached today's limit for summaries. Your saved history is still available.",
-    ar: "لقد وصلت إلى حد الملخصات اليومي. لا يزال سجل الملخصات متاحًا لك.",
+    en: "You've reached today's limit. Your history is still available.",
+    ar: "لقد وصلت إلى حد اليوم. سجلك لا يزال متاحًا.",
   },
   limitBodyLifetime: {
     en: "You've used your free summaries. Upgrade to keep going.",
