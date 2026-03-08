@@ -69,14 +69,39 @@ function shouldSuppressAiRequestLogWarnings() {
   return process.env.NODE_ENV !== "production" || process.env.PLAYWRIGHT_TEST === "1";
 }
 
+function isMissingSummaryGroupNameColumnError(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const code = error.code ?? "";
+  const message = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+
+  return (
+    message.includes("group_name") &&
+    (
+      code === "42703" ||
+      code === "PGRST204" ||
+      message.includes("schema cache") ||
+      message.includes("column") ||
+      message.includes("does not exist") ||
+      message.includes("could not find")
+    )
+  );
+}
+
 function getSummaryInsertPayload(params: {
   userId: string;
   summary: SummaryResult;
   charCount: number;
   groupId?: string | null;
+  groupName?: string | null;
   sourceKind?: SummarySourceKind;
   sourceRange?: SummarySourceRange | null;
   newMessagesCount?: number | null;
+}, options?: {
+  includeGroupName?: boolean;
 }) {
   return {
     user_id: params.userId,
@@ -93,6 +118,7 @@ function getSummaryInsertPayload(params: {
     chat_context: params.summary.chat_context,
     char_count: params.charCount,
     lang_detected: params.summary.lang_detected ?? "en",
+    ...(options?.includeGroupName === false ? {} : { group_name: params.groupName ?? null }),
     ...(params.groupId ? { group_id: params.groupId } : {}),
     ...(params.sourceKind ? { source_kind: params.sourceKind } : {}),
     ...(params.sourceRange ? { source_range: params.sourceRange } : {}),
@@ -184,6 +210,7 @@ export async function saveSummaryRecord(params: {
   summary: SummaryResult;
   charCount: number;
   groupId?: string | null;
+  groupName?: string | null;
   sourceKind?: SummarySourceKind;
   sourceRange?: SummarySourceRange | null;
   newMessagesCount?: number | null;
@@ -193,11 +220,19 @@ export async function saveSummaryRecord(params: {
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("summaries")
     .insert(getSummaryInsertPayload(params))
     .select("id")
     .single<{ id: string }>();
+
+  if (error && isMissingSummaryGroupNameColumnError(error)) {
+    ({ data, error } = await admin
+      .from("summaries")
+      .insert(getSummaryInsertPayload(params, { includeGroupName: false }))
+      .select("id")
+      .single<{ id: string }>());
+  }
 
   if (error || !data?.id) {
     throw new PersistError("Could not save summary.", "SUMMARY_SAVE_FAILED");

@@ -223,3 +223,11 @@
 **Quick test:** Run `pnpm dev` and `pnpm build` twice in a row from a clean repo state and confirm both pre-scripts succeed even when `.next/cache/.previewinfo` and `.next/trace` do not exist.
 
 ---
+
+## L028 — Keep summary metadata fields in the shared insert contract, not only one route
+**Mistake:** Group-name memory reached the summarize prompt and form state, but the saved `summaries` row still dropped `group_name` because the DB insert contract and history query were not updated with the new metadata field.
+**Why:** Summary persistence logic is split between route code and a shared helper, so it is easy for one metadata field to be added on the request side but missed on the storage/read side.
+**Rule:** Whenever summary metadata grows, update the full contract in one pass: migration, shared insert payload, route save call, and the first consumer query/type that renders the new field.
+**Quick test:** Submit a summary with only a typed group name, then confirm the saved row has `group_name`, `/history` selects it, and the card renders the badge.
+
+---

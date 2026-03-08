@@ -131,6 +131,7 @@ export function familyContextHasSignal(context: FamilyContext) {
       context.group_type ||
       context.preferred_currency ||
       context.teacher_names.length > 0 ||
+      context.group_names.length > 0 ||
       context.recurring_links.length > 0
   );
 }
@@ -144,6 +145,7 @@ export function buildFamilyContextPrompt(context: FamilyContext) {
     context.school_name ? `- School: ${context.school_name}` : null,
     context.child_name ? `- Child: ${context.child_name}` : null,
     context.class_name ? `- Class or grade: ${context.class_name}` : null,
+    context.group_names.length > 0 ? `- Known group names: ${context.group_names.join(", ")}` : null,
     context.group_type ? `- Group type: ${context.group_type}` : null,
     context.preferred_currency ? `- Preferred currency: ${context.preferred_currency}` : null,
     context.teacher_names.length > 0 ? `- Known teachers: ${context.teacher_names.join(", ")}` : null,

@@ -4,6 +4,7 @@ export interface SummaryRow {
   tldr: string;
   created_at: string;
   char_count: number;
+  group_name: string | null;
   lang_detected: string;
   source_kind: "text" | "zip";
   source_range: "24h" | "7d" | null;

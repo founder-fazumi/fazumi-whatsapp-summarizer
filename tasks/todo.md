@@ -42,6 +42,48 @@
 - [x] Progress and lessons are updated for the stale-trace fix and group-name memory slice.
 **Verification note:** `pnpm test` also passes after rerunning Playwright in attach mode on port `3100`, because the sandboxed/local default `webServer` path hit a stale `.next/dev/lock` plus `spawn EPERM`.
 
+## Story - Group Name Prompt + Summary Tagging (2026-03-08) [DONE]
+
+#### GN1 - Include saved group names in family-context AI signal [Codex]
+**Why:** Families who only save school group names should still get their memory injected into the summarize prompt.
+**Files:** `lib/family-context.ts`
+**Acceptance:**
+- [x] `familyContextHasSignal()` returns `true` when only `group_names` is populated.
+- [x] `buildFamilyContextPrompt()` emits `- Known group names: ...` when `group_names` is non-empty.
+- [x] Empty `group_names` still emits no prompt line.
+- [x] `pnpm lint` passes after the family-context patch.
+- [x] `pnpm typecheck` passes after the family-context patch.
+
+#### GN2 - Persist selected group name on saved summaries [Codex]
+**Why:** History filtering and future grouping need the chosen summarize group name stored directly on the summary row.
+**Files:** `supabase/migrations/2026030801_add_group_name_to_summaries.sql`, `app/api/summarize/route.ts`, `lib/server/summaries.ts`
+**Acceptance:**
+- [x] `summaries.group_name` is added via migration because the column did not already exist.
+- [x] `POST /api/summarize` saves the request `group_name` onto the summary row.
+- [x] Shared summary insert helpers accept optional `groupName` metadata.
+- [x] `pnpm lint` passes after the summarize storage patch.
+- [x] `pnpm typecheck` passes after the summarize storage patch.
+
+#### GN3 - Surface stored group name in history cards [Codex]
+**Why:** Users need immediate visual confirmation of which school group a saved summary belongs to.
+**Files:** `app/(dashboard)/history/page.tsx`, `components/history/types.ts`, `components/history/HistoryList.tsx`
+**Acceptance:**
+- [x] History queries select `group_name`.
+- [x] `SummaryRow` includes `group_name: string | null`.
+- [x] History cards show a group-name badge only when `group_name` is present.
+- [x] `pnpm lint` passes after the history badge patch.
+- [x] `pnpm typecheck` passes after the history badge patch.
+
+#### GN4 - Verify and document the slice [Codex]
+**Why:** The story is only done when repo trackers and verification reflect the shipped metadata contract.
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes at the end.
+- [x] `pnpm typecheck` passes at the end.
+- [x] `pnpm build` passes at the end.
+- [x] `pnpm test` passes at the end.
+- [x] Progress and lessons are updated for the group-name prompt/storage slice.
+
 ## Story - Loading Skeleton Cleanup + Founder Page (2026-03-08) [IN PROGRESS]
 
 #### LF1 - Strip mascot-heavy loading UI from dashboard surfaces [Codex]

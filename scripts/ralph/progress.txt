@@ -231,3 +231,29 @@ scripts/ralph/progress.txt
 ### Patterns confirmed
 - PowerShell cleanup scripts for optional `.next` files must use `Test-Path` guards or they can fail npm pre-scripts even with `-ErrorAction SilentlyContinue`
 - Saved family-context arrays are a good fit for reusable user-entered suggestion lists when the page already fetches `family_context` on mount
+
+## Story: Group Name Prompt + Summary Tagging (2026-03-08)
+
+### What changed
+- `lib/family-context.ts`: saved `group_names` now count as real family-context signal and render into the AI prompt as `Known group names`
+- `supabase/migrations/2026030801_add_group_name_to_summaries.sql`: adds `summaries.group_name`
+- `app/api/summarize/route.ts` and `lib/server/summaries.ts`: text summaries now persist the selected `group_name` alongside the existing summary metadata
+- `app/(dashboard)/history/page.tsx`, `components/history/types.ts`, and `components/history/HistoryList.tsx`: history reads `group_name` and shows it as a badge when present
+
+### Files touched
+lib/family-context.ts, supabase/migrations/2026030801_add_group_name_to_summaries.sql,
+app/api/summarize/route.ts, lib/server/summaries.ts, app/(dashboard)/history/page.tsx,
+components/history/types.ts, components/history/HistoryList.tsx, tasks/todo.md,
+tasks/lessons.md, scripts/ralph/progress.txt
+
+### Verification
+- `pnpm lint` passed after the family-context patch
+- `pnpm typecheck` passed after the family-context patch
+- `pnpm lint` passed after the storage/history patch
+- `pnpm typecheck` passed after the storage/history patch
+- Final `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` all passed
+- History/save-path rollout safety was verified by handling a pre-migration `summaries.group_name` schema-cache miss during Playwright runs without regressing the new field when the column exists
+
+### Patterns confirmed
+- Family-context prompt signal must treat saved group names as first-class memory, not only teachers and recurring links
+- Summary metadata fields need migration, write-path, and read-path updates in the same slice or history UI will silently drift from the request contract

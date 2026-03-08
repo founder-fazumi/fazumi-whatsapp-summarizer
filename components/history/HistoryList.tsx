@@ -310,6 +310,11 @@ export function HistoryList({
                           year: "numeric",
                         })}
                       </p>
+                      {summary.group_name && (
+                        <span className="mt-2 inline-flex items-center rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--primary)]">
+                          {summary.group_name}
+                        </span>
+                      )}
                       {summary.source_kind === "zip" && (
                         <p className="mt-2 text-xs text-[var(--muted-foreground)]">
                           {[

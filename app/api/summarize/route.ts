@@ -86,6 +86,28 @@ function sleep(ms: number) {
   });
 }
 
+function isMissingSummaryGroupNameColumnError(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const code = error.code ?? "";
+  const message = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+
+  return (
+    message.includes("group_name") &&
+    (
+      code === "42703" ||
+      code === "PGRST204" ||
+      message.includes("schema cache") ||
+      message.includes("column") ||
+      message.includes("does not exist") ||
+      message.includes("could not find")
+    )
+  );
+}
+
 class PersistError extends Error {
   constructor(message: string, readonly code: string) {
     super(message);
@@ -190,6 +212,7 @@ async function saveSummary(
   charCount: number,
   options?: {
     groupId?: string | null;
+    groupName?: string | null;
   }
 ): Promise<string> {
   const admin = getAdminClient();
@@ -197,7 +220,7 @@ async function saveSummary(
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
-  const { data, error } = await admin.from("summaries").insert({
+  const buildInsertPayload = (includeGroupName: boolean) => ({
     user_id: userId,
     title: makeTitle(summary.tldr),
     tldr: summary.tldr,
@@ -212,8 +235,17 @@ async function saveSummary(
     chat_context: summary.chat_context,
     char_count: charCount,
     lang_detected: summary.lang_detected ?? "en",
+    ...(includeGroupName ? { group_name: options?.groupName ?? null } : {}),
     ...(options?.groupId ? { group_id: options.groupId, source_kind: "text" } : { source_kind: "text" }),
-  }).select("id").single<{ id: string }>();
+  });
+
+  let { data, error } = await admin.from("summaries").insert(buildInsertPayload(true))
+    .select("id").single<{ id: string }>();
+
+  if (error && isMissingSummaryGroupNameColumnError(error)) {
+    ({ data, error } = await admin.from("summaries").insert(buildInsertPayload(false))
+      .select("id").single<{ id: string }>());
+  }
 
   if (error || !data?.id) {
     throw new PersistError("Could not save summary.", "SUMMARY_SAVE_FAILED");
@@ -606,6 +638,7 @@ export async function POST(req: NextRequest) {
 
       savedId = await saveSummary(authedUserId, summary, charCount, {
         groupId,
+        groupName,
       });
       logger.info("db.summary_saved", {
         userId: authedUserId,

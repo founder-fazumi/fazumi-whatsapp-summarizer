@@ -14,14 +14,40 @@ function sanitizeSearch(value: string) {
   return value.trim().replace(/[,%]/g, " ");
 }
 
+function isMissingSummaryGroupNameColumnError(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const code = error.code ?? "";
+  const message = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+
+  return (
+    message.includes("group_name") &&
+    (
+      code === "42703" ||
+      code === "PGRST204" ||
+      message.includes("schema cache") ||
+      message.includes("column") ||
+      message.includes("does not exist") ||
+      message.includes("could not find")
+    )
+  );
+}
+
 function buildHistoryQuery(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
-  query: string
+  query: string,
+  includeGroupName = true
 ) {
+  const fields = includeGroupName
+    ? "id, title, tldr, created_at, char_count, group_name, lang_detected, source_kind, source_range, new_messages_count"
+    : "id, title, tldr, created_at, char_count, lang_detected, source_kind, source_range, new_messages_count";
   let request = supabase
     .from("summaries")
-    .select("id, title, tldr, created_at, char_count, lang_detected, source_kind, source_range, new_messages_count", { count: "exact" })
+    .select(fields, { count: "exact" })
     .eq("user_id", userId)
     .is("deleted_at", null);
 
@@ -30,6 +56,33 @@ function buildHistoryQuery(
   }
 
   return request.order("created_at", { ascending: false });
+}
+
+async function loadHistoryPage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  query: string,
+  from: number,
+  to: number
+) {
+  let response = await buildHistoryQuery(supabase, userId, query, true).range(from, to);
+
+  if (response.error && isMissingSummaryGroupNameColumnError(response.error)) {
+    response = await buildHistoryQuery(supabase, userId, query, false).range(from, to);
+    const fallbackRows = ((response.data ?? []) as unknown as Omit<SummaryRow, "group_name">[]);
+    return {
+      ...response,
+      data: fallbackRows.map((summary) => ({
+        ...summary,
+        group_name: null,
+      })),
+    };
+  }
+
+  return {
+    ...response,
+    data: (response.data as SummaryRow[] | null) ?? [],
+  };
 }
 
 export default async function HistoryPage({
@@ -55,7 +108,7 @@ export default async function HistoryPage({
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       const [initialResponse, { data: profile }, { data: subscriptions }] = await Promise.all([
-        buildHistoryQuery(supabase, user.id, query).range(from, to),
+        loadHistoryPage(supabase, user.id, query, from, to),
         supabase
           .from("profiles")
           .select("plan, trial_expires_at")
@@ -84,14 +137,17 @@ export default async function HistoryPage({
       if (totalCount > 0 && currentPage > totalPages) {
         currentPage = totalPages;
         const safeFrom = (currentPage - 1) * PAGE_SIZE;
-        response = await buildHistoryQuery(supabase, user.id, query).range(
+        response = await loadHistoryPage(
+          supabase,
+          user.id,
+          query,
           safeFrom,
           safeFrom + PAGE_SIZE - 1
         );
         totalCount = response.count ?? totalCount;
       }
 
-      summaries = (response.data as SummaryRow[] | null) ?? [];
+      summaries = response.data ?? [];
     }
   } catch {
     // Supabase not configured
