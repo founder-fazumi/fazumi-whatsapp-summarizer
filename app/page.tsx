@@ -122,6 +122,22 @@ const webSiteSchema = {
   url: APP_URL,
 };
 
+const homeWebPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": `${APP_URL}/#webpage`,
+  name: "Fazumi — School Chat Summarizer for Parents",
+  url: APP_URL,
+  description:
+    "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, fees, forms, supplies, and reminders.",
+  datePublished: "2026-02-27",
+  dateModified: "2026-03-07",
+  inLanguage: ["en", "ar"],
+  isPartOf: { "@id": `${APP_URL}/#website` },
+  about: { "@id": `${APP_URL}/#software` },
+  publisher: { "@id": `${APP_URL}/#organization` },
+};
+
 export default async function LandingPage() {
   // Server-side session check — users with an active paid entitlement or trial go straight to the app
   let isLoggedIn = false;
@@ -178,6 +194,10 @@ export default async function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homeWebPageSchema) }}
       />
       <Nav isLoggedIn={isLoggedIn} />
       <main>
