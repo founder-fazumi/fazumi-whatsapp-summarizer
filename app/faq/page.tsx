@@ -26,14 +26,6 @@ const faqPageSchema = {
     },
     {
       "@type": "Question",
-      name: "Which school chat apps does Fazumi support?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Fazumi supports pasted or uploaded school chat text from WhatsApp, Telegram, and Facebook Messenger. WhatsApp ZIP exports also support incremental uploads.",
-      },
-    },
-    {
-      "@type": "Question",
       name: "Is my chat data private?",
       acceptedAnswer: {
         "@type": "Answer",
@@ -46,6 +38,14 @@ const faqPageSchema = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Every new account starts with a 7-day free trial that includes 3 summaries per day. After the trial ends, you keep 3 lifetime free summaries unless you upgrade.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I share summaries with my spouse?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. You can export a summary as a plain-text file and share it via WhatsApp, Telegram, or any messaging app. Family sharing features are on the roadmap.",
       },
     },
     {
@@ -69,7 +69,7 @@ const faqPageSchema = {
       name: "How do I cancel my subscription?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel.",
+        text: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel. Paid access follows the latest subscription status, and billing recovery restores it once Lemon Squeezy marks the subscription active again.",
       },
     },
   ],

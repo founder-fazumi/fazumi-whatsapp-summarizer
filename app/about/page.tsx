@@ -15,19 +15,17 @@ import { pick } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
-const TODAY = new Date().toISOString().split("T")[0] ?? "2026-03-07";
 
-const personSchema = {
+const aboutOrgSchema = {
   "@context": "https://schema.org",
-  "@type": "Person",
-  name: "Fazumi Team",
-  jobTitle: "Founders",
+  "@type": "Organization",
+  name: "Fazumi",
+  url: APP_URL,
   description:
     "Parents based in Doha, Qatar, who built Fazumi after missing a school deadline buried in a WhatsApp group.",
-  worksFor: {
-    "@type": "Organization",
-    name: "Fazumi",
-    url: APP_URL,
+  foundingLocation: {
+    "@type": "Place",
+    name: "Doha, Qatar",
   },
   knowsAbout: [
     "School communication",
@@ -45,8 +43,8 @@ const aboutWebPageSchema = {
   description:
     "Fazumi was built by parents in Doha to turn noisy school WhatsApp chats into structured summaries.",
   datePublished: "2026-02-27",
-  dateModified: TODAY,
-  author: personSchema,
+  dateModified: "2026-03-07",
+  author: aboutOrgSchema,
   inLanguage: ["en", "ar"],
   breadcrumb: {
     "@type": "BreadcrumbList",
@@ -173,7 +171,7 @@ export default async function AboutPage() {
     >
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutOrgSchema) }}
       />
       <script
         type="application/ld+json"
