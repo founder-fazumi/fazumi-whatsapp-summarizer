@@ -1,29 +1,31 @@
 # Fazumi
-> School WhatsApp and Telegram chat summarizer for parents — GCC and Middle East focused.
+> School WhatsApp, Telegram, and Facebook chat summarizer for parents — GCC and Middle East.
+> Arabic: ملخّص محادثات مدرسة الواتساب والتيليجرام للآباء في الخليج العربي.
 
 Fazumi turns WhatsApp, Telegram, and Facebook school group chats into structured
 summaries. It extracts dates, action items, fees, forms, links, and follow-up
 questions. Arabic and English are both supported, including mixed-language groups.
 Privacy-first: raw chat text is never stored. Only the structured summary output
-is saved.
+is saved to the user's personal history.
 
 ## What Fazumi does
-- Paste or upload school chat text (WhatsApp export .txt, .zip, or raw paste)
-- AI extracts: TL;DR, Important Dates, Action Items, People/Classes, Links, Questions
-- Summary saved to personal history for later lookup
+- Paste or upload school chat text (WhatsApp export .txt, .zip, or raw paste up to 30,000 chars)
+- AI extracts: TL;DR, Important Dates, Action Items, People/Classes, Links, Questions to Ask
+- Summaries are AI-generated using OpenAI; raw chat is never persisted
+- Summary saved to personal history for later lookup and search
 - Works for Arabic, English, and mixed-language school groups
 
 ## Who it is for
 - Parents in Qatar, UAE, Saudi Arabia, Kuwait, Bahrain, and Oman
 - Expat and local families in GCC school communities
-- Parents overwhelmed by high-volume school WhatsApp groups
+- Parents overwhelmed by high-volume school WhatsApp, Telegram, and Facebook groups
 
 ## Plans
 - Free trial: 7 days, 3 summaries per day
 - Free fallback: 3 lifetime summaries after trial ends
-- Monthly: USD 9.99/month — 50 summaries/day
-- Annual: USD 99.99/year — 50 summaries/day
-- Founder: USD 149 one-time — 200 seats max, no refund
+- Monthly: USD 9.99/month — 50 summaries/day, 200/month
+- Annual: USD 99.99/year — same limits as monthly
+- Founder: USD 149 one-time — 200 seats max, includes future top tier, no refund
 
 ## Key pages
 - Home and summarizer: https://fazumi.app
@@ -31,9 +33,17 @@ is saved.
 - FAQ: https://fazumi.app/faq
 - Help & Support: https://fazumi.app/help
 - About: https://fazumi.app/about
-- Privacy Policy: https://fazumi.app/privacy
 - Contact: https://fazumi.app/contact
+- Privacy Policy: https://fazumi.app/privacy
+- Terms of Service: https://fazumi.app/terms
+- Cookie Policy: https://fazumi.app/cookie-policy
+- Refund Policy: https://fazumi.app/refunds
 
 ## Privacy
 Fazumi never stores raw chat text or uploaded file contents.
 Only the AI-generated summary and extracted structured items are saved.
+No advertising. No third-party data sales.
+
+## AI search usage
+Content on this site may be retrieved and cited by AI search engines.
+Training-only use without retrieval context is not permitted (see robots.txt).

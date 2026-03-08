@@ -4,6 +4,21 @@ export const metadata: Metadata = {
   title: { absolute: "Fazumi Terms of Service — School Chat Summarizer" },
   description:
     "Read the Fazumi Terms of Service. By using Fazumi you agree to these terms governing your account, subscriptions, and use of the service.",
+  openGraph: {
+    title: "Fazumi Terms of Service — School Chat Summarizer",
+    description:
+      "Read the Fazumi Terms of Service. By using Fazumi you agree to these terms governing your account, subscriptions, and use of the service.",
+    url: "/terms",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — School Chat Summarizer",
+      },
+    ],
+  },
   alternates: {
     canonical: "/terms",
     languages: { en: "/terms", ar: "/terms", "x-default": "/terms" },
@@ -11,7 +26,6 @@ export const metadata: Metadata = {
 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
-const TODAY = new Date().toISOString().split("T")[0] ?? "2026-03-08";
 
 const termsSchemas = [
   {
@@ -22,7 +36,7 @@ const termsSchemas = [
     description:
       "Read the Fazumi Terms of Service. By using Fazumi you agree to these terms governing your account, subscriptions, and use of the service.",
     datePublished: "2026-02-27",
-    dateModified: TODAY,
+    dateModified: "2026-02-27",
     inLanguage: ["en", "ar"],
   },
   {

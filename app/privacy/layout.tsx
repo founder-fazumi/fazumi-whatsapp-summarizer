@@ -4,6 +4,21 @@ export const metadata: Metadata = {
   title: { absolute: "Fazumi Privacy Policy — No Raw Chat Data Stored" },
   description:
     "Fazumi never stores your raw chat text. Read our Privacy Policy to understand exactly what data we collect and how we protect it.",
+  openGraph: {
+    title: "Fazumi Privacy Policy — No Raw Chat Data Stored",
+    description:
+      "Fazumi never stores your raw chat text. Read our Privacy Policy to understand exactly what data we collect and how we protect it.",
+    url: "/privacy",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — School Chat Summarizer",
+      },
+    ],
+  },
   alternates: {
     canonical: "/privacy",
     languages: { en: "/privacy", ar: "/privacy", "x-default": "/privacy" },
@@ -11,7 +26,6 @@ export const metadata: Metadata = {
 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
-const TODAY = new Date().toISOString().split("T")[0] ?? "2026-03-08";
 
 const privacySchemas = [
   {
@@ -22,7 +36,7 @@ const privacySchemas = [
     description:
       "Fazumi never stores your raw chat text. Read our Privacy Policy to understand exactly what data we collect and how we protect it.",
     datePublished: "2026-02-27",
-    dateModified: TODAY,
+    dateModified: "2026-02-27",
     inLanguage: ["en", "ar"],
   },
   {

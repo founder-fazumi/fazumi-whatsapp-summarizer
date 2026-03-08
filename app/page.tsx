@@ -12,6 +12,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
+  "@id": `${APP_URL}/#organization`,
   name: "Fazumi",
   url: APP_URL,
   logo: `${APP_URL}/brand/logo/fazumi-logo-256.png`,
@@ -97,6 +98,7 @@ const faqSchema = {
 const softwareSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
+  "@id": `${APP_URL}/#software`,
   name: "Fazumi",
   applicationCategory: "ProductivityApplication",
   operatingSystem: "Web",
@@ -115,6 +117,7 @@ const softwareSchema = {
 const webSiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
+  "@id": `${APP_URL}/#website`,
   name: "Fazumi",
   url: APP_URL,
   potentialAction: {

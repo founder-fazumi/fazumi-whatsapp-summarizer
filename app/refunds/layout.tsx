@@ -4,6 +4,21 @@ export const metadata: Metadata = {
   title: { absolute: "Fazumi Refund Policy — 7-Day Money-Back Guarantee" },
   description:
     "Fazumi's refund and cancellation policy for monthly, annual, and Founder plans. 7-day money-back on monthly and annual.",
+  openGraph: {
+    title: "Fazumi Refund Policy — 7-Day Money-Back Guarantee",
+    description:
+      "Fazumi's refund and cancellation policy for monthly, annual, and Founder plans. 7-day money-back on monthly and annual.",
+    url: "/refunds",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — School Chat Summarizer",
+      },
+    ],
+  },
   alternates: {
     canonical: "/refunds",
     languages: { en: "/refunds", ar: "/refunds", "x-default": "/refunds" },
@@ -11,7 +26,6 @@ export const metadata: Metadata = {
 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
-const TODAY = new Date().toISOString().split("T")[0] ?? "2026-03-08";
 
 const refundsSchemas = [
   {
@@ -22,7 +36,7 @@ const refundsSchemas = [
     description:
       "Fazumi's refund and cancellation policy for monthly, annual, and Founder plans. 7-day money-back on monthly and annual.",
     datePublished: "2026-02-27",
-    dateModified: TODAY,
+    dateModified: "2026-02-27",
     inLanguage: ["en", "ar"],
   },
   {

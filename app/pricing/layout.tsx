@@ -10,6 +10,14 @@ export const metadata: Metadata = {
       "Simple, transparent pricing for Fazumi. Start with a free 7-day trial. Upgrade to monthly or annual for unlimited school chat summaries.",
     url: "/pricing",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — School Chat Summarizer",
+      },
+    ],
   },
   alternates: {
     canonical: "/pricing",

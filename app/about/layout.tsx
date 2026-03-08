@@ -10,6 +10,14 @@ export const metadata: Metadata = {
       "Learn how Fazumi was built to help parents cut through noisy school WhatsApp groups and never miss an important update.",
     url: "/about",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — School Chat Summarizer",
+      },
+    ],
   },
   alternates: {
     canonical: "/about",

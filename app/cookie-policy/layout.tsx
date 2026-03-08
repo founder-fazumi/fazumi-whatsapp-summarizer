@@ -4,6 +4,21 @@ export const metadata: Metadata = {
   title: { absolute: "Fazumi Cookie Policy — Privacy-First School App" },
   description:
     "How Fazumi uses cookies and similar technologies to keep your preferences and session secure.",
+  openGraph: {
+    title: "Fazumi Cookie Policy — Privacy-First School App",
+    description:
+      "How Fazumi uses cookies and similar technologies to keep your preferences and session secure.",
+    url: "/cookie-policy",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — School Chat Summarizer",
+      },
+    ],
+  },
   alternates: {
     canonical: "/cookie-policy",
     languages: { en: "/cookie-policy", ar: "/cookie-policy", "x-default": "/cookie-policy" },
@@ -11,7 +26,6 @@ export const metadata: Metadata = {
 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
-const TODAY = new Date().toISOString().split("T")[0] ?? "2026-03-08";
 
 const cookiePolicySchemas = [
   {
@@ -22,7 +36,7 @@ const cookiePolicySchemas = [
     description:
       "How Fazumi uses cookies and similar technologies to keep your preferences and session secure.",
     datePublished: "2026-02-27",
-    dateModified: TODAY,
+    dateModified: "2026-02-27",
     inLanguage: ["en", "ar"],
   },
   {

@@ -10,6 +10,14 @@ export const metadata: Metadata = {
       "Practical guidance for getting started with Fazumi — uploads, privacy, language settings, billing, and troubleshooting common issues.",
     url: "/help",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — School Chat Summarizer",
+      },
+    ],
   },
   alternates: {
     canonical: "/help",
@@ -18,7 +26,6 @@ export const metadata: Metadata = {
 };
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
-const TODAY = new Date().toISOString().split("T")[0] ?? "2026-03-08";
 
 const helpSchemas = [
   {
@@ -29,7 +36,7 @@ const helpSchemas = [
     description:
       "Practical guidance for getting started with Fazumi — uploads, privacy, language settings, billing, and troubleshooting common issues.",
     datePublished: "2026-02-27",
-    dateModified: TODAY,
+    dateModified: "2026-03-07",
     inLanguage: ["en", "ar"],
   },
   {
