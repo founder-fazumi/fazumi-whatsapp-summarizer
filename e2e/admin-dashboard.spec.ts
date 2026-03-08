@@ -28,8 +28,10 @@ test("admin routes require explicit configured credentials before the dashboard 
   const env = await getDevEnv(request);
 
   if (!adminCredentials || !env.env.supabaseUrl || !env.env.serviceRole) {
-    const response = await page.goto("/admin_dashboard");
-    expect(response?.status()).toBe(404);
+    await page.goto("/admin_dashboard");
+    await expect(
+      page.getByRole("heading", { name: /Page not found|الصفحة غير موجودة/i })
+    ).toBeVisible();
     await expect(page).not.toHaveURL(/\/admin\/login/);
     return;
   }

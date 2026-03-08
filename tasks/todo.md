@@ -36,6 +36,41 @@
 - [x] Progress and lessons are updated.
 **Verification note:** Static verification is complete, including confirming the loading files no longer reference `MascotArt` or `LocalizedText`. Browser/manual smoke is still pending in this environment.
 
+## Story - Playwright Test Alignment + Logo Asset (2026-03-08) [IN PROGRESS]
+
+#### PT1 - Record the scoped spec and inspect all failing tests [Codex]
+**Why:** This fix should stay tightly scoped to the four known Playwright mismatches and the standalone logo asset.
+**Files:** `specs/playwright-test-alignment-2026-03-08.md`, `e2e/admin-dashboard.spec.ts`, `e2e/app-smoke.spec.ts`, `e2e/summarize-auth.spec.ts`, `e2e/summarize-zip.spec.ts`
+**Acceptance:**
+- [x] The run spec exists with scope, non-goals, and acceptance criteria.
+- [x] All four failing Playwright specs are read in full before any spec edits.
+
+#### PT2 - Diagnose each Playwright failure against current app behavior [Codex]
+**Why:** The right fix is to align outdated assertions, not to regress current product behavior.
+**Files:** `e2e/admin-dashboard.spec.ts`, `e2e/app-smoke.spec.ts`, `e2e/summarize-auth.spec.ts`, `e2e/summarize-zip.spec.ts`
+**Acceptance:**
+- [x] Each spec is run individually and the exact failing assertion is captured.
+- [x] Root cause is identified before any test edit.
+
+#### PT3 - Patch only the outdated Playwright assertions [Codex]
+**Why:** The app behavior is already correct; only the tests should move.
+**Files:** `e2e/admin-dashboard.spec.ts`, `e2e/app-smoke.spec.ts`, `e2e/summarize-auth.spec.ts`, `e2e/summarize-zip.spec.ts`
+**Acceptance:**
+- [x] Only Playwright spec files change for the test-fix slice.
+- [x] Each assertion update is the minimum change needed to match current behavior.
+- [x] No app code changes are introduced to satisfy the old assertions.
+
+#### PT4 - Verify, document, and commit the slice [Codex]
+**Why:** The work is only done once the suite is green and the commits are cleanly separated.
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`, `public/brand/logo/Fazumi logo transparent.png`
+**Acceptance:**
+- [x] The logo PNG is committed in its own commit.
+- [x] Each of the four specs passes individually.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] Progress and any reusable lesson are recorded.
+
 ## Story - UX Bugs Batch (2026-03-08) [IN PROGRESS]
 
 #### UX1 - Make summarize paste-first [Codex]

@@ -155,3 +155,9 @@ S010 = PENDING  # Referral system
 # Files: specs/founder-supporter-ux-phase-2.md, tasks/todo.md, app/layout.tsx, app/globals.css, lib/i18n.ts, components/layout/Sidebar.tsx, components/founder/FounderWelcomeModal.tsx, app/(dashboard)/dashboard/page.tsx, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint` and `pnpm typecheck` pass after the CSS section and again after the founder UI section. `pnpm build` passes. `pnpm test` still fails on pre-existing Playwright cases outside this slice: `e2e/admin-dashboard.spec.ts`, `e2e/app-smoke.spec.ts` summarize-save smoke, `e2e/summarize-auth.spec.ts`, and `e2e/summarize-zip.spec.ts`. Real-browser/manual founder smoke is still pending in this environment.
 # Pattern: keep founder-specific acknowledgement inside the existing shell, and use a browser-local "seen" flag for one-time celebratory UI that does not need to sync across devices or touch the database.
+
+# 2026-03-08
+# Playwright alignment slice completed: the transparent Fazumi logo asset is ready for its own commit, the four pre-existing Playwright failures are aligned to current admin, locale, summarize, and ZIP behavior, and repo verification is green again.
+# Files: specs/playwright-test-alignment-2026-03-08.md, tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt, e2e/admin-dashboard.spec.ts, e2e/app-smoke.spec.ts, e2e/summarize-auth.spec.ts, e2e/summarize-zip.spec.ts, public/brand/logo/Fazumi logo transparent.png
+# Verification: each target spec passes individually, then `pnpm lint`, `pnpm typecheck`, and `pnpm test` all pass.
+# Pattern: keep browser smoke tests aligned to current UI contracts with stable selectors and explicit seeded state when the test intent is not backend schema coverage.

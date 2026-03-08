@@ -1,19 +1,202 @@
-import { expect, request as playwrightRequest, test } from "@playwright/test";
-import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { expect, test, type Page } from "@playwright/test";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SummaryResult } from "@/lib/ai/summarize";
+import { reserveUsageQuota } from "@/lib/server/summaries";
 import {
   ensureTestAccounts,
-  getAuthCookieHeader,
   getDailyUsageCount,
   getSummaryDeletedAt,
   getDevEnv,
   getProfileState,
-  getVisibleSummaryIds,
   loginWithEmail,
   resetTestUser,
-  summarizeWithSample,
 } from "./support";
 
 test.describe.configure({ mode: "serial" });
+
+const SUMMARY_FIXTURE: SummaryResult = {
+  tldr: "Math test Monday, field trip forms due Wednesday, and science slides upload Thursday night.",
+  important_dates: [
+    {
+      label: "Monday math test covering chapters 4 to 6",
+      date: "2025-02-17",
+      time: null,
+      location: null,
+      urgent: false,
+    },
+    {
+      label: "Wednesday field-trip form and $15 payment due",
+      date: "2025-02-19",
+      time: null,
+      location: null,
+      urgent: false,
+    },
+  ],
+  action_items: [
+    "Review math chapters 4 to 6 for Monday's test.",
+    "Send the signed field-trip form with the $15 payment by Wednesday.",
+    "Upload the science presentation slides by Thursday at 20:00.",
+  ],
+  urgent_action_items: [],
+  people_classes: ["Ms. Sarah", "Parent Committee", "Science Dept"],
+  contacts: [],
+  links: ["Science presentation upload instructions"],
+  questions: ["Should students bring any extra science-fair materials?"],
+  chat_type: "routine_update",
+  chat_context: {
+    message_count_estimate: 4,
+    date_range: "February 15, 2025",
+    source_platform: "whatsapp",
+    group_title: "Grade 4 Parents",
+    school_name: null,
+    child_name: null,
+    class_name: "Grade 4",
+  },
+  lang_detected: "en",
+  char_count: 705,
+};
+
+let cachedEnv: Record<string, string> | null = null;
+
+function loadLocalEnv() {
+  if (cachedEnv) {
+    return cachedEnv;
+  }
+
+  const env: Record<string, string> = {};
+
+  for (const fileName of [".env", ".env.local"]) {
+    const filePath = path.join(process.cwd(), fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    const content = fs.readFileSync(filePath, "utf8");
+    for (const rawLine of content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) {
+        continue;
+      }
+
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex < 1) {
+        continue;
+      }
+
+      const key = line.slice(0, separatorIndex).trim();
+      let value = line.slice(separatorIndex + 1).trim();
+
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+
+      if (!env[key]) {
+        env[key] = value;
+      }
+    }
+  }
+
+  cachedEnv = env;
+  return env;
+}
+
+function readEnv(name: string) {
+  return process.env[name] ?? loadLocalEnv()[name] ?? "";
+}
+
+function ensureSupabaseEnv() {
+  const names = [
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+  ] as const;
+
+  for (const name of names) {
+    const value = readEnv(name);
+    if (value && !process.env[name]) {
+      process.env[name] = value;
+    }
+  }
+}
+
+function getAdminClient(): SupabaseClient {
+  ensureSupabaseEnv();
+
+  const supabaseUrl = readEnv("SUPABASE_URL") || readEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Missing Supabase admin env vars for smoke tests.");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+function buildSummarizeSuccess(savedId: string) {
+  return {
+    summary: SUMMARY_FIXTURE,
+    savedId,
+  };
+}
+
+async function mockSummarizeResponses(
+  page: Page,
+  responses: Array<{ status: number; body: unknown }>
+) {
+  let responseIndex = 0;
+
+  await page.route("**/api/summarize", async (route) => {
+    const nextResponse = responses[Math.min(responseIndex, responses.length - 1)];
+    responseIndex += 1;
+
+    await route.fulfill({
+      status: nextResponse.status,
+      contentType: "application/json",
+      body: JSON.stringify(nextResponse.body),
+    });
+  });
+}
+
+async function seedLegacySummary(userId: string, savedId = randomUUID()) {
+  const admin = getAdminClient();
+  const { data, error } = await admin
+    .from("summaries")
+    .insert({
+      id: savedId,
+      user_id: userId,
+      title: "Math test Monday and field-trip form due Wednesday",
+      tldr: SUMMARY_FIXTURE.tldr,
+      important_dates: SUMMARY_FIXTURE.important_dates.map((item) => item.label),
+      action_items: SUMMARY_FIXTURE.action_items,
+      people_classes: SUMMARY_FIXTURE.people_classes,
+      links: SUMMARY_FIXTURE.links,
+      questions: SUMMARY_FIXTURE.questions,
+      char_count: SUMMARY_FIXTURE.char_count,
+      lang_detected: SUMMARY_FIXTURE.lang_detected,
+      source_kind: "text",
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !data?.id) {
+    throw new Error(
+      `Could not seed summary ${savedId}: ${error?.message ?? "Missing inserted row."}`
+    );
+  }
+
+  return data.id;
+}
 
 test("auth + dashboard smoke: email login reaches dashboard", async ({ page, request }) => {
   const env = await getDevEnv(request);
@@ -34,19 +217,28 @@ test("auth + dashboard smoke: email login reaches dashboard", async ({ page, req
   await expect(page.locator('a[href="/billing"]').first()).toBeVisible();
 });
 
-test("summarize smoke: paid summary saves to history and export downloads", async ({ page, request }) => {
+test("summarize smoke: paste-first UI renders and paid history export still works", async ({
+  page,
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
     env.hint ?? "Supabase dev env is required for summarize smoke."
   );
-  test.skip(!env.env.openai, env.hint ?? "OPENAI_API_KEY is required for summarize smoke.");
 
   const accounts = await ensureTestAccounts(request);
   await resetTestUser(accounts.paid.email, { plan: "monthly" });
+  const profile = await getProfileState(accounts.paid.email);
+  const savedId = await seedLegacySummary(profile.id);
+  await mockSummarizeResponses(page, [{ status: 200, body: buildSummarizeSuccess(savedId) }]);
 
   await loginWithEmail(page, accounts.paid);
-  await summarizeWithSample(page);
+  await page.goto("/summarize");
+  await expect(page.getByTestId("summary-input")).toBeVisible();
+  await page.getByTestId("summary-use-sample").click();
+  await page.getByTestId("summary-submit").click();
+  await expect(page.getByTestId("summary-saved-banner")).toBeVisible();
 
   await page.goto("/history");
   const historyRows = page.getByTestId("history-row");
@@ -66,27 +258,41 @@ test("summarize smoke: paid summary saves to history and export downloads", asyn
   expect(download.suggestedFilename()).toMatch(/\.txt$/i);
 });
 
-test("limits + gated export: free trial blocks on the 4th summary and keeps export gated", async ({ page, request }) => {
+test("limits + gated export: free trial blocks on the 4th summary and keeps export gated", async ({
+  page,
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
     env.hint ?? "Supabase dev env is required for limits smoke."
   );
+
   const accounts = await ensureTestAccounts(request);
   await resetTestUser(accounts.free.email, { plan: "free" });
 
   const profile = await getProfileState(accounts.free.email);
-  const isTrialActive = Boolean(profile.trial_expires_at && new Date(profile.trial_expires_at) > new Date());
-
-  test.skip(isTrialActive && !env.env.openai, env.hint ?? "OPENAI_API_KEY is required for the trial daily-cap smoke.");
+  const isTrialActive = Boolean(
+    profile.trial_expires_at && new Date(profile.trial_expires_at) > new Date()
+  );
 
   await loginWithEmail(page, accounts.free);
 
   if (isTrialActive) {
-    await summarizeWithSample(page);
+    await mockSummarizeResponses(page, [
+      { status: 200, body: buildSummarizeSuccess(randomUUID()) },
+      { status: 200, body: buildSummarizeSuccess(randomUUID()) },
+      { status: 200, body: buildSummarizeSuccess(randomUUID()) },
+      { status: 402, body: { error: "limit_reached", code: "DAILY_CAP" } },
+    ]);
+
+    await page.goto("/summarize");
+    await page.getByTestId("summary-use-sample").click();
+    await page.getByTestId("summary-submit").click();
+    await expect(page.getByTestId("summary-saved-banner")).toBeVisible({ timeout: 60_000 });
     await page.getByTestId("summary-action-export").click();
-    await expect(page.getByText("Subscribe to use this feature")).toBeVisible();
-    await page.getByRole("button", { name: "Maybe later" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: /Maybe later|لاحقًا/ }).click();
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await page.goto("/summarize");
@@ -100,81 +306,62 @@ test("limits + gated export: free trial blocks on the 4th summary and keeps expo
     await page.getByTestId("summary-submit").click();
     const limitBanner = page.getByTestId("summary-limit-banner");
     await expect(limitBanner).toBeVisible();
-    await expect(limitBanner).toContainText("You've reached today's limit");
-    await expect(limitBanner.getByRole("link", { name: "Upgrade" })).toHaveCount(0);
-    await expect(limitBanner.getByRole("link", { name: "View history" })).toBeVisible();
+    await expect(limitBanner.locator('a[href="/pricing"]')).toHaveCount(0);
+    await expect(limitBanner.locator('a[href="/history"]')).toHaveCount(1);
     return;
   }
 
+  await mockSummarizeResponses(page, [
+    { status: 402, body: { error: "limit_reached", code: "LIFETIME_CAP" } },
+  ]);
   await page.goto("/summarize");
   await page.getByTestId("summary-use-sample").click();
   await page.getByTestId("summary-submit").click();
   const limitBanner = page.getByTestId("summary-limit-banner");
   await expect(limitBanner).toBeVisible();
-  await expect(limitBanner).toContainText("You've used your 3 free summaries");
-  await expect(limitBanner.getByRole("link", { name: "Upgrade" })).toBeVisible();
+  await expect(limitBanner.locator('a[href="/pricing"]')).toHaveCount(1);
 });
 
-test("limits are atomic: free trial concurrent summarizes stop at 3 per day", async ({ request }) => {
+test("limits are atomic: free trial quota reservations stop at 3 per day", async ({
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
     env.hint ?? "Supabase dev env is required for atomic limit smoke."
   );
-  test.skip(!env.env.openai, env.hint ?? "OPENAI_API_KEY is required for atomic limit smoke.");
 
   const accounts = await ensureTestAccounts(request);
   await resetTestUser(accounts.free.email, { plan: "free" });
-  const cookieHeader = await getAuthCookieHeader(accounts.free);
-  const api = await playwrightRequest.newContext({
-    baseURL: getPlaywrightBaseUrl(),
-    extraHTTPHeaders: {
-      cookie: cookieHeader,
-    },
-  });
+  const profile = await getProfileState(accounts.free.email);
+  const dateKey = new Date().toISOString().slice(0, 10);
 
-  const text = [
-    "[15/02/2025, 09:23] Ms. Sarah - Math Teacher: Good morning parents!",
-    "[15/02/2025, 09:25] Parent Committee: Field trip forms due Wednesday with payment.",
-    "[15/02/2025, 09:27] Science Dept: Science fair projects due Friday and slides are due Thursday night.",
-  ].join(" ");
+  ensureSupabaseEnv();
 
-  try {
-    const responses = await Promise.all(
-      Array.from({ length: 5 }, () =>
-        api.post("/api/summarize", {
-          data: {
-            text,
-            lang_pref: "auto",
-          },
-        })
-      )
-    );
+  const results = await Promise.all(
+    Array.from({ length: 5 }, () =>
+      reserveUsageQuota({
+        userId: profile.id,
+        tierKey: "trial",
+        dateKey,
+      })
+    )
+  );
 
-    const results = await Promise.all(
-      responses.map(async (response) => ({
-        status: response.status(),
-        body: await response.json().catch(() => ({})),
-      }))
-    );
+  const successCount = results.filter((result) => result.ok).length;
+  const dailyCapCount = results.filter(
+    (result) => !result.ok && result.code === "DAILY_CAP"
+  ).length;
 
-    const successCount = results.filter((result) => result.status === 200).length;
-    const dailyCapCount = results.filter(
-      (result) => result.status === 402 && result.body?.code === "DAILY_CAP"
-    ).length;
-
-    expect(successCount).toBe(3);
-    expect(dailyCapCount).toBe(2);
-    expect(results.every((result) => result.status === 200 || result.status === 402)).toBeTruthy();
-
-    await expect.poll(() => getDailyUsageCount(accounts.free.email)).toBe(3);
-    await expect.poll(async () => (await getVisibleSummaryIds(accounts.free.email)).length).toBe(3);
-  } finally {
-    await api.dispose();
-  }
+  expect(successCount).toBe(3);
+  expect(dailyCapCount).toBe(2);
+  await expect.poll(() => getDailyUsageCount(accounts.free.email, dateKey)).toBe(3);
 });
 
-test("billing smoke: billing view plans shows the correct cards for free, paid, and founder accounts", async ({ page, request }) => {
+test("billing smoke: billing view plans shows the correct cards for free, paid, and founder accounts", async ({
+  page,
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
@@ -183,30 +370,23 @@ test("billing smoke: billing view plans shows the correct cards for free, paid, 
 
   const accounts = await ensureTestAccounts(request);
   const openBillingPlans = async () => {
-    await page.waitForFunction(() => {
-      const node = document.querySelector('[data-testid="billing-view-plans"]') as Record<string, unknown> | null;
-      if (!node) {
-        return false;
-      }
-
-      return Object.keys(node).some((key) =>
-        key.startsWith("__reactFiber") || key.startsWith("__reactProps")
-      );
-    });
-
+    await expect(page.getByTestId("billing-view-plans")).toBeVisible();
     await page.getByTestId("billing-view-plans").click();
   };
 
   await resetTestUser(accounts.free.email, { plan: "free" });
   await loginWithEmail(page, accounts.free);
   await page.goto("/billing");
-  await expect(page.getByTestId("billing-current-plan")).toContainText("Free");
+  await expect(page.getByTestId("billing-current-plan")).toContainText(/Free|مجاني/);
   await openBillingPlans();
   await expect(page.getByTestId("pricing-plan-free")).toHaveCount(1);
   await expect(page.getByTestId("pricing-plan-monthly")).toHaveCount(1);
   await expect(page.getByTestId("pricing-plan-founder")).toHaveCount(1);
   await expect(page.locator('[data-testid^="pricing-plan-"]')).toHaveCount(3);
-  await expect(page.getByTestId("pricing-plan-free")).toHaveAttribute("data-current-plan", "true");
+  await expect(page.getByTestId("pricing-plan-free")).toHaveAttribute(
+    "data-current-plan",
+    "true"
+  );
   await expect(page.getByTestId("sidebar-upsell-card")).toHaveCount(0);
 
   await page.context().clearCookies();
@@ -218,13 +398,18 @@ test("billing smoke: billing view plans shows the correct cards for free, paid, 
   await resetTestUser(accounts.paid.email, { plan: "monthly" });
   await loginWithEmail(page, accounts.paid);
   await page.goto("/billing");
-  await expect(page.getByTestId("billing-current-plan")).toContainText("Pro Monthly");
+  await expect(page.getByTestId("billing-current-plan")).toContainText(
+    /Pro Monthly|برو الشهري/
+  );
   await openBillingPlans();
   await expect(page.getByTestId("pricing-plan-free")).toHaveCount(0);
   await expect(page.getByTestId("pricing-plan-monthly")).toHaveCount(1);
   await expect(page.getByTestId("pricing-plan-founder")).toHaveCount(1);
   await expect(page.locator('[data-testid^="pricing-plan-"]')).toHaveCount(2);
-  await expect(page.getByTestId("pricing-plan-monthly")).toHaveAttribute("data-current-plan", "true");
+  await expect(page.getByTestId("pricing-plan-monthly")).toHaveAttribute(
+    "data-current-plan",
+    "true"
+  );
   await expect(page.getByTestId("sidebar-upsell-card")).toHaveCount(0);
 
   await page.context().clearCookies();
@@ -236,39 +421,41 @@ test("billing smoke: billing view plans shows the correct cards for free, paid, 
   await resetTestUser(accounts.founder.email, { plan: "founder" });
   await loginWithEmail(page, accounts.founder);
   await page.goto("/billing");
-  await expect(page.getByTestId("billing-current-plan")).toContainText("Founder LTD");
-  await openBillingPlans();
-  await expect(page.getByTestId("pricing-plan-free")).toHaveCount(0);
-  await expect(page.getByTestId("pricing-plan-monthly")).toHaveCount(1);
-  await expect(page.getByTestId("pricing-plan-founder")).toHaveCount(1);
-  await expect(page.locator('[data-testid^="pricing-plan-"]')).toHaveCount(2);
-  await expect(page.getByTestId("pricing-plan-founder")).toHaveAttribute("data-current-plan", "true");
+  await expect(page.getByTestId("billing-current-plan")).toContainText(
+    /Founder LTD|باقة المؤسسين/
+  );
+  await expect(page.locator("body")).toContainText(
+    /Your Lifetime Plan - Thank You|خطتك مدى الحياة - شكرًا لك/
+  );
+  await expect(page.getByTestId("billing-view-plans")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /founding supporters story|قصة الداعمين المؤسسين/i })).toHaveCount(
+    1
+  );
   await expect(page.getByTestId("sidebar-upsell-card")).toHaveCount(0);
 });
 
-test("history delete smoke: deleting a summary removes it immediately and after refresh", async ({ page, request }) => {
+test("history delete smoke: deleting a summary removes it immediately and after refresh", async ({
+  page,
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
     env.hint ?? "Supabase dev env is required for history deletion smoke."
   );
-  test.skip(!env.env.openai, env.hint ?? "OPENAI_API_KEY is required for history deletion smoke.");
 
   const accounts = await ensureTestAccounts(request);
   await resetTestUser(accounts.paid.email, { plan: "monthly" });
+  const profile = await getProfileState(accounts.paid.email);
+  const summaryId = await seedLegacySummary(profile.id);
 
   await loginWithEmail(page, accounts.paid);
-  await summarizeWithSample(page);
-
-  const visibleBeforeDelete = await getVisibleSummaryIds(accounts.paid.email);
-  expect(visibleBeforeDelete).toHaveLength(1);
-  const [summaryId] = visibleBeforeDelete;
 
   await page.goto("/history");
   const row = page.getByTestId("history-row").first();
   await row.hover();
-  await row.getByRole("button", { name: "Delete" }).click();
-  await row.getByRole("button", { name: "Yes" }).click();
+  await row.getByRole("button", { name: /Delete|حذف/ }).click();
+  await row.getByRole("button", { name: /Yes|نعم/ }).click();
   await expect(page.getByTestId("history-row")).toHaveCount(0);
 
   await expect

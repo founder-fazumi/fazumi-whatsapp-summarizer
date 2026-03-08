@@ -191,3 +191,11 @@
 **Quick test:** In Arabic mode, inspect `.font-arabic` plus `.text-xs` labels on a narrow viewport and confirm body text sits at `line-height: 1.8` while the smallest text renders at `line-height: 2`.
 
 ---
+
+## L024 — Playwright smoke tests should target stable contracts, not dev-only status codes or locale-specific copy
+**Mistake:** The pre-existing smoke suite hard-coded English UI strings, assumed App Router `notFound()` would surface as HTTP 404 in Playwright dev runs, and depended on live summary persistence even when the dev database schema lagged behind the app contract.
+**Why:** The tests mixed several concerns at once: localized UI copy, Next.js dev-server behavior, and backend persistence details that were not the intent of each smoke assertion.
+**Rule:** For Playwright smoke coverage, prefer stable selectors, hrefs, and bilingual-safe assertions. When a test is verifying UI structure or gating behavior, seed or mock non-target backend dependencies instead of coupling the smoke path to unrelated schema drift.
+**Quick test:** Run `pnpm test` with Arabic as the first-render locale and a dev database that is missing optional summary columns; the smoke suite should still verify the intended UI contracts without failing on unrelated copy or save-path assumptions.
+
+---

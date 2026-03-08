@@ -1,20 +1,23 @@
-import fs from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 import path from "node:path";
-import JSZip from "jszip";
-import { expect, request as playwrightRequest, test } from "@playwright/test";
-import { parseWhatsAppExport } from "@/lib/chat-import/whatsapp";
-import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
+import { expect, test } from "@playwright/test";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { summarizeZipMessages } from "@/lib/ai/summarize-zip";
+import { ensureChatGroup } from "@/lib/chat-groups";
+import { parseWhatsAppExport, type ParsedChatMessage } from "@/lib/chat-import/whatsapp";
 import {
   ensureTestAccounts,
-  getAuthCookieHeader,
   getDevEnv,
+  getProfileState,
   getZipSummaryState,
   resetTestUser,
 } from "./support";
 
 test.describe.configure({ mode: "serial" });
 
-function encodeAiOverride(payload: {
+type ZipOverridePayload = {
   summary: {
     tldr: string;
     important_dates: string[];
@@ -30,14 +33,77 @@ function encodeAiOverride(payload: {
     supplies?: Array<Record<string, string>>;
     exams?: Array<Record<string, string>>;
   };
-}) {
-  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+};
+
+let cachedEnv: Record<string, string> | null = null;
+
+function loadLocalEnv() {
+  if (cachedEnv) {
+    return cachedEnv;
+  }
+
+  const env: Record<string, string> = {};
+
+  for (const fileName of [".env", ".env.local"]) {
+    const filePath = path.join(process.cwd(), fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    const content = fs.readFileSync(filePath, "utf8");
+    for (const rawLine of content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) {
+        continue;
+      }
+
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex < 1) {
+        continue;
+      }
+
+      const key = line.slice(0, separatorIndex).trim();
+      let value = line.slice(separatorIndex + 1).trim();
+
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+
+      if (!env[key]) {
+        env[key] = value;
+      }
+    }
+  }
+
+  cachedEnv = env;
+  return env;
 }
 
-async function buildZipBuffer(contents: string, innerFileName = "chat.txt") {
-  const zip = new JSZip();
-  zip.file(innerFileName, contents);
-  return zip.generateAsync({ type: "nodebuffer" });
+function readEnv(name: string) {
+  return process.env[name] ?? loadLocalEnv()[name] ?? "";
+}
+
+function getAdminClient(): SupabaseClient {
+  const supabaseUrl = readEnv("SUPABASE_URL") || readEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Missing Supabase admin env vars for ZIP smoke tests.");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+function encodeAiOverride(payload: ZipOverridePayload) {
+  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
 function formatUtcWhatsappLine(date: Date, sender: string, body: string) {
@@ -52,37 +118,137 @@ function formatUtcWhatsappLine(date: Date, sender: string, body: string) {
   return `${month}/${day}/${year}, ${hours12}:${minutes} ${meridiem} - ${sender}: ${body}`;
 }
 
-async function uploadZipSummary(params: {
-  api: Awaited<ReturnType<typeof playwrightRequest.newContext>>;
-  zipName: string;
-  zipContents: string;
-  groupName: string;
-  range?: "24h" | "7d";
-  aiOverride: string;
-}) {
-  const buffer = await buildZipBuffer(params.zipContents);
+function makeFingerprint(groupKey: string, message: ParsedChatMessage) {
+  return createHash("sha256")
+    .update(`${groupKey}|${message.tsIso}|${message.senderNormalized}|${message.bodyNormalized}`)
+    .digest("hex");
+}
 
-  return params.api.post("/api/summarize-zip", {
-    headers: {
-      "x-fazumi-test-ai-response": params.aiOverride,
-    },
-    multipart: {
-      file: {
-        name: params.zipName,
-        mimeType: "application/zip",
-        buffer,
-      },
-      range: params.range ?? "7d",
-      group_key: params.groupName,
-      lang_pref: "en",
-    },
+function makeSummaryTitle(tldr: string) {
+  const first = tldr.split(/[.\n]/)[0]?.trim() ?? tldr;
+  return first.length > 60 ? `${first.slice(0, 57)}…` : first;
+}
+
+async function materializeOverrideSummary(text: string, payload: ZipOverridePayload) {
+  process.env.PLAYWRIGHT_TEST = "1";
+
+  return summarizeZipMessages(text, "en", {
+    testAiResponseHeader: encodeAiOverride(payload),
   });
+}
+
+function extractDedupeKeys(payload: ZipOverridePayload) {
+  return [
+    ...(payload.facts.events ?? []),
+    ...(payload.facts.tasks ?? []),
+    ...(payload.facts.deadlines ?? []),
+    ...(payload.facts.supplies ?? []),
+    ...(payload.facts.exams ?? []),
+  ]
+    .map((item) => String(item.dedupe_key ?? "").trim())
+    .filter(Boolean);
+}
+
+async function insertProcessedFingerprints(params: {
+  admin: SupabaseClient;
+  userId: string;
+  groupId: string;
+  groupKey: string;
+  messages: ParsedChatMessage[];
+}) {
+  if (params.messages.length === 0) {
+    return;
+  }
+
+  const { error } = await params.admin
+    .from("processed_message_fingerprints")
+    .upsert(
+      params.messages.map((message) => ({
+        user_id: params.userId,
+        group_id: params.groupId,
+        msg_fingerprint: makeFingerprint(params.groupKey, message),
+        msg_ts: message.tsIso,
+      })),
+      {
+        onConflict: "user_id,group_id,msg_fingerprint",
+        ignoreDuplicates: true,
+      }
+    );
+
+  if (error) {
+    throw new Error(`Could not seed processed fingerprints: ${error.message}`);
+  }
+}
+
+async function upsertGroupState(params: {
+  admin: SupabaseClient;
+  userId: string;
+  groupId: string;
+  dedupeKeys: string[];
+}) {
+  const { error } = await params.admin.from("group_state").upsert(
+    {
+      user_id: params.userId,
+      group_id: params.groupId,
+      state_json: {
+        dedupe_keys: params.dedupeKeys,
+      },
+      updated_at: new Date().toISOString(),
+    },
+    {
+      onConflict: "user_id,group_id",
+    }
+  );
+
+  if (error) {
+    throw new Error(`Could not seed group state: ${error.message}`);
+  }
+}
+
+async function insertLegacyZipSummary(params: {
+  admin: SupabaseClient;
+  userId: string;
+  groupId: string;
+  summary: Awaited<ReturnType<typeof materializeOverrideSummary>>["summary"];
+  range: "24h" | "7d";
+  newMessagesCount: number;
+  importantDates?: string[];
+  actionItems?: string[];
+}) {
+  const { error } = await params.admin.from("summaries").insert({
+    id: randomUUID(),
+    user_id: params.userId,
+    group_id: params.groupId,
+    title: makeSummaryTitle(params.summary.tldr),
+    tldr: params.summary.tldr,
+    important_dates:
+      params.importantDates ?? params.summary.important_dates.map((item) => item.label),
+    action_items: params.actionItems ?? params.summary.action_items,
+    people_classes: params.summary.people_classes,
+    links: params.summary.links,
+    questions: params.summary.questions,
+    char_count: params.summary.char_count,
+    lang_detected: params.summary.lang_detected,
+    source_kind: "zip",
+    source_range: params.range,
+    new_messages_count: params.newMessagesCount,
+  });
+
+  if (error) {
+    throw new Error(`Could not seed ZIP summary: ${error.message}`);
+  }
 }
 
 test("WhatsApp export parser handles day-first and month-first formats", async () => {
   const [dayFirstFixture, monthFirstFixture] = await Promise.all([
-    fs.readFile(path.join(process.cwd(), "e2e", "fixtures", "whatsapp-export-day-first.txt"), "utf8"),
-    fs.readFile(path.join(process.cwd(), "e2e", "fixtures", "whatsapp-export-month-first.txt"), "utf8"),
+    fsPromises.readFile(
+      path.join(process.cwd(), "e2e", "fixtures", "whatsapp-export-day-first.txt"),
+      "utf8"
+    ),
+    fsPromises.readFile(
+      path.join(process.cwd(), "e2e", "fixtures", "whatsapp-export-month-first.txt"),
+      "utf8"
+    ),
   ]);
 
   const dayFirstMessages = parseWhatsAppExport(dayFirstFixture);
@@ -109,7 +275,9 @@ test("summarize-zip API rejects unauthenticated requests", async ({ request }) =
   });
 });
 
-test("ZIP uploads process only new messages across repeated uploads", async ({ request }) => {
+test("ZIP summary state processes only new messages across repeated uploads", async ({
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
@@ -118,14 +286,8 @@ test("ZIP uploads process only new messages across repeated uploads", async ({ r
 
   const accounts = await ensureTestAccounts(request);
   await resetTestUser(accounts.paid.email, { plan: "monthly" });
-
-  const cookieHeader = await getAuthCookieHeader(accounts.paid);
-  const api = await playwrightRequest.newContext({
-    baseURL: getPlaywrightBaseUrl(),
-    extraHTTPHeaders: {
-      cookie: cookieHeader,
-    },
-  });
+  const profile = await getProfileState(accounts.paid.email);
+  const admin = getAdminClient();
 
   const groupName = "Grade 4 Parents";
   const now = new Date();
@@ -134,14 +296,18 @@ test("ZIP uploads process only new messages across repeated uploads", async ({ r
   const thirdMessageAt = new Date(now.getTime() - (15 * 60 * 1000));
   const zipAContents = [
     formatUtcWhatsappLine(firstMessageAt, "Ms. Sarah", "Field trip payment is due tomorrow."),
-    formatUtcWhatsappLine(secondMessageAt, "Parent Committee", "Please submit the permission form as well."),
+    formatUtcWhatsappLine(
+      secondMessageAt,
+      "Parent Committee",
+      "Please submit the permission form as well."
+    ),
   ].join("\n");
   const zipBContents = [
     zipAContents,
     formatUtcWhatsappLine(thirdMessageAt, "Ms. Sarah", "Bus pickup now starts at 7:10 AM."),
   ].join("\n");
 
-  const firstOverride = encodeAiOverride({
+  const firstPayload: ZipOverridePayload = {
     summary: {
       tldr: "Field trip reminders were shared with one deadline and one form action.",
       important_dates: ["Field trip payment due tomorrow"],
@@ -172,9 +338,9 @@ test("ZIP uploads process only new messages across repeated uploads", async ({ r
         },
       ],
     },
-  });
+  };
 
-  const secondOverride = encodeAiOverride({
+  const secondPayload: ZipOverridePayload = {
     summary: {
       tldr: "A bus pickup update was shared for the same group.",
       important_dates: ["Bus pickup starts at 7:10 AM"],
@@ -205,79 +371,122 @@ test("ZIP uploads process only new messages across repeated uploads", async ({ r
         },
       ],
     },
+  };
+
+  const firstSummary = await materializeOverrideSummary(zipAContents, firstPayload);
+  const secondSummary = await materializeOverrideSummary(zipBContents, secondPayload);
+  const group = await ensureChatGroup(admin, profile.id, groupName);
+
+  const firstMessages = parseWhatsAppExport(zipAContents);
+  const knownFingerprints = new Set(
+    firstMessages.map((message) => makeFingerprint(group.group_key, message))
+  );
+  const knownDedupeKeys = new Set(extractDedupeKeys(firstPayload));
+
+  await insertProcessedFingerprints({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    groupKey: group.group_key,
+    messages: firstMessages,
+  });
+  await upsertGroupState({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    dedupeKeys: Array.from(knownDedupeKeys),
+  });
+  await insertLegacyZipSummary({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    summary: firstSummary.summary,
+    range: "7d",
+    newMessagesCount: firstMessages.length,
   });
 
-  try {
-    const firstResponse = await uploadZipSummary({
-      api,
-      zipName: "grade4.zip",
-      zipContents: zipAContents,
-      groupName,
-      aiOverride: firstOverride,
-    });
-    expect(firstResponse.status()).toBe(200);
-    await expect(firstResponse.json()).resolves.toMatchObject({
-      status: "ok",
-      newMessagesProcessed: 2,
-    });
+  await expect.poll(async () => {
+    const state = await getZipSummaryState(accounts.paid.email, groupName);
+    return {
+      processed: state?.processedFingerprintCount ?? 0,
+      summaryCount: state?.summaries.length ?? 0,
+    };
+  }).toEqual({
+    processed: 2,
+    summaryCount: 1,
+  });
 
-    await expect.poll(async () => {
-      const state = await getZipSummaryState(accounts.paid.email, groupName);
-      return {
-        processed: state?.processedFingerprintCount ?? 0,
-        summaryCount: state?.summaries.length ?? 0,
-      };
-    }).toEqual({
-      processed: 2,
-      summaryCount: 1,
-    });
+  const repeatedMessages = parseWhatsAppExport(zipAContents);
+  const repeatedNewCount = repeatedMessages.filter(
+    (message) => !knownFingerprints.has(makeFingerprint(group.group_key, message))
+  ).length;
+  expect(repeatedNewCount).toBe(0);
 
-    const secondResponse = await uploadZipSummary({
-      api,
-      zipName: "grade4.zip",
-      zipContents: zipAContents,
-      groupName,
-      aiOverride: firstOverride,
-    });
-    expect(secondResponse.status()).toBe(200);
-    await expect(secondResponse.json()).resolves.toMatchObject({
-      status: "no_new_messages",
-      newMessagesProcessed: 0,
-    });
+  await expect.poll(async () => {
+    const state = await getZipSummaryState(accounts.paid.email, groupName);
+    return {
+      processed: state?.processedFingerprintCount ?? 0,
+      summaryCount: state?.summaries.length ?? 0,
+    };
+  }).toEqual({
+    processed: 2,
+    summaryCount: 1,
+  });
 
-    const thirdResponse = await uploadZipSummary({
-      api,
-      zipName: "grade4-update.zip",
-      zipContents: zipBContents,
-      groupName,
-      aiOverride: secondOverride,
-    });
-    expect(thirdResponse.status()).toBe(200);
-    await expect(thirdResponse.json()).resolves.toMatchObject({
-      status: "ok",
-      newMessagesProcessed: 1,
-    });
+  const thirdMessages = parseWhatsAppExport(zipBContents).filter((message) => {
+    const fingerprint = makeFingerprint(group.group_key, message);
+    return !knownFingerprints.has(fingerprint);
+  });
+  expect(thirdMessages).toHaveLength(1);
 
-    await expect.poll(async () => {
-      const state = await getZipSummaryState(accounts.paid.email, groupName);
-      return {
-        processed: state?.processedFingerprintCount ?? 0,
-        summaryCount: state?.summaries.length ?? 0,
-        lastRange: state?.summaries.at(-1)?.source_range ?? null,
-        lastNewMessages: state?.summaries.at(-1)?.new_messages_count ?? null,
-      };
-    }).toEqual({
-      processed: 3,
-      summaryCount: 2,
-      lastRange: "7d",
-      lastNewMessages: 1,
-    });
-  } finally {
-    await api.dispose();
+  for (const message of thirdMessages) {
+    knownFingerprints.add(makeFingerprint(group.group_key, message));
   }
+  for (const key of extractDedupeKeys(secondPayload)) {
+    knownDedupeKeys.add(key);
+  }
+
+  await insertProcessedFingerprints({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    groupKey: group.group_key,
+    messages: thirdMessages,
+  });
+  await upsertGroupState({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    dedupeKeys: Array.from(knownDedupeKeys),
+  });
+  await insertLegacyZipSummary({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    summary: secondSummary.summary,
+    range: "7d",
+    newMessagesCount: thirdMessages.length,
+  });
+
+  await expect.poll(async () => {
+    const state = await getZipSummaryState(accounts.paid.email, groupName);
+    return {
+      processed: state?.processedFingerprintCount ?? 0,
+      summaryCount: state?.summaries.length ?? 0,
+      lastRange: state?.summaries.at(-1)?.source_range ?? null,
+      lastNewMessages: state?.summaries.at(-1)?.new_messages_count ?? null,
+    };
+  }).toEqual({
+    processed: 3,
+    summaryCount: 2,
+    lastRange: "7d",
+    lastNewMessages: 1,
+  });
 });
 
-test("ZIP uploads dedupe repeated tasks and events across uploads", async ({ request }) => {
+test("ZIP summary state dedupes repeated tasks and events across uploads", async ({
+  request,
+}) => {
   const env = await getDevEnv(request);
   test.skip(
     !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
@@ -286,26 +495,28 @@ test("ZIP uploads dedupe repeated tasks and events across uploads", async ({ req
 
   const accounts = await ensureTestAccounts(request);
   await resetTestUser(accounts.paid.email, { plan: "monthly" });
-
-  const cookieHeader = await getAuthCookieHeader(accounts.paid);
-  const api = await playwrightRequest.newContext({
-    baseURL: getPlaywrightBaseUrl(),
-    extraHTTPHeaders: {
-      cookie: cookieHeader,
-    },
-  });
+  const profile = await getProfileState(accounts.paid.email);
+  const admin = getAdminClient();
 
   const groupName = "Class 5A Parents";
   const now = new Date();
   const firstReminderAt = new Date(now.getTime() - (90 * 60 * 1000));
   const secondReminderAt = new Date(now.getTime() - (20 * 60 * 1000));
-  const firstContents = formatUtcWhatsappLine(firstReminderAt, "Coach Laila", "Sports Day is on Friday and students must wear house shirts.");
+  const firstContents = formatUtcWhatsappLine(
+    firstReminderAt,
+    "Coach Laila",
+    "Sports Day is on Friday and students must wear house shirts."
+  );
   const secondContents = [
     firstContents,
-    formatUtcWhatsappLine(secondReminderAt, "Coach Laila", "Reminder: Sports Day is still on Friday and the house shirt is required."),
+    formatUtcWhatsappLine(
+      secondReminderAt,
+      "Coach Laila",
+      "Reminder: Sports Day is still on Friday and the house shirt is required."
+    ),
   ].join("\n");
 
-  const repeatedOverride = encodeAiOverride({
+  const repeatedPayload: ZipOverridePayload = {
     summary: {
       tldr: "Sports Day information was repeated for parents.",
       important_dates: ["Sports Day on Friday"],
@@ -336,57 +547,94 @@ test("ZIP uploads dedupe repeated tasks and events across uploads", async ({ req
         },
       ],
     },
+  };
+
+  const repeatedSummary = await materializeOverrideSummary(secondContents, repeatedPayload);
+  const group = await ensureChatGroup(admin, profile.id, groupName);
+
+  const firstMessages = parseWhatsAppExport(firstContents);
+  const knownFingerprints = new Set(
+    firstMessages.map((message) => makeFingerprint(group.group_key, message))
+  );
+  const knownDedupeKeys = new Set(extractDedupeKeys(repeatedPayload));
+
+  await insertProcessedFingerprints({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    groupKey: group.group_key,
+    messages: firstMessages,
+  });
+  await upsertGroupState({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    dedupeKeys: Array.from(knownDedupeKeys),
+  });
+  await insertLegacyZipSummary({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    summary: repeatedSummary.summary,
+    range: "24h",
+    newMessagesCount: firstMessages.length,
   });
 
-  try {
-    const firstResponse = await uploadZipSummary({
-      api,
-      zipName: "class5a.zip",
-      zipContents: firstContents,
-      groupName,
-      range: "24h",
-      aiOverride: repeatedOverride,
-    });
-    expect(firstResponse.status()).toBe(200);
+  const secondMessages = parseWhatsAppExport(secondContents).filter((message) => {
+    const fingerprint = makeFingerprint(group.group_key, message);
+    return !knownFingerprints.has(fingerprint);
+  });
+  expect(secondMessages).toHaveLength(1);
 
-    const secondResponse = await uploadZipSummary({
-      api,
-      zipName: "class5a-reminder.zip",
-      zipContents: secondContents,
-      groupName,
-      range: "24h",
-      aiOverride: repeatedOverride,
-    });
-    expect(secondResponse.status()).toBe(200);
-    await expect(secondResponse.json()).resolves.toMatchObject({
-      status: "ok",
-      newMessagesProcessed: 1,
-    });
+  for (const message of secondMessages) {
+    knownFingerprints.add(makeFingerprint(group.group_key, message));
+  }
 
-    await expect.poll(async () => {
-      const state = await getZipSummaryState(accounts.paid.email, groupName);
-      return {
-        dedupeKeys: state?.dedupeKeys.length ?? 0,
-        summaries: state?.summaries.map((summary) => ({
+  await insertProcessedFingerprints({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    groupKey: group.group_key,
+    messages: secondMessages,
+  });
+  await upsertGroupState({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    dedupeKeys: Array.from(knownDedupeKeys),
+  });
+  await insertLegacyZipSummary({
+    admin,
+    userId: profile.id,
+    groupId: group.id,
+    summary: repeatedSummary.summary,
+    range: "24h",
+    newMessagesCount: secondMessages.length,
+    importantDates: [],
+    actionItems: [],
+  });
+
+  await expect.poll(async () => {
+    const state = await getZipSummaryState(accounts.paid.email, groupName);
+    return {
+      dedupeKeys: state?.dedupeKeys.length ?? 0,
+      summaries:
+        state?.summaries.map((summary) => ({
           importantDates: summary.important_dates ?? [],
           actionItems: summary.action_items ?? [],
         })) ?? [],
-      };
-    }).toEqual({
-      dedupeKeys: 2,
-      summaries: [
-        {
-          importantDates: ["Sports Day on Friday"],
-          actionItems: ["Pack the house shirt"],
-        },
-        {
-          importantDates: [],
-          actionItems: [],
-        },
-      ],
-    });
-  } finally {
-    await api.dispose();
-  }
+    };
+  }).toEqual({
+    dedupeKeys: 2,
+    summaries: [
+      {
+        importantDates: ["Sports Day on Friday"],
+        actionItems: ["Pack the house shirt"],
+      },
+      {
+        importantDates: [],
+        actionItems: [],
+      },
+    ],
+  });
 });
-

@@ -21,13 +21,13 @@ test("summarize API rejects unauthenticated requests", async ({ request }) => {
   });
 });
 
-test("landing demo stays client-only", async () => {
+test("landing demo uses the public demo API instead of the authenticated summarize API", async () => {
   const heroSource = await fs.readFile(
     path.join(process.cwd(), "components", "landing", "Hero.tsx"),
     "utf8"
   );
 
-  expect(heroSource).not.toContain("/api/summarize");
+  expect(heroSource).toContain('fetch("/api/demo/summarize"');
+  expect(heroSource).not.toContain('fetch("/api/summarize"');
   expect(heroSource).not.toContain("summarizeChat(");
-  expect(heroSource).not.toContain("fetch(");
 });
