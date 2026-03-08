@@ -1774,6 +1774,19 @@ console.error(JSON.stringify({
 
 ---
 
+## System: Web Push Notifications (morning digest)
+
+> Status: Implemented. Documented in `scripts/schedule-morning-digest.ts`.
+> Requires VAPID keys in env. Schedule via Vercel Cron or external scheduler.
+
+- [x] WP1 — Morning digest script (`pnpm push:morning-digest`) sends timezone-aware push
+- [x] WP2 — `lib/push/server.ts` pulls structured summary data (no raw chat)
+- [x] WP3 — VAPID env vars documented in `.env.local.example`
+- [ ] WP4 — Vercel Cron configured to fire at 07:00 UTC daily (manual step at deploy)
+- [ ] WP5 — Opt-in UI: user can enable/disable morning digest in `/settings`
+
+---
+
 ## Backlog (do not commit to these now)
 
 > These are worth knowing about but should NOT be built until MVP revenue is stable and the trigger is clear.
