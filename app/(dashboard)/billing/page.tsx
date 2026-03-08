@@ -3,6 +3,7 @@ import { BillingPlansPanel } from "@/components/billing/BillingPlansPanel";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { CreditCard, Check, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
 import {
@@ -132,6 +133,7 @@ export default async function BillingPage() {
 
   const planInfo = PLAN_LABELS[billingPlan] ?? PLAN_LABELS.free;
   const features = PLAN_FEATURES[billingPlan] ?? PLAN_FEATURES.free;
+  const isFounderPlan = billingPlan === "founder";
   const isTrialActive = !hasPaidAccess && !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
   const isPastDue = subscriptionStatus === "past_due";
   const statusLabel = subscriptionStatus ? STATUS_LABELS[subscriptionStatus] ?? null : null;
@@ -259,11 +261,35 @@ export default async function BillingPage() {
               </ul>
             </div>
 
-            <BillingPlansPanel
-              isLoggedIn={isLoggedIn}
-              plan={billingPlan}
-              portalUrl={portalUrl}
-            />
+            {isFounderPlan && (
+              <div className="rounded-[var(--radius-xl)] border border-amber-400 bg-amber-50 px-4 py-4 text-sm text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="font-semibold">
+                  <LocalizedText en="Your Lifetime Plan - Thank You" ar="خطتك مدى الحياة - شكرًا لك" />
+                </p>
+                <p className="mt-1.5 leading-6 text-amber-900 dark:text-amber-100/90">
+                  <LocalizedText
+                    en="You are one of the founding supporters who made Fazumi possible. Your access never expires and you'll receive every future feature we ship."
+                    ar="أنت من الداعمين المؤسسين الذين جعلوا Fazumi ممكنًا. وصولك لا ينتهي أبدًا وستحصل على كل ميزة مستقبلية نطلقها."
+                  />
+                </p>
+                <div className="mt-3">
+                  <Link
+                    href="/founder"
+                    className="text-sm font-medium text-amber-700 underline underline-offset-2 dark:text-amber-300"
+                  >
+                    <LocalizedText en="Read our founding supporters story →" ar="← اقرأ قصة الداعمين المؤسسين" />
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {!isFounderPlan && (
+              <BillingPlansPanel
+                isLoggedIn={isLoggedIn}
+                plan={billingPlan}
+                portalUrl={portalUrl}
+              />
+            )}
 
             <p className="text-xs text-[var(--muted-foreground)]">
               <LocalizedText

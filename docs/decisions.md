@@ -186,3 +186,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep route-specific JSON-LD as inline `<script type="application/ld+json">` blocks rendered directly from the page or layout boundary. Do not rewrite a client page into a server component solely to add static schema.
 **Consequences:** `/faq` can keep its existing `useLang()` client logic while still shipping `FAQPage`, `BreadcrumbList`, and `WebPage` schema. Future public SEO schema should prefer boundary-level inline scripts before changing component ownership.
 
+---
+
+## D021 - Founder recognition stays in the dashboard shell and uses browser-local welcome state
+**Date:** 2026-03-08
+**Context:** Founder users already had billing recognition plus a dedicated `/founder` story page, but they still lacked a persistent in-shell route entry point and a first-time acknowledgement inside the dashboard itself.
+**Decision:** Keep founder recognition in the existing dashboard shell by adding a founder-only sidebar link to `/founder`, and implement the first-time welcome modal as a client-only browser preference keyed in `localStorage` instead of introducing a server-tracked onboarding flag.
+**Consequences:** Founder recognition remains visible wherever the shell is mounted, while the one-time modal stays simple and does not require schema/API changes or additional persisted user state.
+

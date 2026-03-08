@@ -52,6 +52,28 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  if ("full_name" in allowed || "avatar_url" in allowed) {
+    const nextUserMetadata: Record<string, unknown> = {
+      ...(user.user_metadata ?? {}),
+    };
+
+    if ("full_name" in allowed) {
+      nextUserMetadata.full_name = allowed.full_name;
+    }
+
+    if ("avatar_url" in allowed) {
+      nextUserMetadata.avatar_url = allowed.avatar_url;
+    }
+
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(user.id, {
+      user_metadata: nextUserMetadata,
+    });
+
+    if (authUpdateError) {
+      return NextResponse.json({ error: authUpdateError.message }, { status: 500 });
+    }
+  }
+
   if ("summary_retention_days" in body) {
     try {
       const deletedCount = await applySummaryRetentionPolicy(

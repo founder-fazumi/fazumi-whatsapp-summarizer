@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, History, LayoutDashboard, Settings, Sparkles, type LucideIcon } from "lucide-react";
+import { CreditCard, History, LayoutDashboard, Settings, Sparkles, Star, type LucideIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
@@ -12,18 +12,21 @@ import { FREE_LIFETIME_CAP, getTierKey, getUtcDateKey } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string;
+  labelKey: string;
+  icon: LucideIcon;
+  primary?: boolean;
+  iconClassName?: string;
+};
+
+const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
   { href: "/summarize", labelKey: "nav.summarize", icon: Sparkles, primary: true },
   { href: "/history", labelKey: "nav.history", icon: History },
   { href: "/billing", labelKey: "nav.billing", icon: CreditCard },
   { href: "/settings", labelKey: "nav.settings", icon: Settings },
-] satisfies ReadonlyArray<{
-  href: string;
-  labelKey: string;
-  icon: LucideIcon;
-  primary?: boolean;
-}>;
+];
 
 const COPY = {
   freePlan: { en: "Free plan", ar: "الخطة المجانية" },
@@ -41,6 +44,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { locale } = useLang();
   const isArabic = locale === "ar";
+  const [plan, setPlan] = useState("free");
   const [tierKey, setTierKey] = useState<string | null>(null);
   const [usageProgress, setUsageProgress] = useState({
     label: "usedToday" as "usedToday" | "usedFree",
@@ -59,6 +63,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
         if (!user) {
           if (active) {
+            setPlan("free");
             setTierKey("free");
           }
           return;
@@ -84,6 +89,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         }
 
         const nextTierKey = profileError ? null : getTierKey(profile?.plan, profile?.trial_expires_at);
+        setPlan(profile?.plan ?? "free");
         setTierKey(nextTierKey);
         setUsageProgress(
           nextTierKey === "trial"
@@ -100,6 +106,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         );
       } catch {
         if (active) {
+          setPlan("free");
           setTierKey(null);
           setUsageProgress({
             label: "usedToday",
@@ -126,6 +133,19 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     return pathname.startsWith(href);
   }
 
+  const navItems: NavItem[] = [
+    ...NAV_ITEMS,
+    ...(plan === "founder"
+      ? [
+          {
+            href: "/founder",
+            labelKey: "nav.founder",
+            icon: Star,
+            iconClassName: "text-amber-500",
+          },
+        ]
+      : []),
+  ];
   const showUsageCard = tierKey === "free" || tierKey === "trial";
   const usageDisplay = `${formatNumber(usageProgress.value)}/${formatNumber(usageProgress.max)}`;
 
@@ -141,7 +161,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     >
       <nav className="flex-1 overflow-y-auto px-4 py-5">
         <ul className="space-y-1.5">
-          {NAV_ITEMS.map(({ href, labelKey, icon: Icon, primary }) => {
+          {navItems.map(({ href, labelKey, icon: Icon, primary, iconClassName }) => {
             const active = isActive(href);
 
             return (
@@ -160,7 +180,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                         : "text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
                   <span className="flex-1">{t(labelKey, locale)}</span>
                 </Link>
               </li>

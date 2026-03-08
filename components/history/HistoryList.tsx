@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { Check, ChevronRight, Inbox, Link2, Search, Trash2 } from "lucide-react";
-import type { SummaryRow } from "@/app/history/page";
+import type { SummaryRow } from "@/components/history/types";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

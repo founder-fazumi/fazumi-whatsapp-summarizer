@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useConsentManager } from "@/components/compliance/ConsentManager";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { getDefaultConsent, type ConsentPreferences } from "@/lib/compliance/gdpr";
 import { useLang } from "@/lib/context/LangContext";
 import { useTheme } from "@/lib/context/ThemeContext";
+import { formatDate } from "@/lib/format";
 import {
   getEmptyFamilyContext,
   normalizeFamilyContext,
@@ -29,6 +31,7 @@ import {
   LifeBuoy,
   Moon,
   ShieldCheck,
+  Star,
   Sun,
   Trash2,
   UserCircle,
@@ -43,6 +46,13 @@ type ProfilePatch = {
   full_name?: string;
   avatar_url?: string;
 };
+
+type FounderSinceCopy = {
+  en: string;
+  ar: string;
+};
+
+const PROFILE_UPDATED_EVENT = "fazumi:profile-updated";
 
 const GROUP_TYPE_OPTIONS: Array<{ value: FamilyGroupType; en: string; ar: string }> = [
   { value: "class", en: "Class chat", ar: "مجموعة الصف" },
@@ -252,6 +262,8 @@ export function SettingsPanel() {
   const [savedAvatarUrl, setSavedAvatarUrl] = useState("");
   const [profileStatus, setProfileStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [profileLoading, setProfileLoading] = useState(true);
+  const [plan, setPlan] = useState("free");
+  const [founderSince, setFounderSince] = useState<FounderSinceCopy>({ en: "", ar: "" });
   const [familyContext, setFamilyContext] = useState<FamilyContext>(getEmptyFamilyContext());
   const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext>(getEmptyFamilyContext());
   const [teachersDraft, setTeachersDraft] = useState("");
@@ -283,11 +295,27 @@ export function SettingsPanel() {
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("family_context, summary_retention_days, full_name, avatar_url")
-          .eq("id", user.id)
-          .maybeSingle<{ family_context: unknown; summary_retention_days: number | null; full_name: string | null; avatar_url: string | null }>();
+        const [{ data: profile }, { data: founderSubscription }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("family_context, summary_retention_days, full_name, avatar_url, plan")
+            .eq("id", user.id)
+            .maybeSingle<{
+              family_context: unknown;
+              summary_retention_days: number | null;
+              full_name: string | null;
+              avatar_url: string | null;
+              plan: string | null;
+            }>(),
+          supabase
+            .from("subscriptions")
+            .select("created_at")
+            .eq("user_id", user.id)
+            .eq("plan_type", "founder")
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle<{ created_at: string | null }>(),
+        ]);
 
         if (!active) {
           return;
@@ -306,6 +334,15 @@ export function SettingsPanel() {
         setSavedLinksDraft(nextLinks);
         setRetentionDays(nextRetention);
         setSavedRetentionDays(nextRetention);
+        setPlan(profile?.plan ?? "free");
+        setFounderSince(
+          founderSubscription?.created_at
+            ? {
+                en: formatDate(founderSubscription.created_at, "en", { year: "numeric", month: "long" }),
+                ar: formatDate(founderSubscription.created_at, "ar", { year: "numeric", month: "long" }),
+              }
+            : { en: "", ar: "" }
+        );
         const name = profile?.full_name ?? "";
         const avatar = profile?.avatar_url ?? "";
         setDisplayName(name);
@@ -436,6 +473,7 @@ export function SettingsPanel() {
       await saveProfilePatch({ full_name: displayName, avatar_url: avatarUrl });
       setSavedDisplayName(displayName);
       setSavedAvatarUrl(avatarUrl);
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
       setProfileStatus("saved");
     } catch {
       setProfileStatus("error");
@@ -462,6 +500,15 @@ export function SettingsPanel() {
             <div>
               <CardTitle>{pick(locale, COPY.profileTitle)}</CardTitle>
               <CardDescription>{pick(locale, COPY.profileBody)}</CardDescription>
+              {plan === "founder" && (
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                  <Star className="h-3.5 w-3.5 shrink-0" />
+                  <LocalizedText
+                    en={`Founding Supporter${founderSince.en ? ` since ${founderSince.en}` : ""}`}
+                    ar={`داعم مؤسس${founderSince.ar ? ` منذ ${founderSince.ar}` : ""}`}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </CardHeader>

@@ -87,12 +87,10 @@ export function Nav({ isLoggedIn = false }: NavProps) {
       aria-label={pick(COPY.toggle, locale)}
     >
       <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>
-        EN
-      </span>
-      <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
-      <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>
-        عربي
+      <span className="hidden sm:inline text-xs">
+        <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
+        <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
+        <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
       </span>
     </button>
   ) : (
@@ -104,9 +102,11 @@ export function Nav({ isLoggedIn = false }: NavProps) {
       aria-label="Language toggle"
     >
       <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      <span className="font-bold text-[var(--foreground)]">EN</span>
-      <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
-      <span className="text-[var(--muted-foreground)]">عربي</span>
+      <span className="hidden sm:inline text-xs">
+        <span className="font-bold text-[var(--foreground)]">EN</span>
+        <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
+        <span className="text-[var(--muted-foreground)]">عربي</span>
+      </span>
     </button>
   );
 

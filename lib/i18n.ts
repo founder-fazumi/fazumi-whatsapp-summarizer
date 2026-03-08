@@ -11,6 +11,7 @@ const labels: Record<string, Record<Locale, string>> = {
   "nav.resources":     { en: "Help & Resources",      ar: "المساعدة والمصادر" },
   "nav.settings":      { en: "Settings",              ar: "الإعدادات" },
   "nav.billing":       { en: "Billing",               ar: "الفوترة" },
+  "nav.founder":       { en: "Founding Supporter",    ar: "داعم مؤسس" },
   "nav.profile":       { en: "Profile",               ar: "الملف الشخصي" },
   "nav.help":          { en: "Help & Feedback",       ar: "المساعدة والمصادر" },
   "nav.faq":           { en: "FAQ",                   ar: "الأسئلة الشائعة" },
@@ -43,7 +44,7 @@ const labels: Record<string, Record<Locale, string>> = {
   // ── Actions & Greetings ──────────────────────────────────────
   "action.upgrade":    { en: "Upgrade",               ar: "ترقية الخطة" },
   "greeting.morning":  { en: "Good morning",          ar: "صباح الخير" },
-  "greeting.afternoon": { en: "Good afternoon",       ar: "مساء الخير" },
+  "greeting.afternoon": { en: "Good afternoon",       ar: "نهارك سعيد" },
   "greeting.evening":  { en: "Good evening",          ar: "مساء الخير" },
   // ── Pricing ───────────────────────────────────────────────────
   "plan.founder":      { en: "Founder",               ar: "باقة المؤسسين" },
@@ -97,15 +98,11 @@ export function pick<T>(copy: LocalizedCopy<T>, locale: Locale): T {
 export function getTimeAwareGreeting(locale: Locale, date = new Date()): string {
   const hour = date.getHours();
 
-  if (locale === "ar") {
-    return hour < 12 ? t("greeting.morning", locale) : t("greeting.evening", locale);
-  }
-
   if (hour < 12) {
     return t("greeting.morning", locale);
   }
 
-  if (hour < 18) {
+  if (hour < 17) {
     return t("greeting.afternoon", locale);
   }
 

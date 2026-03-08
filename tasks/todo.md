@@ -6,6 +6,163 @@
 
 ---
 
+## Story - Loading Skeleton Cleanup + Founder Page (2026-03-08) [IN PROGRESS]
+
+#### LF1 - Strip mascot-heavy loading UI from dashboard surfaces [Codex]
+**Why:** Navigation loading states should feel lightweight and neutral, not like a separate marketing page flashing before the real route.
+**Files:** `app/(dashboard)/dashboard/loading.tsx`, `app/(dashboard)/billing/loading.tsx`, `app/(dashboard)/summarize/loading.tsx`
+**Acceptance:**
+- [x] None of the three loading files import or render `MascotArt`.
+- [x] None of the three loading files import `LocalizedText`.
+- [x] `app/(dashboard)/summarize/loading.tsx` uses `max-w-4xl`.
+- [x] `pnpm lint` passes after the loading cleanup.
+- [x] `pnpm typecheck` passes after the loading cleanup.
+
+#### LF2 - Add the dashboard founder story route [Codex]
+**Why:** Founder users need a permanent in-product explanation of what their early support enabled.
+**Files:** `app/(dashboard)/founder/layout.tsx`, `app/(dashboard)/founder/page.tsx`, `app/(dashboard)/billing/page.tsx`
+**Acceptance:**
+- [x] `/founder` renders the back link, hero, three story cards, thank-you section, and CTA.
+- [x] All `/founder` copy is bilingual with `LocalizedText`.
+- [x] `/founder` has no `MascotArt`.
+- [x] Founder billing card links to `/founder`.
+
+#### LF3 - Verify and document the slice [Codex]
+**Why:** This story is only done when the checks and project trackers reflect the implementation and any new lessons.
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes at the end.
+- [x] `pnpm typecheck` passes at the end.
+- [x] Progress and lessons are updated.
+**Verification note:** Static verification is complete, including confirming the loading files no longer reference `MascotArt` or `LocalizedText`. Browser/manual smoke is still pending in this environment.
+
+## Story - UX Bugs Batch (2026-03-08) [IN PROGRESS]
+
+#### UX1 - Make summarize paste-first [Codex]
+**Why:** Mobile users currently land on marketing copy instead of the input they came to use.
+**Files:** `app/summarize/page.tsx`
+**Acceptance:**
+- [x] The textarea is the first visible element on `/summarize`.
+- [x] The large hero header is removed and replaced with a compact inline card header.
+- [x] The privacy note renders below the submit button row.
+
+#### UX2 - Widen summarize on laptop [Codex]
+**Why:** The summarize card feels cramped on wider laptop viewports.
+**Files:** `app/summarize/page.tsx`
+**Acceptance:**
+- [x] `DashboardShell` uses `max-w-4xl` on `/summarize`.
+- [x] Mobile layout remains unchanged.
+
+#### UX3 - Remount dashboard pages on navigation [Codex]
+**Why:** Shared shell transitions currently let stale page content flash during route changes.
+**Files:** `app/(dashboard)/template.tsx`, `app/(dashboard)/**`
+**Acceptance:**
+- [x] Dashboard-area navigation shows a short fade-in on fresh content.
+- [x] The template is scoped to the dashboard route group, not the whole app.
+
+#### UX4 - Clarify locale toggles [Codex]
+**Why:** A single active-locale label makes the language control look static instead of interactive.
+**Files:** `components/layout/TopBar.tsx`, `components/landing/Nav.tsx`
+**Acceptance:**
+- [x] Desktop toggle labels show `EN / عربي` in both places.
+- [x] The active locale is visually emphasized.
+- [x] Mobile still keeps the text hidden.
+
+#### UX5 - Keep top-bar action icons visible on mobile [Codex]
+**Why:** Small-phone widths can clip the globe/theme controls when the top bar gets tight.
+**Files:** `components/layout/TopBar.tsx`
+**Acceptance:**
+- [x] Globe and theme icons remain visible at ~375px width.
+- [x] No horizontal overflow is introduced in the top bar.
+
+#### UX6 - Verify and document the batch [Codex]
+**Why:** The bug batch is only done once the required checks and project trackers are updated.
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] Progress and lessons record the batch.
+**Verification note:** Real-browser smoke is still pending. I attempted a local Playwright pass, but this environment hit browser `spawn EPERM` first and then repeated `/summarize` navigation timeouts against the local dev server even after escalation.
+
+## Story - Founder Supporter UX Phase 0 (2026-03-08) [IN PROGRESS]
+
+#### FS1 - Add founder shell identity [Codex]
+**Why:** Founder users currently look identical to normal paid users in the dashboard shell.
+**Files:** `components/layout/TopBar.tsx`, `components/dashboard/DashboardBanner.tsx`, `lib/i18n.ts`
+**Changes:** Add founder-specific bilingual labels, an amber star badge in the top bar, an amber founder badge in the dashboard banner, and founder-only banner copy while keeping founder in the paid gating path.
+**Acceptance:**
+- [x] Founder users see `Founding Supporter` / `مؤسس داعم` in the top bar with an amber star icon.
+- [x] Founder users see the amber founder badge and founder-only subtitle in the dashboard banner.
+- [x] The upgrade CTA stays hidden for founders because they remain in the paid entitlement path.
+- [x] `getTimeAwareGreeting()` returns afternoon copy from 12:00-16:59 for both locales.
+
+#### FS2 - Acknowledge founder support on billing [Codex]
+**Why:** The billing page should recognize founder support instead of showing the same upgrade path as recurring plans.
+**Files:** `app/billing/page.tsx`
+**Changes:** Add a founder thank-you card below the current-plan block and hide the upgrade/checkout panel when the billing plan is founder.
+**Acceptance:**
+- [x] Founder users see the founder thank-you card with EN/AR copy.
+- [x] Founder users do not see the billing upgrade/checkout panel.
+- [x] Non-founder billing behavior stays unchanged.
+
+#### FS3 - Sync saved names into auth metadata [Codex]
+**Why:** The shell reads the auth user metadata, so saved profile names do not appear until a later auth refresh.
+**Files:** `app/api/profile/route.ts`, `components/layout/TopBar.tsx`, `components/settings/SettingsPanel.tsx`
+**Changes:** After saving profile data, mirror the updated name into Supabase Auth metadata and trigger a lightweight shell refresh so the top bar updates without requiring logout/login.
+**Acceptance:**
+- [x] Saving `full_name` updates `profiles.full_name` and Auth `user_metadata.full_name`.
+- [x] The top bar shows the new display name after save without logout/login.
+- [x] Existing profile save behavior stays intact for other fields.
+
+#### FS4 - Verify founder UX phase 0 [Codex]
+**Why:** This story is not done until the required checks and tracker files reflect the shipped behavior.
+**Files:** `specs/founder-supporter-ux-phase-0.md`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Changes:** Record the slice, capture the bug-fix lesson, and run the required verification commands.
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [ ] `pnpm test` passes.
+- [x] Progress and lessons are updated with the founder UX slice.
+**Verification note:** `pnpm test` still fails on pre-existing Playwright cases outside this founder patch set: `e2e/admin-dashboard.spec.ts`, `e2e/app-smoke.spec.ts` summarize-save smoke, `e2e/summarize-auth.spec.ts` client-only landing demo assertion, and `e2e/summarize-zip.spec.ts`.
+
+## Story - Founder Supporter UX Phase 2 (2026-03-08) [IN PROGRESS]
+
+#### FS5 - Tighten font payload and Arabic readability [Codex]
+**Why:** The dashboard still loads the full Manrope variable font and Arabic text remains cramped on mobile, especially in smaller UI copy.
+**Files:** `specs/founder-supporter-ux-phase-2.md`, `app/layout.tsx`, `app/globals.css`
+**Changes:** Pin Manrope to the shipped weights, tune Arabic body and micro-text line-height, and add the missing mobile tap-highlight suppression without changing the app architecture.
+**Acceptance:**
+- [x] `Manrope` uses `weight: ["400", "500", "600", "700"]`.
+- [x] `.font-arabic` uses `line-height: 1.8` and `letter-spacing: 0.01em`.
+- [x] Small Arabic text gets `line-height: 2`.
+- [x] `body` keeps `-webkit-font-smoothing: antialiased` and adds `-webkit-tap-highlight-color: transparent`.
+- [x] `pnpm lint` passes after the font/readability patch.
+- [x] `pnpm typecheck` passes after the font/readability patch.
+
+#### FS6 - Add founder shell entry and welcome moment [Codex]
+**Why:** Founder users need a persistent path back to `/founder` plus a one-time welcome acknowledgement inside the main dashboard flow.
+**Files:** `components/layout/Sidebar.tsx`, `components/founder/FounderWelcomeModal.tsx`, `app/(dashboard)/dashboard/page.tsx`
+**Changes:** Add a founder-only sidebar item and render a client-only dashboard modal that opens once per browser via `localStorage`.
+**Acceptance:**
+- [x] Founder users see a `Founding Supporter` / `داعم مؤسس` sidebar item that links to `/founder` with an amber `Star` icon.
+- [x] Non-founder users do not see the founder sidebar item.
+- [x] Founder users see the welcome modal on the first `/dashboard` visit only.
+- [x] The welcome modal dismisses from the CTA or the backdrop and does not reopen after dismissal.
+- [x] The new founder copy is bilingual and respects RTL through the document direction.
+- [x] `pnpm lint` passes after the founder UI patch.
+- [x] `pnpm typecheck` passes after the founder UI patch.
+
+#### FS7 - Verify and document founder phase 2 [Codex]
+**Why:** This slice is only done once the required checks and tracker files reflect the shipped behavior.
+**Files:** `docs/decisions.md`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Changes:** Record the founder/readability decisions, capture the relevant lesson, and run the final verification commands for the slice.
+**Acceptance:**
+- [x] `pnpm build` passes at the end.
+- [x] Decisions, lessons, and Ralph progress reflect the Phase 2 slice.
+**Verification note:** `pnpm lint` and `pnpm typecheck` passed after the CSS section and again after the founder UI section. `pnpm build` passes at the end. `pnpm test` still fails on pre-existing Playwright coverage outside this slice: `e2e/admin-dashboard.spec.ts`, `e2e/app-smoke.spec.ts` summarize-save smoke, `e2e/summarize-auth.spec.ts` landing demo client-only assertion, and `e2e/summarize-zip.spec.ts` repeated upload persistence. Real-browser/manual founder smoke is still pending in this environment, so this slice is code-verified but not browser-smoked.
+
+---
+
 ## Story - Audit Launch Blockers Pass (2026-03-07) [IN PROGRESS]
 
 #### T1 - Fail closed on admin auth [Codex]

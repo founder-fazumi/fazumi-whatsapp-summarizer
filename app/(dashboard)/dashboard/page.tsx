@@ -1,6 +1,7 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { DashboardBanner } from "@/components/dashboard/DashboardBanner";
 import { FamilyCoordinationCard } from "@/components/dashboard/FamilyCoordinationCard";
+import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
 import { MeasurementTracker } from "@/components/dashboard/MeasurementTracker";
 import { PmfSurveyCard } from "@/components/dashboard/PmfSurveyCard";
 import { UpgradingBanner } from "@/components/dashboard/UpgradingBanner";
@@ -76,6 +77,7 @@ export default async function DashboardPage({
 
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>
+      <FounderWelcomeModal isFounder={plan === "founder"} />
       <MeasurementTracker />
       {upgraded === "1" && <UpgradingBanner />}
       <div className="space-y-5">

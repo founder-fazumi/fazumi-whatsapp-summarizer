@@ -26,19 +26,37 @@ function daysUntil(dateStr: string | null | undefined): number {
 
 const COPY = {
   pro: { en: "Pro", ar: "احترافي" },
+  founder: { en: "Founding Supporter", ar: "مؤسس داعم" },
   freeTrial: { en: "Free Trial", ar: "فترة تجريبية" },
   free: { en: "Free", ar: "مجاني" },
   subtitle: {
     en: "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard with reminders, dates, and urgent follow-ups.",
     ar: "حوّل محادثات المدرسة من واتساب وتيليجرام وفيسبوك إلى لوحة عائلية واحدة جاهزة للتنفيذ مع التذكيرات والمواعيد والمتابعات العاجلة.",
   },
+  founderSubtitle: {
+    en: "You backed Fazumi before anyone else. Every feature you see exists because of your trust.",
+    ar: "دعمت Fazumi قبل أي شخص آخر. كل ميزة تراها موجودة بسبب ثقتك.",
+  },
   upgradeUsage: { en: "Upgrade to continue", ar: "قم بالترقية للمتابعة" },
   timeSaved: { en: "Time Saved", ar: "الوقت الموفَّر" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 function planBadge(plan: string, trialExpiresAt?: string | null) {
-  if (["monthly", "annual", "founder"].includes(plan)) return { labelKey: "pro", color: "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" };
-  if (trialExpiresAt && new Date(trialExpiresAt) > new Date()) return { labelKey: "freeTrial", color: "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning-foreground)]" };
+  if (plan === "founder") {
+    return {
+      labelKey: "founder",
+      color: "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+    };
+  }
+
+  if (["monthly", "annual", "founder"].includes(plan)) {
+    return { labelKey: "pro", color: "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" };
+  }
+
+  if (trialExpiresAt && new Date(trialExpiresAt) > new Date()) {
+    return { labelKey: "freeTrial", color: "border-[var(--warning)] bg-[var(--warning-soft)] text-[var(--warning-foreground)]" };
+  }
+
   return { labelKey: "free", color: "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]" };
 }
 
@@ -52,6 +70,7 @@ export function DashboardBanner({
   const { locale } = useLang();
   const daysLeft = daysUntil(trialExpiresAt);
   const badge = planBadge(plan, trialExpiresAt);
+  const isFounder = plan === "founder";
   const isPaid = ["monthly", "annual", "founder"].includes(plan);
   const isTrialActive = !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
   const showUpgrade = !isPaid;
@@ -82,7 +101,7 @@ export function DashboardBanner({
               </span>
             </div>
             <p className="text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)]">
-              {pick(COPY.subtitle, locale)}
+              {pick(isFounder ? COPY.founderSubtitle : COPY.subtitle, locale)}
             </p>
 
             <div className="surface-panel mt-4 px-4 py-3 shadow-[var(--shadow-sm)]">

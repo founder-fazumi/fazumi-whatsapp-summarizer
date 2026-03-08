@@ -889,39 +889,21 @@ export default function SummarizePage() {
   }
 
   return (
-    <DashboardShell contentClassName="max-w-3xl">
+    <DashboardShell contentClassName="max-w-4xl">
       <div
         dir={isRtl ? "rtl" : "ltr"}
         lang={locale}
         className={cn("space-y-6", isRtl && "font-arabic")}
       >
-        <div className="mx-auto max-w-2xl text-center">
-          <h1 className="text-[var(--text-2xl)] font-bold text-[var(--foreground)] sm:text-[var(--text-3xl)]">
-            {pick(COPY.title, locale)}
-          </h1>
-          <p className="mt-2 text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)]">
-            {pick(COPY.subtitle, locale)}
-          </p>
-          <p className="mt-3 text-[var(--text-sm)] text-[var(--muted-foreground)]">
-            {pick(COPY.privacy, locale)}
-          </p>
-        </div>
-
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
           <CardContent className="p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-[var(--primary)]" />
+              <h1 className="text-[var(--text-base)] font-semibold text-[var(--foreground)]">
+                {pick(COPY.title, locale)}
+              </h1>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2 text-start">
-                <div className="flex items-center gap-2">
-                  <Upload className="h-4 w-4 text-[var(--primary)]" />
-                  <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
-                    {pick(COPY.pasteSection, locale)}
-                  </p>
-                </div>
-                <p className="text-[var(--text-sm)] text-[var(--muted-foreground)]">
-                  {pick(COPY.pasteSectionHint, locale)}
-                </p>
-              </div>
-
               <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)]">
                 <Textarea
                   data-testid="summary-input"
@@ -1013,6 +995,9 @@ export default function SummarizePage() {
                   )}
                 </Button>
               </div>
+              <p className="text-center text-[11px] text-[var(--muted-foreground)]">
+                {pick(COPY.privacy, locale)}
+              </p>
             </form>
           </CardContent>
         </Card>

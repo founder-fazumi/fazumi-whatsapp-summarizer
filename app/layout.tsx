@@ -11,6 +11,7 @@ import { LANG_STORAGE_KEY } from "@/lib/preferences";
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
   preload: true,
   fallback: ["system-ui", "sans-serif"],

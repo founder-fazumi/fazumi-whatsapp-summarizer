@@ -1,23 +1,12 @@
 import { Inbox, Sparkles } from "lucide-react";
 import { HistoryList } from "@/components/history/HistoryList";
+import type { SummaryRow } from "@/components/history/types";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { createClient } from "@/lib/supabase/server";
 
 const PAGE_SIZE = 50;
-
-export interface SummaryRow {
-  id: string;
-  title: string;
-  tldr: string;
-  created_at: string;
-  char_count: number;
-  lang_detected: string;
-  source_kind: "text" | "zip";
-  source_range: "24h" | "7d" | null;
-  new_messages_count: number | null;
-}
 
 function sanitizeSearch(value: string) {
   return value.trim().replace(/[,%]/g, " ");

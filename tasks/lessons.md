@@ -159,3 +159,35 @@
 **Quick test:** Load `/faq`, confirm the page still renders with `useLang()` behavior intact, and inspect the HTML for the expected JSON-LD script tags.
 
 ---
+
+## L020 — Keep shell identity fields in sync with Auth metadata
+**Mistake:** Saving a new display name updated `profiles.full_name`, but the dashboard shell still read `user.user_metadata.full_name`, so the top bar stayed stale until a later auth refresh or relogin.
+**Why:** Profile persistence and Auth metadata were treated as separate sources of truth even though the shell UI depends on the Auth user object.
+**Rule:** Whenever a settings flow changes shell-visible identity fields like `full_name` or `avatar_url`, update both the `profiles` row and Supabase Auth `user_metadata`, then trigger a lightweight client refresh for the mounted shell.
+**Quick test:** Change the display name in Settings, save once, and confirm the top bar updates immediately without logging out.
+
+---
+
+## L021 — Shared components should not import types from route files
+**Mistake:** `HistoryList` imported `SummaryRow` from the route file `app/history/page.tsx`, and that type import broke as soon as the dashboard routes moved into a route group.
+**Why:** App Router file paths are implementation details. Route groups can change those paths without changing the public URL, so shared components that import from `app/**` become fragile.
+**Rule:** If a type is used by both a route and a shared component, define it in a stable `components/**` or `lib/**` module instead of importing it from a route file.
+**Quick test:** `rg "@/app/" components lib` should return zero imports from shared modules into route files for shared types/helpers.
+
+---
+
+## L022 — Loading states should mirror page structure, not reintroduce retired marketing UI
+**Mistake:** Dashboard loading screens reused `MascotArt` plus descriptive copy, which made route transitions flash heavy content that no longer belongs in the live experience.
+**Why:** Loading states were treated like standalone empty states instead of lightweight placeholders for the first visible card on each route.
+**Rule:** For dashboard loading files, keep skeletons structural and page-shaped. Do not render mascots, explanatory paragraphs, or widths that differ from the live route's first card.
+**Quick test:** `rg "MascotArt|LocalizedText" app/(dashboard)/*/loading.tsx` should exclude the lightweight skeleton routes, and the summarize loading shell width should match the live summarize page.
+
+---
+
+## L023 — Arabic UI text needs explicit mobile line-height rules, not Latin defaults
+**Mistake:** Arabic body and micro-copy relied on the same relaxed line-height defaults used for Latin-heavy UI, which can make diacritics feel cramped on mobile and small labels.
+**Why:** Shared typography tokens are usually tuned around Latin metrics first, so Arabic readability issues can survive until a real-device pass catches them.
+**Rule:** When Arabic copy appears in shared UI text, set explicit Arabic line-height expectations in `app/globals.css` for both body-sized containers and the smallest label sizes instead of assuming the global defaults are enough.
+**Quick test:** In Arabic mode, inspect `.font-arabic` plus `.text-xs` labels on a narrow viewport and confirm body text sits at `line-height: 1.8` while the smallest text renders at `line-height: 2`.
+
+---
