@@ -44,21 +44,5 @@
       "short_name": "History",
       "url": "/history"
     }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshots/dashboard-light.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Fazumi dashboard — summary history"
-    },
-    {
-      "src": "/screenshots/summarize-mobile.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Fazumi summarizer — paste and go"
-    }
   ]
 }

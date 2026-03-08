@@ -14,7 +14,7 @@ const organizationSchema = {
   "@type": "Organization",
   name: "Fazumi",
   url: APP_URL,
-  logo: `${APP_URL}/brand/logo-mark.png`,
+  logo: `${APP_URL}/brand/logo/fazumi-logo-256.png`,
   description:
     "Fazumi turns WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard for dates, forms, fees, and reminders without storing raw chat text.",
   sameAs: [

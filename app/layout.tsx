@@ -77,6 +77,12 @@ export const metadata: Metadata = {
         height: 630,
         alt: "Fazumi social preview",
       },
+      {
+        url: "/og-image-ar.png",
+        width: 1200,
+        height: 630,
+        alt: "Fazumi — ملخص محادثات المدرسة",
+      },
     ],
   },
   twitter: {
@@ -86,7 +92,7 @@ export const metadata: Metadata = {
     title: "Fazumi — Family Dashboard for School Chats",
     description:
       "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard without storing raw chat text.",
-    images: ["/twitter-card.png"],
+    images: ["/twitter-card.png", "/twitter-card-ar.png"],
   },
   icons: {
     icon: [
