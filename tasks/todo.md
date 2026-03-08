@@ -84,6 +84,42 @@
 - [x] `pnpm test` passes at the end.
 - [x] Progress and lessons are updated for the group-name prompt/storage slice.
 
+## Story - History Group Filter + Detail Badge (2026-03-08) [DONE]
+
+#### HG1 - Add a client-side group filter to HistoryList [Codex]
+**Why:** Users need to narrow the current history page down to one saved school group without adding another Supabase query.
+**Files:** `components/history/HistoryList.tsx`
+**Acceptance:**
+- [x] A group filter dropdown renders only when the current `summaries` prop contains at least one non-empty `group_name`.
+- [x] Selecting a group shows only summaries whose `group_name` exactly matches the selected option.
+- [x] Choosing `All groups` restores the full local list.
+- [x] The filter select sets `dir` from the current locale for RTL/LTR correctness.
+- [x] `pnpm lint` passes after the HistoryList filter patch.
+- [x] `pnpm typecheck` passes after the HistoryList filter patch.
+
+#### HG2 - Show the saved group name on summary detail [Codex]
+**Why:** The detail page should carry the same group context users saw in history cards.
+**Files:** `app/(dashboard)/history/[id]/page.tsx`
+**Acceptance:**
+- [x] The summary detail query explicitly selects `group_name`.
+- [x] The detail page renders the group-name badge below the title only when `group_name` is present.
+- [x] `pnpm lint` passes after the detail page patch.
+- [x] `pnpm typecheck` passes after the detail page patch.
+
+#### HG3 - Attempt the remote migration apply [Codex]
+**Why:** The new `group_name` column should be pushed to the linked Supabase project when the local migration history is compatible.
+**Files:** `supabase/migrations/2026030801_add_group_name_to_summaries.sql`
+**Acceptance:**
+- [x] `supabase db push --include-all` was attempted against the linked remote project.
+- [x] The result is recorded: the push is currently blocked because the remote project has migration versions that are missing from the local migrations directory.
+
+#### HG4 - Update trackers for the slice [Codex]
+**Why:** The repo trackers should reflect both the shipped UI behavior and the blocked remote migration result.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `tasks/todo.md` records the completed group-filter/detail-badge slice.
+- [x] `scripts/ralph/progress.txt` records the shipped UI changes and the blocked remote push result.
+
 ## Story - Loading Skeleton Cleanup + Founder Page (2026-03-08) [IN PROGRESS]
 
 #### LF1 - Strip mascot-heavy loading UI from dashboard surfaces [Codex]

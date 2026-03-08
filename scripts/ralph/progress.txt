@@ -257,3 +257,18 @@ tasks/lessons.md, scripts/ralph/progress.txt
 ### Patterns confirmed
 - Family-context prompt signal must treat saved group names as first-class memory, not only teachers and recurring links
 - Summary metadata fields need migration, write-path, and read-path updates in the same slice or history UI will silently drift from the request contract
+
+## Sprint: Group name filter + detail badge (2026-03-08)
+
+### What changed
+- HistoryList: group filter dropdown (hidden when no group names are present)
+- History detail page: group name badge below title
+- Migration 2026030801 remote push attempted, but `supabase db push --include-all` was blocked by remote migration-history drift (`Remote migration versions not found in local migrations directory`)
+
+### Files touched
+components/history/HistoryList.tsx, app/(dashboard)/history/[id]/page.tsx
+
+### Patterns confirmed
+- Group filter is client-side and derived from the already-fetched `summaries` prop, so no extra Supabase query was added
+- Detail badge reuses the existing group-name badge treatment with `bg-[var(--primary)]/10` and primary text
+- Remote Supabase pushes can fail before applying new SQL when the remote migration history no longer matches the local migrations directory

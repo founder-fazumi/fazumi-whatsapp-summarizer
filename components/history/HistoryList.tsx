@@ -62,18 +62,31 @@ export function HistoryList({
   const isRtl = locale === "ar";
   const [localSummaries, setLocalSummaries] = useState(summaries);
   const [searchValue, setSearchValue] = useState(query);
+  const [groupFilter, setGroupFilter] = useState("");
   const [clientTotalCount, setClientTotalCount] = useState(totalCount);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const groupOptions = Array.from(
+    new Set(summaries.map((summary) => summary.group_name).filter((groupName): groupName is string => Boolean(groupName)))
+  ).sort();
+  const displayedSummaries = groupFilter
+    ? localSummaries.filter((summary) => summary.group_name === groupFilter)
+    : localSummaries;
 
   useEffect(() => {
     setLocalSummaries(summaries);
     setSearchValue(query);
     setClientTotalCount(totalCount);
   }, [query, summaries, totalCount]);
+
+  useEffect(() => {
+    if (groupFilter && !groupOptions.includes(groupFilter)) {
+      setGroupFilter("");
+    }
+  }, [groupFilter, groupOptions]);
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -212,30 +225,55 @@ export function HistoryList({
       ) : null}
 
       <div className="surface-panel bg-[var(--surface-elevated)] p-4">
-        <form onSubmit={handleSearchSubmit} className="flex flex-col gap-3 md:flex-row">
-          <div className="relative flex-1">
-            <label htmlFor="history-search" className="sr-only">
-              {locale === "ar" ? "ابحث في السجل" : "Search history"}
-            </label>
-            <Search className={cn("pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]", isRtl ? "right-3.5" : "left-3.5")} />
-            <Input
-              id="history-search"
-              aria-label={locale === "ar" ? "ابحث في السجل" : "Search history"}
-              value={searchValue}
-              onChange={(event) => setSearchValue(event.target.value)}
-              placeholder={locale === "ar" ? "ابحث في العناوين والملخصات..." : "Search titles and summaries..."}
-              className={cn(isRtl ? "pr-10" : "pl-10")}
-            />
-          </div>
-          <Button type="submit" variant="outline">
-            {locale === "ar" ? "بحث" : "Search"}
-          </Button>
-          {query ? (
-            <Button type="button" variant="ghost" onClick={clearSearch}>
-              {locale === "ar" ? "مسح" : "Clear"}
-            </Button>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          {groupOptions.length > 0 ? (
+            <div className="md:w-60">
+              <label htmlFor="history-group-filter" className="mb-2 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                {locale === "ar" ? "المجموعة" : "Group"}
+              </label>
+              <select
+                id="history-group-filter"
+                dir={isRtl ? "rtl" : "ltr"}
+                aria-label={locale === "ar" ? "تصفية حسب المجموعة" : "Filter by group"}
+                value={groupFilter}
+                onChange={(event) => setGroupFilter(event.target.value)}
+                className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)]"
+              >
+                <option value="">{locale === "ar" ? "كل المجموعات" : "All groups"}</option>
+                {groupOptions.map((groupName) => (
+                  <option key={groupName} value={groupName}>
+                    {groupName}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : null}
-        </form>
+
+          <form onSubmit={handleSearchSubmit} className="flex flex-1 flex-col gap-3 md:flex-row">
+            <div className="relative flex-1">
+              <label htmlFor="history-search" className="sr-only">
+                {locale === "ar" ? "ابحث في السجل" : "Search history"}
+              </label>
+              <Search className={cn("pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]", isRtl ? "right-3.5" : "left-3.5")} />
+              <Input
+                id="history-search"
+                aria-label={locale === "ar" ? "ابحث في السجل" : "Search history"}
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                placeholder={locale === "ar" ? "ابحث في العناوين والملخصات..." : "Search titles and summaries..."}
+                className={cn(isRtl ? "pr-10" : "pl-10")}
+              />
+            </div>
+            <Button type="submit" variant="outline">
+              {locale === "ar" ? "بحث" : "Search"}
+            </Button>
+            {query ? (
+              <Button type="button" variant="ghost" onClick={clearSearch}>
+                {locale === "ar" ? "مسح" : "Clear"}
+              </Button>
+            ) : null}
+          </form>
+        </div>
 
         <div className="mt-4 flex flex-col gap-2 text-[var(--text-sm)] text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
           <p>
@@ -243,6 +281,10 @@ export function HistoryList({
               ? locale === "ar"
                 ? "لا توجد نتائج مطابقة."
                 : "No matching summaries."
+              : groupFilter
+                ? locale === "ar"
+                  ? `عرض ${formatNumber(displayedSummaries.length)} من ${formatNumber(localSummaries.length)} للمجموعة المحددة`
+                  : `Showing ${formatNumber(displayedSummaries.length)} of ${formatNumber(localSummaries.length)} for this group`
               : locale === "ar"
                 ? `عرض ${formatNumber(startItem)}-${formatNumber(endItem)} من ${formatNumber(clientTotalCount)}`
                 : `Showing ${formatNumber(startItem)}-${formatNumber(endItem)} of ${formatNumber(clientTotalCount)}`}
@@ -263,16 +305,24 @@ export function HistoryList({
         </div>
       </div>
 
-      {localSummaries.length === 0 ? (
+      {displayedSummaries.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title={locale === "ar" ? "لا توجد نتائج مطابقة." : "No matching summaries."}
-          body={locale === "ar" ? "جرّب كلمة بحث أخرى أو امسح البحث لرؤية كل السجل." : "Try another search term or clear the search to see your full history."}
+          title={
+            groupFilter
+              ? (locale === "ar" ? "لا توجد ملخصات لهذه المجموعة." : "No summaries for this group.")
+              : (locale === "ar" ? "لا توجد نتائج مطابقة." : "No matching summaries.")
+          }
+          body={
+            groupFilter
+              ? (locale === "ar" ? "اختر مجموعة أخرى أو اعرض كل المجموعات." : "Pick another group or show all groups.")
+              : (locale === "ar" ? "جرّب كلمة بحث أخرى أو امسح البحث لرؤية كل السجل." : "Try another search term or clear the search to see your full history.")
+          }
           className="py-10"
         />
       ) : (
         <div className="space-y-3">
-          {localSummaries.map((summary) => {
+          {displayedSummaries.map((summary) => {
             const isConfirming = confirmDeleteId === summary.id;
             const isDeleting = deletingId === summary.id;
             const isCopied = copiedId === summary.id;

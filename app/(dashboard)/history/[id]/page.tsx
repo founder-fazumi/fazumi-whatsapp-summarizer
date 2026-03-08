@@ -46,6 +46,7 @@ export default async function SummaryDetailPage({ params }: PageProps) {
         chat_type: string | null;
         chat_context: unknown;
         char_count: number;
+        group_name: string | null;
         lang_detected: string;
         created_at: string;
         source_kind: "text" | "zip";
@@ -168,10 +169,15 @@ export default async function SummaryDetailPage({ params }: PageProps) {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="px-4 pb-3 pt-0">
+        <CardContent className="space-y-2 px-4 pb-3 pt-0">
           <h1 className="text-[var(--text-lg)] font-semibold leading-snug text-[var(--foreground)] sm:text-[var(--text-xl)]">
             {row.title}
           </h1>
+          {row.group_name && (
+            <span className="inline-flex items-center rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--primary)]">
+              {row.group_name}
+            </span>
+          )}
         </CardContent>
       </Card>
 
