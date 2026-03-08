@@ -12,7 +12,12 @@ import { ReferralCard } from "@/components/widgets/ReferralCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import { getDailyLimit, getTierKey } from "@/lib/limits";
+import {
+  getDailyLimit,
+  resolveEntitlement,
+  type EntitlementSubscription,
+  type TierKey,
+} from "@/lib/limits";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UsageDaily } from "@/lib/supabase/types";
 
@@ -32,7 +37,8 @@ export default async function DashboardPage({
   const { upgraded } = await searchParams;
   // Fetch session + profile + today's usage server-side
   let userName: string | null = null;
-  let plan = "free";
+  let billingPlan = "free";
+  let tierKey: TierKey = "free";
   let trialExpiresAt: string | null = null;
   let summariesUsed = 0;
   let summaryCount = 0;
@@ -45,7 +51,7 @@ export default async function DashboardPage({
       userName = (user.user_metadata?.full_name as string | null) ?? user.email?.split("@")[0] ?? null;
 
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: profile }, { data: usage }, { count }] = await Promise.all([
+      const [{ data: profile }, { data: usage }, { count }, { data: subscriptions }] = await Promise.all([
         supabase
           .from("profiles")
           .select("plan, trial_expires_at")
@@ -62,9 +68,22 @@ export default async function DashboardPage({
           .select("id", { count: "exact", head: true })
           .eq("user_id", user.id)
           .is("deleted_at", null),
+        supabase
+          .from("subscriptions")
+          .select("plan_type, status, current_period_end, updated_at, created_at")
+          .eq("user_id", user.id),
       ]);
 
-      plan = profile?.plan ?? "free";
+      const entitlement = resolveEntitlement({
+        profile: {
+          plan: profile?.plan ?? "free",
+          trial_expires_at: profile?.trial_expires_at ?? null,
+        },
+        subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+      });
+
+      billingPlan = entitlement.billingPlan;
+      tierKey = entitlement.tierKey;
       trialExpiresAt = profile?.trial_expires_at ?? null;
       summariesUsed = usage?.summaries_used ?? 0;
       summaryCount = count ?? 0;
@@ -73,17 +92,17 @@ export default async function DashboardPage({
     // Supabase not configured — show dashboard with default values
   }
 
-  const summariesLimit = getDailyLimit(getTierKey(plan, trialExpiresAt));
+  const summariesLimit = getDailyLimit(tierKey);
 
   return (
     <DashboardShell rightColumn={RIGHT_COLUMN}>
-      <FounderWelcomeModal isFounder={plan === "founder"} />
+      <FounderWelcomeModal isFounder={billingPlan === "founder"} />
       <MeasurementTracker />
       {upgraded === "1" && <UpgradingBanner />}
       <div className="space-y-5">
         <DashboardBanner
           userName={userName}
-          plan={plan}
+          billingPlan={billingPlan}
           trialExpiresAt={trialExpiresAt}
           summariesUsed={summariesUsed}
           summariesLimit={summariesLimit}

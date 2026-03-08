@@ -109,6 +109,11 @@ for (const route of PUBLIC_ROUTES) {
   });
 }
 
+test("founder page redirects unauthenticated users to login", async ({ page }) => {
+  await page.goto("/founder");
+  await expect(page).toHaveURL(/\/login/);
+});
+
 test("public about: Arabic locale renders with RTL and no unverified trust claims", async ({
   page,
 }) => {

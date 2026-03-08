@@ -7,6 +7,7 @@ import { Archive, ArrowUpCircle, BellRing, Check, ShieldCheck, Sparkles, Upload 
 import type { SummaryResult } from "@/lib/ai/summarize";
 import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -452,6 +453,7 @@ export default function SummarizePage() {
   const [limitCode, setLimitCode] = useState<"DAILY_CAP" | "LIFETIME_CAP">("DAILY_CAP");
   const [savedId, setSavedId] = useState<string | null>(null);
   const [submissionSource, setSubmissionSource] = useState<SubmissionSource>("text");
+  const [billingPlan, setBillingPlan] = useState("free");
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [outputLang, setOutputLang] = useState<OutputLang>(locale === "ar" ? "ar" : "auto");
@@ -499,6 +501,7 @@ export default function SummarizePage() {
 
         if (!user) {
           if (mounted) {
+            setBillingPlan("free");
             setIsSubscribed(false);
             setCurrentUserId(null);
             setSavedGroups([]);
@@ -540,6 +543,7 @@ export default function SummarizePage() {
         });
 
         if (mounted) {
+          setBillingPlan(entitlement.billingPlan);
           setIsSubscribed(entitlement.hasPaidAccess);
           setCurrentUserId(user.id);
           setSavedFamilyContext(normalizeFamilyContext(profile?.family_context));
@@ -555,6 +559,7 @@ export default function SummarizePage() {
         }
       } catch {
         if (mounted) {
+          setBillingPlan("free");
           setIsSubscribed(false);
           setCurrentUserId(null);
         }
@@ -890,6 +895,7 @@ export default function SummarizePage() {
 
   return (
     <DashboardShell contentClassName="max-w-4xl">
+      <FounderWelcomeModal isFounder={billingPlan === "founder"} />
       <div
         dir={isRtl ? "rtl" : "ltr"}
         lang={locale}

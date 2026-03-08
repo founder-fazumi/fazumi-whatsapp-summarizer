@@ -36,6 +36,7 @@ export function FounderWelcomeModal({ isFounder }: FounderWelcomeModalProps) {
 
   return (
     <div
+      data-testid="founder-welcome-modal"
       role="dialog"
       aria-modal="true"
       aria-labelledby="founder-welcome-title"

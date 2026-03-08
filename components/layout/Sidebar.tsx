@@ -8,7 +8,12 @@ import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
-import { FREE_LIFETIME_CAP, getTierKey, getUtcDateKey } from "@/lib/limits";
+import {
+  FREE_LIFETIME_CAP,
+  getUtcDateKey,
+  resolveEntitlement,
+  type EntitlementSubscription,
+} from "@/lib/limits";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +49,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { locale } = useLang();
   const isArabic = locale === "ar";
-  const [plan, setPlan] = useState("free");
+  const [billingPlan, setBillingPlan] = useState("free");
   const [tierKey, setTierKey] = useState<string | null>(null);
   const [usageProgress, setUsageProgress] = useState({
     label: "usedToday" as "usedToday" | "usedFree",
@@ -63,14 +68,14 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
         if (!user) {
           if (active) {
-            setPlan("free");
+            setBillingPlan("free");
             setTierKey("free");
           }
           return;
         }
 
         const today = getUtcDateKey();
-        const [{ data: profile, error: profileError }, { data: usage }] = await Promise.all([
+        const [{ data: profile }, { data: usage }, { data: subscriptions }] = await Promise.all([
           supabase
             .from("profiles")
             .select("plan, trial_expires_at, lifetime_free_used")
@@ -82,14 +87,27 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
             .eq("user_id", user.id)
             .eq("date", today)
             .maybeSingle<{ summaries_used: number }>(),
+          supabase
+            .from("subscriptions")
+            .select("plan_type, status, current_period_end, updated_at, created_at")
+            .eq("user_id", user.id),
         ]);
 
         if (!active) {
           return;
         }
 
-        const nextTierKey = profileError ? null : getTierKey(profile?.plan, profile?.trial_expires_at);
-        setPlan(profile?.plan ?? "free");
+        const entitlement = resolveEntitlement({
+          profile: {
+            plan: profile?.plan ?? "free",
+            trial_expires_at: profile?.trial_expires_at ?? null,
+          },
+          subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+        });
+
+        const nextTierKey = entitlement.tierKey;
+
+        setBillingPlan(entitlement.billingPlan);
         setTierKey(nextTierKey);
         setUsageProgress(
           nextTierKey === "trial"
@@ -106,7 +124,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         );
       } catch {
         if (active) {
-          setPlan("free");
+          setBillingPlan("free");
           setTierKey(null);
           setUsageProgress({
             label: "usedToday",
@@ -135,7 +153,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
   const navItems: NavItem[] = [
     ...NAV_ITEMS,
-    ...(plan === "founder"
+    ...(billingPlan === "founder"
       ? [
           {
             href: "/founder",

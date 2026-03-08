@@ -12,7 +12,7 @@ import { getTimeAwareGreeting, pick, t, type LocalizedCopy } from "@/lib/i18n";
 
 interface DashboardBannerProps {
   userName?: string | null;
-  plan?: string;
+  billingPlan?: string;
   trialExpiresAt?: string | null;
   summariesUsed?: number;
   summariesLimit?: number;
@@ -62,16 +62,16 @@ function planBadge(plan: string, trialExpiresAt?: string | null) {
 
 export function DashboardBanner({
   userName,
-  plan = "free",
+  billingPlan = "free",
   trialExpiresAt,
   summariesUsed = 0,
   summariesLimit = 3,
 }: DashboardBannerProps) {
   const { locale } = useLang();
   const daysLeft = daysUntil(trialExpiresAt);
-  const badge = planBadge(plan, trialExpiresAt);
-  const isFounder = plan === "founder";
-  const isPaid = ["monthly", "annual", "founder"].includes(plan);
+  const badge = planBadge(billingPlan, trialExpiresAt);
+  const isFounder = billingPlan === "founder";
+  const isPaid = ["monthly", "annual", "founder"].includes(billingPlan);
   const isTrialActive = !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
   const showUpgrade = !isPaid;
   const progressMax = summariesLimit > 0 ? summariesLimit : 1;
