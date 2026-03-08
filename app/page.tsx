@@ -46,14 +46,6 @@ const faqSchema = {
     },
     {
       "@type": "Question",
-      name: "Which school chat apps does Fazumi support?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Fazumi supports pasted or uploaded school chat text from WhatsApp, Telegram, and Facebook Messenger. WhatsApp ZIP exports also support incremental uploads.",
-      },
-    },
-    {
-      "@type": "Question",
       name: "Is my chat data private?",
       acceptedAnswer: {
         "@type": "Answer",
@@ -66,6 +58,14 @@ const faqSchema = {
       acceptedAnswer: {
         "@type": "Answer",
         text: "Every new account starts with a 7-day free trial that includes 3 summaries per day. After the trial ends, you keep 3 lifetime free summaries unless you upgrade.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I share summaries with my spouse?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. You can export a summary as a plain-text file and share it via WhatsApp, Telegram, or any messaging app. Family sharing features are on the roadmap.",
       },
     },
     {
@@ -120,14 +120,6 @@ const webSiteSchema = {
   "@id": `${APP_URL}/#website`,
   name: "Fazumi",
   url: APP_URL,
-  potentialAction: {
-    "@type": "SearchAction",
-    target: {
-      "@type": "EntryPoint",
-      urlTemplate: `${APP_URL}/help?q={search_term_string}`,
-    },
-    "query-input": "required name=search_term_string",
-  },
 };
 
 export default async function LandingPage() {

@@ -24,8 +24,8 @@ const FAQS = [
       ar: "هل بيانات المحادثة خاصة؟",
     },
     answer: {
-      en: "Yes. Fazumi does not store your raw chat messages in the summaries database. It stores the generated summary, saved group name, and any memory settings you choose. ZIP imports also keep message fingerprints for repeat-import matching.",
-      ar: "نعم. لا يحفظ فازومي رسائل المحادثة الخام في قاعدة بيانات الملخصات. بل يحفظ الملخص الناتج واسم المجموعة المحفوظ وأي إعدادات ذاكرة تختارها. كما يحتفظ استيراد ZIP ببصمات الرسائل لمطابقة الاستيراد المتكرر.",
+      en: "Yes. Fazumi does not store your raw chat messages in the database. Only the generated summary and structured items are saved to your account history.",
+      ar: "نعم. لا يحفظ فازومي رسائل محادثتك الخام في قاعدة البيانات. يُحفظ فقط الملخص الناتج والبنود المستخرجة في سجل حسابك.",
     },
   },
   {
@@ -44,8 +44,8 @@ const FAQS = [
       ar: "هل يمكنني مشاركة الملخصات مع زوجي أو زوجتي؟",
     },
     answer: {
-      en: "Yes. Fazumi includes spouse or caregiver sharing, a shared calendar export, and a clean family action list so everyone can stay aligned without full multi-user setup.",
-      ar: "نعم. يتضمن فازومي مشاركة مع الزوج أو الزوجة أو مقدم الرعاية، وتصديرًا لتقويم مشترك، وقائمة إجراءات عائلية واضحة حتى يبقى الجميع على اطلاع من دون إعداد تعاون كامل بين عدة مستخدمين.",
+      en: "Yes. You can export a summary as a plain-text file and share it via WhatsApp, Telegram, or any messaging app. Family sharing features are on the roadmap.",
+      ar: "نعم. يمكنك تصدير الملخص كملف نصي ومشاركته عبر واتساب أو تيليجرام أو أي تطبيق مراسلة. ميزات المشاركة العائلية قادمة قريبًا.",
     },
   },
   {

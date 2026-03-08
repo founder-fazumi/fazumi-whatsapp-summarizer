@@ -46,8 +46,8 @@ const STEPS = [
       ar: "ولي أمر يتخذ إجراءً بناءً على ملخص فازومي",
     },
     desc: {
-      en: "Share with family, export the calendar, seed your action list, and let reminders do the follow-up.",
-      ar: "شاركها مع العائلة، وصدّر التقويم، وابدأ قائمة الإجراءات، ودع التذكيرات تتولى المتابعة.",
+      en: "Export summaries as text, share with family, and keep a searchable history of every school chat you have summarized.",
+      ar: "صدّر الملخصات كنص، وشاركها مع العائلة، واحتفظ بسجل قابل للبحث لكل محادثة مدرسية لخّصتها.",
     },
   },
 ] as const;
