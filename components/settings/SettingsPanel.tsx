@@ -14,6 +14,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { formatDate } from "@/lib/format";
 import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
+import type { WebPushSubscriptionPayload } from "@/lib/push/types";
 import {
   getEmptyFamilyContext,
   normalizeFamilyContext,
@@ -25,11 +26,13 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
+  BellRing,
   Brain,
   Check,
   Clock3,
   Globe,
   LifeBuoy,
+  LoaderCircle,
   Moon,
   ShieldCheck,
   Star,
@@ -53,7 +56,10 @@ type FounderSinceCopy = {
   ar: string;
 };
 
+type PushFeedbackState = "enabled" | "disabled" | "error" | "permissionDenied";
+
 const PROFILE_UPDATED_EVENT = "fazumi:profile-updated";
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
 
 const GROUP_TYPE_OPTIONS: Array<{ value: FamilyGroupType; en: string; ar: string }> = [
   { value: "class", en: "Class chat", ar: "مجموعة الصف" },
@@ -135,6 +141,30 @@ const COPY = {
     en: "Saving this setting deletes older summaries outside the selected window.",
     ar: "حفظ هذا الإعداد يحذف الملخصات الأقدم خارج المدة المحددة.",
   },
+  notificationsTitle: { en: "Notifications", ar: "الإشعارات" },
+  notificationsBody: {
+    en: "Control the daily browser push alert for yesterday's school updates.",
+    ar: "تحكم في إشعار المتصفح اليومي لآخر تحديثات المدرسة من الأمس.",
+  },
+  morningDigest: { en: "Morning digest", ar: "ملخص الصباح" },
+  morningDigestHint: {
+    en: "Get a daily push notification with yesterday's school updates at 7 AM.",
+    ar: "احصل على إشعار يومي بتحديثات المدرسة من الأمس في الساعة السابعة صباحًا.",
+  },
+  pushChecking: {
+    en: "Checking browser notification status...",
+    ar: "جارٍ التحقق من حالة إشعارات المتصفح...",
+  },
+  pushEnabled: { en: "Morning digest enabled.", ar: "تم تفعيل ملخص الصباح." },
+  pushDisabled: { en: "Morning digest turned off.", ar: "تم إيقاف ملخص الصباح." },
+  pushError: {
+    en: "Could not update morning digest. Please try again.",
+    ar: "تعذر تحديث ملخص الصباح. حاول مرة أخرى.",
+  },
+  pushPermissionDenied: {
+    en: "Browser notification permission was not granted.",
+    ar: "لم يتم منح إذن إشعارات المتصفح.",
+  },
   keep: { en: "Keep until I delete", ar: "الاحتفاظ حتى أحذفها" },
   saveRetention: { en: "Save retention rule", ar: "احفظ قاعدة الاحتفاظ" },
   privacyTitle: { en: "Privacy controls", ar: "عناصر التحكم بالخصوصية" },
@@ -200,6 +230,47 @@ function splitLineDraft(value: string) {
     .split("\n")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function isPushSupportedInBrowser() {
+  return (
+    typeof window !== "undefined" &&
+    "Notification" in window &&
+    "PushManager" in window &&
+    "serviceWorker" in navigator &&
+    VAPID_PUBLIC_KEY.length > 0
+  );
+}
+
+function urlBase64ToUint8Array(value: string) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function toPushSubscriptionPayload(subscription: PushSubscription): WebPushSubscriptionPayload {
+  const serialized = subscription.toJSON();
+
+  return {
+    endpoint: subscription.endpoint,
+    expirationTime: subscription.expirationTime,
+    keys: {
+      auth: serialized.keys?.auth ?? "",
+      p256dh: serialized.keys?.p256dh ?? "",
+    },
+  };
+}
+
+async function getPushRegistration() {
+  const existingRegistration = await navigator.serviceWorker.getRegistration();
+
+  if (!existingRegistration) {
+    await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  }
+
+  return navigator.serviceWorker.ready;
 }
 
 function retentionLabel(locale: Locale, value: number | null) {
@@ -290,11 +361,80 @@ export function SettingsPanel() {
   const [savedRetentionDays, setSavedRetentionDays] = useState<number | null>(null);
   const [retentionStatus, setRetentionStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [retentionDeletedCount, setRetentionDeletedCount] = useState<number | null>(null);
+  const [pushVisible, setPushVisible] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(true);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null);
+  const [pushFeedback, setPushFeedback] = useState<PushFeedbackState | null>(null);
   const isRtl = locale === "ar";
 
   useEffect(() => {
     setConsentDraft(consent);
   }, [consent]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadPushState() {
+      if (!isPushSupportedInBrowser()) {
+        if (active) {
+          setPushVisible(false);
+          setPushBusy(false);
+          setPushEnabled(false);
+          setPushPermission(
+            typeof window !== "undefined" && "Notification" in window
+              ? Notification.permission
+              : null
+          );
+        }
+        return;
+      }
+
+      if (active) {
+        setPushVisible(true);
+        setPushBusy(true);
+        setPushPermission(Notification.permission);
+      }
+
+      try {
+        const registration = await getPushRegistration();
+        const subscription = await registration.pushManager.getSubscription();
+
+        if (!active) {
+          return;
+        }
+
+        setPushEnabled(Boolean(subscription));
+        setPushPermission(Notification.permission);
+      } catch {
+        if (!active) {
+          return;
+        }
+
+        setPushEnabled(false);
+        setPushFeedback("error");
+      } finally {
+        if (active) {
+          setPushBusy(false);
+        }
+      }
+    }
+
+    void loadPushState();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pushFeedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setPushFeedback(null), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [pushFeedback]);
 
   useEffect(() => {
     let active = true;
@@ -504,6 +644,16 @@ export function SettingsPanel() {
     linksDraft !== savedLinksDraft;
   const retentionChanged = retentionDays !== savedRetentionDays;
   const profileChanged = displayName !== savedDisplayName || avatarUrl !== savedAvatarUrl;
+  const pushFeedbackMessage =
+    pushFeedback === "enabled"
+      ? pick(locale, COPY.pushEnabled)
+      : pushFeedback === "disabled"
+        ? pick(locale, COPY.pushDisabled)
+        : pushFeedback === "permissionDenied"
+          ? pick(locale, COPY.pushPermissionDenied)
+          : pushFeedback === "error"
+            ? pick(locale, COPY.pushError)
+            : null;
 
   async function handleSaveProfile() {
     setProfileStatus("saving");
@@ -515,6 +665,99 @@ export function SettingsPanel() {
       setProfileStatus("saved");
     } catch {
       setProfileStatus("error");
+    }
+  }
+
+  async function handlePushToggle(nextChecked: boolean) {
+    if (!pushVisible || pushBusy) {
+      return;
+    }
+
+    setPushBusy(true);
+    setPushFeedback(null);
+
+    try {
+      const registration = await getPushRegistration();
+
+      if (nextChecked) {
+        const permission =
+          pushPermission === "granted"
+            ? "granted"
+            : await Notification.requestPermission();
+
+        setPushPermission(permission);
+
+        if (permission !== "granted") {
+          setPushEnabled(false);
+          setPushFeedback("permissionDenied");
+          return;
+        }
+
+        const existingSubscription = await registration.pushManager.getSubscription();
+        const createdNewSubscription = !existingSubscription;
+        const subscription =
+          existingSubscription ??
+          (await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          }));
+
+        const response = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            subscription: toPushSubscriptionPayload(subscription),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+          }),
+        });
+
+        if (!response.ok) {
+          if (createdNewSubscription) {
+            await subscription.unsubscribe().catch(() => undefined);
+          }
+          throw new Error("Could not save push subscription.");
+        }
+
+        setPushEnabled(true);
+        setPushFeedback("enabled");
+        return;
+      }
+
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        const endpoint = subscription.endpoint;
+        await subscription.unsubscribe();
+
+        const response = await fetch("/api/push/unsubscribe", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ endpoint }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not remove push subscription.");
+        }
+      }
+
+      setPushEnabled(false);
+      setPushFeedback("disabled");
+    } catch {
+      setPushFeedback("error");
+
+      try {
+        const registration = await getPushRegistration();
+        const subscription = await registration.pushManager.getSubscription();
+        setPushEnabled(Boolean(subscription));
+      } catch {
+        setPushEnabled(false);
+      }
+    } finally {
+      setPushBusy(false);
     }
   }
 
@@ -846,6 +1089,77 @@ export function SettingsPanel() {
           </div>
         </CardContent>
       </Card>
+
+      {pushVisible && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--primary-soft)] text-[var(--primary)]">
+                <BellRing className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>{pick(locale, COPY.notificationsTitle)}</CardTitle>
+                <CardDescription>{pick(locale, COPY.notificationsBody)}</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <label className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4">
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.morningDigest)}</p>
+                  <p
+                    id="settings-morning-digest-hint"
+                    className="text-xs leading-5 text-[var(--muted-foreground)]"
+                  >
+                    {pick(locale, COPY.morningDigestHint)}
+                  </p>
+                </div>
+                {(pushBusy || pushFeedbackMessage) && (
+                  <p
+                    aria-live="polite"
+                    className={cn(
+                      "text-xs",
+                      pushFeedback === "error" || pushFeedback === "permissionDenied"
+                        ? "text-[var(--destructive)]"
+                        : pushFeedbackMessage
+                          ? "text-[var(--success)]"
+                          : "text-[var(--muted-foreground)]"
+                    )}
+                  >
+                    {pushBusy && !pushFeedbackMessage
+                      ? pick(locale, COPY.pushChecking)
+                      : pushFeedbackMessage}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-3">
+                {pushBusy && <LoaderCircle className="h-4 w-4 animate-spin text-[var(--primary)]" />}
+                <span className="relative inline-flex h-6 w-11 shrink-0 items-center">
+                  <input
+                    type="checkbox"
+                    checked={pushEnabled}
+                    disabled={pushBusy}
+                    aria-describedby="settings-morning-digest-hint"
+                    onChange={(event) => void handlePushToggle(event.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <span className="h-6 w-11 rounded-full bg-[var(--border)] transition-colors duration-200 peer-checked:bg-[var(--primary)] peer-disabled:cursor-not-allowed peer-disabled:opacity-60 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[var(--background)]" />
+                  <span
+                    className={cn(
+                      "pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[var(--shadow-xs)] transition-transform duration-200",
+                      isRtl
+                        ? "right-0.5 peer-checked:-translate-x-5"
+                        : "left-0.5 peer-checked:translate-x-5"
+                    )}
+                  />
+                </span>
+              </div>
+            </label>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

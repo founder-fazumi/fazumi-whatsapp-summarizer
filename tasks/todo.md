@@ -1783,7 +1783,7 @@ console.error(JSON.stringify({
 - [x] WP2 — `lib/push/server.ts` pulls structured summary data (no raw chat)
 - [x] WP3 — VAPID env vars documented in `.env.local.example`
 - [ ] WP4 — Vercel Cron configured to fire at 07:00 UTC daily (manual step at deploy)
-- [ ] WP5 — Opt-in UI: user can enable/disable morning digest in `/settings`
+- [x] WP5 — Opt-in UI: user can enable/disable morning digest in `/settings`
 
 ---
 

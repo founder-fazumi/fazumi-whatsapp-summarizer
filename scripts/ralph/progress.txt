@@ -296,3 +296,16 @@ scripts/ralph/progress.txt
 ### Patterns confirmed
 - If a shared summary field is introduced in the text flow, the ZIP FormData contract and shared persistence helper must be updated in the same slice
 - Remote Supabase migration drift can partially repair and still remain blocked on another missing legacy timestamp, so the exact CLI output needs to be recorded before trying anything beyond the canonical sequence
+
+## Sprint: Web push opt-in UI in settings (2026-03-08)
+
+### What changed
+- SettingsPanel: morning digest toggle (subscribe/unsubscribe lifecycle)
+- app/api/push/unsubscribe/route.ts: confirmed existing route, no new file needed
+- eslint.config.mjs: ignore generated Playwright report folders so repo-wide lint targets source files
+- tasks/todo.md: WP5 marked done
+
+### Files touched
+components/settings/SettingsPanel.tsx,
+eslint.config.mjs,
+tasks/todo.md
