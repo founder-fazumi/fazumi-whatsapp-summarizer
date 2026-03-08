@@ -6,6 +6,49 @@
 
 ---
 
+## Story - Migration Drift Repair + Morning Digest Docs + ZIP Group Name (2026-03-08) [DONE]
+
+#### MZ1 - Run the canonical Supabase repair sequence [Codex]
+**Why:** The new `2026030801` migration cannot be pushed until the linked remote project's drifted migration history is repaired.
+**Files:** none
+**Acceptance:**
+- [x] `supabase db push --include-all` reproduced the known remote drift error.
+- [x] `supabase migration repair --status reverted 20260213 20260301 20260303` completed successfully.
+- [x] A second `supabase db push --include-all` is still blocked by the same drift class, now pointing at missing remote version `20260305`.
+- [x] No local files changed as a direct result of the CLI repair sequence.
+**Verification note:** the second push failed with `Remote migration versions not found in local migrations directory.` and suggested `supabase migration repair --status reverted 20260305`.
+
+#### MZ2 - Skip the remote column check when the migration stays blocked [Codex]
+**Why:** Verifying `summaries.group_name` remotely only makes sense after the blocked migration is actually applied.
+**Files:** none
+**Acceptance:**
+- [x] The remote `information_schema.columns` check was skipped because OPS-A remained blocked after the canonical repair sequence.
+
+#### MZ3 - Document the morning digest script [Codex]
+**Why:** The script exists, but it was not self-describing in code or in the repo docs.
+**Files:** `scripts/schedule-morning-digest.ts`, `README.md`
+**Acceptance:**
+- [x] `scripts/schedule-morning-digest.ts` now has a top-level JSDoc block covering purpose, env vars, usage, and expected output.
+- [x] `README.md` now has a `Scheduled Scripts` section documenting `pnpm push:morning-digest`.
+- [x] The README scheduler note matches the implementation by calling out hourly scheduling for multi-timezone coverage.
+
+#### MZ4 - Align ZIP group-name persistence with the text summarize flow [Codex]
+**Why:** ZIP uploads were creating chat groups but not persisting the final `group_name` metadata onto the saved summary row.
+**Files:** `app/(dashboard)/summarize/page.tsx`, `app/api/summarize-zip/route.ts`
+**Acceptance:**
+- [x] The ZIP client now posts `group_name` in the request body.
+- [x] `/api/summarize-zip` accepts `group_name` and still falls back to the legacy `group_key` field.
+- [x] `/api/summarize-zip` now passes the normalized `groupTitle` to `saveSummaryRecord()`.
+
+#### MZ5 - Verify and document the slice [Codex]
+**Why:** The slice is only done once the checks and repo trackers reflect the actual outcome.
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` passes.
+- [x] `pnpm test` passes.
+
 ## Story - Build Trace Cleanup + Group Name Memory (2026-03-08) [IN PROGRESS]
 
 #### GG1 - Clear stale `.next/trace` before dev and build [Codex]

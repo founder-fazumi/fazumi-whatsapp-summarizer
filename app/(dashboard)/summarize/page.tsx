@@ -826,7 +826,7 @@ export default function SummarizePage() {
       const formData = new FormData();
       formData.append("file", zipFile);
       formData.append("range", zipRange);
-      formData.append("group_key", zipGroupName.trim());
+      formData.append("group_name", zipGroupName.trim());
       formData.append("lang_pref", outputLang);
 
       const response = await fetch("/api/summarize-zip", {

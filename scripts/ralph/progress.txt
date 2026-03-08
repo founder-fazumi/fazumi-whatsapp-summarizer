@@ -272,3 +272,27 @@ components/history/HistoryList.tsx, app/(dashboard)/history/[id]/page.tsx
 - Group filter is client-side and derived from the already-fetched `summaries` prop, so no extra Supabase query was added
 - Detail badge reuses the existing group-name badge treatment with `bg-[var(--primary)]/10` and primary text
 - Remote Supabase pushes can fail before applying new SQL when the remote migration history no longer matches the local migrations directory
+
+## Story: Migration drift follow-up + ZIP metadata/docs (2026-03-08)
+
+### What changed
+- Ran the canonical Supabase repair sequence: the first `supabase db push --include-all` reproduced the known drift error, `supabase migration repair --status reverted 20260213 20260301 20260303` succeeded, and the second push is still blocked by the same remote-history drift with missing version `20260305`
+- Added a top-level JSDoc block to `scripts/schedule-morning-digest.ts` and a new README `Scheduled Scripts` section for `pnpm push:morning-digest`
+- Updated the ZIP summarize client to post `group_name` and the ZIP API route to accept that key, keep the legacy `group_key` fallback, and persist the normalized `groupTitle` through `saveSummaryRecord()`
+
+### Files touched
+scripts/schedule-morning-digest.ts, README.md, app/(dashboard)/summarize/page.tsx,
+app/api/summarize-zip/route.ts, tasks/todo.md, tasks/lessons.md,
+scripts/ralph/progress.txt
+
+### Verification
+- `pnpm lint` passed after the digest-doc patch
+- `pnpm typecheck` passed after the digest-doc patch
+- `pnpm lint` passed after the ZIP group-name patch
+- `pnpm typecheck` passed after the ZIP group-name patch
+- Final `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` all passed
+- `pnpm test` completed with 28 passed and 3 skipped
+
+### Patterns confirmed
+- If a shared summary field is introduced in the text flow, the ZIP FormData contract and shared persistence helper must be updated in the same slice
+- Remote Supabase migration drift can partially repair and still remain blocked on another missing legacy timestamp, so the exact CLI output needs to be recorded before trying anything beyond the canonical sequence

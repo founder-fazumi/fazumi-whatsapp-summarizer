@@ -229,6 +229,33 @@ $env:PLAYWRIGHT_NO_SERVER = "1"; pnpm test
 
 Supabase deploy note: see [`docs/runbooks/supabase.md`](docs/runbooks/supabase.md). In this repo, `supabase db push --include-all` is the canonical pre-deploy check/apply flow.
 
+## Scheduled Scripts
+
+### Morning digest (`pnpm push:morning-digest`)
+
+Sends the morning web-push digest for users whose saved timezone is currently `7:00 AM`.
+
+Requires:
+
+- `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- Optional: `VAPID_SUBJECT`
+
+Run manually:
+
+```powershell
+pnpm push:morning-digest
+```
+
+Expected output: a JSON summary with counts such as `processedUsers`, `notifiedUsers`, `sentSubscriptions`, `skippedUsers`, `failedSubscriptions`, `staleRemoved`, `eligibleTimezones`, and `generatedAt`.
+
+Scheduler note:
+
+- If you support multiple user timezones, run this job at least hourly so each user reaches their local `7:00 AM` window.
+- If you only support one target timezone, you can run it once daily at `7:00 AM` in that timezone via Vercel Cron or an external scheduler.
+
 ## GDPR Consent Testing (EU Users)
 
 To test the GDPR consent banner from outside the EU:

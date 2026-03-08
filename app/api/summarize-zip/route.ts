@@ -539,7 +539,9 @@ export async function POST(req: NextRequest) {
     }
 
     const range: SummarizeZipRange = rangeValue;
-    const groupInput = getFormString(formData, "group_key");
+    const groupInput =
+      getFormString(formData, "group_name") ||
+      getFormString(formData, "group_key");
     const langInput = getFormString(formData, "lang_pref");
     const langPref: LangPref =
       langInput === "en" || langInput === "ar" || langInput === "auto"
@@ -723,6 +725,7 @@ export async function POST(req: NextRequest) {
       summary,
       charCount: selectedCharCount,
       groupId: chatGroup.id,
+      groupName: groupTitle,
       sourceKind: "zip",
       sourceRange: range as SummarySourceRange,
       newMessagesCount: selectedMessages.length,

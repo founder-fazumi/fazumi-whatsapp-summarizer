@@ -231,3 +231,11 @@
 **Quick test:** Submit a summary with only a typed group name, then confirm the saved row has `group_name`, `/history` selects it, and the card renders the badge.
 
 ---
+
+## L029 — Secondary ingest paths must reuse the same summary metadata contract
+**Mistake:** The text summarize flow saved `group_name`, but the ZIP upload flow still posted `group_key` and never forwarded the normalized group title into `saveSummaryRecord()`.
+**Why:** The group-name slice updated the primary JSON route first, while the FormData upload contract and shared ZIP save call were left on the older shape.
+**Rule:** When summary metadata changes, diff the paste route, upload route, and shared save helper together. FormData keys and persisted field names must stay aligned across every ingest path.
+**Quick test:** Save one summary through the text flow and one through the ZIP flow with the same group name, then confirm both `summaries` rows have `group_name` and both history cards render the badge.
+
+---
