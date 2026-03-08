@@ -1,0 +1,39 @@
+# Fazumi
+> School WhatsApp and Telegram chat summarizer for parents — GCC and Middle East focused.
+
+Fazumi turns WhatsApp, Telegram, and Facebook school group chats into structured
+summaries. It extracts dates, action items, fees, forms, links, and follow-up
+questions. Arabic and English are both supported, including mixed-language groups.
+Privacy-first: raw chat text is never stored. Only the structured summary output
+is saved.
+
+## What Fazumi does
+- Paste or upload school chat text (WhatsApp export .txt, .zip, or raw paste)
+- AI extracts: TL;DR, Important Dates, Action Items, People/Classes, Links, Questions
+- Summary saved to personal history for later lookup
+- Works for Arabic, English, and mixed-language school groups
+
+## Who it is for
+- Parents in Qatar, UAE, Saudi Arabia, Kuwait, Bahrain, and Oman
+- Expat and local families in GCC school communities
+- Parents overwhelmed by high-volume school WhatsApp groups
+
+## Plans
+- Free trial: 7 days, 3 summaries per day
+- Free fallback: 3 lifetime summaries after trial ends
+- Monthly: USD 9.99/month — 50 summaries/day
+- Annual: USD 99.99/year — 50 summaries/day
+- Founder: USD 149 one-time — 200 seats max, no refund
+
+## Key pages
+- Home and summarizer: https://fazumi.app
+- Pricing: https://fazumi.app/pricing
+- FAQ: https://fazumi.app/faq
+- Help & Support: https://fazumi.app/help
+- About: https://fazumi.app/about
+- Privacy Policy: https://fazumi.app/privacy
+- Contact: https://fazumi.app/contact
+
+## Privacy
+Fazumi never stores raw chat text or uploaded file contents.
+Only the AI-generated summary and extracted structured items are saved.

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Help & Support",
+  title: { absolute: "Help & Support — Fazumi School Chat Summarizer" },
   description:
     "Practical guidance for getting started with Fazumi — uploads, privacy, language settings, billing, and troubleshooting common issues.",
   alternates: {

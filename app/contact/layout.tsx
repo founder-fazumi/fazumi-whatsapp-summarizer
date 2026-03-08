@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Contact",
+  title: { absolute: "Contact Fazumi — School Chat Summarizer Support" },
   description:
     "Get in touch with the Fazumi team. Send feedback, report an issue, or ask a question — we read every message.",
   alternates: {

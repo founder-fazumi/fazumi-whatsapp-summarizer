@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "System Status",
+  title: { absolute: "Fazumi System Status — School Chat Summarizer" },
   description:
     "Current status of Fazumi services — web app, summarization API, authentication, and billing. Manual updates only.",
   alternates: {

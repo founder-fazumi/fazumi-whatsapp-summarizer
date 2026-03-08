@@ -119,3 +119,9 @@ S010 = PENDING  # Referral system
 # Files: app/about/layout.tsx, app/contact/layout.tsx, app/faq/layout.tsx, app/help/layout.tsx, app/status/layout.tsx, app/pricing/layout.tsx, app/terms/layout.tsx, app/privacy/layout.tsx, app/cookie-policy/layout.tsx, app/refunds/layout.tsx, specs/seo-round-6-public-layout-breadcrumbs.md, tasks/todo.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint` and `pnpm typecheck` pass.
 # Pattern: when locale uses one canonical public path, expose language alternates at the metadata layer and reuse breadcrumb schema across static public layouts instead of inventing localized route variants.
+
+# 2026-03-08
+# SEO hardening Round 7 completed: the remaining public layouts now use keyword-rich absolute title tags, and a public `llms.txt` advertises Fazumi's scope, pricing, key pages, and privacy stance for AI retrieval.
+# Files: app/about/layout.tsx, app/faq/layout.tsx, app/contact/layout.tsx, app/pricing/layout.tsx, app/help/layout.tsx, app/status/layout.tsx, public/llms.txt, specs/seo-round-7-absolute-titles-llms.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when a route-specific title must ignore the shared root template, set `title.absolute` in the route layout and keep every other metadata field unchanged so canonicals/schema stay stable.

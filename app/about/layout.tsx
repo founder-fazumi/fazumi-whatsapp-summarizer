@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "About",
+  title: { absolute: "School WhatsApp Summarizer for Parents — About Fazumi" },
   description:
     "Learn how Fazumi was built to help parents and students cut through noisy school WhatsApp groups and never miss an important update.",
   alternates: {

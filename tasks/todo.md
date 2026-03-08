@@ -130,6 +130,14 @@
 - [x] `app/terms/layout.tsx`, `app/privacy/layout.tsx`, `app/cookie-policy/layout.tsx`, and `app/refunds/layout.tsx` emit `WebPage` plus `BreadcrumbList` JSON-LD while preserving their existing metadata copy.
 - [x] `pnpm lint` and `pnpm typecheck` pass after the Round 6 changes.
 
+#### SEO7 - Round 7 absolute public titles and `llms.txt` [Codex]
+**Why:** The remaining public page titles still inherit the root template instead of using the requested keyword-rich absolutes, and the site needs a public `llms.txt` for AI retrieval visibility.
+**Files:** `app/about/layout.tsx`, `app/faq/layout.tsx`, `app/contact/layout.tsx`, `app/pricing/layout.tsx`, `app/help/layout.tsx`, `app/status/layout.tsx`, `public/llms.txt`, `specs/seo-round-7-absolute-titles-llms.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] The six public layout metadata exports use the exact requested `title: { absolute: "..." }` values and keep all non-title metadata unchanged.
+- [x] `public/llms.txt` exists with the exact provided product, pricing, key page, and privacy copy.
+- [x] `pnpm lint` and `pnpm typecheck` pass after the Round 7 changes.
+
 ---
 ## PHASE 0 — PLAN (done before "Proceed")
 
