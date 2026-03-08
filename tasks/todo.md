@@ -1784,11 +1784,9 @@ pnpm webhook:replay:payment-success
 ### Final Launch Gate (Claude — Thursday 6 March)
 
 Before approving Saturday launch:
-```powershell
-pnpm lint && pnpm typecheck && pnpm test && pnpm build
-```
+- [x] `pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 Manual smoke (using qa-smoke-tests skill checklist):
-- [ ] Public routes: `/`, `/pricing`, `/about`, `/login`, `/api/health`
+- [x] Public routes: `/`, `/pricing`, `/about`, `/login`, `/api/health`
 - [ ] Auth: sign in → dashboard → history → sign out
 - [ ] Summarize: paste → summary → saved badge → history
 - [ ] Limit: 4th trial summary → 402 + banner

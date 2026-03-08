@@ -161,3 +161,29 @@ S010 = PENDING  # Referral system
 # Files: specs/playwright-test-alignment-2026-03-08.md, tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt, e2e/admin-dashboard.spec.ts, e2e/app-smoke.spec.ts, e2e/summarize-auth.spec.ts, e2e/summarize-zip.spec.ts, public/brand/logo/Fazumi logo transparent.png
 # Verification: each target spec passes individually, then `pnpm lint`, `pnpm typecheck`, and `pnpm test` all pass.
 # Pattern: keep browser smoke tests aligned to current UI contracts with stable selectors and explicit seeded state when the test intent is not backend schema coverage.
+
+## Sprint: Founder UX + Pre-Launch Polish (2026-03-08)
+
+### What changed
+- Entitlement wiring: Sidebar, DashboardBanner, SettingsPanel all use resolveEntitlement()
+- FounderWelcomeModal mounted on dashboard, summarize, and history routes
+- Duplicate modal mount in history/page.tsx removed
+- Profile page: settings link + mailto deletion link (GDPR path)
+- FAQ: Arabic-support and privacy answers corrected to match implementation
+- About page: unverified metrics flagged with TODO comments
+- Summarize page: loading/error/limit copy aligned to voice.md
+- robots.ts: /founder, /admin, /api, /calendar, /offline all blocked
+- tasks/todo.md: T6 test note resolved, BV4-6, HR5-7, RC8 checked
+
+### Files touched
+components/layout/Sidebar.tsx, components/settings/SettingsPanel.tsx,
+components/founder/FounderWelcomeModal.tsx, app/(dashboard)/dashboard/page.tsx,
+app/(dashboard)/history/page.tsx, app/(dashboard)/summarize/page.tsx,
+app/(dashboard)/profile/page.tsx, app/(dashboard)/billing/page.tsx,
+app/(dashboard)/founder/page.tsx, components/landing/FAQAccordion.tsx,
+app/about/page.tsx, app/robots.ts, e2e/public-routes.spec.ts, tasks/todo.md
+
+### Patterns confirmed
+- resolveEntitlement() is the single source of truth for billingPlan everywhere
+- Founder badge / nav item / modal are all entitlement-driven, not profile.plan-driven
+- FounderWelcomeModal localStorage guard prevents double-show across routes
