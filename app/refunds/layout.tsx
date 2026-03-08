@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Refund Policy",
+  title: { absolute: "Fazumi Refund Policy — 7-Day Money-Back Guarantee" },
   description:
     "Fazumi's refund and cancellation policy for monthly, annual, and Founder plans. 7-day money-back on monthly and annual.",
   alternates: {

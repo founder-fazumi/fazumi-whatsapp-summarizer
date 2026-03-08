@@ -4,6 +4,13 @@ export const metadata: Metadata = {
   title: { absolute: "Fazumi System Status — School Chat Summarizer" },
   description:
     "Current status of Fazumi services — web app, summarization API, authentication, and billing. Manual updates only.",
+  openGraph: {
+    title: "Fazumi System Status — School Chat Summarizer",
+    description:
+      "Current status of Fazumi services — web app, summarization API, authentication, and billing. Manual updates only.",
+    url: "/status",
+    type: "website",
+  },
   alternates: {
     canonical: "/status",
     languages: { en: "/status", ar: "/status", "x-default": "/status" },

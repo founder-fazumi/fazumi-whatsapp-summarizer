@@ -125,3 +125,9 @@ S010 = PENDING  # Referral system
 # Files: app/about/layout.tsx, app/faq/layout.tsx, app/contact/layout.tsx, app/pricing/layout.tsx, app/help/layout.tsx, app/status/layout.tsx, public/llms.txt, specs/seo-round-7-absolute-titles-llms.md, tasks/todo.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint` and `pnpm typecheck` pass.
 # Pattern: when a route-specific title must ignore the shared root template, set `title.absolute` in the route layout and keep every other metadata field unchanged so canonicals/schema stay stable.
+
+# 2026-03-08
+# SEO hardening Round 8 completed: the remaining legal layouts now use explicit absolute titles, and the key public layouts expose route-level Open Graph metadata with relative URLs resolved by the root metadata base.
+# Files: app/terms/layout.tsx, app/privacy/layout.tsx, app/cookie-policy/layout.tsx, app/refunds/layout.tsx, app/about/layout.tsx, app/faq/layout.tsx, app/pricing/layout.tsx, app/contact/layout.tsx, app/help/layout.tsx, app/status/layout.tsx, specs/seo-round-8-legal-titles-open-graph.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: for static App Router layouts that already have stable canonicals, add route-level Open Graph metadata with the same path and keep `url` relative so `metadataBase` stays the single source of truth for the absolute domain.

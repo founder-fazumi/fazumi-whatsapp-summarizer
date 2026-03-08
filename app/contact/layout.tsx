@@ -4,6 +4,13 @@ export const metadata: Metadata = {
   title: { absolute: "Contact Fazumi — School Chat Summarizer Support" },
   description:
     "Get in touch with the Fazumi team. Send feedback, report an issue, or ask a question — we read every message.",
+  openGraph: {
+    title: "Contact Fazumi — School Chat Summarizer Support",
+    description:
+      "Get in touch with the Fazumi team. Send feedback, report an issue, or ask a question — we read every message.",
+    url: "/contact",
+    type: "website",
+  },
   alternates: {
     canonical: "/contact",
     languages: { en: "/contact", ar: "/contact", "x-default": "/contact" },

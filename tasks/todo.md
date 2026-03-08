@@ -138,6 +138,14 @@
 - [x] `public/llms.txt` exists with the exact provided product, pricing, key page, and privacy copy.
 - [x] `pnpm lint` and `pnpm typecheck` pass after the Round 7 changes.
 
+#### SEO8 - Round 8 legal absolute titles and public Open Graph metadata [Codex]
+**Why:** Four legal/support layouts still inherit the root title template, and six public layouts still need explicit Open Graph metadata for cleaner social sharing previews.
+**Files:** `app/terms/layout.tsx`, `app/privacy/layout.tsx`, `app/cookie-policy/layout.tsx`, `app/refunds/layout.tsx`, `app/about/layout.tsx`, `app/faq/layout.tsx`, `app/pricing/layout.tsx`, `app/contact/layout.tsx`, `app/help/layout.tsx`, `app/status/layout.tsx`, `specs/seo-round-8-legal-titles-open-graph.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `app/terms/layout.tsx`, `app/privacy/layout.tsx`, `app/cookie-policy/layout.tsx`, and `app/refunds/layout.tsx` use the requested `title: { absolute: "..." }` values and leave descriptions, alternates, schemas, and default exports unchanged.
+- [x] `app/about/layout.tsx`, `app/faq/layout.tsx`, `app/pricing/layout.tsx`, `app/contact/layout.tsx`, `app/help/layout.tsx`, and `app/status/layout.tsx` add the requested `openGraph` block without changing existing non-Open-Graph metadata fields.
+- [x] `pnpm lint` and `pnpm typecheck` pass after the Round 8 changes.
+
 ---
 ## PHASE 0 — PLAN (done before "Proceed")
 

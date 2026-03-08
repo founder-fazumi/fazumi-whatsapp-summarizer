@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy",
+  title: { absolute: "Fazumi Privacy Policy — No Raw Chat Data Stored" },
   description:
     "Fazumi never stores your raw chat text. Read our Privacy Policy to understand exactly what data we collect and how we protect it.",
   alternates: {

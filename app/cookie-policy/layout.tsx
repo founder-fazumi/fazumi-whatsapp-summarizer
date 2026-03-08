@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Cookie Policy",
+  title: { absolute: "Fazumi Cookie Policy — Privacy-First School App" },
   description:
     "How Fazumi uses cookies and similar technologies to keep your preferences and session secure.",
   alternates: {

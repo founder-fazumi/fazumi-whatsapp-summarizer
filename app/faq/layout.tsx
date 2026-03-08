@@ -4,6 +4,13 @@ export const metadata: Metadata = {
   title: { absolute: "WhatsApp School Chat Summarizer FAQ — Fazumi" },
   description:
     "Answers to the most common questions about Fazumi — privacy, Arabic support, billing, upload limits, and how school chat summaries work.",
+  openGraph: {
+    title: "WhatsApp School Chat Summarizer FAQ — Fazumi",
+    description:
+      "Answers to the most common questions about Fazumi — privacy, Arabic support, billing, upload limits, and how school chat summaries work.",
+    url: "/faq",
+    type: "website",
+  },
   alternates: {
     canonical: "/faq",
     languages: { en: "/faq", ar: "/faq", "x-default": "/faq" },

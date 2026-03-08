@@ -4,6 +4,13 @@ export const metadata: Metadata = {
   title: { absolute: "Help & Support — Fazumi School Chat Summarizer" },
   description:
     "Practical guidance for getting started with Fazumi — uploads, privacy, language settings, billing, and troubleshooting common issues.",
+  openGraph: {
+    title: "Help & Support — Fazumi School Chat Summarizer",
+    description:
+      "Practical guidance for getting started with Fazumi — uploads, privacy, language settings, billing, and troubleshooting common issues.",
+    url: "/help",
+    type: "website",
+  },
   alternates: {
     canonical: "/help",
     languages: { en: "/help", ar: "/help", "x-default": "/help" },
