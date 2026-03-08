@@ -160,7 +160,15 @@
 
 ---
 
-## L020 — Keep shell identity fields in sync with Auth metadata
+## L020 — Next.js 16 uses proxy.ts, not middleware.ts
+**Mistake:** Assumed `middleware.ts` was still the correct Next.js convention and flagged the `proxy.ts` rename as a critical regression.
+**Why:** Next.js 16.1.6 deprecated `middleware.ts` in favour of `proxy.ts`. The deprecation warning in `build/index.js` line 611 is explicit. Build output shows `ƒ Proxy (Middleware)` to confirm it is active.
+**Rule:** When a Next.js build warning mentions a file-convention change, read the linked docs URL and the framework constants before assuming the rename is wrong. Check `node_modules/next/dist/lib/constants.js` for the authoritative filename constants (`PROXY_FILENAME`, `MIDDLEWARE_FILENAME`, etc.).
+**Quick test:** Run `pnpm build` and look for `ƒ Proxy (Middleware)` in output to confirm the proxy is being picked up. Then verify `GET /dashboard` without a session cookie returns a 307 redirect to `/login`.
+
+---
+
+## L021 — Keep shell identity fields in sync with Auth metadata
 **Mistake:** Saving a new display name updated `profiles.full_name`, but the dashboard shell still read `user.user_metadata.full_name`, so the top bar stayed stale until a later auth refresh or relogin.
 **Why:** Profile persistence and Auth metadata were treated as separate sources of truth even though the shell UI depends on the Auth user object.
 **Rule:** Whenever a settings flow changes shell-visible identity fields like `full_name` or `avatar_url`, update both the `profiles` row and Supabase Auth `user_metadata`, then trigger a lightweight client refresh for the mounted shell.
@@ -168,7 +176,7 @@
 
 ---
 
-## L021 — Shared components should not import types from route files
+## L022 — Shared components should not import types from route files
 **Mistake:** `HistoryList` imported `SummaryRow` from the route file `app/history/page.tsx`, and that type import broke as soon as the dashboard routes moved into a route group.
 **Why:** App Router file paths are implementation details. Route groups can change those paths without changing the public URL, so shared components that import from `app/**` become fragile.
 **Rule:** If a type is used by both a route and a shared component, define it in a stable `components/**` or `lib/**` module instead of importing it from a route file.
@@ -176,7 +184,7 @@
 
 ---
 
-## L022 — Loading states should mirror page structure, not reintroduce retired marketing UI
+## L023 — Loading states should mirror page structure, not reintroduce retired marketing UI
 **Mistake:** Dashboard loading screens reused `MascotArt` plus descriptive copy, which made route transitions flash heavy content that no longer belongs in the live experience.
 **Why:** Loading states were treated like standalone empty states instead of lightweight placeholders for the first visible card on each route.
 **Rule:** For dashboard loading files, keep skeletons structural and page-shaped. Do not render mascots, explanatory paragraphs, or widths that differ from the live route's first card.
@@ -184,7 +192,7 @@
 
 ---
 
-## L023 — Arabic UI text needs explicit mobile line-height rules, not Latin defaults
+## L024 — Arabic UI text needs explicit mobile line-height rules, not Latin defaults
 **Mistake:** Arabic body and micro-copy relied on the same relaxed line-height defaults used for Latin-heavy UI, which can make diacritics feel cramped on mobile and small labels.
 **Why:** Shared typography tokens are usually tuned around Latin metrics first, so Arabic readability issues can survive until a real-device pass catches them.
 **Rule:** When Arabic copy appears in shared UI text, set explicit Arabic line-height expectations in `app/globals.css` for both body-sized containers and the smallest label sizes instead of assuming the global defaults are enough.
@@ -192,7 +200,7 @@
 
 ---
 
-## L024 — Playwright smoke tests should target stable contracts, not dev-only status codes or locale-specific copy
+## L025 — Playwright smoke tests should target stable contracts, not dev-only status codes or locale-specific copy
 **Mistake:** The pre-existing smoke suite hard-coded English UI strings, assumed App Router `notFound()` would surface as HTTP 404 in Playwright dev runs, and depended on live summary persistence even when the dev database schema lagged behind the app contract.
 **Why:** The tests mixed several concerns at once: localized UI copy, Next.js dev-server behavior, and backend persistence details that were not the intent of each smoke assertion.
 **Rule:** For Playwright smoke coverage, prefer stable selectors, hrefs, and bilingual-safe assertions. When a test is verifying UI structure or gating behavior, seed or mock non-target backend dependencies instead of coupling the smoke path to unrelated schema drift.
@@ -200,7 +208,7 @@
 
 ---
 
-## L025 — Local Playwright runs need an explicit no-server mode on Windows
+## L026 — Local Playwright runs need an explicit no-server mode on Windows
 **Mistake:** The default Playwright `webServer` flow could hang locally when it tried to spawn `next dev`, which blocked otherwise-green smoke coverage behind runner startup timing instead of test failures.
 **Why:** Local Windows runs were coupling browser tests to Playwright-managed server startup, even though the suite is also valid against an already-running dev server.
 **Rule:** Keep Playwright config able to skip `webServer` via `PLAYWRIGHT_NO_SERVER=1`, and provide a repo-local helper that pre-starts a local Next server, waits on `/api/health`, and then runs the suite against that server.

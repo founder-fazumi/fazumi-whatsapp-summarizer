@@ -193,3 +193,18 @@ app/about/page.tsx, app/robots.ts, e2e/public-routes.spec.ts, tasks/todo.md
 - resolveEntitlement() is the single source of truth for billingPlan everywhere
 - Founder badge / nav item / modal are all entitlement-driven, not profile.plan-driven
 - FounderWelcomeModal localStorage guard prevents double-show across routes
+
+## Hotfix: predev EPERM + smoke runner confirmation (2026-03-08)
+
+### What changed
+- predev script: removes stale `.next/cache/.previewinfo` on Windows before dev start
+- L020 added to lessons: Next.js 16 `proxy.ts` convention confirmed correct
+
+### Smoke result
+- Timed out before completion in this Codex shell environment
+- Observed before timeout: 5 failed (`admin routes require explicit configured credentials before the dashboard is reachable`, `auth + dashboard smoke: email login reaches dashboard`, `billing lifecycle smoke: replayed Lemon Squeezy webhooks update UI without checkout`, `public smoke: / renders with the Arabic-first default`, `public smoke: /pricing renders with the Arabic-first default`)
+- Full pass/skip totals could not be verified here because backgrounded `next dev` hit `spawn EPERM` / `EPIPE` under local smoke automation
+
+### Patterns confirmed
+- proxy.ts is the Next.js 16 middleware convention (`PROXY_FILENAME = "proxy"`)
+- pnpm dev EPERM on Windows can come from stale `.next/cache` cleanup or stale `.next/dev` worker state after a crashed run

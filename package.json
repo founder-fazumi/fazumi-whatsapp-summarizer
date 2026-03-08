@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node scripts/clean-next-dev-cache.mjs",
+    "predev": "pwsh -Command \"if (Test-Path '.next/cache/.previewinfo') { Remove-Item -Force '.next/cache/.previewinfo' -ErrorAction SilentlyContinue }\" && node scripts/clean-next-dev-cache.mjs",
     "dev": "next dev",
     "dev:webpack": "next dev",
     "build": "next build",
