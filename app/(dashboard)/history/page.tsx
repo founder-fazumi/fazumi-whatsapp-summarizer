@@ -100,7 +100,6 @@ export default async function HistoryPage({
   if (totalCount === 0 && !query) {
     return (
       <DashboardShell>
-        <FounderWelcomeModal isFounder={isFounder} />
         <EmptyState
           icon={Inbox}
           title={<LocalizedText en="No summaries yet. Paste a group chat to get started." ar="لا توجد ملخصات بعد. الصق محادثة للبدء." />}

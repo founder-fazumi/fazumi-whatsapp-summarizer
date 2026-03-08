@@ -5,11 +5,13 @@ export default function robots(): MetadataRoute.Robots {
 
   const privateRoutes = [
     "/login",
+    "/admin",
     "/admin_dashboard",
-    "/api/",
+    "/api",
     "/auth/",
     "/sentry-example-page",
     "/dashboard",
+    "/founder",
     "/history",
     "/summarize",
     "/billing",

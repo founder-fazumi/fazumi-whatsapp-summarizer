@@ -13,6 +13,7 @@ import { getDefaultConsent, type ConsentPreferences } from "@/lib/compliance/gdp
 import { useLang } from "@/lib/context/LangContext";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { formatDate } from "@/lib/format";
+import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import {
   getEmptyFamilyContext,
   normalizeFamilyContext,
@@ -262,7 +263,7 @@ export function SettingsPanel() {
   const [savedAvatarUrl, setSavedAvatarUrl] = useState("");
   const [profileStatus, setProfileStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [profileLoading, setProfileLoading] = useState(true);
-  const [plan, setPlan] = useState("free");
+  const [billingPlan, setBillingPlan] = useState("free");
   const [founderSince, setFounderSince] = useState<FounderSinceCopy>({ en: "", ar: "" });
   const [familyContext, setFamilyContext] = useState<FamilyContext>(getEmptyFamilyContext());
   const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext>(getEmptyFamilyContext());
@@ -295,10 +296,10 @@ export function SettingsPanel() {
           return;
         }
 
-        const [{ data: profile }, { data: founderSubscription }] = await Promise.all([
+        const [{ data: profile }, { data: subscriptions }] = await Promise.all([
           supabase
             .from("profiles")
-            .select("family_context, summary_retention_days, full_name, avatar_url, plan")
+            .select("family_context, summary_retention_days, full_name, avatar_url, plan, trial_expires_at")
             .eq("id", user.id)
             .maybeSingle<{
               family_context: unknown;
@@ -306,15 +307,12 @@ export function SettingsPanel() {
               full_name: string | null;
               avatar_url: string | null;
               plan: string | null;
+              trial_expires_at: string | null;
             }>(),
           supabase
             .from("subscriptions")
-            .select("created_at")
+            .select("plan_type, status, current_period_end, updated_at, created_at, ls_subscription_id, ls_order_id")
             .eq("user_id", user.id)
-            .eq("plan_type", "founder")
-            .order("created_at", { ascending: true })
-            .limit(1)
-            .maybeSingle<{ created_at: string | null }>(),
         ]);
 
         if (!active) {
@@ -325,6 +323,24 @@ export function SettingsPanel() {
         const nextTeachers = nextContext.teacher_names.join("\n");
         const nextLinks = nextContext.recurring_links.join("\n");
         const nextRetention = normalizeSummaryRetentionDays(profile?.summary_retention_days);
+        const subscriptionRows = (subscriptions ?? []) as EntitlementSubscription[];
+        const entitlement = resolveEntitlement({
+          profile: {
+            plan: profile?.plan ?? "free",
+            trial_expires_at: profile?.trial_expires_at ?? null,
+          },
+          subscriptions: subscriptionRows,
+        });
+        const founderSubscription =
+          [...subscriptionRows]
+            .filter(
+              (subscription) =>
+                subscription.plan_type === "founder" && typeof subscription.created_at === "string"
+            )
+            .sort(
+              (left, right) =>
+                new Date(left.created_at ?? 0).getTime() - new Date(right.created_at ?? 0).getTime()
+            )[0] ?? null;
 
         setFamilyContext(nextContext);
         setSavedFamilyContext(nextContext);
@@ -334,7 +350,7 @@ export function SettingsPanel() {
         setSavedLinksDraft(nextLinks);
         setRetentionDays(nextRetention);
         setSavedRetentionDays(nextRetention);
-        setPlan(profile?.plan ?? "free");
+        setBillingPlan(entitlement.billingPlan);
         setFounderSince(
           founderSubscription?.created_at
             ? {
@@ -500,7 +516,7 @@ export function SettingsPanel() {
             <div>
               <CardTitle>{pick(locale, COPY.profileTitle)}</CardTitle>
               <CardDescription>{pick(locale, COPY.profileBody)}</CardDescription>
-              {plan === "founder" && (
+              {billingPlan === "founder" && (
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                   <Star className="h-3.5 w-3.5 shrink-0" />
                   <LocalizedText

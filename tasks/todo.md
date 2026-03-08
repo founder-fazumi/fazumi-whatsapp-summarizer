@@ -253,8 +253,8 @@
 **Acceptance:**
 - [x] `pnpm lint` passes.
 - [x] `pnpm typecheck` passes.
-- [ ] `pnpm test` passes.
-**Verification note:** pnpm test is still blocked in this local environment. The full Playwright suite hit a port-3100 conflict on one run and worker-process spawn EPERM / tool-timeout failures on follow-up runs, but the changed public-route smoke suite passes via pnpm exec playwright test e2e/public-routes.spec.ts.
+- [x] `pnpm test` passes.
+**Resolved:** Fixed in e69bf7e (4 pre-existing failures) + 75567c4 (founder smoke test). Suite: 28 passed, 3 skipped as of 2026-03-08.
 - [x] `pnpm build` passes.
 - [x] Progress, decisions, lessons, and smoke results are recorded.
 
@@ -265,9 +265,9 @@
 **Why:** Public pages need stable production canonicals, hreflang metadata, title templating, and route-level canonical declarations before indexing hardening.
 **Files:** `app/layout.tsx`, `app/pricing/layout.tsx`, `app/about/layout.tsx`, `app/faq/layout.tsx`, `app/contact/layout.tsx`, `app/terms/layout.tsx`, `app/privacy/layout.tsx`, `app/help/layout.tsx`, `app/cookie-policy/layout.tsx`, `app/refunds/layout.tsx`, `app/status/layout.tsx`
 **Acceptance:**
-- [ ] Root metadata uses the production domain fallback, canonical/hreflang alternates, OG locale fields, and a shared title template.
-- [ ] Public layouts expose canonical alternates for their route paths.
-- [ ] Missing metadata layouts for `/help`, `/cookie-policy`, `/refunds`, and `/status` exist with the requested title/description copy.
+- [x] Root metadata uses the production domain fallback, canonical/hreflang alternates, OG locale fields, and a shared title template.
+- [x] Public layouts expose canonical alternates for their route paths.
+- [x] Missing metadata layouts for `/help`, `/cookie-policy`, `/refunds`, and `/status` exist with the requested title/description copy.
 
 #### SEO2 - Structured data, crawl directives, and SSR crawlability [Codex]
 **Why:** The landing and pricing pages need richer schema coverage, crawl directives need route-aware rules, and `/about` should render crawlable English HTML on the server.
@@ -275,9 +275,9 @@
 **Acceptance:**
 - [ ] Homepage renders Organization, FAQPage, SoftwareApplication, and WebSite schema blocks.
 - [ ] Pricing renders Product/Offer plus BreadcrumbList schema blocks.
-- [ ] Sitemap change frequencies are set per route and robots rules include the requested AI retrieval/training directives.
+- [x] Sitemap change frequencies are set per route and robots rules include the requested AI retrieval/training directives.
 - [ ] `/about` is a server component with English SSR defaults while keeping the existing copy and structure intact.
-- [ ] `pnpm lint` and `pnpm typecheck` pass after the SEO changes.
+- [x] `pnpm lint` and `pnpm typecheck` pass after the SEO changes.
 
 #### SEO3 - Round 2 schema drift, metadata, RTL, and LCP fixes [Codex]
 **Why:** The first SEO hardening pass still leaves schema drift, incomplete Twitter metadata, non-cookie-aware `/about` SSR, and a missing first-viewport image preload on the landing steps.
