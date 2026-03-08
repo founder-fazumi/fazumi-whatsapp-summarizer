@@ -199,3 +199,11 @@
 **Quick test:** Run `pnpm test` with Arabic as the first-render locale and a dev database that is missing optional summary columns; the smoke suite should still verify the intended UI contracts without failing on unrelated copy or save-path assumptions.
 
 ---
+
+## L025 — Local Playwright runs need an explicit no-server mode on Windows
+**Mistake:** The default Playwright `webServer` flow could hang locally when it tried to spawn `next dev`, which blocked otherwise-green smoke coverage behind runner startup timing instead of test failures.
+**Why:** Local Windows runs were coupling browser tests to Playwright-managed server startup, even though the suite is also valid against an already-running dev server.
+**Rule:** Keep Playwright config able to skip `webServer` via `PLAYWRIGHT_NO_SERVER=1`, and provide a repo-local helper that pre-starts a local Next server, waits on `/api/health`, and then runs the suite against that server.
+**Quick test:** Start the app manually or via `pwsh ./scripts/smoke.ps1`, set `PLAYWRIGHT_NO_SERVER=1`, and confirm `pnpm test` begins running specs immediately instead of timing out while waiting for a spawned server.
+
+---

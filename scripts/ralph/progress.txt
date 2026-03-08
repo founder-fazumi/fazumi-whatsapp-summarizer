@@ -162,6 +162,12 @@ S010 = PENDING  # Referral system
 # Verification: each target spec passes individually, then `pnpm lint`, `pnpm typecheck`, and `pnpm test` all pass.
 # Pattern: keep browser smoke tests aligned to current UI contracts with stable selectors and explicit seeded state when the test intent is not backend schema coverage.
 
+# 2026-03-08
+# P8 reliability slice completed: the deprecated root `middleware.ts` file was migrated to Next.js 16 `proxy.ts`, Playwright now supports `PLAYWRIGHT_NO_SERVER=1`, and a local PowerShell smoke runner can pre-start a local Next server, wait on `/api/health`, then execute the suite against the existing server.
+# Files: proxy.ts, playwright.config.ts, lib/testing/playwright.ts, scripts/smoke.ps1, package.json, README.md, tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass after each P8 item; smoke helper is documented and ready for local use.
+# Pattern: when local browser coverage flakes because the runner owns server startup, give Playwright an env-guarded attach mode and standardize one repo script around the app's health endpoint.
+
 ## Sprint: Founder UX + Pre-Launch Polish (2026-03-08)
 
 ### What changed

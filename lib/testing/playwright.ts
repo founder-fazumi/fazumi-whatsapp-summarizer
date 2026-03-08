@@ -1,4 +1,4 @@
-const DEFAULT_PLAYWRIGHT_PORT = process.env.PLAYWRIGHT_PORT ?? "3100";
+const DEFAULT_PLAYWRIGHT_PORT = process.env.PLAYWRIGHT_PORT ?? "3000";
 
 export const PLAYWRIGHT_BASE_URL =
   process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${DEFAULT_PLAYWRIGHT_PORT}`;

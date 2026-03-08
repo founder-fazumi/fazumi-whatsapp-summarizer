@@ -255,6 +255,7 @@
 - [x] `pnpm typecheck` passes.
 - [x] `pnpm test` passes.
 **Resolved:** Fixed in e69bf7e (4 pre-existing failures) + 75567c4 (founder smoke test). Suite: 28 passed, 3 skipped as of 2026-03-08.
+Local smoke runner: `pwsh ./scripts/smoke.ps1` (added P8) - bypasses `webServer` timeout by pre-starting dev server and setting `PLAYWRIGHT_NO_SERVER=1`.
 - [x] `pnpm build` passes.
 - [x] Progress, decisions, lessons, and smoke results are recorded.
 

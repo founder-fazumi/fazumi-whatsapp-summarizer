@@ -211,6 +211,22 @@ Run one spec file:
 pnpm exec playwright test e2e\app-smoke.spec.ts
 ```
 
+### Running tests against a pre-started server (Windows / timeout workaround)
+
+If `pnpm test` times out because Playwright cannot spawn the dev server:
+
+```powershell
+# Option 1 - use the smoke runner (starts dev server automatically)
+pwsh ./scripts/smoke.ps1
+
+# Option 2 - start dev server manually, then run tests in a second terminal
+pnpm dev
+# (wait for "Ready" message, then in a new terminal:)
+$env:PLAYWRIGHT_NO_SERVER = "1"; pnpm test
+```
+
+`pnpm smoke` runs the same PowerShell helper.
+
 Supabase deploy note: see [`docs/runbooks/supabase.md`](docs/runbooks/supabase.md). In this repo, `supabase db push --include-all` is the canonical pre-deploy check/apply flow.
 
 ## GDPR Consent Testing (EU Users)

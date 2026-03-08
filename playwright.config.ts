@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
-import { getPlaywrightBaseUrl, getPlaywrightDevServerCommand } from "./lib/testing/playwright";
+import { getPlaywrightBaseUrl } from "./lib/testing/playwright";
 
 const baseURL = getPlaywrightBaseUrl();
-const shouldManageWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER !== "1";
+const useWebServer =
+  !process.env.CI && process.env.PLAYWRIGHT_NO_SERVER !== "1";
 
 export default defineConfig({
   testDir: ".",
@@ -29,16 +30,16 @@ export default defineConfig({
       },
     },
   ],
-  webServer: shouldManageWebServer
+  webServer: useWebServer
     ? {
-        command: getPlaywrightDevServerCommand(),
+        command: "pnpm dev",
         env: {
           ...process.env,
           PLAYWRIGHT_TEST: "1",
         },
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
+        timeout: 120_000,
       }
     : undefined,
 });
