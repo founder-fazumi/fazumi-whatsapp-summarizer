@@ -19,6 +19,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
 const aboutOrgSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
+  "@id": `${APP_URL}/#organization`,
   name: "Fazumi",
   url: APP_URL,
   description:

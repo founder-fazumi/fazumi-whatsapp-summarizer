@@ -25,6 +25,7 @@ const pricingSchema = {
       priceCurrency: "USD",
       priceValidUntil: "2027-01-01",
       availability: "https://schema.org/InStock",
+      url: `${APP_URL}/pricing`,
     },
     {
       "@type": "Offer",
@@ -33,6 +34,16 @@ const pricingSchema = {
       priceCurrency: "USD",
       priceValidUntil: "2027-01-01",
       availability: "https://schema.org/InStock",
+      url: `${APP_URL}/pricing`,
+    },
+    {
+      "@type": "Offer",
+      name: "Founder Lifetime",
+      price: "149.00",
+      priceCurrency: "USD",
+      priceValidUntil: "2027-01-01",
+      availability: "https://schema.org/LimitedAvailability",
+      url: `${APP_URL}/pricing`,
     },
   ],
 };
