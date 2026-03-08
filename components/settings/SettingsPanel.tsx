@@ -103,6 +103,11 @@ const COPY = {
     en: "One per line or separated by commas.",
     ar: "اسم واحد في كل سطر أو افصل بينها بفواصل.",
   },
+  groupNames: { en: "School group names", ar: "أسماء مجموعات المدرسة" },
+  groupNamesHint: {
+    en: "One group name per line, e.g. Grade 3B WhatsApp",
+    ar: "اسم مجموعة واحد في كل سطر، مثال: واتساب الصف الثالث ب",
+  },
   links: { en: "Recurring links", ar: "الروابط المتكررة" },
   linksHint: {
     en: "Portal, fee, form, or classroom links you reuse often.",
@@ -190,6 +195,13 @@ function splitDraft(value: string) {
     .filter(Boolean);
 }
 
+function splitLineDraft(value: string) {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function retentionLabel(locale: Locale, value: number | null) {
   if (value === null) {
     return pick(locale, COPY.keep);
@@ -269,6 +281,8 @@ export function SettingsPanel() {
   const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext>(getEmptyFamilyContext());
   const [teachersDraft, setTeachersDraft] = useState("");
   const [savedTeachersDraft, setSavedTeachersDraft] = useState("");
+  const [groupNamesDraft, setGroupNamesDraft] = useState("");
+  const [savedGroupNamesDraft, setSavedGroupNamesDraft] = useState("");
   const [linksDraft, setLinksDraft] = useState("");
   const [savedLinksDraft, setSavedLinksDraft] = useState("");
   const [memoryStatus, setMemoryStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -321,6 +335,7 @@ export function SettingsPanel() {
 
         const nextContext = normalizeFamilyContext(profile?.family_context);
         const nextTeachers = nextContext.teacher_names.join("\n");
+        const nextGroupNames = nextContext.group_names.join("\n");
         const nextLinks = nextContext.recurring_links.join("\n");
         const nextRetention = normalizeSummaryRetentionDays(profile?.summary_retention_days);
         const subscriptionRows = (subscriptions ?? []) as EntitlementSubscription[];
@@ -346,6 +361,8 @@ export function SettingsPanel() {
         setSavedFamilyContext(nextContext);
         setTeachersDraft(nextTeachers);
         setSavedTeachersDraft(nextTeachers);
+        setGroupNamesDraft(nextGroupNames);
+        setSavedGroupNamesDraft(nextGroupNames);
         setLinksDraft(nextLinks);
         setSavedLinksDraft(nextLinks);
         setRetentionDays(nextRetention);
@@ -418,6 +435,7 @@ export function SettingsPanel() {
     const nextContext = normalizeFamilyContext({
       ...familyContext,
       teacher_names: splitDraft(teachersDraft),
+      group_names: splitLineDraft(groupNamesDraft),
       recurring_links: splitDraft(linksDraft),
     });
 
@@ -425,11 +443,14 @@ export function SettingsPanel() {
     try {
       await saveProfilePatch({ family_context: nextContext });
       const nextTeachers = nextContext.teacher_names.join("\n");
+      const nextGroupNames = nextContext.group_names.join("\n");
       const nextLinks = nextContext.recurring_links.join("\n");
       setFamilyContext(nextContext);
       setSavedFamilyContext(nextContext);
       setTeachersDraft(nextTeachers);
       setSavedTeachersDraft(nextTeachers);
+      setGroupNamesDraft(nextGroupNames);
+      setSavedGroupNamesDraft(nextGroupNames);
       setLinksDraft(nextLinks);
       setSavedLinksDraft(nextLinks);
       setMemoryStatus("saved");
@@ -479,6 +500,7 @@ export function SettingsPanel() {
   const memoryChanged =
     JSON.stringify(familyContext) !== JSON.stringify(savedFamilyContext) ||
     teachersDraft !== savedTeachersDraft ||
+    groupNamesDraft !== savedGroupNamesDraft ||
     linksDraft !== savedLinksDraft;
   const retentionChanged = retentionDays !== savedRetentionDays;
   const profileChanged = displayName !== savedDisplayName || avatarUrl !== savedAvatarUrl;
@@ -711,11 +733,21 @@ export function SettingsPanel() {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.teachers)}</label>
                   <Textarea value={teachersDraft} onChange={(event) => setTeachersDraft(event.target.value)} rows={4} />
                   <p className="text-xs text-[var(--muted-foreground)]">{pick(locale, COPY.teachersHint)}</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.groupNames)}</label>
+                  <Textarea
+                    value={groupNamesDraft}
+                    onChange={(event) => setGroupNamesDraft(event.target.value)}
+                    rows={4}
+                    dir={isRtl ? "rtl" : "ltr"}
+                  />
+                  <p className="text-xs text-[var(--muted-foreground)]">{pick(locale, COPY.groupNamesHint)}</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.links)}</label>

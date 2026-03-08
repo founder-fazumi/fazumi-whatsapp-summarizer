@@ -208,3 +208,26 @@ app/about/page.tsx, app/robots.ts, e2e/public-routes.spec.ts, tasks/todo.md
 ### Patterns confirmed
 - proxy.ts is the Next.js 16 middleware convention (`PROXY_FILENAME = "proxy"`)
 - pnpm dev EPERM on Windows can come from stale `.next/cache` cleanup or stale `.next/dev` worker state after a crashed run
+
+## Story: Build Trace Cleanup + Group Name Memory (2026-03-08)
+
+### What changed
+- `package.json`: safe `Test-Path` guards now clear `.next/cache/.previewinfo` and `.next/trace` before dev, and `.next/trace` before build
+- `lib/family-context.ts`: `FamilyContext` and `normalizeFamilyContext()` now include `group_names: string[]`
+- `components/settings/SettingsPanel.tsx`: family memory adds a bilingual `School group names` textarea and saves newline-separated names into `family_context.group_names`
+- `app/(dashboard)/summarize/page.tsx`: the existing group-name input now exposes saved `group_names` through a datalist suggestion list without adding a new query
+
+### Files touched
+package.json, lib/family-context.ts, components/settings/SettingsPanel.tsx,
+app/(dashboard)/summarize/page.tsx, tasks/todo.md, tasks/lessons.md,
+scripts/ralph/progress.txt
+
+### Verification
+- `pnpm lint` passed after the build-script patch, after the family-context type patch, after the settings UI patch, after the summarize datalist patch, and again at the end
+- `pnpm typecheck` passed after each of those same checkpoints
+- `pnpm build` passed after each requested checkpoint with the stale `.next/trace` cleanup in place
+- Final `pnpm test` passed in attach mode against a local dev server on port `3100`: 28 passed, 3 skipped
+
+### Patterns confirmed
+- PowerShell cleanup scripts for optional `.next` files must use `Test-Path` guards or they can fail npm pre-scripts even with `-ErrorAction SilentlyContinue`
+- Saved family-context arrays are a good fit for reusable user-entered suggestion lists when the page already fetches `family_context` on mount

@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "pwsh -Command \"if (Test-Path '.next/cache/.previewinfo') { Remove-Item -Force '.next/cache/.previewinfo' -ErrorAction SilentlyContinue }\" && node scripts/clean-next-dev-cache.mjs",
+    "predev": "pwsh -Command \"$paths = '.next/cache/.previewinfo','.next/trace'; foreach ($path in $paths) { if (Test-Path $path) { Remove-Item -Force $path -ErrorAction SilentlyContinue } }\" && node scripts/clean-next-dev-cache.mjs",
     "dev": "next dev",
     "dev:webpack": "next dev",
+    "prebuild": "pwsh -Command \"if (Test-Path '.next/trace') { Remove-Item -Force '.next/trace' -ErrorAction SilentlyContinue }\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

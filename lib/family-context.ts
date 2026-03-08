@@ -20,6 +20,7 @@ export interface FamilyContext {
   child_name: string | null;
   class_name: string | null;
   teacher_names: string[];
+  group_names: string[];
   group_type: FamilyGroupType | null;
   recurring_links: string[];
   preferred_currency: SupportedCurrency | null;
@@ -89,6 +90,7 @@ export function getEmptyFamilyContext(): FamilyContext {
     child_name: null,
     class_name: null,
     teacher_names: [],
+    group_names: [],
     group_type: null,
     recurring_links: [],
     preferred_currency: null,
@@ -108,6 +110,7 @@ export function normalizeFamilyContext(value: unknown): FamilyContext {
     child_name: cleanString(record.child_name),
     class_name: cleanString(record.class_name),
     teacher_names: cleanStringArray(record.teacher_names),
+    group_names: cleanStringArray(record.group_names),
     group_type:
       groupType && VALID_GROUP_TYPES.has(groupType as FamilyGroupType)
         ? (groupType as FamilyGroupType)

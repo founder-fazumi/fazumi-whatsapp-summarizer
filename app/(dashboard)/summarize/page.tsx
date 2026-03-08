@@ -489,6 +489,7 @@ export default function SummarizePage() {
   const detectedDraftLanguage = detectDraftLanguage(text);
   const sourceWasAutoDetected = Boolean(text.trim()) && !sourceLocked && detectedSource === sourcePlatform;
   const hasSavedMemory = savedFamilyContext ? familyContextHasSignal(savedFamilyContext) : false;
+  const savedGroupNameSuggestions = savedFamilyContext?.group_names ?? [];
 
   useEffect(() => {
     let mounted = true;
@@ -1136,7 +1137,14 @@ export default function SummarizePage() {
                   onChange={(event) => setTextGroupName(event.target.value)}
                   placeholder={locale === "ar" ? "مثال: أولياء أمور الصف الرابع" : "Example: Grade 4 Parents"}
                   disabled={loading}
+                  dir={locale === "ar" ? "rtl" : "ltr"}
+                  list="group-name-suggestions"
                 />
+                <datalist id="group-name-suggestions">
+                  {savedGroupNameSuggestions.map((groupName) => (
+                    <option key={groupName} value={groupName} />
+                  ))}
+                </datalist>
                 <p className="text-[var(--text-xs)] text-[var(--muted-foreground)]">
                   {pick(COPY.groupHint, locale)}
                 </p>

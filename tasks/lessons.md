@@ -215,3 +215,11 @@
 **Quick test:** Start the app manually or via `pwsh ./scripts/smoke.ps1`, set `PLAYWRIGHT_NO_SERVER=1`, and confirm `pnpm test` begins running specs immediately instead of timing out while waiting for a spawned server.
 
 ---
+
+## L027 — PowerShell cleanup scripts must stay zero-exit when cache files are already gone
+**Mistake:** Replacing the guarded cache cleanup with a bare `Remove-Item '.next/cache/.previewinfo','.next/trace' -ErrorAction SilentlyContinue` caused `predev` to exit `1` when either file was already missing, which broke `pnpm dev` and Playwright's web-server startup.
+**Why:** In this environment, `Remove-Item` still returns a failing exit code for missing paths even when the non-terminating errors are silenced.
+**Rule:** Any PowerShell cache-cleanup npm script must guard each path with `Test-Path` before calling `Remove-Item`, especially for optional `.next/*` files that may or may not exist between runs.
+**Quick test:** Run `pnpm dev` and `pnpm build` twice in a row from a clean repo state and confirm both pre-scripts succeed even when `.next/cache/.previewinfo` and `.next/trace` do not exist.
+
+---

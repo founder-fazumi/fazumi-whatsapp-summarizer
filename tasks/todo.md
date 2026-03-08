@@ -6,6 +6,42 @@
 
 ---
 
+## Story - Build Trace Cleanup + Group Name Memory (2026-03-08) [IN PROGRESS]
+
+#### GG1 - Clear stale `.next/trace` before dev and build [Codex]
+**Why:** Windows builds can fail with `EPERM` when a stale Next.js trace file survives a crashed run.
+**Files:** `package.json`
+**Acceptance:**
+- [x] `prebuild` removes `.next/trace` before `next build`.
+- [x] `predev` removes both `.next/cache/.previewinfo` and `.next/trace`.
+- [x] `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass after the script patch.
+
+#### GG2 - Add saved school group names to family context settings [Codex]
+**Why:** Families need a persistent place to store the school chat names they summarize repeatedly.
+**Files:** `components/settings/SettingsPanel.tsx`, `lib/family-context.ts`
+**Acceptance:**
+- [x] Settings shows a bilingual `School group names` / `أسماء مجموعات المدرسة` textarea between teacher names and recurring links.
+- [x] Saving the family memory stores `family_context.group_names` as a trimmed string array.
+- [x] The new textarea respects EN/AR direction and typecheck stays strict.
+
+#### GG3 - Reuse saved group names on `/summarize` [Codex]
+**Why:** Users should be able to pick a stored group name instead of retyping it on every summary.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] The existing profile fetch also reads `family_context.group_names`.
+- [x] The text `Group name` input uses `list="group-name-suggestions"` with a matching datalist below it.
+- [x] Saved group suggestions work in both EN and AR without adding a new query.
+
+#### GG4 - Verify and document the slice [Codex]
+**Why:** The fix is only done when repo trackers and verification reflect the shipped behavior.
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes at the end.
+- [x] `pnpm typecheck` passes at the end.
+- [x] `pnpm build` passes at the end.
+- [x] Progress and lessons are updated for the stale-trace fix and group-name memory slice.
+**Verification note:** `pnpm test` also passes after rerunning Playwright in attach mode on port `3100`, because the sandboxed/local default `webServer` path hit a stale `.next/dev/lock` plus `spawn EPERM`.
+
 ## Story - Loading Skeleton Cleanup + Founder Page (2026-03-08) [IN PROGRESS]
 
 #### LF1 - Strip mascot-heavy loading UI from dashboard surfaces [Codex]
