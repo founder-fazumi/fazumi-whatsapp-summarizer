@@ -6,6 +6,39 @@
 
 ---
 
+## Story - Admin orphan triage + morning digest timezone settings (2026-03-09) [DONE]
+
+#### TZ1 - Triage the untracked admin components [Codex]
+**Why:** Untracked admin files should not linger in the repo if nothing imports them.
+**Files:** `components/admin/AdminBreadcrumb.tsx`, `components/admin/AdminThemeSwitcher.tsx`
+**Acceptance:**
+- [x] Confirmed both files were orphaned by searching `app/` and `components/` for `AdminBreadcrumb` and `AdminThemeSwitcher`.
+- [x] Removed both orphaned files from `components/admin/`.
+- [x] `pnpm lint` passed after the triage cleanup.
+- [x] `pnpm typecheck` passed after the triage cleanup.
+
+#### TZ2 - Add timezone to profile storage and settings [Codex]
+**Why:** Morning digest timing needs a user-confirmed timezone instead of silently falling back to a default.
+**Files:** `supabase/migrations/2026030901_add_timezone_to_profiles.sql`, `components/settings/SettingsPanel.tsx`, `lib/supabase/types.ts`
+**Acceptance:**
+- [x] Added `supabase/migrations/2026030901_add_timezone_to_profiles.sql` because the existing profile migrations did not already add `profiles.timezone`.
+- [x] Settings now shows a bilingual timezone selector below the morning digest toggle only when push UI is available.
+- [x] The selector defaults to the browser timezone, adds it as a labeled custom option when it is outside the curated list, and keeps the select `dir` locale-safe.
+- [x] Saving the selector writes `timezone` through `PATCH /api/profile`.
+- [x] Existing push subscriptions reuse the selected timezone when the user saves or enables the morning digest toggle.
+
+#### TZ3 - Allow timezone in the profile PATCH route and verify the slice [Codex]
+**Why:** The settings UI only works if the profile API explicitly accepts the new field.
+**Files:** `app/api/profile/route.ts`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `app/api/profile/route.ts` now accepts `timezone` in the PATCH allowlist and normalizes it server-side.
+- [x] `pnpm lint` passed after the timezone patch.
+- [x] `pnpm typecheck` passed after the timezone patch.
+- [x] Final `pnpm build` passed.
+- [x] Final `pnpm test` passed.
+
+---
+
 ## Story - PMF Modal + Dashboard Group Count (2026-03-08) [DONE]
 
 #### PG1 - Read the existing PMF infrastructure before changing product flow [Codex]

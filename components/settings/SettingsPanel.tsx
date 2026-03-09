@@ -49,6 +49,7 @@ type ProfilePatch = {
   summary_retention_days?: number | null;
   full_name?: string;
   avatar_url?: string;
+  timezone?: string | null;
 };
 
 type FounderSinceCopy = {
@@ -78,6 +79,20 @@ const CURRENCY_OPTIONS: SupportedCurrency[] = [
   "BHD",
   "OMR",
   "USD",
+];
+
+const TIMEZONE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "Asia/Riyadh", label: "Riyadh / Doha / Kuwait (UTC+3)" },
+  { value: "Asia/Dubai", label: "Dubai / Abu Dhabi (UTC+4)" },
+  { value: "Asia/Muscat", label: "Muscat (UTC+4)" },
+  { value: "Asia/Bahrain", label: "Bahrain (UTC+3)" },
+  { value: "Asia/Kuwait", label: "Kuwait (UTC+3)" },
+  { value: "Europe/London", label: "London (UTC+0/+1)" },
+  { value: "America/New_York", label: "New York (UTC-5/-4)" },
+  { value: "America/Los_Angeles", label: "Los Angeles (UTC-8/-7)" },
+  { value: "Asia/Karachi", label: "Karachi (UTC+5)" },
+  { value: "Asia/Kolkata", label: "Mumbai / Delhi (UTC+5:30)" },
+  { value: "Africa/Cairo", label: "Cairo (UTC+2/+3)" },
 ];
 
 const COPY = {
@@ -151,6 +166,16 @@ const COPY = {
     en: "Get a daily push notification with yesterday's school updates at 7 AM.",
     ar: "احصل على إشعار يومي بتحديثات المدرسة من الأمس في الساعة السابعة صباحًا.",
   },
+  timezone: { en: "Your timezone", ar: "منطقتك الزمنية" },
+  timezoneHint: {
+    en: "Used to send your morning digest at 7 AM local time.",
+    ar: "تُستخدم لإرسال ملخص الصباح في الساعة 7 صباحًا بتوقيتك المحلي.",
+  },
+  browserTimezoneOption: {
+    en: "(Your browser timezone)",
+    ar: "(منطقة متصفحك الزمنية)",
+  },
+  saveTimezone: { en: "Save timezone", ar: "احفظ المنطقة الزمنية" },
   pushChecking: {
     en: "Checking browser notification status...",
     ar: "جارٍ التحقق من حالة إشعارات المتصفح...",
@@ -232,6 +257,37 @@ function splitLineDraft(value: string) {
     .filter(Boolean);
 }
 
+function getBrowserTimeZone() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+}
+
+function buildTimezoneOptions(locale: Locale, browserTimeZone: string, selectedTimeZone: string) {
+  const seen = new Set(TIMEZONE_OPTIONS.map((option) => option.value));
+  const options = [...TIMEZONE_OPTIONS];
+  const extraOptions: Array<{ value: string; label: string }> = [];
+
+  if (browserTimeZone && !seen.has(browserTimeZone)) {
+    extraOptions.push({
+      value: browserTimeZone,
+      label: `${browserTimeZone} ${pick(locale, COPY.browserTimezoneOption)}`,
+    });
+    seen.add(browserTimeZone);
+  }
+
+  if (selectedTimeZone && !seen.has(selectedTimeZone)) {
+    extraOptions.push({
+      value: selectedTimeZone,
+      label: selectedTimeZone,
+    });
+  }
+
+  return [...extraOptions, ...options];
+}
+
 function isPushSupportedInBrowser() {
   return (
     typeof window !== "undefined" &&
@@ -294,6 +350,26 @@ async function saveProfilePatch(patch: ProfilePatch) {
   }
 
   return data;
+}
+
+async function syncPushSubscriptionTimeZone(
+  subscription: PushSubscription,
+  timeZone: string | null
+) {
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      subscription: toPushSubscriptionPayload(subscription),
+      timezone: timeZone,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not save push subscription.");
+  }
 }
 
 function ConsentToggle({
@@ -366,11 +442,25 @@ export function SettingsPanel() {
   const [pushBusy, setPushBusy] = useState(true);
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null);
   const [pushFeedback, setPushFeedback] = useState<PushFeedbackState | null>(null);
+  const [browserTimeZone, setBrowserTimeZone] = useState("");
+  const [timeZone, setTimeZone] = useState("");
+  const [savedTimeZone, setSavedTimeZone] = useState("");
+  const [timeZoneStatus, setTimeZoneStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const isRtl = locale === "ar";
 
   useEffect(() => {
     setConsentDraft(consent);
   }, [consent]);
+
+  useEffect(() => {
+    setBrowserTimeZone(getBrowserTimeZone());
+  }, []);
+
+  useEffect(() => {
+    if (browserTimeZone && !timeZone && !savedTimeZone) {
+      setTimeZone(browserTimeZone);
+    }
+  }, [browserTimeZone, savedTimeZone, timeZone]);
 
   useEffect(() => {
     let active = true;
@@ -453,11 +543,12 @@ export function SettingsPanel() {
         const [{ data: profile }, { data: subscriptions }] = await Promise.all([
           supabase
             .from("profiles")
-            .select("family_context, summary_retention_days, full_name, avatar_url, plan, trial_expires_at")
+            .select("family_context, summary_retention_days, timezone, full_name, avatar_url, plan, trial_expires_at")
             .eq("id", user.id)
             .maybeSingle<{
               family_context: unknown;
               summary_retention_days: number | null;
+              timezone: string | null;
               full_name: string | null;
               avatar_url: string | null;
               plan: string | null;
@@ -478,6 +569,9 @@ export function SettingsPanel() {
         const nextGroupNames = nextContext.group_names.join("\n");
         const nextLinks = nextContext.recurring_links.join("\n");
         const nextRetention = normalizeSummaryRetentionDays(profile?.summary_retention_days);
+        const detectedTimeZone = getBrowserTimeZone();
+        const nextSavedTimeZone = profile?.timezone?.trim() ?? "";
+        const nextTimeZone = nextSavedTimeZone || detectedTimeZone;
         const subscriptionRows = (subscriptions ?? []) as EntitlementSubscription[];
         const entitlement = resolveEntitlement({
           profile: {
@@ -507,6 +601,9 @@ export function SettingsPanel() {
         setSavedLinksDraft(nextLinks);
         setRetentionDays(nextRetention);
         setSavedRetentionDays(nextRetention);
+        setBrowserTimeZone(detectedTimeZone);
+        setTimeZone(nextTimeZone);
+        setSavedTimeZone(nextSavedTimeZone);
         setBillingPlan(entitlement.billingPlan);
         setFounderSince(
           founderSubscription?.created_at
@@ -644,6 +741,8 @@ export function SettingsPanel() {
     linksDraft !== savedLinksDraft;
   const retentionChanged = retentionDays !== savedRetentionDays;
   const profileChanged = displayName !== savedDisplayName || avatarUrl !== savedAvatarUrl;
+  const timeZoneChanged = timeZone.length > 0 && timeZone !== savedTimeZone;
+  const timeZoneOptions = buildTimezoneOptions(locale, browserTimeZone, timeZone);
   const pushFeedbackMessage =
     pushFeedback === "enabled"
       ? pick(locale, COPY.pushEnabled)
@@ -665,6 +764,28 @@ export function SettingsPanel() {
       setProfileStatus("saved");
     } catch {
       setProfileStatus("error");
+    }
+  }
+
+  async function handleSaveTimeZone() {
+    if (!timeZone) {
+      return;
+    }
+
+    setTimeZoneStatus("saving");
+    try {
+      await saveProfilePatch({ timezone: timeZone });
+
+      const existingRegistration = await navigator.serviceWorker.getRegistration();
+      const subscription = await existingRegistration?.pushManager.getSubscription();
+      if (subscription) {
+        await syncPushSubscriptionTimeZone(subscription, timeZone);
+      }
+
+      setSavedTimeZone(timeZone);
+      setTimeZoneStatus("saved");
+    } catch {
+      setTimeZoneStatus("error");
     }
   }
 
@@ -702,18 +823,16 @@ export function SettingsPanel() {
             applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
           }));
 
-        const response = await fetch("/api/push/subscribe", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            subscription: toPushSubscriptionPayload(subscription),
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-          }),
-        });
+        if (!timeZone && browserTimeZone) {
+          setTimeZone(browserTimeZone);
+        }
 
-        if (!response.ok) {
+        try {
+          await syncPushSubscriptionTimeZone(
+            subscription,
+            timeZone || browserTimeZone || getBrowserTimeZone() || null
+          );
+        } catch {
           if (createdNewSubscription) {
             await subscription.unsubscribe().catch(() => undefined);
           }
@@ -1103,7 +1222,7 @@ export function SettingsPanel() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <label className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4">
               <div className="space-y-2">
                 <div className="space-y-1">
@@ -1157,6 +1276,56 @@ export function SettingsPanel() {
                 </span>
               </div>
             </label>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label
+                  htmlFor="settings-timezone"
+                  className="text-sm font-semibold text-[var(--foreground)]"
+                >
+                  {pick(locale, COPY.timezone)}
+                </label>
+                <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+                  {pick(locale, COPY.timezoneHint)}
+                </p>
+              </div>
+              <select
+                id="settings-timezone"
+                value={timeZone}
+                onChange={(event) => {
+                  setTimeZone(event.target.value);
+                  setTimeZoneStatus("idle");
+                }}
+                dir={isRtl ? "rtl" : "ltr"}
+                className={selectClassName}
+              >
+                {!timeZone && <option value="">{pick(locale, COPY.notSet)}</option>}
+                {timeZoneOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={() => void handleSaveTimeZone()}
+                  disabled={!timeZoneChanged || timeZoneStatus === "saving"}
+                >
+                  {timeZoneStatus === "saving"
+                    ? pick(locale, COPY.saving)
+                    : pick(locale, COPY.saveTimezone)}
+                </Button>
+                {timeZoneStatus === "saved" && (
+                  <span className="text-sm text-[var(--success)]">{pick(locale, COPY.saved)}</span>
+                )}
+                {timeZoneStatus === "error" && (
+                  <span className="text-sm text-[var(--destructive)]">
+                    {pick(locale, COPY.saveError)}
+                  </span>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

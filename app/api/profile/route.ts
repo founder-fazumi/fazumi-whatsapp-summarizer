@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeFamilyContext, normalizeSummaryRetentionDays } from "@/lib/family-context";
+import { normalizeTimeZone } from "@/lib/push/timezone";
 import { applySummaryRetentionPolicy } from "@/lib/server/retention";
 
 export async function PATCH(req: NextRequest) {
@@ -27,6 +28,14 @@ export async function PATCH(req: NextRequest) {
   if ("summary_retention_days" in body) {
     nextRetentionDays = normalizeSummaryRetentionDays(body.summary_retention_days);
     allowed.summary_retention_days = nextRetentionDays;
+  }
+  if ("timezone" in body) {
+    if (body.timezone === null) {
+      allowed.timezone = null;
+    } else if (typeof body.timezone === "string") {
+      const trimmed = body.timezone.trim();
+      allowed.timezone = trimmed ? normalizeTimeZone(trimmed) : null;
+    }
   }
   if (typeof body.full_name === "string") {
     allowed.full_name = body.full_name.trim().slice(0, 100);

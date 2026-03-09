@@ -324,3 +324,32 @@ app/(dashboard)/dashboard/page.tsx,
 components/dashboard/DashboardBanner.tsx,
 tasks/todo.md,
 scripts/ralph/progress.txt
+
+## Sprint: Admin orphan triage + settings timezone (2026-03-09)
+
+### What changed
+- Removed the orphaned untracked admin files `AdminBreadcrumb.tsx` and `AdminThemeSwitcher.tsx` after confirming nothing in `app/` or `components/` imports them
+- Added `profiles.timezone` via `2026030901_add_timezone_to_profiles.sql`
+- SettingsPanel now loads/saves a bilingual timezone selector below the morning digest toggle, defaults to the browser timezone, and keeps active push subscriptions synced to the saved timezone
+- `/api/profile` now accepts and normalizes the `timezone` field
+
+### Files touched
+components/settings/SettingsPanel.tsx,
+app/api/profile/route.ts,
+lib/supabase/types.ts,
+supabase/migrations/2026030901_add_timezone_to_profiles.sql,
+tasks/todo.md,
+tasks/lessons.md,
+scripts/ralph/progress.txt
+
+### Verification
+- `pnpm lint` passed after the admin triage cleanup
+- `pnpm typecheck` passed after the admin triage cleanup
+- `pnpm lint` passed after the timezone settings patch
+- `pnpm typecheck` passed after the timezone settings patch
+- Final `pnpm build` passed
+- Final `pnpm test` passed with 28 passed and 3 skipped
+
+### Patterns confirmed
+- If the digest scheduler reads `push_subscriptions.timezone`, a profile-only timezone setting is incomplete until the active subscription row is updated too
+- Browser-detected timezone defaults should be surfaced as an explicit selectable option when they fall outside the curated Gulf-heavy timezone list

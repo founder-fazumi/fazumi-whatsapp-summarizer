@@ -239,3 +239,11 @@
 **Quick test:** Save one summary through the text flow and one through the ZIP flow with the same group name, then confirm both `summaries` rows have `group_name` and both history cards render the badge.
 
 ---
+
+## L030 — Notification timing settings must update both profile state and the active push subscription
+**Mistake:** Adding a timezone selector only to `profiles` would look correct in Settings, but the live morning digest still keys off `push_subscriptions.timezone`, so already-enabled subscribers would keep receiving pushes on the old schedule.
+**Why:** Notification preferences are split across two persistence layers: profile settings for the account and the push subscription row that the scheduler actually reads.
+**Rule:** Any Settings UI that changes digest timing must update the profile field and, when a push subscription already exists, re-upsert that subscription with the same timezone in the same slice.
+**Quick test:** Enable morning digest, change the timezone in Settings, save, and confirm both the profile PATCH and `/api/push/subscribe` reuse the new timezone value.
+
+---

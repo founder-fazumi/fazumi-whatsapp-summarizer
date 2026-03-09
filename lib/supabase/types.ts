@@ -12,6 +12,7 @@ export interface Profile {
   theme_pref: "light" | "dark";
   family_context: FamilyContext;
   summary_retention_days: number | null;
+  timezone: string | null;
   created_at: string;
   updated_at: string;
 }
