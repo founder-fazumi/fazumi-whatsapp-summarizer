@@ -2,7 +2,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { BillingPlansPanel } from "@/components/billing/BillingPlansPanel";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
-import { CreditCard, Check, AlertTriangle } from "lucide-react";
+import { CreditCard, Check, AlertTriangle, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
@@ -75,9 +75,9 @@ export default async function BillingPage() {
   let billingPlan: PlanKey = "free";
   let hasPaidAccess = false;
   let trialExpiresAt: string | null = null;
+  let subscription: EntitlementSubscription | null = null;
   let portalUrl: string | null = null;
   let pastDuePortalUrl: string | null = null;
-  let periodEnd: string | null = null;
   let subscriptionStatus: string | null = null;
 
   try {
@@ -102,20 +102,21 @@ export default async function BillingPage() {
           .eq("user_id", user.id)
           .order("updated_at", { ascending: false }),
       ]);
+      const subscriptionRows = (subscriptions ?? []) as EntitlementSubscription[];
 
       const entitlement = resolveEntitlement({
         profile: {
           plan: profile?.plan ?? "free",
           trial_expires_at: profile?.trial_expires_at ?? null,
         },
-        subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
+        subscriptions: subscriptionRows,
       });
 
       billingPlan = entitlement.billingPlan;
       hasPaidAccess = entitlement.hasPaidAccess;
       trialExpiresAt = profile?.trial_expires_at ?? null;
+      subscription = subscriptionRows[0] ?? null;
       subscriptionStatus = entitlement.subscriptionStatus;
-      periodEnd = entitlement.currentPeriodEnd;
       portalUrl = entitlement.customerPortalUrl ?? entitlement.updatePaymentMethodUrl;
       pastDuePortalUrl = entitlement.updatePaymentMethodUrl ?? entitlement.customerPortalUrl;
 
@@ -140,13 +141,6 @@ export default async function BillingPage() {
 
   const trialDaysLeft = trialExpiresAt
     ? Math.max(0, Math.ceil((new Date(trialExpiresAt).getTime() - Date.now()) / 86_400_000))
-    : null;
-
-  const periodEndEn = periodEnd
-    ? formatDate(periodEnd, "en", { year: "numeric", month: "long", day: "numeric" })
-    : null;
-  const periodEndAr = periodEnd
-    ? formatDate(periodEnd, "ar", { year: "numeric", month: "long", day: "numeric" })
     : null;
 
   return (
@@ -218,36 +212,58 @@ export default async function BillingPage() {
                 <LocalizedText en={planInfo.price.en} ar={planInfo.price.ar} />
               </p>
 
+              {subscription?.current_period_end && subscription.status === "active" && (
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  <LocalizedText
+                    en={`Renews ${formatDate(subscription.current_period_end, "en", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}`}
+                    ar={`يتجدد في ${formatDate(subscription.current_period_end, "ar", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}`}
+                  />
+                </p>
+              )}
+
+              {subscription?.current_period_end && ["cancelled", "past_due"].includes(subscription.status ?? "") && (
+                <p className="mt-2 text-xs text-[var(--destructive)]">
+                  <LocalizedText
+                    en={`Access until ${formatDate(subscription.current_period_end, "en", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}`}
+                    ar={`الوصول حتى ${formatDate(subscription.current_period_end, "ar", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}`}
+                  />
+                </p>
+              )}
+
+              {subscription?.ls_customer_portal_url && (
+                <a
+                  href={subscription.ls_customer_portal_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs text-[var(--primary)] underline-offset-4 hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  <LocalizedText en="Manage billing →" ar="إدارة الفواتير ←" />
+                </a>
+              )}
+
               {isTrialActive && trialDaysLeft !== null && (
                 <p className="mt-2 text-xs font-medium text-[var(--warning)]">
                   <LocalizedText
                     en={`Free trial. ${formatNumber(trialDaysLeft)} day${trialDaysLeft !== 1 ? "s" : ""} remaining`}
                     ar={`فترة تجريبية. متبقٍ ${formatNumber(trialDaysLeft)} يوم`}
                   />
-                </p>
-              )}
-
-              {periodEndEn && periodEndAr && subscriptionStatus === "active" && (
-                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  <LocalizedText en={`Renews: ${periodEndEn}`} ar={`يتجدد: ${periodEndAr}`} />
-                </p>
-              )}
-
-              {periodEndEn && periodEndAr && subscriptionStatus === "cancelled" && (
-                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  <LocalizedText en={`Access ended: ${periodEndEn}`} ar={`انتهى الوصول: ${periodEndAr}`} />
-                </p>
-              )}
-
-              {periodEndEn && periodEndAr && subscriptionStatus === "expired" && (
-                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  <LocalizedText en={`Expired: ${periodEndEn}`} ar={`انتهت الصلاحية: ${periodEndAr}`} />
-                </p>
-              )}
-
-              {periodEndEn && periodEndAr && subscriptionStatus === "past_due" && (
-                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  <LocalizedText en={`Payment update due by: ${periodEndEn}`} ar={`يجب تحديث الدفع قبل: ${periodEndAr}`} />
                 </p>
               )}
 

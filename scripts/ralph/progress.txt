@@ -353,3 +353,14 @@ scripts/ralph/progress.txt
 ### Patterns confirmed
 - If the digest scheduler reads `push_subscriptions.timezone`, a profile-only timezone setting is incomplete until the active subscription row is updated too
 - Browser-detected timezone defaults should be surfaced as an explicit selectable option when they fall outside the curated Gulf-heavy timezone list
+
+## Sprint: Remote migration apply + billing renewal date + portal link (2026-03-09)
+
+### What changed
+- OPS-A: 2026030901 (timezone column) applied to remote via canonical repair sequence
+- Billing page: renewal date shown for active subscriptions
+- Billing page: "Access until" shown for cancelled/past_due
+- Billing page: Manage billing portal link when ls_customer_portal_url is set
+
+### Files touched
+app/(dashboard)/billing/page.tsx

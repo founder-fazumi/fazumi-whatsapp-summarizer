@@ -616,7 +616,7 @@ Local smoke runner: `pwsh ./scripts/smoke.ps1` (added P8) - bypasses `webServer`
 - [ ] Chunk 1 — subscriptions DB migration + env stubs
 - [ ] Chunk 2 — lib/lemonsqueezy.ts + /api/checkout
 - [ ] Chunk 3 — /api/webhooks/lemonsqueezy (HMAC + event routing)
-- [ ] Chunk 4 — /pricing CTAs + /billing real data
+- [x] Chunk 4 — /pricing CTAs + /billing real data
 
 ---
 
@@ -1742,11 +1742,11 @@ case "subscription_payment_success": {
 - If `portalUrl` is available: include a "Manage billing →" link that opens the LS portal
 - Style: amber card matching the existing `limit-reached` amber banner pattern
 **Acceptance:**
-- [ ] User with `subscriptions.status = "past_due"` sees amber warning on `/billing`
-- [ ] Warning includes "Manage billing →" link when `portalUrl` is set
-- [ ] Warning not shown for `active`, `cancelled`, or `expired` status
-- [ ] Bilingual (EN + AR)
-- [ ] `pnpm lint && pnpm typecheck` pass
+- [x] User with `subscriptions.status = "past_due"` sees amber warning on `/billing`
+- [x] Warning includes "Manage billing →" link when `portalUrl` is set
+- [x] Warning not shown for `active`, `cancelled`, or `expired` status
+- [x] Bilingual (EN + AR)
+- [x] `pnpm lint && pnpm typecheck` pass
 - [ ] Commit all three (WH3 + WH4 + WH5): `feat: payment-success handler + upgrade banner + past_due warning`
 
 ---
