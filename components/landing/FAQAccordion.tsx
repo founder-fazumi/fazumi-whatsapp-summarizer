@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { AccordionItem } from "@/components/ui/accordion";
+import { FaqAccordionItem } from "@/components/ui/accordion";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -126,7 +126,7 @@ export function FAQAccordion({
 
         <div className={cn("surface-panel bg-[var(--surface-elevated)] px-5 sm:px-6", showHeading && "mt-8")}>
           {FAQS.map((item, index) => (
-            <AccordionItem
+            <FaqAccordionItem
               key={`${item.question.en}-${index}`}
               question={pick(item.question, locale)}
               answer={pick(item.answer, locale)}

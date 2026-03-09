@@ -1,4 +1,5 @@
 import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import {
   Card,
   CardContent,
@@ -13,27 +14,21 @@ interface AdminLoginScreenProps {
 
 export function AdminLoginScreen({ next }: AdminLoginScreenProps) {
   return (
-    <>
-      <main
-        data-admin-login="true"
-        className="flex min-h-screen items-center justify-center px-4 py-12"
-      >
-        <Card className="w-full max-w-sm bg-[var(--surface-elevated)]">
-          <CardHeader className="pb-4 text-center">
-            <CardTitle className="whitespace-nowrap text-3xl font-semibold text-[var(--text-strong)]" dir="ltr">
-              Welcome Back, Sir.
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AdminLoginForm nextPath={sanitizeAdminNextPath(next)} />
-          </CardContent>
-        </Card>
-      </main>
-      <style>{`
-        main[data-admin-login="true"] ~ footer {
-          display: none;
-        }
-      `}</style>
-    </>
+    <div className="mx-auto flex w-full max-w-sm flex-col items-center">
+      <BrandLogo size="md" className="mb-4" />
+      <Card className="mx-auto w-full max-w-sm bg-[var(--surface-elevated)]">
+        <CardHeader className="pb-4 text-center">
+          <CardTitle className="whitespace-nowrap text-3xl font-semibold text-[var(--text-strong)]" dir="ltr">
+            Welcome Back, Sir.
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AdminLoginForm nextPath={sanitizeAdminNextPath(next)} />
+        </CardContent>
+      </Card>
+      <p className="mt-4 text-center text-xs text-[var(--muted-foreground)]">
+        Admin access · dev-only
+      </p>
+    </div>
   );
 }

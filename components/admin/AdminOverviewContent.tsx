@@ -1,19 +1,10 @@
 "use client";
 
-import { startTransition, useMemo, useState, type ComponentType } from "react";
-import {
-  Activity,
-  CircleAlert,
-  DollarSign,
-  LifeBuoy,
-  MessageSquareHeart,
-  RefreshCcw,
-  Sparkles,
-  Users,
-  Webhook,
-} from "lucide-react";
+import { startTransition, useState } from "react";
+import { CircleAlert, DollarSign, FileText, RefreshCcw, TrendingDown, Users } from "lucide-react";
 import type { AdminOverviewMetrics } from "@/lib/admin/types";
-import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
+import { AdminKpiCard } from "@/components/admin/AdminKpiCard";
 import { useLang } from "@/lib/context/LangContext";
 import { AdminLineChart } from "@/components/admin/AdminLineChart";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -22,16 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type RangeKey = "today" | "7d" | "30d";
-
 const COPY = {
   en: {
     title: "Overview",
     refresh: "Refresh",
     refreshing: "Refreshing...",
-    today: "Today",
-    last7: "7d",
-    last30: "30d",
     needsAttention: "Needs attention",
     needsAttentionSub: "Operational items that deserve a manual check.",
     summaryVolume: "Summary volume",
@@ -41,32 +27,18 @@ const COPY = {
     recentFailures: "Recent failures",
     noFailures: "No failed webhook deliveries logged in the last 7 days.",
     openSentry: "Open Sentry",
-    window: "window",
-    usersWhoGenerated: "Users who generated summaries",
-    completedRuns: "Completed summary runs",
-    requests: "requests",
-    estimatedRevenue: "Estimated recognized revenue",
-    last7days: "Last 7 days",
-    waitingForResponse: "Waiting for first admin response",
-    untriagedFeedback: "Untriaged feedback items",
     kpis: {
-      newUsers: "New users",
+      mrr: "MRR",
       activeUsers: "Active users",
-      summaries: "Summaries",
-      openAiSpend: "OpenAI spend",
-      revenueMtd: "Revenue MTD",
-      failedWebhooks: "Failed webhooks",
-      supportNew: "Support new",
-      feedbackNew: "Feedback new",
+      summariesToday: "Summaries today",
+      churnRate: "Churn rate",
+      previousPeriod: "vs prev",
     },
   },
   ar: {
     title: "نظرة عامة",
     refresh: "تحديث",
     refreshing: "جارٍ التحديث...",
-    today: "اليوم",
-    last7: "7 أيام",
-    last30: "30 يومًا",
     needsAttention: "يحتاج انتباهًا",
     needsAttentionSub: "بنود تشغيلية تستحق فحصًا يدويًا.",
     summaryVolume: "حجم الملخصات",
@@ -76,23 +48,12 @@ const COPY = {
     recentFailures: "أحدث الإخفاقات",
     noFailures: "لا توجد عمليات تسليم ويب هوك فاشلة مسجلة في آخر 7 أيام.",
     openSentry: "فتح Sentry",
-    window: "نافذة",
-    usersWhoGenerated: "مستخدمون أنشأوا ملخصات",
-    completedRuns: "جلسات ملخصة مكتملة",
-    requests: "طلبات",
-    estimatedRevenue: "الإيرادات المعترف بها تقريبًا",
-    last7days: "آخر 7 أيام",
-    waitingForResponse: "بانتظار أول رد من المشرف",
-    untriagedFeedback: "ملاحظات غير مصنفة",
     kpis: {
-      newUsers: "مستخدمون جدد",
-      activeUsers: "مستخدمون نشطون",
-      summaries: "الملخصات",
-      openAiSpend: "إنفاق OpenAI",
-      revenueMtd: "الإيرادات (الشهر)",
-      failedWebhooks: "فشل الويب هوك",
-      supportNew: "دعم جديد",
-      feedbackNew: "ملاحظات جديدة",
+      mrr: "الإيراد الشهري المتكرر",
+      activeUsers: "المستخدمون النشطون",
+      summariesToday: "ملخصات اليوم",
+      churnRate: "معدل التسرب",
+      previousPeriod: "مقابل السابق",
     },
   },
 } as const;
@@ -108,116 +69,37 @@ async function fetchMetrics() {
   return payload.data;
 }
 
-function pickRange(value: { today: number; last7Days: number; last30Days: number }, range: RangeKey) {
-  return range === "today" ? value.today : range === "7d" ? value.last7Days : value.last30Days;
-}
-
-function KpiCard({
-  icon: Icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <Card className="bg-[var(--surface-elevated)]">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm text-[var(--muted-foreground)]">{label}</p>
-            <p className="mt-2 text-2xl font-semibold text-[var(--text-strong)]">{value}</p>
-            <p className="mt-3 text-xs leading-5 text-[var(--muted-foreground)]">{detail}</p>
-          </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--primary)]/10 text-[var(--primary)]">
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function AdminOverviewContent({ initialMetrics }: { initialMetrics: AdminOverviewMetrics }) {
   const { locale } = useLang();
   const copy = COPY[locale];
   const [metrics, setMetrics] = useState(initialMetrics);
-  const [range, setRange] = useState<RangeKey>("7d");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const rangeLabel = range === "today" ? copy.today : range === "7d" ? copy.last7 : copy.last30;
-  const kpis = useMemo(
-    () => [
-      {
-        icon: Users,
-        label: copy.kpis.newUsers,
-        value: formatNumber(pickRange(metrics.overviewKpis.newUsers, range)),
-        detail: `${rangeLabel} ${copy.window}`,
-      },
-      {
-        icon: Activity,
-        label: copy.kpis.activeUsers,
-        value: formatNumber(pickRange(metrics.overviewKpis.activeUsers, range)),
-        detail: copy.usersWhoGenerated,
-      },
-      {
-        icon: Sparkles,
-        label: copy.kpis.summaries,
-        value: formatNumber(pickRange(metrics.overviewKpis.summaries, range)),
-        detail: copy.completedRuns,
-      },
-      {
-        icon: DollarSign,
-        label: copy.kpis.openAiSpend,
-        value: formatCurrency(
-          range === "today"
-            ? metrics.overviewKpis.openAi.todayUsd
-            : range === "7d"
-              ? metrics.overviewKpis.openAi.last7DaysUsd
-              : metrics.overviewKpis.openAi.last30DaysUsd,
-          "USD",
-          2
-        ),
-        detail: `${formatNumber(
-          range === "today"
-            ? metrics.overviewKpis.openAi.todayRequests
-            : range === "7d"
-              ? metrics.overviewKpis.openAi.last7DaysRequests
-              : metrics.overviewKpis.openAi.last30DaysRequests
-        )} ${copy.requests}`,
-      },
-      {
-        icon: DollarSign,
-        label: copy.kpis.revenueMtd,
-        value: formatCurrency(metrics.overviewKpis.revenueMtdUsd, "USD", 2),
-        detail: copy.estimatedRevenue,
-      },
-      {
-        icon: Webhook,
-        label: copy.kpis.failedWebhooks,
-        value: formatNumber(metrics.overviewKpis.failedWebhooks7Days),
-        detail: copy.last7days,
-      },
-      {
-        icon: LifeBuoy,
-        label: copy.kpis.supportNew,
-        value: formatNumber(metrics.overviewKpis.supportNew),
-        detail: copy.waitingForResponse,
-      },
-      {
-        icon: MessageSquareHeart,
-        label: copy.kpis.feedbackNew,
-        value: formatNumber(metrics.overviewKpis.feedbackNew),
-        detail: copy.untriagedFeedback,
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [metrics, range, rangeLabel, locale]
-  );
+  const kpis = [
+    {
+      icon: DollarSign,
+      label: copy.kpis.mrr,
+      value: `$${metrics.revenue.mrr.toLocaleString("en-US")}`,
+      delta: { value: metrics.revenue.mrrTrend, window: copy.kpis.previousPeriod },
+    },
+    {
+      icon: Users,
+      label: copy.kpis.activeUsers,
+      value: formatNumber(metrics.engagement.mau),
+    },
+    {
+      icon: FileText,
+      label: copy.kpis.summariesToday,
+      value: formatNumber(metrics.aiUsage.requestsToday ?? metrics.overviewKpis.summaries.today),
+    },
+    {
+      icon: TrendingDown,
+      label: copy.kpis.churnRate,
+      value: `${formatNumber(metrics.churn.churnRate, { maximumFractionDigits: 1 })}%`,
+      delta: { value: metrics.churn.churnTrend, window: copy.kpis.previousPeriod },
+      variant: "warning" as const,
+    },
+  ];
 
   async function refreshMetrics() {
     setRefreshing(true);
@@ -238,11 +120,6 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
         description={`${formatDate(metrics.generatedAt, locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            {(["today", "7d", "30d"] as const).map((option) => (
-              <Button key={option} type="button" variant={range === option ? "default" : "outline"} size="sm" onClick={() => setRange(option)}>
-                {option === "today" ? copy.today : option === "7d" ? copy.last7 : copy.last30}
-              </Button>
-            ))}
             <Button type="button" variant="outline" size="sm" onClick={() => startTransition(() => void refreshMetrics())} disabled={refreshing}>
               <RefreshCcw className={cn("h-4 w-4", refreshing && "animate-spin")} />
               {refreshing ? copy.refreshing : copy.refresh}
@@ -257,9 +134,17 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {kpis.map((item) => (
-          <KpiCard key={item.label} icon={item.icon} label={item.label} value={item.value} detail={item.detail} />
+          <AdminKpiCard
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            delta={item.delta}
+            sparkData={[]}
+            icon={item.icon}
+            variant={item.variant}
+          />
         ))}
       </div>
 

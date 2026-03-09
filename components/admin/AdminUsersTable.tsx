@@ -5,17 +5,31 @@ import {
   ArrowDownWideNarrow,
   Ban,
   Download,
+  MoreHorizontal,
   RefreshCcw,
   RotateCcw,
   Search,
 } from "lucide-react";
 import type { AdminPlanType, AdminUserRecord, AdminUsersData } from "@/lib/admin/types";
+import { AdminAvatarStack } from "@/components/admin/AdminAvatarStack";
 import { formatDate, formatNumber } from "@/lib/format";
 import { useLang } from "@/lib/context/LangContext";
+import { ChurnRiskBadge } from "@/components/admin/ChurnRiskBadge";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 
 type SortKey = "joined" | "activity" | "subscription";
@@ -24,6 +38,7 @@ type BulkAction = "ban" | "reset";
 
 const USERS_PER_PAGE = 50;
 const PAGE_SIZE_STORAGE_KEY = "fazumi_admin_users_page_size";
+const PLAN_OPTIONS: AdminPlanType[] = ["free", "trial", "monthly", "annual", "founder"];
 
 const PLAN_ORDER: Record<AdminPlanType, number> = {
   founder: 0,
@@ -178,6 +193,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(USERS_PER_PAGE);
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+  const localUsers = data.users;
 
   useEffect(() => {
     try {
@@ -225,7 +241,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     });
   }
 
-  const filteredUsers = data.users
+  const filteredUsers = localUsers
     .filter((user) => {
       if (!deferredSearch) {
         return true;
@@ -262,6 +278,14 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
 
       return (leftValue - rightValue) * direction;
     });
+  const recentUsers = [...localUsers]
+    .sort((left, right) => (right.activityAt ?? "").localeCompare(left.activityAt ?? ""))
+    .slice(0, 5)
+    .map((user) => ({
+      id: user.id,
+      name: user.displayName ?? "",
+      email: user.email ?? "",
+    }));
 
   // Server drives totalPages and total count; client-side filter/sort applies within the page.
   const totalPages = data.pages;
@@ -385,6 +409,103 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     setPendingBanUserIds([]);
   }
 
+  function handleBan(userIds: string[]) {
+    setPendingBanUserIds(userIds);
+  }
+
+  async function handleResetBan(userIds: string[]) {
+    await handleBulkAction("reset", userIds);
+  }
+
+  async function handlePlanChange(userId: string, plan: AdminPlanType) {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/admin/users/plan-change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, plan }),
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Could not change plan.");
+      }
+
+      setData((current) => ({
+        ...current,
+        users: current.users.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                subscriptionType: plan,
+              }
+            : user
+        ),
+      }));
+      setSuccess(
+        locale === "ar"
+          ? "تم تحديث خطة المستخدم."
+          : `Updated user plan to ${plan}.`
+      );
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Could not change plan."
+      );
+    }
+  }
+
+  async function handleTrialExtend(userId: string) {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch("/api/admin/users/trial-extend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, days: 7 }),
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        newExpiresAt?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Could not extend trial.");
+      }
+
+      setData((current) => ({
+        ...current,
+        users: current.users.map((user) =>
+          user.id === userId && (user.subscriptionType === "free" || user.subscriptionType === "trial")
+            ? {
+                ...user,
+                subscriptionType: "trial",
+              }
+            : user
+        ),
+      }));
+      setSuccess(
+        locale === "ar"
+          ? "تم تمديد التجربة لمدة 7 أيام."
+          : "Extended trial by 7 days."
+      );
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Could not extend trial."
+      );
+    }
+  }
+
   function handleExport() {
     const selectedUsers = data.users.filter((user) => selectedUserIds.has(user.id));
 
@@ -464,19 +585,30 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       ) : null}
 
       <div className="grid gap-3 rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-elevated)] p-4 md:grid-cols-[minmax(0,1fr)_12rem_8rem]">
-        <div className="relative">
-          <label htmlFor="admin-users-search" className="sr-only">
-            Search users
-          </label>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-          <Input
-            id="admin-users-search"
-            aria-label="Search users"
-            value={search}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder="Search by name, email, phone, user ID, or country"
-            className="pl-10"
-          />
+        <div className="space-y-3 md:col-span-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-semibold text-[var(--text-strong)]">
+                {locale === "ar" ? "المستخدمون" : "Users"}
+              </h2>
+              <AdminAvatarStack users={recentUsers} max={5} />
+            </div>
+
+            <div className="relative w-full md:max-w-sm">
+              <label htmlFor="admin-users-search" className="sr-only">
+                Search users
+              </label>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+              <Input
+                id="admin-users-search"
+                aria-label="Search users"
+                value={search}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="Search by name, email, phone, user ID, or country"
+                className="pl-10"
+              />
+            </div>
+          </div>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
@@ -557,62 +689,105 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
                 <th className="px-4 py-3 font-medium text-start">Country</th>
                 <th className="px-4 py-3 font-medium text-start">Activity</th>
                 <th className="px-4 py-3 font-medium text-start">Joined</th>
+                <th className="px-4 py-3 font-medium text-start">Actions</th>
               </tr>
             </thead>
             <tbody>
               {paginatedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[var(--muted-foreground)]">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-[var(--muted-foreground)]">
                     No users match the current filters.
                   </td>
                 </tr>
               ) : (
-                paginatedUsers.map((user) => (
-                  <tr key={user.id} className="border-t border-[var(--border)] align-top hover:bg-[var(--surface-muted)]">
-                    <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedUserIds.has(user.id)}
-                        onChange={() => toggleUserSelection(user.id)}
-                        className="h-4 w-4 accent-[var(--primary)]"
-                        aria-label={`Select ${user.displayName}`}
-                      />
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="font-medium text-[var(--text-strong)]">{user.displayName}</div>
-                      <div className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        {user.email ?? user.phone ?? user.id}
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        ID {user.id.slice(0, 8)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium capitalize text-[var(--text-strong)]">
-                        {user.subscriptionType}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      {isBanned(user) ? (
-                        <div className="space-y-1">
-                          <span className="inline-flex rounded-full bg-[var(--destructive-soft)] px-2.5 py-1 text-xs font-medium text-[var(--destructive-foreground)]">
-                            Banned
-                          </span>
-                          <p className="text-xs text-[var(--muted-foreground)]">
-                            Until {formatDateTime(user.bannedUntil)}
-                          </p>
+                paginatedUsers.map((user) => {
+                  const userIsBanned = isBanned(user);
+
+                  return (
+                    <tr key={user.id} className="border-t border-[var(--border)] align-top hover:bg-[var(--surface-muted)]">
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.has(user.id)}
+                          onChange={() => toggleUserSelection(user.id)}
+                          className="h-4 w-4 accent-[var(--primary)]"
+                          aria-label={`Select ${user.displayName}`}
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="font-medium text-[var(--text-strong)]">{user.displayName}</div>
+                        <div className="mt-1 text-xs text-[var(--muted-foreground)]">
+                          {user.email ?? user.phone ?? user.id}
                         </div>
-                      ) : (
-                        <span className="inline-flex rounded-full bg-[var(--success-soft)] px-2.5 py-1 text-xs font-medium text-[var(--success-foreground)]">
-                          Active
+                        <div className="mt-1 text-xs text-[var(--muted-foreground)]">
+                          ID {user.id.slice(0, 8)}
+                        </div>
+                        {userIsBanned ? (
+                          <div className="mt-1 text-xs text-[var(--destructive)]">
+                            {locale === "ar" ? "محظور حتى" : "Banned until"} {formatDateTime(user.bannedUntil)}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium capitalize text-[var(--text-strong)]">
+                          {user.subscriptionType}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-[var(--muted-foreground)]">{user.country}</td>
-                    <td className="px-4 py-4 text-[var(--muted-foreground)]">{formatDateTime(user.activityAt)}</td>
-                    <td className="px-4 py-4 text-[var(--muted-foreground)]">{formatDateTime(user.joinedAt)}</td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-4">
+                        <ChurnRiskBadge lastActiveAt={user.activityAt ?? null} locale={locale} />
+                      </td>
+                      <td className="px-4 py-4 text-[var(--muted-foreground)]">{user.country}</td>
+                      <td className="px-4 py-4 text-[var(--muted-foreground)]">{formatDateTime(user.activityAt)}</td>
+                      <td className="px-4 py-4 text-[var(--muted-foreground)]">{formatDateTime(user.joinedAt)}</td>
+                      <td className="px-4 py-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 px-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">
+                                {locale === "ar" ? "إجراءات المستخدم" : "User actions"}
+                              </span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>{locale === "ar" ? "الإجراءات" : "Actions"}</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                {locale === "ar" ? "تغيير الخطة" : "Change plan"}
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                {PLAN_OPTIONS.map((plan) => (
+                                  <DropdownMenuItem
+                                    key={plan}
+                                    onClick={() => void handlePlanChange(user.id, plan)}
+                                  >
+                                    {plan}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuItem onClick={() => void handleTrialExtend(user.id)}>
+                              {locale === "ar" ? "مد التجربة (+7 أيام)" : "Extend trial (+7d)"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+                              onClick={() => void handleBan([user.id])}
+                            >
+                              {locale === "ar" ? "حظر المستخدم" : "Ban user"}
+                            </DropdownMenuItem>
+                            {userIsBanned ? (
+                              <DropdownMenuItem onClick={() => void handleResetBan([user.id])}>
+                                {locale === "ar" ? "رفع الحظر" : "Reset ban"}
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

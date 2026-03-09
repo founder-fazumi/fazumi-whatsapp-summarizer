@@ -1,3 +1,4 @@
+import { AdminBreadcrumb } from "@/components/admin/AdminBreadcrumb";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminIncomeContent } from "@/components/admin/AdminIncomeContent";
 import { getAdminIncomeData } from "@/lib/admin/queries";
@@ -11,7 +12,14 @@ export default async function AdminDashboardIncomePage() {
   const data = await getAdminIncomeData();
 
   return (
-    <AdminShell>
+    <AdminShell
+      breadcrumb={
+        <AdminBreadcrumb
+          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "Revenue" }]}
+          dir="ltr"
+        />
+      }
+    >
       <AdminIncomeContent initialData={data} />
     </AdminShell>
   );

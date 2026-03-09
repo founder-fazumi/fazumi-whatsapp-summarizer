@@ -1,3 +1,4 @@
+import { AdminBreadcrumb } from "@/components/admin/AdminBreadcrumb";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminOverviewContent } from "@/components/admin/AdminOverviewContent";
 import { getAdminOverviewMetrics } from "@/lib/admin/queries";
@@ -11,7 +12,14 @@ export default async function AdminDashboardOverviewPage() {
   const metrics = await getAdminOverviewMetrics();
 
   return (
-    <AdminShell>
+    <AdminShell
+      breadcrumb={
+        <AdminBreadcrumb
+          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "Overview" }]}
+          dir="ltr"
+        />
+      }
+    >
       <AdminOverviewContent initialMetrics={metrics} />
     </AdminShell>
   );

@@ -77,6 +77,7 @@ export default async function BillingPage() {
   let trialExpiresAt: string | null = null;
   let subscription: EntitlementSubscription | null = null;
   let portalUrl: string | null = null;
+  let updatePaymentMethodUrl: string | null = null;
   let subscriptionStatus: string | null = null;
 
   try {
@@ -116,10 +117,13 @@ export default async function BillingPage() {
       trialExpiresAt = profile?.trial_expires_at ?? null;
       subscription = subscriptionRows[0] ?? null;
       subscriptionStatus = entitlement.subscriptionStatus;
+      updatePaymentMethodUrl =
+        subscription?.ls_update_payment_method_url ??
+        entitlement.updatePaymentMethodUrl;
       portalUrl =
         subscription?.ls_customer_portal_url ??
         entitlement.customerPortalUrl ??
-        entitlement.updatePaymentMethodUrl;
+        updatePaymentMethodUrl;
 
       if (!portalUrl && entitlement.subscriptionId) {
         portalUrl = await getCustomerPortalUrl(entitlement.subscriptionId);
@@ -167,14 +171,15 @@ export default async function BillingPage() {
                     ar="فشل آخر دفع. يرجى تحديث طريقة الدفع للحفاظ على وصولك."
                   />
                 </p>
-                {portalUrl && (
+                {(updatePaymentMethodUrl ?? portalUrl) && (
                   <a
-                    href={portalUrl}
+                    href={updatePaymentMethodUrl ?? portalUrl ?? "#"}
+                    data-testid="billing-update-payment"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-2 inline-flex items-center gap-1 text-amber-700 underline underline-offset-4 hover:no-underline dark:text-amber-400"
                   >
-                    <LocalizedText en="Manage billing →" ar="← إدارة الفاتورة" />
+                    <LocalizedText en="Update payment method →" ar="← تحديث طريقة الدفع" />
                   </a>
                 )}
               </div>

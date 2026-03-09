@@ -1,3 +1,4 @@
+import { AdminBreadcrumb } from "@/components/admin/AdminBreadcrumb";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminInboxContent } from "@/components/admin/AdminInboxContent";
 import { requireAdminPageSession } from "@/lib/admin/auth";
@@ -10,7 +11,14 @@ export default async function AdminInboxPage() {
   const data = await getAdminInboxData();
 
   return (
-    <AdminShell>
+    <AdminShell
+      breadcrumb={
+        <AdminBreadcrumb
+          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "Inbox" }]}
+          dir="ltr"
+        />
+      }
+    >
       <AdminInboxContent initialData={data} />
     </AdminShell>
   );

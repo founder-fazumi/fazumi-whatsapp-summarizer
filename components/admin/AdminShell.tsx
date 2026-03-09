@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Globe, Moon, Shield, Sun } from "lucide-react";
+import { Globe, Shield } from "lucide-react";
+import { AdminThemeSwitcher } from "@/components/admin/AdminThemeSwitcher";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { useLang } from "@/lib/context/LangContext";
-import { useTheme } from "@/lib/context/ThemeContext";
 import { cn } from "@/lib/utils";
 
 interface AdminShellProps {
   children: React.ReactNode;
+  breadcrumb?: React.ReactNode;
 }
 
 const COPY = {
@@ -23,8 +24,6 @@ const COPY = {
     logout: "Log out",
     theme: "Theme",
     language: "Language",
-    light: "Light",
-    dark: "Dark",
   },
   ar: {
     brand: "فازومي ادمن",
@@ -34,14 +33,11 @@ const COPY = {
     logout: "تسجيل الخروج",
     theme: "السمة",
     language: "اللغة",
-    light: "فاتح",
-    dark: "داكن",
   },
 } as const;
 
-export function AdminShell({ children }: AdminShellProps) {
+export function AdminShell({ children, breadcrumb }: AdminShellProps) {
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
   const { locale, setLocale } = useLang();
   const copy = COPY[locale];
   const isRtl = locale === "ar";
@@ -119,17 +115,7 @@ export function AdminShell({ children }: AdminShellProps) {
                     <span>{locale.toUpperCase()}</span>
                   </Button>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggleTheme}
-                    className="gap-1"
-                    aria-label={copy.theme}
-                  >
-                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                    <span className="hidden sm:inline">{theme === "dark" ? copy.light : copy.dark}</span>
-                  </Button>
+                  <AdminThemeSwitcher />
 
                   <Button
                     type="button"
@@ -142,6 +128,12 @@ export function AdminShell({ children }: AdminShellProps) {
                   </Button>
                 </div>
               </div>
+
+              {breadcrumb && (
+                <div className="hidden md:block">
+                  {breadcrumb}
+                </div>
+              )}
 
               <div className="lg:hidden">
                 <AdminNav mobile />

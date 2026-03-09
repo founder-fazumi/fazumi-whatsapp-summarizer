@@ -2,7 +2,9 @@
 
 import { type ComponentType, startTransition, useState } from "react";
 import { DollarSign, RefreshCcw, Star, TrendingUp, Users } from "lucide-react";
+import { AdminPricingTiers } from "@/components/admin/AdminPricingTiers";
 import type { AdminIncomeData } from "@/lib/admin/types";
+import { useLang } from "@/lib/context/LangContext";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { AdminBarChart } from "@/components/admin/AdminBarChart";
 import { AdminLineChart } from "@/components/admin/AdminLineChart";
@@ -82,6 +84,7 @@ function InsightRow({
 }
 
 export function AdminIncomeContent({ initialData }: AdminIncomeContentProps) {
+  const { locale } = useLang();
   const [data, setData] = useState(initialData);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +171,10 @@ export function AdminIncomeContent({ initialData }: AdminIncomeContentProps) {
 
   return (
     <div className="space-y-6">
+      <div className="mb-6">
+        <AdminPricingTiers data={data} locale={locale} />
+      </div>
+
       <AdminPageHeader
         title="Income and CAC"
         description="Chinese dashboard pattern: dense revenue KPIs first, charts in the middle, then the spend table and next action cards."

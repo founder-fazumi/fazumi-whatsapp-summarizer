@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AccordionItem } from "@/components/ui/accordion";
+import { FaqAccordionItem } from "@/components/ui/accordion";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -160,7 +160,7 @@ export function FAQ() {
 
           <div className="surface-panel px-5">
             {current.items.map((item) => (
-              <AccordionItem
+              <FaqAccordionItem
                 key={item.question.en}
                 question={pick(item.question, locale)}
                 answer={pick(item.answer, locale)}

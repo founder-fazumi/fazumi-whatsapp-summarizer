@@ -6,7 +6,13 @@ import { CreditCard, Globe, LogOut, Moon, Settings, Star, Sun, User } from "luci
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useLang } from "@/lib/context/LangContext";
@@ -132,14 +138,6 @@ export function TopBar({ className }: TopBarProps) {
         ? pick(COPY.freeTrial, locale)
         : pick(COPY.free, locale);
 
-  const userMenuItems = [
-    { label: t("nav.profile", locale), href: "/profile", icon: <User className="h-4 w-4" /> },
-    { label: t("nav.billing", locale), href: "/billing", icon: <CreditCard className="h-4 w-4" /> },
-    { label: t("nav.settings", locale), href: "/settings", icon: <Settings className="h-4 w-4" /> },
-    { divider: true, label: "" },
-    { label: t("nav.signout", locale), onClick: handleSignOut, icon: <LogOut className="h-4 w-4" />, danger: true },
-  ];
-
   return (
     <header
       dir={isArabic ? "rtl" : "ltr"}
@@ -203,14 +201,11 @@ export function TopBar({ className }: TopBarProps) {
             </Button>
           )}
 
-          <DropdownMenu
-            align={isArabic ? "left" : "right"}
-            items={userMenuItems}
-            trigger={(open) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 aria-haspopup="true"
-                aria-expanded={open}
                 aria-label={locale === "ar" ? "قائمة المستخدم" : "User menu"}
                 className="flex items-center gap-2 rounded-[999px] border border-[var(--border)] bg-[var(--surface-elevated)] py-1 pl-1 pr-2.5 shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
               >
@@ -231,8 +226,30 @@ export function TopBar({ className }: TopBarProps) {
                   </p>
                 </div>
               </button>
-            )}
-          />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align={isArabic ? "start" : "end"}>
+              <DropdownMenuItem onClick={() => router.push("/profile")}>
+                <User className="h-4 w-4" />
+                {t("nav.profile", locale)}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/billing")}>
+                <CreditCard className="h-4 w-4" />
+                {t("nav.billing", locale)}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings")}>
+                <Settings className="h-4 w-4" />
+                {t("nav.settings", locale)}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+                onClick={() => void handleSignOut()}
+              >
+                <LogOut className="h-4 w-4" />
+                {t("nav.signout", locale)}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

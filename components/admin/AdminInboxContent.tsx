@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { startTransition, useDeferredValue, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Copy, Inbox, MessageSquareHeart, RefreshCcw, Search, Tags } from "lucide-react";
+import { Inbox, MessageSquareHeart, RefreshCcw, Search, Tags } from "lucide-react";
 import type {
   AdminFeedbackRow,
   AdminInboxData,
@@ -13,13 +12,12 @@ import type {
 } from "@/lib/admin/types";
 import { formatDate, formatNumber } from "@/lib/format";
 import { useLang } from "@/lib/context/LangContext";
+import { AdminInboxItemPanel } from "@/components/admin/AdminInboxItemPanel";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type InboxTab = "feedback" | "support";
@@ -55,26 +53,6 @@ async function fetchInbox(filters?: {
   }
 
   return payload.data;
-}
-
-async function saveInbox(payload: {
-  kind: InboxTab;
-  id: string;
-  status: AdminSupportStatus;
-  priority: AdminInboxPriority;
-  tags: string[];
-  adminNotes: string | null;
-}) {
-  const response = await fetch("/api/admin/inbox", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = (await response.json()) as { ok: boolean; error?: string };
-
-  if (!response.ok || !data.ok) {
-    throw new Error(data.error ?? "Could not update inbox item.");
-  }
 }
 
 function isFeedback(item: InboxItem): item is AdminFeedbackRow {
@@ -114,7 +92,6 @@ function contactValue(item: InboxItem) {
   return item.email ?? item.phone ?? item.userId ?? "Anonymous";
 }
 
-
 export function AdminInboxContent({ initialData }: { initialData: AdminInboxData }) {
   const { locale } = useLang();
   const searchParams = useSearchParams();
@@ -127,27 +104,14 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
   const [localeFilter, setLocaleFilter] = useState<"all" | "en" | "ar">("all");
   const [tagFilter, setTagFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "7d" | "30d">("30d");
-  const [selected, setSelected] = useState<InboxItem | null>(null);
-  const [statusDraft, setStatusDraft] = useState<AdminSupportStatus>("new");
-  const [priorityDraft, setPriorityDraft] = useState<AdminInboxPriority>("normal");
-  const [tagsDraft, setTagsDraft] = useState("");
-  const [notesDraft, setNotesDraft] = useState("");
+  const [selectedItem, setSelectedItem] = useState<InboxItem | null>(null);
+  const [selectedKind, setSelectedKind] = useState<InboxTab>("feedback");
   const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const query = useDeferredValue(search.trim().toLowerCase());
 
-  useEffect(() => {
-    if (!selected) return;
-    setStatusDraft(selected.status as AdminSupportStatus);
-    setPriorityDraft(selected.priority);
-    setTagsDraft(selected.tags.join(", "));
-    setNotesDraft(selected.adminNotes ?? "");
-  }, [selected]);
-
   const section = tab === "feedback" ? data.feedback : data.support;
-  // Server handles filtering; items on the current page are returned directly.
-  const filtered = tab === "feedback" ? data.feedback.items : data.support.items;
+  const filtered = section.items;
 
   function buildFilters() {
     return {
@@ -166,12 +130,15 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
   async function refresh() {
     setRefreshing(true);
     setError(null);
+
     try {
       const next = await fetchInbox(buildFilters());
       setData(next);
-      if (selected) {
-        const nextItem = [...next.feedback.items, ...next.support.items].find((item) => item.id === selected.id) ?? null;
-        setSelected(nextItem);
+
+      if (selectedItem) {
+        const nextSection = selectedKind === "feedback" ? next.feedback.items : next.support.items;
+        const nextItem = nextSection.find((item) => item.id === selectedItem.id) ?? null;
+        setSelectedItem(nextItem);
       }
     } catch (refreshError) {
       setError(refreshError instanceof Error ? refreshError.message : "Could not refresh inbox.");
@@ -180,30 +147,15 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
     }
   }
 
+  useEffect(() => {
+    if (selectedItem && selectedKind !== tab) {
+      setSelectedItem(null);
+    }
+  }, [selectedItem, selectedKind, tab]);
+
   // Re-fetch from server whenever any filter changes. query is useDeferredValue so search debounces naturally.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { startTransition(() => { void refresh(); }); }, [tab, statusFilter, priorityFilter, localeFilter, tagFilter, dateFilter, query]);
-
-  async function handleSave() {
-    if (!selected) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await saveInbox({
-        kind: isFeedback(selected) ? "feedback" : "support",
-        id: selected.id,
-        status: statusDraft,
-        priority: priorityDraft,
-        tags: tagsDraft.split(",").map((tag) => tag.trim()).filter(Boolean),
-        adminNotes: notesDraft.trim() || null,
-      });
-      await refresh();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save inbox item.");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -215,9 +167,21 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
             : `Feedback and support in one place. Last updated ${formatDate(data.generatedAt, locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
         }
         actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => startTransition(() => void refresh())} disabled={refreshing}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => startTransition(() => void refresh())}
+            disabled={refreshing}
+          >
             <RefreshCcw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-            {refreshing ? (locale === "ar" ? "جارٍ التحديث..." : "Refreshing...") : locale === "ar" ? "تحديث" : "Refresh"}
+            {refreshing
+              ? locale === "ar"
+                ? "جارٍ التحديث..."
+                : "Refreshing..."
+              : locale === "ar"
+              ? "تحديث"
+              : "Refresh"}
           </Button>
         }
       />
@@ -256,12 +220,16 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
                 onClick={() => setTab(item.key)}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-[var(--radius-xl)] border px-4 py-2 text-sm font-medium",
-                  tab === item.key ? "border-[var(--primary)] bg-[var(--primary)]/8 text-[var(--text-strong)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
+                  tab === item.key
+                    ? "border-[var(--primary)] bg-[var(--primary)]/8 text-[var(--text-strong)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)]"
                 )}
               >
                 <item.icon className="h-4 w-4" />
                 <span>{item.label}</span>
-                <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-xs text-[var(--text-strong)]">{formatNumber(item.count)}</span>
+                <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-xs text-[var(--text-strong)]">
+                  {formatNumber(item.count)}
+                </span>
               </button>
             ))}
           </div>
@@ -269,28 +237,50 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_repeat(5,minmax(0,0.8fr))]">
             <div className="relative md:col-span-2 xl:col-span-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-              <Input id="admin-inbox-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={locale === "ar" ? "ابحث في الرسائل" : "Search the inbox"} className="pl-10" />
+              <Input
+                id="admin-inbox-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={locale === "ar" ? "ابحث في الرسائل" : "Search the inbox"}
+                className="pl-10"
+              />
             </div>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | AdminSupportStatus)} className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm">
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as "all" | AdminSupportStatus)}
+              className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm"
+            >
               <option value="all">{locale === "ar" ? "كل الحالات" : "All statuses"}</option>
               <option value="new">{statusLabel("new", locale)}</option>
               <option value="in_progress">{statusLabel("in_progress", locale)}</option>
               <option value="resolved">{statusLabel("resolved", locale)}</option>
               <option value="closed">{statusLabel("closed", locale)}</option>
             </select>
-            <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as "all" | AdminInboxPriority)} className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm">
+            <select
+              value={priorityFilter}
+              onChange={(event) => setPriorityFilter(event.target.value as "all" | AdminInboxPriority)}
+              className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm"
+            >
               <option value="all">{locale === "ar" ? "كل الأولويات" : "All priorities"}</option>
               <option value="low">{priorityLabel("low", locale)}</option>
               <option value="normal">{priorityLabel("normal", locale)}</option>
               <option value="high">{priorityLabel("high", locale)}</option>
               <option value="critical">{priorityLabel("critical", locale)}</option>
             </select>
-            <select value={localeFilter} onChange={(event) => setLocaleFilter(event.target.value as "all" | "en" | "ar")} className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm">
+            <select
+              value={localeFilter}
+              onChange={(event) => setLocaleFilter(event.target.value as "all" | "en" | "ar")}
+              className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm"
+            >
               <option value="all">{locale === "ar" ? "كل اللغات" : "All languages"}</option>
               <option value="en">EN</option>
               <option value="ar">AR</option>
             </select>
-            <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value as "all" | "today" | "7d" | "30d")} className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm">
+            <select
+              value={dateFilter}
+              onChange={(event) => setDateFilter(event.target.value as "all" | "today" | "7d" | "30d")}
+              className="h-11 rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm"
+            >
               <option value="all">{locale === "ar" ? "كل التواريخ" : "All dates"}</option>
               <option value="today">{locale === "ar" ? "اليوم" : "Today"}</option>
               <option value="7d">{locale === "ar" ? "آخر 7 أيام" : "Last 7d"}</option>
@@ -298,130 +288,117 @@ export function AdminInboxContent({ initialData }: { initialData: AdminInboxData
             </select>
             <div className="relative">
               <Tags className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
-              <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-10 text-sm">
+              <select
+                value={tagFilter}
+                onChange={(event) => setTagFilter(event.target.value)}
+                className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-10 text-sm"
+              >
                 <option value="all">{locale === "ar" ? "كل الوسوم" : "All tags"}</option>
-                {section.tags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+                {section.tags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      <div className="grid gap-4">
-        {filtered.length === 0 ? (
-          <div className="rounded-[var(--radius-xl)] border border-dashed border-[var(--border)] px-4 py-12 text-center text-sm text-[var(--muted-foreground)]">
-            {locale === "ar" ? "لا توجد رسائل مطابقة لهذه الفلاتر." : "No inbox items match the current filters."}
-          </div>
-        ) : (
-          filtered.map((item) => (
-            <button key={item.id} type="button" onClick={() => setSelected(item)} className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--primary)]/30 hover:bg-[var(--surface-elevated)]">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className={badgeTone(item.status)}>{statusLabel(item.status, locale)}</Badge>
-                <Badge variant="outline" className={badgeTone(item.priority)}>{priorityLabel(item.priority, locale)}</Badge>
-                <span className="text-xs uppercase text-[var(--muted-foreground)]">{item.locale}</span>
-                {isFeedback(item) ? <span className="text-xs capitalize text-[var(--muted-foreground)]">{item.type}</span> : null}
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <div className={cn("min-w-0 flex-1", selectedItem && "hidden lg:block")}>
+          <div className="grid gap-4">
+            {filtered.length === 0 ? (
+              <div className="rounded-[var(--radius-xl)] border border-dashed border-[var(--border)] px-4 py-12 text-center text-sm text-[var(--muted-foreground)]">
+                {locale === "ar" ? "لا توجد رسائل مطابقة لهذه الفلاتر." : "No inbox items match the current filters."}
               </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_10rem] md:items-start">
-                <div>
-                  <p className="text-sm font-semibold text-[var(--text-strong)]">{item.subject}</p>
-                  <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">{item.message.length > 180 ? `${item.message.slice(0, 179)}…` : item.message}</p>
-                </div>
-                <div className="text-sm text-[var(--muted-foreground)]">{contactValue(item)}</div>
-                <div className="text-sm text-[var(--muted-foreground)]">
-                  {formatDate(item.createdAt, locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                </div>
-              </div>
-            </button>
-          ))
-        )}
-      </div>
+            ) : (
+              filtered.map((item) => {
+                const active = selectedKind === tab && selectedItem?.id === item.id;
 
-      <Sheet open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
-        <SheetContent side="right" className="w-full overflow-y-auto border-l border-[var(--border)] bg-[var(--surface)] sm:max-w-xl">
-          {selected ? (
-            <>
-              <SheetHeader className="border-b border-[var(--border)]">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={badgeTone(selected.status)}>{statusLabel(selected.status, locale)}</Badge>
-                  <Badge variant="outline" className={badgeTone(selected.priority)}>{priorityLabel(selected.priority, locale)}</Badge>
-                </div>
-                <SheetTitle className="pr-10">{selected.subject}</SheetTitle>
-                <p className="text-sm text-[var(--muted-foreground)]">{formatDate(selected.createdAt, locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
-              </SheetHeader>
-              <div className="space-y-6 p-6">
-                {/* React JSX text interpolation auto-escapes — no XSS risk here */}
-                <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm leading-6 text-[var(--text-strong)]">{selected.message}</div>
-                <div className="grid gap-3">
-                  <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] p-3">
-                    <div className="text-xs text-[var(--muted-foreground)]">{locale === "ar" ? "من" : "From"}</div>
-                    <div className="mt-1 flex items-center justify-between gap-3 text-sm text-[var(--text-strong)]">
-                      <span>{contactValue(selected)}</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => void navigator.clipboard?.writeText(contactValue(selected))}><Copy className="h-4 w-4" /></Button>
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedItem(item);
+                      setSelectedKind(tab);
+                    }}
+                    className={cn(
+                      "rounded-[var(--radius-xl)] border bg-[var(--surface)] p-4 text-left transition-colors",
+                      active
+                        ? "border-[var(--primary)] bg-[var(--surface-elevated)]"
+                        : "border-[var(--border)] hover:border-[var(--primary)]/30 hover:bg-[var(--surface-elevated)]"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className={badgeTone(item.status)}>
+                        {statusLabel(item.status, locale)}
+                      </Badge>
+                      <Badge variant="outline" className={badgeTone(item.priority)}>
+                        {priorityLabel(item.priority, locale)}
+                      </Badge>
+                      <span className="text-xs uppercase text-[var(--muted-foreground)]">{item.locale}</span>
+                      {isFeedback(item) ? (
+                        <span className="text-xs capitalize text-[var(--muted-foreground)]">{item.type}</span>
+                      ) : null}
                     </div>
-                  </div>
-                  {selected.userId ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-sm">
-                      <div className="text-xs text-[var(--muted-foreground)]">{locale === "ar" ? "المستخدم" : "User"}</div>
-                      <div className="mt-1 flex items-center justify-between gap-3 text-[var(--text-strong)]">
-                        <span className="truncate">{selected.userId}</span>
-                        <Link href={`/admin_dashboard/users?search=${encodeURIComponent(selected.userId)}`} className="text-[var(--primary)] hover:underline">{locale === "ar" ? "فتح" : "Open"}</Link>
+                    <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_10rem] md:items-start">
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--text-strong)]">{item.subject}</p>
+                        <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                          {item.message.length > 180 ? `${item.message.slice(0, 179)}…` : item.message}
+                        </p>
+                      </div>
+                      <div className="text-sm text-[var(--muted-foreground)]">{contactValue(item)}</div>
+                      <div className="text-sm text-[var(--muted-foreground)]">
+                        {formatDate(item.createdAt, locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </div>
                     </div>
-                  ) : null}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="drawer-status" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{locale === "ar" ? "الحالة" : "Status"}</label>
-                    <select id="drawer-status" value={statusDraft} onChange={(event) => setStatusDraft(event.target.value as AdminSupportStatus)} className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm">
-                      <option value="new">{statusLabel("new", locale)}</option>
-                      <option value="in_progress">{statusLabel("in_progress", locale)}</option>
-                      <option value="resolved">{statusLabel("resolved", locale)}</option>
-                      <option value="closed">{statusLabel("closed", locale)}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="drawer-priority" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{locale === "ar" ? "الأولوية" : "Priority"}</label>
-                    <select id="drawer-priority" value={priorityDraft} onChange={(event) => setPriorityDraft(event.target.value as AdminInboxPriority)} className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm">
-                      <option value="low">{priorityLabel("low", locale)}</option>
-                      <option value="normal">{priorityLabel("normal", locale)}</option>
-                      <option value="high">{priorityLabel("high", locale)}</option>
-                      <option value="critical">{priorityLabel("critical", locale)}</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="drawer-tags" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{locale === "ar" ? "الوسوم" : "Tags"}</label>
-                  <Input id="drawer-tags" value={tagsDraft} onChange={(event) => setTagsDraft(event.target.value)} placeholder="billing, mobile, vip" />
-                </div>
-                <div>
-                  <label htmlFor="drawer-notes" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{locale === "ar" ? "ملاحظات الإدارة" : "Admin notes"}</label>
-                  <Textarea
-                    id="drawer-notes"
-                    value={notesDraft}
-                    onChange={(event) => setNotesDraft(event.target.value.slice(0, 4000))}
-                    maxLength={4000}
-                    className="min-h-32"
-                    placeholder={locale === "ar" ? "اكتب ملاحظات داخلية..." : "Write internal notes..."}
-                  />
-                  <p className={`mt-1 text-right text-[11px] tabular-nums ${
-                    notesDraft.length > 3900
-                      ? "text-[var(--destructive)]"
-                      : notesDraft.length > 3500
-                      ? "text-amber-600"
-                      : "text-[var(--muted-foreground)]"
-                  }`}>
-                    {notesDraft.length}/4000
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" onClick={() => void handleSave()} disabled={saving}>{saving ? (locale === "ar" ? "جارٍ الحفظ..." : "Saving...") : locale === "ar" ? "حفظ" : "Save"}</Button>
-                  <Button type="button" variant="outline" onClick={() => void navigator.clipboard?.writeText(selected.message)}><Copy className="h-4 w-4" />{locale === "ar" ? "نسخ الرسالة" : "Copy message"}</Button>
-                </div>
-              </div>
-            </>
-          ) : null}
-        </SheetContent>
-      </Sheet>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {selectedItem ? (
+          <div className="w-full shrink-0 lg:w-[360px]">
+            <AdminInboxItemPanel
+              item={selectedItem}
+              kind={selectedKind}
+              locale={locale}
+              onClose={() => setSelectedItem(null)}
+              onSave={async (updates) => {
+                try {
+                  setError(null);
+
+                  const response = await fetch("/api/admin/inbox", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      kind: selectedKind,
+                      id: selectedItem.id,
+                      ...updates,
+                    }),
+                  });
+                  const payload = (await response.json()) as { ok: boolean; error?: string };
+
+                  if (!response.ok || !payload.ok) {
+                    throw new Error(payload.error ?? "Could not update inbox item.");
+                  }
+
+                  await refresh();
+                } catch (saveError) {
+                  const message = saveError instanceof Error ? saveError.message : "Could not save inbox item.";
+                  setError(message);
+                  throw saveError;
+                }
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

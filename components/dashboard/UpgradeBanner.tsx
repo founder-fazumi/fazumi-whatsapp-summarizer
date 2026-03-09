@@ -44,6 +44,7 @@ export function UpgradeBanner() {
 
   return (
     <div
+      data-testid="upgrading-banner"
       className="flex items-start justify-between gap-3 rounded-[var(--radius-xl)] border border-[#16a34a]/30 bg-[var(--success,#16a34a)]/10 px-4 py-3 text-sm"
       role="status"
       aria-live="polite"

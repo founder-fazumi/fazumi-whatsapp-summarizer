@@ -1,3 +1,4 @@
+import { AdminBreadcrumb } from "@/components/admin/AdminBreadcrumb";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AiUsageContent } from "@/components/admin/AiUsageContent";
 import { requireAdminPageSession } from "@/lib/admin/auth";
@@ -10,7 +11,14 @@ export default async function AdminAiUsagePage() {
   const data = await getAdminAiUsageData();
 
   return (
-    <AdminShell>
+    <AdminShell
+      breadcrumb={
+        <AdminBreadcrumb
+          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "AI Usage" }]}
+          dir="ltr"
+        />
+      }
+    >
       <AiUsageContent initialData={data} />
     </AdminShell>
   );

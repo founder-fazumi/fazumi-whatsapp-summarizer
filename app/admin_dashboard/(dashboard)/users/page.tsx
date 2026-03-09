@@ -1,3 +1,4 @@
+import { AdminBreadcrumb } from "@/components/admin/AdminBreadcrumb";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { getAdminUsersData } from "@/lib/admin/queries";
@@ -11,7 +12,14 @@ export default async function AdminDashboardUsersPage() {
   const data = await getAdminUsersData();
 
   return (
-    <AdminShell>
+    <AdminShell
+      breadcrumb={
+        <AdminBreadcrumb
+          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "Users" }]}
+          dir="ltr"
+        />
+      }
+    >
       <AdminUsersTable initialData={data} />
     </AdminShell>
   );

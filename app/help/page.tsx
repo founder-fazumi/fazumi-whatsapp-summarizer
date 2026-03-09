@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { HelpCircle, Mail } from "lucide-react";
-import { Accordion } from "@/components/ui/accordion";
+import { FaqAccordion } from "@/components/ui/accordion";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
@@ -241,7 +241,7 @@ export default function HelpPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <Accordion
+            <FaqAccordion
               items={COPY.troubleshooting.items.map((item) => ({
                 question: pick(item.question, locale),
                 answer: pick(item.answer, locale),

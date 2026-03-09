@@ -1,10 +1,192 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type AccordionMode = "single" | "multiple";
+
+interface AccordionContextValue {
+  type: AccordionMode;
+  collapsible: boolean;
+  openValues: string[];
+  toggle: (value: string) => void;
+}
+
+interface AccordionItemContextValue {
+  value: string;
+  open: boolean;
+  disabled: boolean;
+}
+
+const AccordionContext = React.createContext<AccordionContextValue | null>(null);
+const AccordionItemContext = React.createContext<AccordionItemContextValue | null>(null);
+
+function useAccordionContext(componentName: string) {
+  const context = React.useContext(AccordionContext);
+
+  if (!context) {
+    throw new Error(`${componentName} must be used within <Accordion>.`);
+  }
+
+  return context;
+}
+
+function useAccordionItemContext(componentName: string) {
+  const context = React.useContext(AccordionItemContext);
+
+  if (!context) {
+    throw new Error(`${componentName} must be used within <AccordionItem>.`);
+  }
+
+  return context;
+}
+
+interface AccordionProps {
+  type?: AccordionMode;
+  collapsible?: boolean;
+  defaultValue?: string | string[];
+  className?: string;
+  children: React.ReactNode;
+}
+
+export function Accordion({
+  type = "single",
+  collapsible = false,
+  defaultValue,
+  className,
+  children,
+}: AccordionProps) {
+  const [openValues, setOpenValues] = React.useState<string[]>(() => {
+    if (Array.isArray(defaultValue)) {
+      return defaultValue;
+    }
+
+    if (typeof defaultValue === "string" && defaultValue.length > 0) {
+      return [defaultValue];
+    }
+
+    return [];
+  });
+
+  const toggle = React.useCallback((value: string) => {
+    setOpenValues((current) => {
+      const isOpen = current.includes(value);
+
+      if (type === "single") {
+        if (isOpen) {
+          return collapsible ? [] : current;
+        }
+
+        return [value];
+      }
+
+      if (isOpen) {
+        return current.filter((entry) => entry !== value);
+      }
+
+      return [...current, value];
+    });
+  }, [collapsible, type]);
+
+  return (
+    <AccordionContext.Provider value={{ type, collapsible, openValues, toggle }}>
+      <div className={className}>{children}</div>
+    </AccordionContext.Provider>
+  );
+}
+
 interface AccordionItemProps {
+  value: string;
+  className?: string;
+  disabled?: boolean;
+  children: React.ReactNode;
+}
+
+export function AccordionItem({
+  value,
+  className,
+  disabled = false,
+  children,
+}: AccordionItemProps) {
+  const { openValues } = useAccordionContext("AccordionItem");
+  const open = openValues.includes(value);
+
+  return (
+    <AccordionItemContext.Provider value={{ value, open, disabled }}>
+      <div data-state={open ? "open" : "closed"} className={className}>
+        {children}
+      </div>
+    </AccordionItemContext.Provider>
+  );
+}
+
+interface AccordionTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  children: React.ReactNode;
+}
+
+export function AccordionTrigger({
+  className,
+  children,
+  type = "button",
+  onClick,
+  ...props
+}: AccordionTriggerProps) {
+  const { toggle } = useAccordionContext("AccordionTrigger");
+  const { value, open, disabled } = useAccordionItemContext("AccordionTrigger");
+
+  return (
+    <button
+      type={type}
+      aria-expanded={open}
+      disabled={disabled}
+      className={cn(
+        "flex min-h-12 w-full items-center justify-between gap-4 py-4 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:text-[var(--primary)] disabled:pointer-events-none disabled:opacity-50",
+        className
+      )}
+      {...props}
+      onClick={(event) => {
+        onClick?.(event);
+
+        if (!event.defaultPrevented) {
+          toggle(value);
+        }
+      }}
+    >
+      <span className="flex-1">{children}</span>
+      <ChevronDown
+        className={cn(
+          "h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-transform duration-200",
+          open && "rotate-180"
+        )}
+      />
+    </button>
+  );
+}
+
+interface AccordionContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+}
+
+export function AccordionContent({
+  className,
+  children,
+  ...props
+}: AccordionContentProps) {
+  const { open } = useAccordionItemContext("AccordionContent");
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className={className} {...props}>
+      {children}
+    </div>
+  );
+}
+
+interface FaqAccordionItemProps {
   question: string;
   answer: string;
   defaultOpen?: boolean;
@@ -14,7 +196,7 @@ interface AccordionItemProps {
   answerClassName?: string;
 }
 
-export function AccordionItem({
+export function FaqAccordionItem({
   question,
   answer,
   defaultOpen = false,
@@ -22,13 +204,14 @@ export function AccordionItem({
   contentClassName,
   questionClassName,
   answerClassName,
-}: AccordionItemProps) {
-  const [open, setOpen] = useState(defaultOpen);
+}: FaqAccordionItemProps) {
+  const [open, setOpen] = React.useState(defaultOpen);
 
   return (
     <div className="border-b border-[var(--border)] last:border-0">
       <button
-        onClick={() => setOpen((o) => !o)}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
         className={cn(
           "flex min-h-12 w-full items-center justify-between gap-4 rounded-[var(--radius)] py-4 text-start text-[var(--text-sm)] font-medium text-[var(--foreground)] hover:text-[var(--primary)]",
           buttonClassName
@@ -43,13 +226,8 @@ export function AccordionItem({
           )}
         />
       </button>
-      {open && (
-        <div
-          className={cn(
-            "pb-4",
-            contentClassName
-          )}
-        >
+      {open ? (
+        <div className={cn("pb-4", contentClassName)}>
           <p
             className={cn(
               "text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]",
@@ -59,21 +237,28 @@ export function AccordionItem({
             {answer}
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-interface AccordionProps {
-  items: { question: string; answer: string }[];
+interface FaqAccordionProps {
+  items: Array<{
+    question: string;
+    answer: string;
+  }>;
   className?: string;
 }
 
-export function Accordion({ items, className }: AccordionProps) {
+export function FaqAccordion({ items, className }: FaqAccordionProps) {
   return (
     <div className={cn("divide-y divide-[var(--border)]", className)}>
       {items.map((item) => (
-        <AccordionItem key={item.question} question={item.question} answer={item.answer} />
+        <FaqAccordionItem
+          key={item.question}
+          question={item.question}
+          answer={item.answer}
+        />
       ))}
     </div>
   );
