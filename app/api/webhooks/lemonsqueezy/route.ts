@@ -234,6 +234,17 @@ async function recordWebhookDelivery(
   }
 }
 
+async function setPlan(admin: AdminClient, userId: string, planType: string) {
+  const { error } = await admin
+    .from("profiles")
+    .update({ plan: planType, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+
+  if (error) {
+    throw new Error(`Could not update profile plan: ${error.message}`);
+  }
+}
+
 async function reconcileProfilePlan(admin: AdminClient, userId: string) {
   const [{ data: profile }, { data: subscriptions, error: subscriptionsError }] = await Promise.all([
     admin
@@ -262,14 +273,7 @@ async function reconcileProfilePlan(admin: AdminClient, userId: string) {
   });
 
   const nextPlan = entitlement.hasPaidAccess ? entitlement.effectivePlan : "free";
-  const { error } = await admin
-    .from("profiles")
-    .update({ plan: nextPlan, updated_at: new Date().toISOString() })
-    .eq("id", userId);
-
-  if (error) {
-    throw new Error(`Could not update profile plan: ${error.message}`);
-  }
+  await setPlan(admin, userId, nextPlan);
 }
 
 async function routeEvent(
@@ -396,7 +400,8 @@ async function routeEvent(
     }
 
     case "subscription_payment_success": {
-      const planType = getPlanType(String(attrs.variant_id));
+      const variantId = String(attrs.variant_id);
+      const planType = getPlanType(variantId);
       const { error } = await admin
         .from("subscriptions")
         .update({
@@ -410,7 +415,12 @@ async function routeEvent(
       if (error) {
         throw new Error(`Could not refresh subscription period: ${error.message}`);
       }
-      await reconcileProfilePlan(admin, userId);
+
+      // Defensive re-set: recover profiles.plan after past_due recovery
+      if (planType && userId) {
+        await setPlan(admin, userId, planType);
+      }
+
       logger.info("webhook.status_changed", {
         userId,
         eventType: event,

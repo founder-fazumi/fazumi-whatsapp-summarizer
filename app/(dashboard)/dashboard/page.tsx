@@ -1,9 +1,9 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { DashboardBanner } from "@/components/dashboard/DashboardBanner";
+import { UpgradeBanner } from "@/components/dashboard/UpgradeBanner";
 import { FamilyCoordinationCard } from "@/components/dashboard/FamilyCoordinationCard";
 import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
 import { MeasurementTracker } from "@/components/dashboard/MeasurementTracker";
-import { UpgradingBanner } from "@/components/dashboard/UpgradingBanner";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { CalendarWidget } from "@/components/widgets/CalendarWidget";
 import { TodoWidget } from "@/components/widgets/TodoWidget";
@@ -28,12 +28,7 @@ const RIGHT_COLUMN = (
   </>
 );
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ upgraded?: string }>;
-}) {
-  const { upgraded } = await searchParams;
+export default async function DashboardPage() {
   // Fetch session + profile + today's usage server-side
   let userName: string | null = null;
   let billingPlan = "free";
@@ -109,8 +104,8 @@ export default async function DashboardPage({
     <DashboardShell rightColumn={RIGHT_COLUMN}>
       <FounderWelcomeModal isFounder={billingPlan === "founder"} />
       <MeasurementTracker />
-      {upgraded === "1" && <UpgradingBanner />}
       <div className="space-y-5">
+        <UpgradeBanner />
         <DashboardBanner
           userName={userName}
           billingPlan={billingPlan}

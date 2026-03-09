@@ -2,7 +2,7 @@ import { DashboardShell } from "@/components/layout/DashboardShell";
 import { BillingPlansPanel } from "@/components/billing/BillingPlansPanel";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
-import { CreditCard, Check, AlertTriangle, ExternalLink } from "lucide-react";
+import { CreditCard, Check, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
@@ -77,7 +77,6 @@ export default async function BillingPage() {
   let trialExpiresAt: string | null = null;
   let subscription: EntitlementSubscription | null = null;
   let portalUrl: string | null = null;
-  let pastDuePortalUrl: string | null = null;
   let subscriptionStatus: string | null = null;
 
   try {
@@ -117,15 +116,13 @@ export default async function BillingPage() {
       trialExpiresAt = profile?.trial_expires_at ?? null;
       subscription = subscriptionRows[0] ?? null;
       subscriptionStatus = entitlement.subscriptionStatus;
-      portalUrl = entitlement.customerPortalUrl ?? entitlement.updatePaymentMethodUrl;
-      pastDuePortalUrl = entitlement.updatePaymentMethodUrl ?? entitlement.customerPortalUrl;
+      portalUrl =
+        subscription?.ls_customer_portal_url ??
+        entitlement.customerPortalUrl ??
+        entitlement.updatePaymentMethodUrl;
 
       if (!portalUrl && entitlement.subscriptionId) {
         portalUrl = await getCustomerPortalUrl(entitlement.subscriptionId);
-      }
-
-      if (!pastDuePortalUrl) {
-        pastDuePortalUrl = portalUrl;
       }
     }
   } catch {
@@ -136,7 +133,6 @@ export default async function BillingPage() {
   const features = PLAN_FEATURES[billingPlan] ?? PLAN_FEATURES.free;
   const isFounderPlan = billingPlan === "founder";
   const isTrialActive = !hasPaidAccess && !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
-  const isPastDue = subscriptionStatus === "past_due";
   const statusLabel = subscriptionStatus ? STATUS_LABELS[subscriptionStatus] ?? null : null;
 
   const trialDaysLeft = trialExpiresAt
@@ -146,37 +142,6 @@ export default async function BillingPage() {
   return (
     <DashboardShell contentClassName="max-w-6xl">
       <div className="space-y-4">
-        {isPastDue && (
-          <div className="status-destructive flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-3 text-sm" role="alert" aria-live="polite">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div className="space-y-1">
-              <p>
-                <LocalizedText
-                  en="Your last payment failed. Paid access is paused until you update your payment method in the customer portal."
-                  ar="فشل آخر دفع. تم إيقاف الوصول المدفوع مؤقتًا حتى تحدّث طريقة الدفع من بوابة العملاء."
-                />
-              </p>
-              {pastDuePortalUrl ? (
-                <a
-                  href={pastDuePortalUrl}
-                  data-testid="billing-update-payment"
-                  className="font-semibold underline underline-offset-2"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  <LocalizedText en="Update payment →" ar="تحديث الدفع ←" />
-                </a>
-              ) : (
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  <LocalizedText
-                    en="Portal link unavailable. Try again in a minute while billing sync finishes."
-                    ar="رابط البوابة غير متاح حاليًا. حاول مرة أخرى بعد دقيقة حتى يكتمل تحديث الفوترة."
-                  />
-                </p>
-              )}
-            </div>
-          </div>
-        )}
         <Card className="bg-[var(--surface-elevated)]">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -194,6 +159,26 @@ export default async function BillingPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
+            {subscription?.status === "past_due" && (
+              <div className="rounded-[var(--radius-xl)] border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+                <p className="font-medium text-amber-700 dark:text-amber-400">
+                  <LocalizedText
+                    en="Your last payment failed. Update your payment method to keep your access."
+                    ar="فشل آخر دفع. يرجى تحديث طريقة الدفع للحفاظ على وصولك."
+                  />
+                </p>
+                {portalUrl && (
+                  <a
+                    href={portalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-amber-700 underline underline-offset-4 hover:no-underline dark:text-amber-400"
+                  >
+                    <LocalizedText en="Manage billing →" ar="← إدارة الفاتورة" />
+                  </a>
+                )}
+              </div>
+            )}
             <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-xs)]">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
                 <LocalizedText en="Current plan" ar="الخطة الحالية" />
