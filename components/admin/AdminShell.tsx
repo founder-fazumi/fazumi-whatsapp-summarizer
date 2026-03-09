@@ -56,7 +56,7 @@ export function AdminShell({ children, breadcrumb }: AdminShellProps) {
       setIsLoggingOut(false);
     }
 
-    router.push("/admin/login");
+    router.push("/admin_dashboard/login");
     router.refresh();
   }
 
