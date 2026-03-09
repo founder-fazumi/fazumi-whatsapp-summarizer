@@ -8,6 +8,7 @@ import type { SummaryResult } from "@/lib/ai/summarize";
 import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
+import { PmfSurveyModal } from "@/components/pmf/PmfSurveyModal";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -463,6 +464,7 @@ export default function SummarizePage() {
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipGroupName, setZipGroupName] = useState("");
   const [zipRange, setZipRange] = useState<SummarizeZipRange>("24h");
+  const [summaryCount, setSummaryCount] = useState(0);
   const [savedGroups, setSavedGroups] = useState<SavedGroupOption[]>([]);
   const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext | null>(null);
   const [summaryRetentionDays, setSummaryRetentionDays] = useState<number | null>(null);
@@ -505,6 +507,7 @@ export default function SummarizePage() {
             setBillingPlan("free");
             setIsSubscribed(false);
             setCurrentUserId(null);
+            setSummaryCount(0);
             setSavedGroups([]);
             setSavedFamilyContext(null);
             setSummaryRetentionDays(null);
@@ -512,7 +515,7 @@ export default function SummarizePage() {
           return;
         }
 
-        const [{ data: profile }, { data: subscriptions }, { data: groups }] = await Promise.all([
+        const [{ data: profile }, { data: subscriptions }, { count }, { data: groups }] = await Promise.all([
           supabase
             .from("profiles")
             .select("plan, trial_expires_at, family_context, summary_retention_days")
@@ -527,6 +530,11 @@ export default function SummarizePage() {
             .from("subscriptions")
             .select("plan_type, status, current_period_end, updated_at, created_at")
             .eq("user_id", user.id),
+          supabase
+            .from("summaries")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .is("deleted_at", null),
           supabase
             .from("chat_groups")
             .select("id, group_title")
@@ -547,6 +555,7 @@ export default function SummarizePage() {
           setBillingPlan(entitlement.billingPlan);
           setIsSubscribed(entitlement.hasPaidAccess);
           setCurrentUserId(user.id);
+          setSummaryCount((currentCount) => Math.max(currentCount, count ?? 0));
           setSavedFamilyContext(normalizeFamilyContext(profile?.family_context));
           setSummaryRetentionDays(normalizeSummaryRetentionDays(profile?.summary_retention_days));
           setSavedGroups(
@@ -563,6 +572,7 @@ export default function SummarizePage() {
           setBillingPlan("free");
           setIsSubscribed(false);
           setCurrentUserId(null);
+          setSummaryCount(0);
         }
       }
     }
@@ -648,6 +658,7 @@ export default function SummarizePage() {
     }
 
     if (options.savedId) {
+      setSummaryCount((currentCount) => currentCount + 1);
       emitDashboardInsightsRefresh();
       window.dispatchEvent(new Event("fazumi-todos-changed"));
     }
@@ -897,6 +908,7 @@ export default function SummarizePage() {
   return (
     <DashboardShell contentClassName="max-w-4xl">
       <FounderWelcomeModal isFounder={billingPlan === "founder"} />
+      <PmfSurveyModal summaryCount={summaryCount} />
       <div
         dir={isRtl ? "rtl" : "ltr"}
         lang={locale}

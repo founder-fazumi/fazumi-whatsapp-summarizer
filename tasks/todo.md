@@ -6,6 +6,51 @@
 
 ---
 
+## Story - PMF Modal + Dashboard Group Count (2026-03-08) [DONE]
+
+#### PG1 - Read the existing PMF infrastructure before changing product flow [Codex]
+**Why:** The modal should reuse the shipped PMF table/API if they already exist instead of creating duplicate persistence paths.
+**Files:** `app/api/pmf/route.ts`, `supabase/migrations/20260307_launch_mvp_profile_memory_and_pmf.sql`, `components/dashboard/PmfSurveyCard.tsx`
+**Acceptance:**
+- [x] Confirmed `app/api/pmf/route.ts` already exists.
+- [x] Confirmed `pmf_responses` already has `id`, `user_id`, `response`, `biggest_benefit`, `missing_if_gone`, `created_at`, and `updated_at`.
+- [x] Confirmed there was an existing PMF UI surface in `components/dashboard/PmfSurveyCard.tsx`.
+- [x] `pnpm lint` passes on the untouched baseline.
+- [x] `pnpm typecheck` passes on the untouched baseline.
+
+#### PG2 - Show a one-question PMF modal after the 3rd saved summary [Codex]
+**Why:** The PMF check should happen in-flow after a user has experienced the summarize value, not as an always-visible dashboard card.
+**Files:** `components/pmf/PmfSurveyModal.tsx`, `app/(dashboard)/summarize/page.tsx`, `app/(dashboard)/dashboard/page.tsx`
+**Acceptance:**
+- [x] `components/pmf/PmfSurveyModal.tsx` exists as a client component with the one-question EN/AR survey.
+- [x] The modal uses the `fazumi_pmf_survey_seen` localStorage guard, closes on backdrop click, and posts the selected response to `/api/pmf`.
+- [x] The summarize page tracks the user's lifetime `summaryCount` and mounts the modal when `summaryCount >= 3`.
+- [x] The old dashboard PMF card no longer renders, so the PMF trigger is not still exposed from the 2nd summary onward.
+- [x] `pnpm lint` passes after the PMF modal patch.
+- [x] `pnpm typecheck` passes after the PMF modal patch.
+
+#### PG3 - Add active-group quick stats to the dashboard banner [Codex]
+**Why:** The banner should surface product-value metrics at a glance: total summaries, time saved, and currently active school groups.
+**Files:** `app/(dashboard)/dashboard/page.tsx`, `components/dashboard/DashboardBanner.tsx`
+**Acceptance:**
+- [x] The dashboard page computes `groupCount` server-side from distinct non-null `summaries.group_name` rows with `deleted_at IS NULL`.
+- [x] `DashboardBanner` now receives `summaryCount` and `groupCount`.
+- [x] The stats row shows total summaries, time saved, and `Active groups` / `المجموعات النشطة`.
+- [x] The active-group value always renders via `formatNumber`, including `0`.
+- [x] `pnpm lint` passes after the dashboard stat patch.
+- [x] `pnpm typecheck` passes after the dashboard stat patch.
+
+#### PG4 - Update trackers and finish verification for the slice [Codex]
+**Why:** The slice is only complete when the repo trackers and final verification reflect the shipped behavior.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `tasks/todo.md` records the completed PMF/dashboard slice.
+- [x] `scripts/ralph/progress.txt` records the PMF modal and active-group stat rollout.
+- [x] `pnpm build` passes.
+- [x] `pnpm test` passes.
+
+---
+
 ## Story - Migration Drift Repair + Morning Digest Docs + ZIP Group Name (2026-03-08) [DONE]
 
 #### MZ1 - Run the canonical Supabase repair sequence [Codex]

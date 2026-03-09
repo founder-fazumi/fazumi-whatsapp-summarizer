@@ -3,7 +3,6 @@ import { DashboardBanner } from "@/components/dashboard/DashboardBanner";
 import { FamilyCoordinationCard } from "@/components/dashboard/FamilyCoordinationCard";
 import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
 import { MeasurementTracker } from "@/components/dashboard/MeasurementTracker";
-import { PmfSurveyCard } from "@/components/dashboard/PmfSurveyCard";
 import { UpgradingBanner } from "@/components/dashboard/UpgradingBanner";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { CalendarWidget } from "@/components/widgets/CalendarWidget";
@@ -42,6 +41,7 @@ export default async function DashboardPage({
   let trialExpiresAt: string | null = null;
   let summariesUsed = 0;
   let summaryCount = 0;
+  let groupCount = 0;
 
   try {
     const supabase = await createClient();
@@ -51,7 +51,7 @@ export default async function DashboardPage({
       userName = (user.user_metadata?.full_name as string | null) ?? user.email?.split("@")[0] ?? null;
 
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: profile }, { data: usage }, { count }, { data: subscriptions }] = await Promise.all([
+      const [{ data: profile }, { data: usage }, { count }, { data: subscriptions }, { data: groupRows }] = await Promise.all([
         supabase
           .from("profiles")
           .select("plan, trial_expires_at")
@@ -72,6 +72,12 @@ export default async function DashboardPage({
           .from("subscriptions")
           .select("plan_type, status, current_period_end, updated_at, created_at")
           .eq("user_id", user.id),
+        supabase
+          .from("summaries")
+          .select("group_name")
+          .eq("user_id", user.id)
+          .is("deleted_at", null)
+          .not("group_name", "is", null),
       ]);
 
       const entitlement = resolveEntitlement({
@@ -87,6 +93,11 @@ export default async function DashboardPage({
       trialExpiresAt = profile?.trial_expires_at ?? null;
       summariesUsed = usage?.summaries_used ?? 0;
       summaryCount = count ?? 0;
+      groupCount = new Set(
+        ((groupRows ?? []) as Array<{ group_name: string | null }>)
+          .map((row) => row.group_name)
+          .filter((groupName): groupName is string => groupName !== null)
+      ).size;
     }
   } catch {
     // Supabase not configured — show dashboard with default values
@@ -105,6 +116,8 @@ export default async function DashboardPage({
           billingPlan={billingPlan}
           trialExpiresAt={trialExpiresAt}
           summariesUsed={summariesUsed}
+          summaryCount={summaryCount}
+          groupCount={groupCount}
           summariesLimit={summariesLimit}
         />
 
@@ -138,7 +151,6 @@ export default async function DashboardPage({
         </Card>
 
         <FamilyCoordinationCard />
-        <PmfSurveyCard summaryCount={summaryCount} />
       </div>
     </DashboardShell>
   );

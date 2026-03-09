@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpCircle, FileText, Clock } from "lucide-react";
+import { ArrowUpCircle, FileText, Clock, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { BrandLogo } from "@/components/shared/BrandLogo";
@@ -15,6 +15,8 @@ interface DashboardBannerProps {
   billingPlan?: string;
   trialExpiresAt?: string | null;
   summariesUsed?: number;
+  summaryCount?: number;
+  groupCount?: number;
   summariesLimit?: number;
 }
 
@@ -39,6 +41,7 @@ const COPY = {
   },
   upgradeUsage: { en: "Upgrade to continue", ar: "قم بالترقية للمتابعة" },
   timeSaved: { en: "Time Saved", ar: "الوقت الموفَّر" },
+  activeGroups: { en: "Active groups", ar: "المجموعات النشطة" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 function planBadge(plan: string, trialExpiresAt?: string | null) {
@@ -65,6 +68,8 @@ export function DashboardBanner({
   billingPlan = "free",
   trialExpiresAt,
   summariesUsed = 0,
+  summaryCount = 0,
+  groupCount = 0,
   summariesLimit = 3,
 }: DashboardBannerProps) {
   const { locale } = useLang();
@@ -83,8 +88,13 @@ export function DashboardBanner({
   const greeting = `${getTimeAwareGreeting(locale)}${locale === "ar" ? "، " : ", "}${bannerName}`;
 
   const STATS: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: FileText, label: t("dash.summaries", locale), value: usageLabel },
-    { icon: Clock, label: pick(COPY.timeSaved, locale), value: locale === "ar" ? `${formatNumber(summariesUsed * 4)} دقيقة` : `${formatNumber(summariesUsed * 4)} min` },
+    { icon: FileText, label: t("dash.summaries", locale), value: formatNumber(summaryCount) },
+    {
+      icon: Clock,
+      label: pick(COPY.timeSaved, locale),
+      value: locale === "ar" ? `${formatNumber(summaryCount * 4)} دقيقة` : `${formatNumber(summaryCount * 4)} min`,
+    },
+    { icon: Users, label: pick(COPY.activeGroups, locale), value: formatNumber(groupCount) },
   ];
 
   return (

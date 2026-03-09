@@ -309,3 +309,18 @@ scripts/ralph/progress.txt
 components/settings/SettingsPanel.tsx,
 eslint.config.mjs,
 tasks/todo.md
+
+## Sprint: PMF survey + dashboard group count (2026-03-08)
+
+### What changed
+- PmfSurveyModal: shows after the 3rd saved summary, asks the one-question PMF survey, and POSTs the selected response to `/api/pmf`
+- DashboardBanner: 3rd stat added for active groups, while the summaries/time-saved stat row now uses all-time summary count
+- `app/api/pmf/route.ts`: confirmed existing PMF API route and reused it instead of creating a duplicate endpoint
+
+### Files touched
+components/pmf/PmfSurveyModal.tsx,
+app/(dashboard)/summarize/page.tsx,
+app/(dashboard)/dashboard/page.tsx,
+components/dashboard/DashboardBanner.tsx,
+tasks/todo.md,
+scripts/ralph/progress.txt
