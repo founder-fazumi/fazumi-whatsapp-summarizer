@@ -6,6 +6,47 @@
 
 ---
 
+## Story - Founder support transparency page (2026-03-09) [DONE]
+
+> Spec file: `specs/founder-support-transparency-page-2026-03-09.md`
+> Rule: keep this slice public-route and UI scoped; do not add new billing logic or publish the page in search-facing surfaces.
+
+#### FST1 - Record the transparency-page scope and hidden-route constraints [Codex]
+**Why:** The page needs explicit scope before implementation because it is public but intentionally hidden and subordinate to `/founder-supporter`.
+**Files:** `specs/founder-support-transparency-page-2026-03-09.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The spec records the route, copy/tone constraints, and noindex requirement.
+- [x] The checklist keeps the slice scoped to UI/content only.
+
+#### FST2 - Build `/founder-support` with polished placeholders and readable structure [Codex]
+**Why:** Founder Support needs a credible transparency page that feels human and warm without turning into a hard-sell or a budget spreadsheet.
+**Files:** `app/founder-support/page.tsx`, `components/founder-support/FounderSupportPage.tsx`
+**Acceptance:**
+- [x] The new route renders all requested sections with strong mobile spacing and semantic markup.
+- [x] The image placeholders look intentional and polished.
+- [x] The two CTA rows use clear link targets back into the founder-supporter journey.
+- [x] Route metadata keeps the page hidden from indexing.
+
+#### FST3 - Link the existing founder-offer page to the transparency note [Codex]
+**Why:** The new page only helps if interested visitors can discover it from the live Founder Supporter route.
+**Files:** `components/founder-offer/FounderOfferPage.tsx`, `components/founder-offer/content.ts`
+**Acceptance:**
+- [x] `/founder-supporter` includes a tasteful transparency link to `/founder-support`.
+- [x] The founder-offer plan section exposes a stable anchor target for return CTAs.
+
+#### FST4 - Verify and update repo tracking [Codex]
+**Why:** The slice is not done until repo verification and tracking files reflect the shipped state.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `scripts/ralph/progress.txt`, `e2e/public-routes.spec.ts`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` is attempted and the outcome is recorded.
+- [x] `docs/decisions.md` records the hidden-route transparency decision.
+- [x] `scripts/ralph/progress.txt` records the rollout.
+**Verification note:** `pnpm build` also passes. `pnpm test` was attempted twice: the full Playwright run failed after the local app server dropped into `ECONNRESET` / `ECONNREFUSED` errors, and a targeted public-route rerun failed with `spawn EPERM` before it could produce a route-level result.
+
+---
+
 ## Story - Founder supporter public landing page (2026-03-09) [DONE]
 
 > Spec file: `specs/founder-supporter-public-landing-2026-03-09.md`

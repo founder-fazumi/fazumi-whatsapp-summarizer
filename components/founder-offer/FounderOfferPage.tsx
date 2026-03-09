@@ -26,6 +26,8 @@ import {
   FOUNDER_HOW_IT_WORKS_ID,
   FOUNDER_OFFER_CHECKOUT_VARIANT,
   FOUNDER_OFFER_PRICE,
+  FOUNDER_PLAN_SECTION_ID,
+  FOUNDER_SUPPORT_ROUTE,
   founderOfferContent,
 } from "./content";
 
@@ -376,7 +378,7 @@ export function FounderOfferPage({ isLoggedIn = false }: FounderOfferPageProps) 
           </div>
         </section>
 
-        <section className="page-section">
+        <section id={FOUNDER_PLAN_SECTION_ID} className="page-section scroll-mt-24">
           <div className="page-shell grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,0.85fr)] lg:items-start">
             <div className="space-y-5">
               <SectionHeading
@@ -539,6 +541,24 @@ export function FounderOfferPage({ isLoggedIn = false }: FounderOfferPageProps) 
                 <p className="mt-3 text-[var(--text-base)] leading-relaxed text-[var(--foreground)]">
                   {pick(content.trust.founderNote, locale)}
                 </p>
+              </div>
+
+              <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-6 py-6 shadow-[var(--shadow-card)]">
+                <p className="text-[var(--text-base)] font-semibold text-[var(--text-strong)]">
+                  {pick(content.trust.transparencyTitle, locale)}
+                </p>
+                <p className="mt-3 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
+                  {pick(content.trust.transparencyBody, locale)}
+                </p>
+                <Link
+                  href={FOUNDER_SUPPORT_ROUTE}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "mt-5 inline-flex min-h-11 rounded-full px-5 text-sm"
+                  )}
+                >
+                  {pick(content.trust.transparencyCta, locale)}
+                </Link>
               </div>
             </div>
           </div>

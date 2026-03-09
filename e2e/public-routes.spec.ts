@@ -72,6 +72,11 @@ const PUBLIC_ROUTES: PublicRoute[] = [
       page.getByRole("heading", { name: /حوّل فوضى رسائل المدرسة على واتساب إلى خطوات واضحة/i }),
   },
   {
+    path: "/founder-support",
+    assertVisible: (page) =>
+      page.getByRole("heading", { name: /إلى أين يذهب دعمك/i }),
+  },
+  {
     path: "/about",
     assertVisible: (page) =>
       page.getByRole("heading", { name: /صُمم من قبل أولياء الأمور، لأولياء الأمور/i }),
@@ -117,6 +122,15 @@ for (const route of PUBLIC_ROUTES) {
 test("founder page redirects unauthenticated users to login", async ({ page }) => {
   await page.goto("/founder");
   await expect(page).toHaveURL(/\/login/);
+});
+
+test("founder supporter exposes the transparency note link", async ({ page }) => {
+  const response = await page.goto("/founder-supporter");
+
+  expect(response?.status(), "Expected /founder-supporter to return 200.").toBe(200);
+  await expect(
+    page.getByRole("link", { name: /اقرأ أين يذهب دعمك/i })
+  ).toHaveAttribute("href", "/founder-support");
 });
 
 test("public about: Arabic locale renders with RTL and no unverified trust claims", async ({

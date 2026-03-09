@@ -14,6 +14,13 @@ S009 = PENDING  # Plan limits enforcement
 S010 = PENDING  # Referral system
 
 # 2026-03-09
+# Founder support transparency page completed: added a hidden noindex `/founder-support` route with a bilingual founder note, soft placeholder photography blocks, trust-focused FAQ/CTA sections, and a new transparency link from `/founder-supporter` back into the anchored founder plan.
+# Files: specs/founder-support-transparency-page-2026-03-09.md, tasks/todo.md, docs/decisions.md, app/founder-support/page.tsx, components/founder-support/FounderSupportPage.tsx, components/founder-offer/content.ts, components/founder-offer/FounderOfferPage.tsx, e2e/public-routes.spec.ts, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. `pnpm test` was attempted twice but remains blocked locally because the Playwright app server drops into `ECONNRESET` / `ECONNREFUSED`, and a targeted rerun then failed with `spawn EPERM`.
+# Pattern: when a campaign page needs a deeper trust layer, keep the explanation on a separate noindex route and link back into the main offer with anchored CTAs instead of expanding the primary conversion page into a long appendix.
+#
+
+# 2026-03-09
 # Founder supporter hardening completed: `/founder-supporter` now forces dynamic rendering so the server-side Supabase cookie read stays request-scoped in production, and `tasks/todo.md` was reconciled to the shipped implementation state for the ALB and SEO2 checklist items.
 # Files: app/founder-supporter/page.tsx, tasks/todo.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint` and `pnpm typecheck` pass for this patch set.

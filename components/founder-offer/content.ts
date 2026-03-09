@@ -2,10 +2,12 @@ import { lsVariantIds } from "@/lib/config/public";
 import type { LocalizedCopy } from "@/lib/i18n";
 
 export const FOUNDER_OFFER_ROUTE = "/founder-supporter";
+export const FOUNDER_SUPPORT_ROUTE = "/founder-support";
 export const FOUNDER_OFFER_PRICE = 149;
 export const FOUNDER_OFFER_LIMIT = 350;
 export const FOUNDER_OFFER_CHECKOUT_VARIANT = lsVariantIds.founder ?? "";
 export const FOUNDER_HOW_IT_WORKS_ID = "how-it-works";
+export const FOUNDER_PLAN_SECTION_ID = "founder-plan";
 
 type LocalizedItem = {
   title: LocalizedCopy<string>;
@@ -462,6 +464,18 @@ export const founderOfferContent = {
     founderNoteLabel: {
       en: "Founder note",
       ar: "ملاحظة من المؤسس",
+    },
+    transparencyTitle: {
+      en: "Want a calmer note on where Founder Support goes?",
+      ar: "هل تريد ملاحظة أوضح عن أين يذهب Founder Support؟",
+    },
+    transparencyBody: {
+      en: "I've shared a simple page about how early support helps fund the tools, systems, and working capacity behind FAZUMI.",
+      ar: "شاركت صفحة بسيطة تشرح كيف يساعد الدعم المبكر في تمويل الأدوات والأنظمة والطاقة العملية التي تقف خلف FAZUMI.",
+    },
+    transparencyCta: {
+      en: "Read where your support goes",
+      ar: "اقرأ أين يذهب دعمك",
     },
   },
   faqTitle: {

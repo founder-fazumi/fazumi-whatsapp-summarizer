@@ -210,3 +210,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Add the required compound UI primitives locally under `components/ui/`, and keep the existing FAQ/help/founder-offer behavior by preserving legacy accordion exports alongside the new compound API instead of replacing the old callers outright.
 **Consequences:** Admin surfaces can adopt richer compound primitives without a package install or a wide rewrite of older marketing/support pages. Future shared primitive migrations should keep backwards-compatible exports long enough to move legacy callers intentionally.
 
+---
+
+## D024 - Founder-support transparency note lives on a hidden noindex public route
+**Date:** 2026-03-09
+**Context:** The public `/founder-supporter` offer page now needs a softer transparency follow-up for warm visitors who want to understand where early support goes, but that note should stay discoverable from the founder flow without becoming a search-targeted marketing page.
+**Decision:** Add the founder transparency note at `/founder-support` as a public App Router page with route-level `robots: { index: false, follow: false }`, keep it out of the sitemap, and link to it from `/founder-supporter` with return CTAs back into the founder plan section.
+**Consequences:** Founder supporters get a calmer, trust-building explanation without cluttering the main founder offer or creating another indexed acquisition page. The route remains easy to share directly in founder conversations while staying intentionally secondary to `/founder-supporter`.
+
