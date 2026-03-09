@@ -789,10 +789,10 @@ Local smoke runner: `pwsh ./scripts/smoke.ps1` (added P8) - bypasses `webServer`
 **Why:** The landing and pricing pages need richer schema coverage, crawl directives need route-aware rules, and `/about` should render crawlable English HTML on the server.
 **Files:** `app/page.tsx`, `app/pricing/page.tsx`, `app/sitemap.ts`, `app/robots.ts`, `app/about/page.tsx`, `scripts/ralph/progress.txt`
 **Acceptance:**
-- [ ] Homepage renders Organization, FAQPage, SoftwareApplication, and WebSite schema blocks.
-- [ ] Pricing renders Product/Offer plus BreadcrumbList schema blocks.
+- [x] Homepage renders Organization, FAQPage, SoftwareApplication, and WebSite schema blocks.
+- [x] Pricing renders Product/Offer plus BreadcrumbList schema blocks.
 - [x] Sitemap change frequencies are set per route and robots rules include the requested AI retrieval/training directives.
-- [ ] `/about` is a server component with English SSR defaults while keeping the existing copy and structure intact.
+- [x] `/about` is a server component with English SSR defaults while keeping the existing copy and structure intact.
 - [x] `pnpm lint` and `pnpm typecheck` pass after the SEO changes.
 
 #### SEO3 - Round 2 schema drift, metadata, RTL, and LCP fixes [Codex]

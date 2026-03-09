@@ -14,6 +14,12 @@ S009 = PENDING  # Plan limits enforcement
 S010 = PENDING  # Referral system
 
 # 2026-03-09
+# Founder supporter hardening completed: `/founder-supporter` now forces dynamic rendering so the server-side Supabase cookie read stays request-scoped in production, and `tasks/todo.md` was reconciled to the shipped implementation state for the ALB and SEO2 checklist items.
+# Files: app/founder-supporter/page.tsx, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass for this patch set.
+#
+
+# 2026-03-09
 # Admin polish slice completed: `/admin_dashboard/login` now owns the centered route shell with the top-right theme switcher, the login card shows the brand mark plus the muted dev-only access note, the five main admin dashboard pages render restored server-safe breadcrumbs through `AdminShell`, and the inbox item panel localizes its status, priority, and tag controls in both EN and AR.
 # Files: specs/admin-login-breadcrumb-bilingual-2026-03-09.md, tasks/todo.md, scripts/ralph/progress.txt, app/admin_dashboard/login/page.tsx, app/admin_dashboard/(dashboard)/page.tsx, app/admin_dashboard/(dashboard)/users/page.tsx, app/admin_dashboard/(dashboard)/income/page.tsx, app/admin_dashboard/(dashboard)/ai-usage/page.tsx, app/admin_dashboard/(dashboard)/inbox/page.tsx, components/admin/AdminLoginScreen.tsx, components/admin/AdminBreadcrumb.tsx, components/admin/AdminInboxItemPanel.tsx, tasks/lessons.md
 # Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. The first `pnpm build` attempt hit a stale `.next/lock`; rerunning immediately after the lock cleared succeeded.
