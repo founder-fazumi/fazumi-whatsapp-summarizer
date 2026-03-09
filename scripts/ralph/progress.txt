@@ -13,6 +13,36 @@ S008 = PENDING  # Lemon Squeezy payments + webhook
 S009 = PENDING  # Plan limits enforcement
 S010 = PENDING  # Referral system
 
+# 2026-03-09
+# Admin polish slice completed: `/admin_dashboard/login` now owns the centered route shell with the top-right theme switcher, the login card shows the brand mark plus the muted dev-only access note, the five main admin dashboard pages render restored server-safe breadcrumbs through `AdminShell`, and the inbox item panel localizes its status, priority, and tag controls in both EN and AR.
+# Files: specs/admin-login-breadcrumb-bilingual-2026-03-09.md, tasks/todo.md, scripts/ralph/progress.txt, app/admin_dashboard/login/page.tsx, app/admin_dashboard/(dashboard)/page.tsx, app/admin_dashboard/(dashboard)/users/page.tsx, app/admin_dashboard/(dashboard)/income/page.tsx, app/admin_dashboard/(dashboard)/ai-usage/page.tsx, app/admin_dashboard/(dashboard)/inbox/page.tsx, components/admin/AdminLoginScreen.tsx, components/admin/AdminBreadcrumb.tsx, components/admin/AdminInboxItemPanel.tsx, tasks/lessons.md
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. The first `pnpm build` attempt hit a stale `.next/lock`; rerunning immediately after the lock cleared succeeded.
+# Pattern: when a shell slot is added ahead of page wiring, keep the shared slot component around until the route-level integration lands; otherwise later polish passes degrade into restore work instead of straightforward wiring.
+#
+# 2026-03-09
+# Founder supporter public landing page completed: added a new public `/founder-supporter` route with structured founder-offer copy, premium mobile-first sections, a tasteful sticky mobile CTA, sitemap inclusion, and a dedicated public-route Playwright smoke assertion while keeping the existing logged-in `/founder` member page untouched.
+# Files: specs/founder-supporter-public-landing-2026-03-09.md, docs/decisions.md, tasks/todo.md, app/founder-supporter/page.tsx, app/sitemap.ts, components/founder-offer/content.ts, components/founder-offer/FounderOfferPage.tsx, e2e/public-routes.spec.ts, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` all pass.
+# Pattern: when a campaign landing page shares a slug family with an existing logged-in route, create a separate public path and keep all offer copy plus CTA wiring in one dedicated module so marketing can move quickly without destabilizing in-app founder UX.
+
+# 2026-03-09
+# Admin inbox item panel completed: the inbox now opens a dedicated accordion-based detail panel with localized status, priority, tags, and admin-notes editing, shows list-plus-panel on desktop, swaps list for panel on mobile, and saves through `PATCH /api/admin/inbox` with inline saved feedback.
+# Files: specs/admin-inbox-item-panel-2026-03-09.md, tasks/todo.md, tasks/lessons.md, docs/decisions.md, scripts/ralph/progress.txt, components/admin/AdminInboxContent.tsx, components/admin/AdminInboxItemPanel.tsx, components/ui/accordion.tsx, components/ui/select.tsx, components/landing/FAQ.tsx, components/landing/FAQAccordion.tsx, components/founder-offer/FounderOfferPage.tsx, app/help/page.tsx
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when a new admin UI slice needs richer compound primitives than the live shared helper exposes, add the local primitive surface and keep explicit legacy exports so older screens can migrate intentionally instead of breaking all at once.
+#
+# 2026-03-09
+# Admin users actions + churn status completed: the admin users roster now shows a recent-activity avatar stack, bilingual churn-risk badges, and a row-level actions menu for plan changes, trial extension, ban, and reset-ban. This run also upgraded the shared dropdown-menu surface for the existing top bar and restored the billing smoke selectors that verification depends on.
+# Files: specs/admin-users-actions-churn-2026-03-09.md, tasks/todo.md, components/admin/AdminAvatarStack.tsx, components/admin/ChurnRiskBadge.tsx, components/admin/AdminUsersTable.tsx, app/api/admin/users/plan-change/route.ts, app/api/admin/users/trial-extend/route.ts, components/ui/dropdown-menu.tsx, components/layout/TopBar.tsx, components/dashboard/UpgradeBanner.tsx, app/(dashboard)/billing/page.tsx, tasks/lessons.md
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` all pass.
+# Pattern: when a dashboard slice depends on shared UI primitives or existing Playwright contracts, upgrade the shared primitive once and preserve the mounted selector contract instead of patching tests around UI drift.
+#
+# 2026-03-09
+# Admin income pricing tiers completed: the income dashboard now opens with a four-card Free/Monthly/Annual/Founder tier strip, animated MRR counts, a highest-MRR popular badge, and a founder seat-cap progress bar while staying UI-only against the current admin income type drift.
+# Files: components/admin/AdminPricingTiers.tsx, components/admin/AdminIncomeContent.tsx, specs/admin-income-pricing-tiers-2026-03-09.md, tasks/todo.md
+# Verification: `pnpm lint` and `pnpm typecheck` pass. `pnpm test` was attempted twice in this shell and timed out before a stable pass/fail result returned.
+# Pattern: when a requested dashboard UI slice targets a newer payload than the checked-in type exposes, normalize both shapes locally in the component instead of broadening the slice into admin queries or shared types.
+
 # 2026-02-28
 # Hydration mismatch fix completed for theme/lang client preferences and browser-injected attributes.
 # Files: app/layout.tsx, public/hydration-sanitize.js, lib/context/ThemeContext.tsx, lib/context/LangContext.tsx, lib/hooks/useMounted.ts, components/landing/Nav.tsx, components/layout/TopBar.tsx, tasks/lessons.md
@@ -364,3 +394,45 @@ scripts/ralph/progress.txt
 
 ### Files touched
 app/(dashboard)/billing/page.tsx
+
+## Sprint: Admin shell theme switcher + bilingual nav (2026-03-09)
+
+### What changed
+- `components/admin/AdminShell.tsx`: added an optional `breadcrumb` slot, removed the inline Moon/Sun toggle, and mounted `AdminThemeSwitcher` in the header controls without changing the logout, language toggle, nav, or layout structure
+- `components/admin/AdminNav.tsx`: nav items now carry bilingual labels from `useLang()`, and the admin-access info card is localized in EN/AR
+- `components/admin/AdminThemeSwitcher.tsx`: restored the missing helper as a self-contained three-mode light/dark/system pill toggle that keeps the existing `fazumi_theme` storage contract intact for the rest of the app
+- `specs/admin-shell-nav-theme-breadcrumb-2026-03-09.md`: recorded the slice scope, non-goals, and acceptance criteria
+
+### Files touched
+components/admin/AdminShell.tsx, components/admin/AdminNav.tsx,
+components/admin/AdminThemeSwitcher.tsx, specs/admin-shell-nav-theme-breadcrumb-2026-03-09.md,
+tasks/todo.md
+
+### Verification
+- `pnpm lint` passed
+- `pnpm typecheck` passed
+
+### Patterns confirmed
+- When a requested shared helper is missing from the live workspace, restore the smallest self-contained version that preserves existing storage contracts instead of broadening the refactor into unrelated providers or route code
+- Admin shell localization can stay page-agnostic by accepting a `React.ReactNode` breadcrumb slot while leaving page-level breadcrumb composition to the caller
+
+## Sprint: Admin overview KPI strip refresh (2026-03-09)
+
+### What changed
+- `components/admin/AdminKpiCard.tsx`: added a reusable client KPI card with optional delta badge, variant icon circle styles, and an inline SVG sparkline that safely renders nothing when `sparkData` is empty
+- `components/admin/AdminOverviewContent.tsx`: replaced the old range-based KPI row with four cards for MRR, active users, summaries today, and churn rate using the existing `AdminOverviewMetrics` shape
+- `specs/admin-overview-kpi-strip-2026-03-09.md`: recorded the live workspace/type drift so the slice stays scoped to UI only
+
+### Files touched
+components/admin/AdminKpiCard.tsx, components/admin/AdminOverviewContent.tsx,
+specs/admin-overview-kpi-strip-2026-03-09.md, tasks/todo.md
+
+### Verification
+- `pnpm lint` passed
+- `pnpm typecheck` passed
+- `pnpm test` did not complete in this shell: a CI-mode rerun showed unrelated Playwright failures after the local app server dropped and requests started failing with `ECONNREFUSED ::1:3000`
+- `pwsh ./scripts/smoke.ps1` also timed out in this environment before it returned a stable suite result
+
+### Patterns confirmed
+- If a requested admin UI slice is described against an older snapshot, anchor the implementation to the live metrics type and record the drift before editing
+- Inline SVG sparklines are enough for compact KPI cards when the chart is decorative and empty-state-safe behavior matters more than adding another chart abstraction

@@ -6,6 +6,286 @@
 
 ---
 
+## Story - Founder supporter public landing page (2026-03-09) [DONE]
+
+> Spec file: `specs/founder-supporter-public-landing-2026-03-09.md`
+> Rule: keep this slice public-route and UI scoped; do not change the existing logged-in `/founder` dashboard experience.
+
+#### FSL1 - Record the route split and founder-offer scope [Codex]
+**Why:** `/founder` already serves a logged-in founder story page, so the public offer needs an explicit route and scope before implementation.
+**Files:** `specs/founder-supporter-public-landing-2026-03-09.md`, `docs/decisions.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The spec records the public-route scope, constraints, and acceptance criteria.
+- [x] `docs/decisions.md` captures that the public founder offer lives at `/founder-supporter` while `/founder` remains the in-app founder route.
+
+#### FSL2 - Build the public founder supporter landing page [Codex]
+**Why:** The founder offer needs a polished, conversion-focused page that matches FAZUMI's premium public styling and existing App Router structure.
+**Files:** `app/founder-supporter/page.tsx`, `components/founder-offer/*`, `app/sitemap.ts`, `e2e/public-routes.spec.ts`
+**Acceptance:**
+- [x] The new public route renders the requested sections with reusable components and structured editable copy.
+- [x] The page uses existing tokens/components where sensible and stays mobile-first and accessible.
+- [x] Founder checkout CTA wiring is isolated and reuses the current founder checkout variant.
+- [x] The public route is added to the sitemap and covered by the existing public Playwright smoke suite.
+
+#### FSL3 - Verify and update progress tracking [Codex]
+**Why:** The slice is not done until repo verification and tracking files reflect the shipped state.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes with the new `/founder-supporter` public-route smoke.
+- [x] `pnpm build` passes after the sitemap update.
+- [x] `scripts/ralph/progress.txt` records the founder-offer landing rollout.
+
+---
+
+## Story - Admin login polish + breadcrumb restore + bilingual audit (2026-03-09) [DONE]
+
+> Spec file: `specs/admin-login-breadcrumb-bilingual-2026-03-09.md`
+> Rule: keep this slice scoped to admin UI polish only; do not touch `lib/admin/auth.ts`, `lib/admin/queries.ts`, `lib/admin/types.ts`, or `lib/admin/audit.ts`.
+
+#### ALB1 - Record the slice and recover the missing breadcrumb surface [Codex]
+**Why:** The shell accepts page-level breadcrumbs, but the shared `AdminBreadcrumb` component is missing from the current workspace and the login route still owns too little layout.
+**Files:** `specs/admin-login-breadcrumb-bilingual-2026-03-09.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The run spec exists with scope, workspace notes, non-goals, and acceptance criteria.
+- [x] The checklist records that `AdminBreadcrumb` must be restored locally before page wiring can compile.
+
+#### ALB2 - Patch the admin login route and screen polish [Codex]
+**Why:** The login route should own the full-page centering and theme-switcher chrome, while the login screen keeps the card, brand mark, and dev-only note.
+**Files:** `app/admin_dashboard/login/page.tsx`, `components/admin/AdminLoginScreen.tsx`
+**Acceptance:**
+- [x] The route renders a centered `min-h-screen` layout with `AdminThemeSwitcher` in the top-right.
+- [x] `AdminLoginScreen` shows `BrandLogo` above a `max-w-sm` card and the muted `Admin access · dev-only` footer note below.
+- [x] The public footer stays hidden on the admin login route.
+
+#### ALB3 - Restore breadcrumb wiring across the admin dashboard pages [Codex]
+**Why:** The shared breadcrumb slot in `AdminShell` is only useful once the five main dashboard pages provide page-level trails.
+**Files:** `components/admin/AdminBreadcrumb.tsx`, `app/admin_dashboard/(dashboard)/page.tsx`, `app/admin_dashboard/(dashboard)/users/page.tsx`, `app/admin_dashboard/(dashboard)/income/page.tsx`, `app/admin_dashboard/(dashboard)/ai-usage/page.tsx`, `app/admin_dashboard/(dashboard)/inbox/page.tsx`
+**Acceptance:**
+- [x] `AdminBreadcrumb` exists as a server-safe component with item labels and optional hrefs.
+- [x] Overview, Users, Revenue, AI Usage, and Inbox pass the requested breadcrumb items into `AdminShell`.
+- [x] Breadcrumbs render below the shell top bar on desktop without adding client hooks to the pages.
+
+#### ALB4 - Close the bilingual gaps and verify the slice [Codex]
+**Why:** The new admin components should not ship with English-only labels after the shell/nav localization work.
+**Files:** `components/admin/ChurnRiskBadge.tsx`, `components/admin/AdminInboxItemPanel.tsx`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `ChurnRiskBadge` safely defaults `locale` to `"en"` and keeps AR labels for every state.
+- [x] `AdminInboxItemPanel` localizes its visible control copy for both EN and AR.
+- [x] `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass.
+- [x] `scripts/ralph/progress.txt` records the admin polish rollout.
+
+---
+
+## Story - Admin inbox item panel (2026-03-09) [DONE]
+
+> Spec file: `specs/admin-inbox-item-panel-2026-03-09.md`
+> Rule: keep this slice UI-only; do not touch admin APIs, `lib/admin/*`, or auth logic.
+
+#### AIP1 - Record the panel slice and live UI drift [Codex]
+**Why:** The request depends on shadcn-style accordion/select primitives that are not present in the current workspace.
+**Files:** `specs/admin-inbox-item-panel-2026-03-09.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The run spec exists with scope, workspace notes, non-goals, and acceptance criteria.
+- [x] The checklist records that the live accordion file is a legacy FAQ helper and that `components/ui/select.tsx` is missing.
+
+#### AIP2 - Add the shared UI primitives and inbox panel [Codex]
+**Why:** The admin inbox needs a reusable detail editor instead of the current sheet-local draft state.
+**Files:** `components/ui/accordion.tsx`, `components/ui/select.tsx`, `components/admin/AdminInboxItemPanel.tsx`, `components/landing/FAQ.tsx`, `components/landing/FAQAccordion.tsx`, `components/founder-offer/FounderOfferPage.tsx`, `app/help/page.tsx`
+**Acceptance:**
+- [x] `AdminInboxItemPanel` exists as a client component with the requested status/priority, tags, notes, save, and close surfaces.
+- [x] `components/ui/select.tsx` exists locally with the compound API needed by the panel.
+- [x] `components/ui/accordion.tsx` now exposes the compound accordion API while preserving legacy FAQ-style exports for existing screens.
+- [x] Existing FAQ/help/founder-offer imports were moved to the legacy accordion exports so the shared file remains backwards compatible.
+
+#### AIP3 - Refactor AdminInboxContent to use the new panel responsively [Codex]
+**Why:** The old sheet-based inline editor should become a responsive master/detail inbox flow.
+**Files:** `components/admin/AdminInboxContent.tsx`
+**Acceptance:**
+- [x] Clicking an inbox row sets the selected item and selected kind.
+- [x] Desktop renders the list on the left and the item panel on the right.
+- [x] Mobile renders the panel in place of the list when an item is selected.
+- [x] Save sends `PATCH /api/admin/inbox`, refreshes the current data, and keeps the existing error banner behavior.
+- [x] Closing the panel clears the selection.
+
+#### AIP4 - Verify and update trackers [Codex]
+**Why:** The slice is not done until static verification and repo trackers reflect the shipped state.
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`, `docs/decisions.md`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `tasks/lessons.md` records the shared-primitive import lesson from verification.
+- [x] `docs/decisions.md` records the shared accordion/select compatibility decision.
+- [x] `scripts/ralph/progress.txt` records the inbox panel rollout.
+
+---
+
+## Story - Admin users actions + churn status (2026-03-09) [DONE]
+
+> Spec file: `specs/admin-users-actions-churn-2026-03-09.md`
+> Rule: keep this slice scoped to the admin users table and adjacent admin routes; do not touch `lib/admin/auth.ts`, `lib/admin/queries.ts`, `lib/admin/types.ts`, or `lib/admin/audit.ts`.
+
+#### AUC1 - Record the slice and note live workspace drift [Codex]
+**Why:** The request references row actions and dropdown primitives that are not present in the checked-in admin table yet.
+**Files:** `specs/admin-users-actions-churn-2026-03-09.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The run spec exists with scope, drift notes, non-goals, and acceptance criteria.
+- [x] The checklist records the existing banner-not-toast pattern and the dropdown-menu API drift.
+
+#### AUC2 - Add the admin UI helpers needed by the table [Codex]
+**Why:** The users table needs reusable avatar-stack and churn-risk UI instead of inline one-off markup.
+**Files:** `components/admin/AdminAvatarStack.tsx`, `components/admin/ChurnRiskBadge.tsx`, `components/ui/dropdown-menu.tsx`, `components/layout/TopBar.tsx`
+**Acceptance:**
+- [x] `AdminAvatarStack` exists as a client component with the requested overlap, initials, tooltip, and overflow pill behavior.
+- [x] `ChurnRiskBadge` exists with bilingual labels and the requested activity thresholds/colors.
+- [x] `components/ui/dropdown-menu.tsx` exposes the primitive dropdown surface needed by the admin table without breaking the existing dashboard top bar usage.
+
+#### AUC3 - Patch AdminUsersTable for the new admin controls [Codex]
+**Why:** The users dashboard should surface recent activity context and row actions without removing the existing bulk workflows.
+**Files:** `components/admin/AdminUsersTable.tsx`
+**Acceptance:**
+- [x] The header area shows the localized Users title plus the five most recently active users.
+- [x] The status column renders `ChurnRiskBadge`.
+- [x] A new actions column renders the requested plan-change submenu, trial-extension action, and the preserved ban/reset actions.
+- [x] The file keeps using the existing inline success/error notification pattern.
+
+#### AUC4 - Add the admin plan/trial route handlers [Codex]
+**Why:** The new row actions need server-side endpoints that match the current admin auth/audit/service-role patterns.
+**Files:** `app/api/admin/users/plan-change/route.ts`, `app/api/admin/users/trial-extend/route.ts`
+**Acceptance:**
+- [x] Both routes guard with `guardAdminApiRequest`.
+- [x] Both routes use the same service-role helper import path/function already used by existing admin routes.
+- [x] Both routes log admin audit events with the current admin username and request IP.
+
+#### AUC5 - Verify the slice and update trackers [Codex]
+**Why:** The slice is not done until static checks, tests, and repo trackers record the outcome.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] `scripts/ralph/progress.txt` records the rollout.
+**Verification note:** Full verification is green after restoring the billing smoke contracts in `components/dashboard/UpgradeBanner.tsx` and `app/(dashboard)/billing/page.tsx`.
+
+---
+
+## Story - Admin income pricing tier cards (2026-03-09) [DONE]
+
+> Spec file: `specs/admin-income-pricing-tiers-2026-03-09.md`
+> Rule: keep this slice UI-only; do not touch admin APIs or `lib/admin/*`.
+
+#### AIT1 - Record the slice against the live workspace drift [Codex]
+**Why:** The request targets a newer income breakdown row shape than the files currently expose.
+**Files:** `specs/admin-income-pricing-tiers-2026-03-09.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The run spec exists with scope, drift notes, non-goals, and acceptance criteria.
+- [x] The checklist explicitly keeps the slice out of admin APIs and `lib/admin/*`.
+
+#### AIT2 - Add the pricing tier grid component [Codex]
+**Why:** The income dashboard needs a compact, plan-by-plan readout above the existing KPI cards.
+**Files:** `components/admin/AdminPricingTiers.tsx`
+**Acceptance:**
+- [x] `AdminPricingTiers` exists as a client component with `{ data, locale }` props.
+- [x] The component renders Free, Monthly, Annual, and Founder cards in `grid-cols-2 gap-4 lg:grid-cols-4`.
+- [x] The highest-MRR tier gets the localized `Popular` badge when at least one tier has non-zero MRR.
+- [x] The Founder card shows the localized seat progress bar against the `200` seat cap.
+- [x] The component tolerates the current and requested breakdown shapes without touching `lib/admin/types.ts`.
+
+#### AIT3 - Insert the tier strip into AdminIncomeContent [Codex]
+**Why:** The new pricing cards should become the first visual block inside the income dashboard.
+**Files:** `components/admin/AdminIncomeContent.tsx`
+**Acceptance:**
+- [x] `AdminIncomeContent` imports `useLang()` and `AdminPricingTiers`.
+- [x] `locale` is read from `useLang()` and passed through to the new component.
+- [x] The new tier strip renders inside a `mb-6` wrapper before the existing MRR/KPI card grid.
+
+#### AIT4 - Verify and update trackers [Codex]
+**Why:** The slice is not done until static checks and repo trackers reflect the shipped state.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `scripts/ralph/progress.txt` records the admin income tier rollout.
+**Verification note:** `pnpm test` was attempted twice in this shell and timed out before a stable suite result returned.
+
+---
+
+## Story - Admin overview KPI strip refresh (2026-03-09) [IN PROGRESS]
+
+> Spec file: `specs/admin-overview-kpi-strip-2026-03-09.md`
+> Rule: keep this slice scoped to the admin overview top KPI row; do not touch admin APIs or `lib/admin/types.ts`.
+
+#### AO1 - Record the KPI-strip spec against the live workspace [Codex]
+**Why:** The request snapshot drifted from the current files and metrics shape, so the slice needs an explicit scope before editing.
+**Files:** `specs/admin-overview-kpi-strip-2026-03-09.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The run spec exists with scope, non-goals, and acceptance criteria.
+- [x] The spec notes the live drift for churn and summary-count fields.
+
+#### AO2 - Add AdminKpiCard and swap the overview top row [Codex]
+**Why:** The overview should show the new four-card KPI strip without disturbing the existing admin charts and alerts below it.
+**Files:** `components/admin/AdminKpiCard.tsx`, `components/admin/AdminOverviewContent.tsx`
+**Acceptance:**
+- [x] `AdminKpiCard` exists as a client component with icon, delta, variant, and empty-safe sparkline handling.
+- [x] `AdminOverviewContent` imports `AdminKpiCard` and renders MRR, Active users, Summaries today, and Churn rate from the existing metrics object.
+- [x] Only real deltas are passed from the current metrics shape.
+- [x] The old top-row range toggle logic is removed because the new KPI strip no longer depends on it.
+- [x] Existing alert cards and line-chart panels remain intact.
+
+#### AO3 - Verify the slice and update trackers [Codex]
+**Why:** The UI patch is not done until static verification and repo trackers reflect the shipped state.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [!] `pnpm test` is blocked in this shell because Playwright loses the local app server and then fails unrelated specs with `ECONNREFUSED ::1:3000`.
+- [x] `scripts/ralph/progress.txt` records the KPI-strip rollout.
+
+---
+
+## Story - Admin shell theme switcher + bilingual nav (2026-03-09) [DONE]
+
+> Spec file: `specs/admin-shell-nav-theme-breadcrumb-2026-03-09.md`
+> Rule: keep this slice scoped to the admin shell/nav UI contract; do not touch admin auth, admin queries, or API routes.
+
+#### AS1 - Capture the run spec and recover the missing theme-switcher surface [Codex]
+**Why:** The requested shell patch depends on `AdminThemeSwitcher`, but the current workspace is missing that file.
+**Files:** `specs/admin-shell-nav-theme-breadcrumb-2026-03-09.md`, `components/admin/AdminThemeSwitcher.tsx`
+**Acceptance:**
+- [x] The run spec exists with scope, non-goals, and acceptance criteria.
+- [x] `components/admin/AdminThemeSwitcher.tsx` exists again with a three-mode light/dark/system control that keeps using the existing `fazumi_theme` storage contract.
+
+#### AS2 - Patch AdminShell for the shared theme switcher and breadcrumb slot [Codex]
+**Why:** The admin shell should stop owning a one-off binary toggle and expose a slot for page-level breadcrumbs.
+**Files:** `components/admin/AdminShell.tsx`
+**Acceptance:**
+- [x] `AdminShellProps` includes `breadcrumb?: React.ReactNode`.
+- [x] The shell removes `useTheme`, `Moon`, and `Sun`.
+- [x] The controls row renders `<AdminThemeSwitcher />` where the old toggle lived.
+- [x] A hidden-on-mobile breadcrumb slot renders below the controls row.
+- [x] The shell `COPY` object keeps only the still-used theme key.
+
+#### AS3 - Localize AdminNav labels and access copy [Codex]
+**Why:** The admin nav should follow the same EN/AR UI locale behavior as the rest of the product.
+**Files:** `components/admin/AdminNav.tsx`
+**Acceptance:**
+- [x] `ADMIN_NAV_ITEMS` stores bilingual labels.
+- [x] `AdminNav` reads `locale` from `useLang()`.
+- [x] Nav labels render as `label[locale]`.
+- [x] The admin-access card title/body are bilingual.
+
+#### AS4 - Verify the slice and update trackers [Codex]
+**Why:** This UI slice is not done until the static checks and repo trackers reflect the shipped state.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `tasks/todo.md` records the completed slice.
+- [x] `scripts/ralph/progress.txt` records the admin shell/nav rollout.
+
+---
+
 ## Story - Admin orphan triage + morning digest timezone settings (2026-03-09) [DONE]
 
 #### TZ1 - Triage the untracked admin components [Codex]

@@ -67,6 +67,11 @@ const PUBLIC_ROUTES: PublicRoute[] = [
       page.getByRole("heading", { name: /ثلاث خطط\. مسار واضح واحد\./i }),
   },
   {
+    path: "/founder-supporter",
+    assertVisible: (page) =>
+      page.getByRole("heading", { name: /حوّل فوضى رسائل المدرسة على واتساب إلى خطوات واضحة/i }),
+  },
+  {
     path: "/about",
     assertVisible: (page) =>
       page.getByRole("heading", { name: /صُمم من قبل أولياء الأمور، لأولياء الأمور/i }),

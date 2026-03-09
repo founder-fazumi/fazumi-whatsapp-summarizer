@@ -247,3 +247,27 @@
 **Quick test:** Enable morning digest, change the timezone in Settings, save, and confirm both the profile PATCH and `/api/push/subscribe` reuse the new timezone value.
 
 ---
+
+## L031 — Keep Playwright selectors on the mounted billing/dashboard state surfaces
+**Mistake:** Payments smoke drifted because `/dashboard?upgraded=1` mounted `UpgradeBanner` without the expected `data-testid`, and the billing `past_due` state exposed a recovery link without the dedicated `billing-update-payment` selector.
+**Why:** Two UI contracts survived only in adjacent or older components, so refactors kept the user-facing behavior but silently broke the mounted Playwright selectors.
+**Rule:** When a route has Playwright selectors for a stateful banner or recovery action, keep those selectors on the component that is actually mounted by the route. If the UX changes, migrate the selector contract with it instead of leaving it behind in an orphaned component or branch.
+**Quick test:** Run `pnpm test e2e/payments.spec.ts` after any billing/dashboard banner change and confirm `upgrading-banner`, `billing-manage-subscription`, and `billing-update-payment` all remain discoverable in their intended states.
+
+---
+
+## L032 — Shared primitive migrations must include every legacy import site
+**Mistake:** Replacing the shared accordion surface for the admin inbox panel left one legacy FAQ-style import in `components/founder-offer/FounderOfferPage.tsx`, which broke `pnpm typecheck`.
+**Why:** The initial import audit covered the obvious FAQ/help screens but missed another question-and-answer accordion usage outside those routes.
+**Rule:** When a shared primitive API changes, run a repo-wide search for the old import and usage shape before assuming only the obvious callers need updates.
+**Quick test:** After changing a shared UI primitive export, run `rg -n "AccordionItem|Accordion\\b" components app --glob "!components/ui/accordion.tsx"` and confirm every caller matches the intended API.
+
+---
+
+## L033 — Do not delete shell-slot helpers before the route wiring lands
+**Mistake:** `AdminBreadcrumb` was treated as an orphan because no page imported it yet, even though `AdminShell` had already been extended with a breadcrumb slot and a later slice still depended on the component.
+**Why:** Slot-based UI work often lands in two phases: shell support first, page wiring second. A helper can look unused in the middle of that rollout even when it is still part of the active plan.
+**Rule:** Before removing an apparently orphaned UI helper, check the current spec/todo entries and any existing slot props that reference that surface concept. Do not delete it if the route wiring phase is still pending.
+**Quick test:** When a shell prop like `breadcrumb?: React.ReactNode` exists, search both the repo and `tasks/todo.md` for the planned helper before deleting the file.
+
+---

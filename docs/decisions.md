@@ -194,3 +194,19 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep founder recognition in the existing dashboard shell by adding a founder-only sidebar link to `/founder`, and implement the first-time welcome modal as a client-only browser preference keyed in `localStorage` instead of introducing a server-tracked onboarding flag.
 **Consequences:** Founder recognition remains visible wherever the shell is mounted, while the one-time modal stays simple and does not require schema/API changes or additional persisted user state.
 
+---
+
+## D022 - Public founder offer lives at `/founder-supporter`, not `/founder`
+**Date:** 2026-03-09
+**Context:** FAZUMI now needs a dedicated public founder-offer landing page for campaigns and direct conversion, but `/founder` already exists as a logged-in dashboard page for recognized founder members.
+**Decision:** Keep `/founder` as the in-app founder recognition route and add the public marketing page at `/founder-supporter`. The public page reuses the existing founder checkout variant and the current public founder seat cap of `350`.
+**Consequences:** Campaign traffic gets a purpose-built sales page without breaking existing founder UX inside the dashboard shell. Any future public founder CTA should point to `/founder-supporter`, while in-app founder recognition remains on `/founder`.
+
+---
+
+## D023 - Shared admin primitives can grow without breaking legacy FAQ callers
+**Date:** 2026-03-09
+**Context:** The admin inbox item panel needs shadcn-style accordion and select compound components, but the live repo's shared accordion file only exposed a legacy FAQ helper API and there was no local select wrapper.
+**Decision:** Add the required compound UI primitives locally under `components/ui/`, and keep the existing FAQ/help/founder-offer behavior by preserving legacy accordion exports alongside the new compound API instead of replacing the old callers outright.
+**Consequences:** Admin surfaces can adopt richer compound primitives without a package install or a wide rewrite of older marketing/support pages. Future shared primitive migrations should keep backwards-compatible exports long enough to move legacy callers intentionally.
+
