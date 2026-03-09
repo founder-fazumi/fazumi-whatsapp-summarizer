@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push origin main)",
+      "Bash(gh run list --repo founder-fazumi/fazumi-whatsapp-summarizer --limit 3)",
+      "Bash(curl -s --max-time 10 https://fazumi.app/api/health)",
+      "Bash(curl -s --max-time 15 -I https://fazumi.app)",
+      "Bash(curl -v --max-time 15 https://fazumi.app/api/health)",
+      "Bash(vercel ls --token \"$VERCEL_TOKEN\")",
+      "Bash(gh api repos/founder-fazumi/fazumi-whatsapp-summarizer/deployments --jq '.[0] | {id, environment, created_at, ref: .ref}')",
+      "Bash(gh api repos/founder-fazumi/fazumi-whatsapp-summarizer/commits/main/status)",
+      "Bash(python -m json.tool)",
+      "Bash(gh api repos/founder-fazumi/fazumi-whatsapp-summarizer/commits/34b7aac/check-runs)",
+      "Bash(curl -s --max-time 15 https://fazumi.com/api/health)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/pricing)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/login)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/about)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/faq)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/status)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/help)",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" https://fazumi.com/privacy)",
+      "Bash(npx supabase migration repair --status applied 20260401)",
+      "Bash(npx supabase migration list)",
+      "Bash(git add supabase/migrations/20260401_subscriptions_order_id_unique.sql)",
+      "Bash(git commit -m \"fix: make 20260401 migration idempotent \\(DROP CONSTRAINT IF EXISTS before ADD\\)\")",
+      "Bash(pnpm build)",
+      "Bash(pnpm store prune)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\mohamed\\Desktop\\fazumi-whatsapp-summarizer\\.next"
+    ]
+  }
+}

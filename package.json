@@ -6,7 +6,7 @@
     "predev": "pwsh -Command \"$paths = '.next/cache/.previewinfo','.next/trace'; foreach ($path in $paths) { if (Test-Path $path) { Remove-Item -Force $path -ErrorAction SilentlyContinue } }\" && node scripts/clean-next-dev-cache.mjs",
     "dev": "next dev",
     "dev:webpack": "next dev",
-    "prebuild": "pwsh -Command \"if (Test-Path '.next/trace') { Remove-Item -Force '.next/trace' -ErrorAction SilentlyContinue }\"",
+    "prebuild": "node -e \"try{require('fs').rmSync('.next/trace',{force:true,recursive:true})}catch{}\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
