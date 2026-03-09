@@ -37,6 +37,7 @@ const FOOTER_GROUPS = [
     links: [
       { label: { en: "About", ar: "من نحن" }, href: "/about" },
       { label: { en: "Pricing", ar: "الأسعار" }, href: "/pricing" },
+      { label: { en: "Founder Supporter", ar: "الداعم المؤسس" }, href: "/founder-supporter" },
       { label: { en: "Status", ar: "الحالة" }, href: "/status" },
     ],
   },

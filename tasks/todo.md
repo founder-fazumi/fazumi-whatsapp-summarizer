@@ -6,6 +6,40 @@
 
 ---
 
+## Story - Founder supporter nav + footer entry points (2026-03-09) [BLOCKED]
+
+> Spec file: `specs/founder-supporter-nav-footer-entry-2026-03-09.md`
+> Rule: keep this slice UI-only; touch only `components/landing/Nav.tsx` and `components/landing/Footer.tsx`, then update repo trackers after verification.
+
+#### FNE1 - Record the discoverability slice before editing [Codex]
+**Why:** The founder-offer route already exists, so this run only needs a narrow spec and checklist that protects the no-backend boundary.
+**Files:** `specs/founder-supporter-nav-footer-entry-2026-03-09.md`, `tasks/todo.md`
+**Acceptance:**
+- [x] The spec records the nav and footer entry-point scope, constraints, and acceptance criteria.
+- [x] The checklist keeps the slice limited to the two listed landing components plus repo trackers.
+
+#### FNE2 - Add the founder supporter entry points in the landing shell [Codex]
+**Why:** Visitors need a clear path into `/founder-supporter` from the existing desktop nav and footer without changing the mobile nav contract.
+**Files:** `components/landing/Nav.tsx`, `components/landing/Footer.tsx`
+**Acceptance:**
+- [x] Desktop nav shows the amber localized founder pill between `Pricing` and the icon controls.
+- [x] Mobile nav remains unchanged.
+- [x] The footer Fazumi group shows the localized founder link after `Pricing` and before `Status` on desktop and mobile.
+- [x] Both new links navigate to `/founder-supporter`.
+
+#### FNE3 - Verify and update repo tracking [Codex]
+**Why:** The slice is not done until verification and progress tracking reflect the shipped entry points.
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` passes.
+- [x] `scripts/ralph/progress.txt` records the founder entry-point rollout.
+- [x] Desktop/mobile/Arabic smoke was attempted and the current blocker is recorded.
+**Verification note:** `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. A temporary `pnpm start -- --port 3100` smoke setup also reaches `Ready`, but browser verification is blocked in this sandbox because Playwright Chromium launch fails with `spawn EPERM`; an outside-sandbox rerun was requested so the desktop/mobile/Arabic founder-entry checks can finish.
+
+---
+
 ## Story - Founder support transparency page (2026-03-09) [DONE]
 
 > Spec file: `specs/founder-support-transparency-page-2026-03-09.md`

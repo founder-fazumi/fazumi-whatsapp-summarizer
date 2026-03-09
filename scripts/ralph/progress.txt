@@ -14,6 +14,13 @@ S009 = PENDING  # Plan limits enforcement
 S010 = PENDING  # Referral system
 
 # 2026-03-09
+# Founder supporter discoverability slice is code-complete: the desktop landing nav now includes an amber localized founder pill linking to `/founder-supporter`, and the Fazumi footer group adds a localized Founder Supporter link after Pricing on both desktop and mobile accordion layouts.
+# Files: specs/founder-supporter-nav-footer-entry-2026-03-09.md, tasks/todo.md, components/landing/Nav.tsx, components/landing/Footer.tsx, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. A temporary `pnpm start -- --port 3100` smoke setup reaches `Ready`, but the requested desktop/mobile/Arabic browser smoke is blocked in this sandbox because Playwright Chromium launch fails with `spawn EPERM`; an outside-sandbox rerun was requested.
+# Pattern: when a public discoverability tweak still needs real browser confirmation, keep the UI slice shipped behind green static checks and record the exact sandboxed browser blocker instead of pretending the responsive smoke passed.
+#
+
+# 2026-03-09
 # Founder support transparency page completed: added a hidden noindex `/founder-support` route with a bilingual founder note, soft placeholder photography blocks, trust-focused FAQ/CTA sections, and a new transparency link from `/founder-supporter` back into the anchored founder plan.
 # Files: specs/founder-support-transparency-page-2026-03-09.md, tasks/todo.md, docs/decisions.md, app/founder-support/page.tsx, components/founder-support/FounderSupportPage.tsx, components/founder-offer/content.ts, components/founder-offer/FounderOfferPage.tsx, e2e/public-routes.spec.ts, scripts/ralph/progress.txt
 # Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. `pnpm test` was attempted twice but remains blocked locally because the Playwright app server drops into `ECONNRESET` / `ECONNREFUSED`, and a targeted rerun then failed with `spawn EPERM`.
