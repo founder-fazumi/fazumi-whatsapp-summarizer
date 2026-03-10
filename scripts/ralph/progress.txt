@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-10
+# Stale branch cleanup completed: deleted local and remote `feat/incremental-zip-summarize`, which was still pointing at commit `a9b5873` with vulnerable `next@15.4.0`, so the Vercel CVE-2025-66478 build failure is resolved without any app code changes.
+# Files: scripts/ralph/progress.txt
+# Verification: `git branch -a` no longer lists `remotes/origin/feat/incremental-zip-summarize`; `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`31 passed`, `3 skipped`, `0 failed`).
+# Pattern: when a deploy is targeting a stale branch with no unique commits beyond `main`, remove the branch instead of patching code or duplicating already-shipped dependency upgrades.
+#
+
+# 2026-03-10
 # Linux build script portability hotfix completed: the auto-run Next.js cleanup path now removes `.next/trace` and stale `.next/dev` artifacts through a shared Node helper, and both `predev` and `prebuild` no longer depend on `pwsh`, so Linux/Vercel builds and post-test local builds can reach `next build` normally.
 # Files: specs/linux-build-script-portability-2026-03-10.md, package.json, scripts/clean-next-artifacts.mjs, tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
