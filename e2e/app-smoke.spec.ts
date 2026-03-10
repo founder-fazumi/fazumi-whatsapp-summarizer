@@ -7,12 +7,14 @@ import type { SummaryResult } from "@/lib/ai/summarize";
 import { reserveUsageQuota } from "@/lib/server/summaries";
 import {
   ensureTestAccounts,
+  generateRecoveryLink,
   getDailyUsageCount,
   getSummaryDeletedAt,
   getDevEnv,
   getProfileState,
   loginWithEmail,
   resetTestUser,
+  setAuthPassword,
 } from "./support";
 
 test.describe.configure({ mode: "serial" });
@@ -215,6 +217,66 @@ test("auth + dashboard smoke: email login reaches dashboard", async ({ page, req
   await expect(page.locator('a[href="/summarize"]').first()).toBeVisible();
   await expect(page.locator('a[href="/history"]').first()).toBeVisible();
   await expect(page.locator('a[href="/billing"]').first()).toBeVisible();
+});
+
+test("forgot-password smoke: login request + recovery reset works end to end", async ({
+  page,
+  request,
+}) => {
+  const env = await getDevEnv(request);
+  test.skip(
+    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
+    env.hint ?? "Supabase dev env is required for password recovery smoke."
+  );
+
+  const accounts = await ensureTestAccounts(request);
+  await resetTestUser(accounts.free.email, { plan: "free" });
+
+  await page.route("**/auth/v1/recover*", async (route) => {
+    const payload = route.request().postDataJSON() as { email?: string } | null;
+    expect(payload?.email).toBe(accounts.free.email);
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({}),
+    });
+  });
+
+  await page.goto("/login");
+  await page.locator("#login-email").fill(accounts.free.email);
+  await page.getByTestId("forgot-password-toggle").click();
+  await page.getByTestId("forgot-password-submit").click();
+  await expect(page.getByText(/If an account exists|إذا كان هذا البريد مرتبطًا بحساب/)).toBeVisible();
+
+  await page.unroute("**/auth/v1/recover*");
+
+  const newPassword = `Reset-${Date.now()}-Aa1!`;
+  const actionLink = await generateRecoveryLink(accounts.free.email);
+
+  try {
+    await page.goto(actionLink);
+    await page.waitForURL(/\/reset-password\?flow=recovery/, { timeout: 30_000 });
+    await page.getByTestId("reset-password-new").fill(newPassword);
+    await page.getByTestId("reset-password-confirm").fill(newPassword);
+    await page.getByTestId("reset-password-submit").click();
+    await page.waitForURL(/\/login\?reset=success/, { timeout: 30_000 });
+    await expect(page.getByText(/Password updated|تم تحديث كلمة المرور/)).toBeVisible();
+
+    await page.context().clearCookies();
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+
+    await loginWithEmail(page, {
+      ...accounts.free,
+      password: newPassword,
+    });
+    await expect(page).toHaveURL(/\/dashboard$/);
+  } finally {
+    await setAuthPassword(accounts.free.email, accounts.free.password);
+  }
 });
 
 test("summarize smoke: paste-first UI renders and paid history export still works", async ({

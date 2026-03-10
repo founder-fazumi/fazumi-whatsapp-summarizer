@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useConsentManager } from "@/components/compliance/ConsentManager";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
@@ -14,6 +15,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { formatDate } from "@/lib/format";
 import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
+import { dispatchProfileUpdated } from "@/lib/profile-events";
 import type { WebPushSubscriptionPayload } from "@/lib/push/types";
 import {
   getEmptyFamilyContext,
@@ -28,6 +30,7 @@ import { cn } from "@/lib/utils";
 import {
   BellRing,
   Brain,
+  Camera,
   Check,
   Clock3,
   Globe,
@@ -58,9 +61,10 @@ type FounderSinceCopy = {
 };
 
 type PushFeedbackState = "enabled" | "disabled" | "error" | "permissionDenied";
-
-const PROFILE_UPDATED_EVENT = "fazumi:profile-updated";
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
+const AVATAR_ACCEPT = "image/gif,image/jpeg,image/png,image/webp";
+const MAX_AVATAR_FILE_BYTES = 2 * 1024 * 1024;
+const SUPPORTED_AVATAR_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
 
 const GROUP_TYPE_OPTIONS: Array<{ value: FamilyGroupType; en: string; ar: string }> = [
   { value: "class", en: "Class chat", ar: "مجموعة الصف" },
@@ -236,10 +240,31 @@ const COPY = {
   retentionUpdated: { en: "Retention updated.", ar: "تم تحديث مدة الاحتفاظ." },
   retentionDeleted: { en: "Older summaries deleted", ar: "تم حذف الملخصات الأقدم" },
   profileTitle: { en: "Profile", ar: "الملف الشخصي" },
-  profileBody: { en: "Update your display name and avatar URL.", ar: "حدّث اسمك وصورتك الشخصية." },
+  profileBody: { en: "Update your display name and profile photo.", ar: "حدّث اسمك المعروض وصورة ملفك الشخصي." },
+  profilePhoto: { en: "Profile photo", ar: "صورة الملف الشخصي" },
+  profilePhotoHint: {
+    en: "Click the current photo to upload a JPG, PNG, WEBP, or GIF up to 2 MB.",
+    ar: "انقر على الصورة الحالية لرفع JPG أو PNG أو WEBP أو GIF بحجم يصل إلى 2 ميجابايت.",
+  },
   displayName: { en: "Display name", ar: "الاسم المعروض" },
-  avatarUrl: { en: "Avatar URL", ar: "رابط الصورة الشخصية" },
-  avatarUrlHint: { en: "Paste a public https:// image URL, or leave blank to use the default.", ar: "الصق رابط صورة https:// عام، أو اتركه فارغًا للصورة الافتراضية." },
+  avatarUploading: { en: "Uploading photo...", ar: "جارٍ رفع الصورة..." },
+  avatarUploadError: {
+    en: "Could not upload the photo. Please try again.",
+    ar: "تعذر رفع الصورة. حاول مرة أخرى.",
+  },
+  avatarUploadInvalidType: {
+    en: "Use a JPG, PNG, WEBP, or GIF image.",
+    ar: "استخدم صورة من نوع JPG أو PNG أو WEBP أو GIF.",
+  },
+  avatarUploadTooLarge: {
+    en: "Use an image smaller than 2 MB.",
+    ar: "استخدم صورة أصغر من 2 ميجابايت.",
+  },
+  avatarRemoveError: {
+    en: "Could not remove the photo. Please try again.",
+    ar: "تعذر إزالة الصورة. حاول مرة أخرى.",
+  },
+  removePhoto: { en: "Remove photo", ar: "إزالة الصورة" },
   saveProfile: { en: "Save profile", ar: "حفظ الملف الشخصي" },
 } as const;
 
@@ -356,6 +381,34 @@ async function saveProfilePatch(patch: ProfilePatch) {
   return data;
 }
 
+async function uploadAvatarFile(file: File) {
+  const formData = new FormData();
+  formData.set("file", file);
+
+  const response = await fetch("/api/profile/avatar", {
+    method: "POST",
+    body: formData,
+  });
+  const data = (await response.json().catch(() => null)) as { avatarUrl?: string; error?: string } | null;
+
+  if (!response.ok || typeof data?.avatarUrl !== "string") {
+    throw new Error(data?.error ?? "Could not upload avatar.");
+  }
+
+  return data.avatarUrl;
+}
+
+async function removeAvatarFile() {
+  const response = await fetch("/api/profile/avatar", {
+    method: "DELETE",
+  });
+  const data = (await response.json().catch(() => null)) as { error?: string } | null;
+
+  if (!response.ok) {
+    throw new Error(data?.error ?? "Could not remove avatar.");
+  }
+}
+
 async function syncPushSubscriptionTimeZone(
   subscription: PushSubscription,
   timeZone: string | null
@@ -409,6 +462,7 @@ function ConsentToggle({
 export function SettingsPanel() {
   const { locale, setLocale } = useLang();
   const { theme, toggleTheme } = useTheme();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const {
     consent,
     consentTimestamp,
@@ -425,6 +479,9 @@ export function SettingsPanel() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [savedAvatarUrl, setSavedAvatarUrl] = useState("");
   const [profileStatus, setProfileStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [profileErrorKey, setProfileErrorKey] = useState<
+    "saveError" | "avatarRemoveError" | "avatarUploadError" | "avatarUploadInvalidType" | "avatarUploadTooLarge"
+  >("saveError");
   const [profileLoading, setProfileLoading] = useState(true);
   const [billingPlan, setBillingPlan] = useState("free");
   const [founderSince, setFounderSince] = useState<FounderSinceCopy>({ en: "", ar: "" });
@@ -752,6 +809,7 @@ export function SettingsPanel() {
 
   const selectClassName =
     "flex h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface-elevated)] px-4 py-3 text-[var(--text-base)] text-[var(--card-foreground)] shadow-[var(--shadow-xs)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]";
+  const normalizedDisplayName = displayName.trim().slice(0, 100);
   const consentChanged = JSON.stringify(consentDraft) !== JSON.stringify(consent);
   const memoryChanged =
     JSON.stringify(familyContext) !== JSON.stringify(savedFamilyContext) ||
@@ -759,7 +817,9 @@ export function SettingsPanel() {
     groupNamesDraft !== savedGroupNamesDraft ||
     linksDraft !== savedLinksDraft;
   const retentionChanged = retentionDays !== savedRetentionDays;
-  const profileChanged = displayName !== savedDisplayName || avatarUrl !== savedAvatarUrl;
+  const profileChanged = normalizedDisplayName !== savedDisplayName;
+  const currentAvatarUrl = avatarUrl || savedAvatarUrl;
+  const hasAvatar = currentAvatarUrl.length > 0;
   const timeZoneChanged = timeZone.length > 0 && timeZone !== savedTimeZone;
   const timeZoneOptions = buildTimezoneOptions(locale, browserTimeZone, timeZone);
   const pushFeedbackMessage =
@@ -775,11 +835,74 @@ export function SettingsPanel() {
 
   async function handleSaveProfile() {
     setProfileStatus("saving");
+    setProfileErrorKey("saveError");
     try {
-      await saveProfilePatch({ full_name: displayName, avatar_url: avatarUrl });
-      setSavedDisplayName(displayName);
-      setSavedAvatarUrl(avatarUrl);
-      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
+      await saveProfilePatch({ full_name: normalizedDisplayName });
+      setDisplayName(normalizedDisplayName);
+      setSavedDisplayName(normalizedDisplayName);
+      dispatchProfileUpdated({
+        fullName: normalizedDisplayName || null,
+        avatarUrl: savedAvatarUrl || null,
+      });
+      setProfileStatus("saved");
+    } catch {
+      setProfileStatus("error");
+    }
+  }
+
+  async function handleAvatarSelection(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!SUPPORTED_AVATAR_TYPES.has(file.type)) {
+      setProfileErrorKey("avatarUploadInvalidType");
+      setProfileStatus("error");
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_FILE_BYTES) {
+      setProfileErrorKey("avatarUploadTooLarge");
+      setProfileStatus("error");
+      return;
+    }
+
+    setProfileStatus("saving");
+    setProfileErrorKey("avatarUploadError");
+
+    try {
+      const nextAvatarUrl = await uploadAvatarFile(file);
+      setAvatarUrl(nextAvatarUrl);
+      setSavedAvatarUrl(nextAvatarUrl);
+      dispatchProfileUpdated({
+        fullName: savedDisplayName || null,
+        avatarUrl: nextAvatarUrl,
+      });
+      setProfileStatus("saved");
+    } catch {
+      setProfileStatus("error");
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (!hasAvatar) {
+      return;
+    }
+
+    setProfileStatus("saving");
+    setProfileErrorKey("avatarRemoveError");
+
+    try {
+      await removeAvatarFile();
+      setAvatarUrl("");
+      setSavedAvatarUrl("");
+      dispatchProfileUpdated({
+        fullName: savedDisplayName || null,
+        avatarUrl: null,
+      });
       setProfileStatus("saved");
     } catch {
       setProfileStatus("error");
@@ -932,46 +1055,74 @@ export function SettingsPanel() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            {(avatarUrl || savedAvatarUrl) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl || savedAvatarUrl}
-                alt="Avatar preview"
-                className="h-14 w-14 rounded-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={profileStatus === "saving"}
+              aria-label={pick(locale, COPY.profilePhoto)}
+              className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Avatar
+                name={normalizedDisplayName || savedDisplayName || "?"}
+                src={currentAvatarUrl}
+                size="lg"
+                className="h-16 w-16 text-base shadow-[var(--shadow-sm)]"
               />
-            ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--text-xl)] font-bold text-[var(--primary)]">
-                {displayName.trim().charAt(0).toUpperCase() || "?"}
-              </div>
-            )}
-            <div className="flex-1 space-y-1">
-              <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.displayName)}</p>
-              <Input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={pick(locale, COPY.notSet)}
-                maxLength={100}
-              />
+              <span
+                className={cn(
+                  "absolute bottom-0 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-[var(--shadow-sm)]",
+                  isRtl ? "left-0" : "right-0"
+                )}
+              >
+                {profileStatus === "saving" ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Camera className="h-3.5 w-3.5" />
+                )}
+              </span>
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept={AVATAR_ACCEPT}
+              className="sr-only"
+              onChange={(event) => void handleAvatarSelection(event)}
+            />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.profilePhoto)}</p>
+              <p className="text-xs leading-5 text-[var(--muted-foreground)]">{pick(locale, COPY.profilePhotoHint)}</p>
+              {hasAvatar && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleRemoveAvatar()}
+                  disabled={profileStatus === "saving"}
+                  className="mt-2"
+                >
+                  {pick(locale, COPY.removePhoto)}
+                </Button>
+              )}
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.avatarUrl)}</label>
+            <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.displayName)}</label>
             <Input
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://..."
-              type="url"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder={pick(locale, COPY.notSet)}
+              maxLength={100}
             />
-            <p className="text-xs text-[var(--muted-foreground)]">{pick(locale, COPY.avatarUrlHint)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={() => void handleSaveProfile()} disabled={!profileChanged || profileStatus === "saving"}>
               {profileStatus === "saving" ? pick(locale, COPY.saving) : pick(locale, COPY.saveProfile)}
             </Button>
             {profileStatus === "saved" && <span className="text-sm text-[var(--success)]">{pick(locale, COPY.saved)}</span>}
-            {profileStatus === "error" && <span className="text-sm text-[var(--destructive)]">{pick(locale, COPY.saveError)}</span>}
+            {profileStatus === "error" && (
+              <span className="text-sm text-[var(--destructive)]">{pick(locale, COPY[profileErrorKey])}</span>
+            )}
           </div>
         </CardContent>
       </Card>

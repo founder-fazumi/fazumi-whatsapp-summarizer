@@ -1,4 +1,8 @@
 import OpenAI from "openai";
+import {
+  createJsonChatCompletionWithFallback,
+  resolveSummarizeModel,
+} from "@/lib/ai/openai-chat";
 import { estimateAiCostUsd, estimateTokenCount } from "@/lib/ai/usage";
 import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
 import type { FamilyContext } from "@/lib/family-context";
@@ -288,19 +292,17 @@ export async function summarizeChat(
   usage: SummaryUsage;
 }> {
   const openai = getOpenAI();
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  const model = resolveSummarizeModel();
   const outputLang = resolveOutputLanguage(text, langPref);
+  const userPrompt = buildUserMessage(text, outputLang, context);
 
-  const completion = await openai.chat.completions.create({
-    model,
-    temperature: 0.2,
-    max_tokens: 2000,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: buildUserMessage(text, outputLang, context) },
-    ],
-  });
+  const { completion, model: resolvedModel } =
+    await createJsonChatCompletionWithFallback(openai, {
+      model,
+      systemPrompt: SYSTEM_PROMPT,
+      userPrompt,
+      maxCompletionTokens: 2000,
+    });
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
 
@@ -327,12 +329,12 @@ export async function summarizeChat(
   };
 
   const promptTokens =
-    completion.usage?.prompt_tokens ?? estimateTokenCount(buildUserMessage(text, outputLang, context));
+    completion.usage?.prompt_tokens ?? estimateTokenCount(userPrompt);
   const completionTokens =
     completion.usage?.completion_tokens ?? estimateTokenCount(raw);
 
   return {
     summary: applySummaryPromptContext(summary, context),
-    usage: buildUsage(model, promptTokens, completionTokens),
+    usage: buildUsage(resolvedModel, promptTokens, completionTokens),
   };
 }

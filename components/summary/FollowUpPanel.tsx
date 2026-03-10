@@ -10,12 +10,12 @@ const COPY = {
   title: { en: "Ask FAZUMI", ar: "اسأل Fazumi" },
   beta: { en: "BETA", ar: "تجريبي" },
   subtitle: {
-    en: "Tap a question to find the answer in this summary.",
-    ar: "اضغط على سؤال للعثور على الإجابة في هذا الملخص.",
+    en: "Quick parent follow-ups from this summary only. Full back-and-forth answers are coming soon.",
+    ar: "متابعات سريعة للوالدين من هذا الملخص فقط. المحادثة التفاعلية الكاملة قادمة قريبًا.",
   },
   noAnswer: {
-    en: "This wasn't mentioned — check with the teacher.",
-    ar: "لم يُذكر هذا — تحقق مع المعلم.",
+    en: "This summary does not answer that clearly yet — check with the teacher or school.",
+    ar: "هذا الملخص لا يجيب عن ذلك بوضوح بعد — تحقق مع المعلم أو المدرسة.",
   },
   dismiss: { en: "Hide", ar: "إخفاء" },
 } satisfies Record<string, LocalizedCopy<string>>;
@@ -59,34 +59,57 @@ function getTopLink(summary: SummaryResult): string | null {
   return topLink.url ?? topLink.href ?? topLink.label ?? null;
 }
 
+function joinAnswers(values: string[], maxItems = 2): string | null {
+  const items = values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return items.join(" • ");
+}
+
 function buildQuestions(summary: SummaryResult, locale: "en" | "ar"): FollowUpQuestion[] {
   const questions: FollowUpQuestion[] = [];
-  const topAction = summary.action_items[0] ?? null;
+  const topAction = summary.urgent_action_items[0] ?? summary.action_items[0] ?? null;
+  const preparationItems = joinAnswers(summary.action_items, 2);
   const topDate = getTopDate(summary);
-  const teachers = summary.people_classes.slice(0, 2).join(", ");
+  const teachers = joinAnswers(summary.people_classes, 3);
   const topLink = getTopLink(summary);
+  const topQuestion = summary.questions[0] ?? null;
+  const fallbackAnswer = topAction ?? topDate ?? summary.tldr;
 
   questions.push({
-    question: locale === "ar" ? "ماذا يحتاج طفلي أن يفعل؟" : "What does my child need to do?",
-    answer: topAction,
+    question: locale === "ar" ? "ما أول شيء يجب أن أتعامل معه الآن؟" : "What should I handle first right now?",
+    answer: fallbackAnswer,
   });
   questions.push({
-    question: locale === "ar" ? "هل هناك مواعيد مهمة؟" : "Are there any important dates?",
-    answer: topDate,
+    question: locale === "ar" ? "ماذا يجب أن أرسل أو أجهّز للمدرسة؟" : "What do I need to send or prepare for school?",
+    answer: preparationItems,
   });
   questions.push({
-    question: locale === "ar" ? "من المعلمون المذكورون؟" : "Who are the teachers mentioned?",
-    answer: teachers.length > 0 ? teachers : null,
+    question: locale === "ar" ? "ما السؤال الذي يجب أن أطرحه على المعلم؟" : "What should I ask the teacher next?",
+    answer: topQuestion,
+  });
+  questions.push({
+    question:
+      locale === "ar"
+        ? (topLink ? "ما الرابط أو الملف الذي يجب أن أفتحه الآن؟" : "ما الموعد الذي لا يجب أن أفوّته؟")
+        : (topLink ? "Which link or file should I open next?" : "What date should I not miss?"),
+    answer: topLink ?? topDate,
   });
 
-  if (topLink) {
+  if (teachers) {
     questions.push({
-      question: locale === "ar" ? "هل هناك روابط يجب أن أفتحها؟" : "Are there links I should open?",
-      answer: topLink,
+      question: locale === "ar" ? "من الأشخاص أو المواد المرتبطة بهذا التحديث؟" : "Who is involved in this update?",
+      answer: teachers,
     });
   }
 
-  return questions;
+  return questions.slice(0, 4);
 }
 
 interface FollowUpPanelProps {
@@ -142,17 +165,17 @@ export function FollowUpPanel({ summary, locale }: FollowUpPanelProps) {
         {pick(COPY.subtitle, locale)}
       </p>
 
-      <div className="space-y-2">
+      <div className="grid gap-3 md:grid-cols-2">
         {questions.map(({ question, answer }, index) => (
           <div
             key={question}
-            className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)]"
+            className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]"
           >
             <button
               type="button"
               onClick={() => setActiveIndex(activeIndex === index ? null : index)}
               aria-expanded={activeIndex === index}
-              className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2.5 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)]"
+              className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-start text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)]"
             >
               <span>{question}</span>
               <ChevronRight
@@ -163,7 +186,7 @@ export function FollowUpPanel({ summary, locale }: FollowUpPanelProps) {
               />
             </button>
             {activeIndex === index && (
-              <div className="border-t border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--foreground)]">
+              <div className="border-t border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm leading-6 text-[var(--foreground)]">
                 {answer ? (
                   answer
                 ) : (

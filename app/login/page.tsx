@@ -25,14 +25,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [redirectPath, setRedirectPath] = useState("/dashboard");
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
+  const [resetStatus, setResetStatus] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  // Create Supabase client once (module-scope equivalent in component)
-  const supabase = createClient();
+  const [supabase] = useState(createClient);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -44,30 +46,68 @@ export default function LoginPage() {
     }
 
     setRedirectPath(nextParam && nextParam.startsWith("/") ? nextParam : "/dashboard");
-    setAuthError(params.get("error"));
+    setAuthErrorCode(params.get("error"));
+    setResetStatus(params.get("reset"));
   }, []);
 
   useEffect(() => {
-    if (authError === "auth_failed") {
+    if (authErrorCode === "auth_failed") {
       setError(
         locale === "ar"
           ? "تعذر إكمال تسجيل الدخول عبر المزوّد. حاول مرة أخرى."
           : "Could not complete the provider sign-in. Please try again."
       );
       setSuccess(null);
+      setShowForgotPassword(false);
+      return;
     }
-  }, [authError, locale]);
 
-  function buildCallbackUrl() {
+    if (authErrorCode === "recovery_failed") {
+      setTab("login");
+      setError(
+        locale === "ar"
+          ? "تعذر التحقق من رابط إعادة تعيين كلمة المرور. اطلب رابطًا جديدًا."
+          : "Could not verify the password reset link. Request a new one."
+      );
+      setSuccess(null);
+      setShowForgotPassword(false);
+    }
+  }, [authErrorCode, locale]);
+
+  useEffect(() => {
+    if (resetStatus !== "success") {
+      return;
+    }
+
+    setTab("login");
+    setError(null);
+    setSuccess(
+      locale === "ar"
+        ? "تم تحديث كلمة المرور. سجّل الدخول بكلمة المرور الجديدة."
+        : "Password updated. Log in with your new password."
+    );
+    setShowForgotPassword(false);
+  }, [locale, resetStatus]);
+
+  function buildCallbackUrl(nextPath = redirectPath) {
     const callbackUrl = new URL("/auth/callback", window.location.origin);
-    if (redirectPath.startsWith("/")) {
-      callbackUrl.searchParams.set("next", redirectPath);
+    if (nextPath.startsWith("/")) {
+      callbackUrl.searchParams.set("next", nextPath);
     }
     return callbackUrl.toString();
   }
 
+  function buildRecoveryUrl() {
+    const recoveryUrl = new URL("/reset-password", window.location.origin);
+    recoveryUrl.searchParams.set("flow", "recovery");
+    if (redirectPath.startsWith("/")) {
+      recoveryUrl.searchParams.set("next", redirectPath);
+    }
+    return recoveryUrl.toString();
+  }
+
   async function startOAuth(provider: OAuthProvider) {
-    setLoading(true);
+    setAuthLoading(true);
     setError(null);
     setSuccess(null);
 
@@ -78,10 +118,10 @@ export default function LoginPage() {
 
     if (error) {
       setError(error.message);
-      setLoading(false);
+      setAuthLoading(false);
     } else if (!data?.url) {
       setError(locale === "ar" ? "تعذر بدء تسجيل الدخول عبر المزوّد." : "Could not start the provider sign-in.");
-      setLoading(false);
+      setAuthLoading(false);
     }
     // On success, supabase client redirects automatically (skipBrowserRedirect not set)
   }
@@ -92,7 +132,7 @@ export default function LoginPage() {
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setAuthLoading(true);
     setError(null);
     setSuccess(null);
 
@@ -103,12 +143,12 @@ export default function LoginPage() {
     } else {
       router.push(redirectPath);
     }
-    setLoading(false);
+    setAuthLoading(false);
   }
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setAuthLoading(true);
     setError(null);
     setSuccess(null);
 
@@ -179,8 +219,50 @@ export default function LoginPage() {
             : "An unexpected error occurred."
       );
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
+  }
+
+  async function handleForgotPasswordRequest() {
+    setResetLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError(
+        locale === "ar"
+          ? "أدخل بريدك الإلكتروني أولاً."
+          : "Enter your email address first."
+      );
+      setResetLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+      redirectTo: buildRecoveryUrl(),
+    });
+
+    if (error) {
+      setError(
+        error.message.toLowerCase().includes("rate limit")
+          ? locale === "ar"
+            ? "تم إرسال طلب قبل قليل. انتظر قليلًا ثم حاول مرة أخرى."
+            : "A reset email was sent recently. Please wait a bit and try again."
+          : locale === "ar"
+            ? "تعذر بدء إعادة تعيين كلمة المرور. حاول مرة أخرى."
+            : "Could not start the password reset flow. Please try again."
+      );
+    } else {
+      setSuccess(
+        locale === "ar"
+          ? "إذا كان هذا البريد مرتبطًا بحساب، فسنرسل رابط إعادة تعيين كلمة المرور."
+          : "If an account exists for that email, we’ll send a password reset link."
+      );
+      setShowForgotPassword(false);
+    }
+
+    setResetLoading(false);
   }
 
   const inputCls =
@@ -224,7 +306,7 @@ export default function LoginPage() {
                 variant="outline"
                 className="h-9 w-full gap-2 px-3 text-sm sm:h-10 sm:px-4"
                 onClick={handleGoogleAuth}
-                disabled={loading}
+                disabled={authLoading || resetLoading}
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" aria-hidden="true">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -244,7 +326,15 @@ export default function LoginPage() {
             </>
 
             {/* Tabs */}
-            <Tabs value={tab} onValueChange={(v) => { setTab(v as Tab); setError(null); setSuccess(null); }}>
+            <Tabs
+              value={tab}
+              onValueChange={(v) => {
+                setTab(v as Tab);
+                setError(null);
+                setSuccess(null);
+                setShowForgotPassword(false);
+              }}
+            >
               <TabsList className="w-full">
                 <TabsTrigger value="login" className="flex-1 px-2 py-1.5 text-xs sm:px-3 sm:text-sm">{locale === "ar" ? "تسجيل الدخول" : "Log in"}</TabsTrigger>
                 <TabsTrigger value="signup" className="flex-1 px-2 py-1.5 text-xs sm:px-3 sm:text-sm">{locale === "ar" ? "إنشاء حساب" : "Sign up"}</TabsTrigger>
@@ -269,9 +359,29 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="login-pass" className="mb-1 block text-[13px] font-semibold text-[var(--foreground)] sm:text-[var(--text-sm)]">
-                      {locale === "ar" ? "كلمة المرور" : "Password"}
-                    </label>
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <label htmlFor="login-pass" className="block text-[13px] font-semibold text-[var(--foreground)] sm:text-[var(--text-sm)]">
+                        {locale === "ar" ? "كلمة المرور" : "Password"}
+                      </label>
+                      <button
+                        type="button"
+                        data-testid="forgot-password-toggle"
+                        className="text-[11px] font-medium text-[var(--primary)] hover:underline sm:text-xs"
+                        onClick={() => {
+                          setShowForgotPassword((current) => !current);
+                          setError(null);
+                          setSuccess(null);
+                        }}
+                      >
+                        {showForgotPassword
+                          ? locale === "ar"
+                            ? "إلغاء"
+                            : "Cancel"
+                          : locale === "ar"
+                            ? "نسيت كلمة المرور؟"
+                            : "Forgot password?"}
+                      </button>
+                    </div>
                     <div className="relative">
                       <input
                         id="login-pass"
@@ -293,13 +403,53 @@ export default function LoginPage() {
                       </button>
                     </div>
                   </div>
+                  {showForgotPassword && (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--bg-2)] p-3">
+                      <p className="text-xs leading-5 text-[var(--muted-foreground)] sm:text-[var(--text-sm)]">
+                        {locale === "ar"
+                          ? "سنرسل رابطًا إلى البريد الإلكتروني أعلاه إذا كان مرتبطًا بحساب."
+                          : "We’ll send a reset link to the email above if it belongs to an account."}
+                      </p>
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          type="button"
+                          data-testid="forgot-password-submit"
+                          className="h-9 flex-1 text-sm sm:h-10"
+                          disabled={authLoading || resetLoading}
+                          onClick={() => void handleForgotPasswordRequest()}
+                        >
+                          {resetLoading
+                            ? locale === "ar"
+                              ? "جارٍ الإرسال…"
+                              : "Sending…"
+                            : locale === "ar"
+                              ? "إرسال رابط إعادة التعيين"
+                              : "Send reset link"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-9 text-sm sm:h-10"
+                          onClick={() => setShowForgotPassword(false)}
+                          disabled={authLoading || resetLoading}
+                        >
+                          {locale === "ar" ? "العودة لتسجيل الدخول" : "Back to login"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {error && (
                     <p className={cn(alertCls, "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400")}>
                       {error}
                     </p>
                   )}
-                  <Button type="submit" className="h-9 w-full text-sm sm:h-10" disabled={loading}>
-                    {loading ? (locale === "ar" ? "جارٍ تسجيل الدخول…" : "Logging in…") : (locale === "ar" ? "تسجيل الدخول" : "Log in")}
+                  {success && (
+                    <p className={cn(alertCls, "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400")}>
+                      {success}
+                    </p>
+                  )}
+                  <Button type="submit" className="h-9 w-full text-sm sm:h-10" disabled={authLoading || resetLoading}>
+                    {authLoading ? (locale === "ar" ? "جارٍ تسجيل الدخول…" : "Logging in…") : (locale === "ar" ? "تسجيل الدخول" : "Log in")}
                   </Button>
                 </form>
               </TabsContent>
@@ -373,8 +523,8 @@ export default function LoginPage() {
                       {success}
                     </p>
                   )}
-                  <Button type="submit" className="h-9 w-full text-sm sm:h-10" disabled={loading}>
-                    {loading ? (locale === "ar" ? "جارٍ إنشاء الحساب…" : "Creating account…") : (locale === "ar" ? "إنشاء حساب مجاني" : "Create free account")}
+                  <Button type="submit" className="h-9 w-full text-sm sm:h-10" disabled={authLoading || resetLoading}>
+                    {authLoading ? (locale === "ar" ? "جارٍ إنشاء الحساب…" : "Creating account…") : (locale === "ar" ? "إنشاء حساب مجاني" : "Create free account")}
                   </Button>
                   <p className="text-center text-[9px] text-[var(--muted-foreground)] sm:text-[10px]">
                     {locale === "ar" ? "تجربة مجانية لمدة 7 أيام · لا حاجة إلى بطاقة" : "7-day free trial · No credit card required"}

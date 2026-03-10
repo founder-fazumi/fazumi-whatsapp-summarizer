@@ -31,6 +31,7 @@ const RIGHT_COLUMN = (
 export default async function DashboardPage() {
   // Fetch session + profile + today's usage server-side
   let userName: string | null = null;
+  let fallbackUserName: string | null = null;
   let billingPlan = "free";
   let tierKey: TierKey = "free";
   let trialExpiresAt: string | null = null;
@@ -45,7 +46,8 @@ export default async function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
-      userName = (user.user_metadata?.full_name as string | null) ?? user.email?.split("@")[0] ?? null;
+      fallbackUserName =
+        (user.user_metadata?.full_name as string | null) ?? user.email?.split("@")[0] ?? null;
 
       const today = new Date().toISOString().slice(0, 10);
       const now = Date.now();
@@ -54,9 +56,9 @@ export default async function DashboardPage() {
       const [{ data: profile }, { data: usage }, { count }, { data: subscriptions }, { data: groupRows }, { count: weeklyCount }, { count: previousWeeklyCount }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("plan, trial_expires_at")
+          .select("full_name, plan, trial_expires_at")
           .eq("id", user.id)
-          .single<Pick<Profile, "plan" | "trial_expires_at">>(),
+          .single<Pick<Profile, "full_name" | "plan" | "trial_expires_at">>(),
         supabase
           .from("usage_daily")
           .select("summaries_used")
@@ -101,6 +103,7 @@ export default async function DashboardPage() {
         subscriptions: (subscriptions ?? []) as EntitlementSubscription[],
       });
 
+      userName = profile?.full_name?.trim() || fallbackUserName;
       billingPlan = entitlement.billingPlan;
       tierKey = entitlement.tierKey;
       trialExpiresAt = profile?.trial_expires_at ?? null;
@@ -128,6 +131,7 @@ export default async function DashboardPage() {
         <UpgradeBanner plan={billingPlan} />
         <DashboardBanner
           userName={userName}
+          fallbackUserName={fallbackUserName}
           billingPlan={billingPlan}
           trialExpiresAt={trialExpiresAt}
           summariesUsed={summariesUsed}

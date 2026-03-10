@@ -17,6 +17,7 @@ import { BrandLogo } from "@/components/shared/BrandLogo";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useLang } from "@/lib/context/LangContext";
 import { useMounted } from "@/lib/hooks/useMounted";
+import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "@/lib/profile-events";
 import { createClient } from "@/lib/supabase/client";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -33,10 +34,38 @@ const COPY = {
   darkMode: { en: "Switch to dark mode", ar: "التبديل إلى الوضع الداكن" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
-const PROFILE_UPDATED_EVENT = "fazumi:profile-updated";
-
 interface TopBarProps {
   className?: string;
+}
+
+function applyProfileUpdate(user: SupabaseUser | null, detail: ProfileUpdatedDetail) {
+  if (!user) {
+    return user;
+  }
+
+  const nextMetadata = {
+    ...(user.user_metadata ?? {}),
+  } as Record<string, unknown>;
+  let changed = false;
+
+  if ("fullName" in detail) {
+    nextMetadata.full_name = detail.fullName;
+    changed = true;
+  }
+
+  if ("avatarUrl" in detail) {
+    nextMetadata.avatar_url = detail.avatarUrl;
+    changed = true;
+  }
+
+  if (!changed) {
+    return user;
+  }
+
+  return {
+    ...user,
+    user_metadata: nextMetadata,
+  } as SupabaseUser;
 }
 
 export function TopBar({ className }: TopBarProps) {
@@ -99,7 +128,16 @@ export function TopBar({ className }: TopBarProps) {
       void loadUserState();
     });
 
-    const handleProfileUpdated = () => {
+    const handleProfileUpdated = (event: Event) => {
+      const detail =
+        event instanceof CustomEvent
+          ? (event.detail as ProfileUpdatedDetail | undefined)
+          : undefined;
+
+      if (detail) {
+        setUser((current) => applyProfileUpdate(current, detail));
+      }
+
       void loadUserState();
     };
 

@@ -1,4 +1,8 @@
 import OpenAI from "openai";
+import {
+  createJsonChatCompletionWithFallback,
+  resolveSummarizeModel,
+} from "@/lib/ai/openai-chat";
 import { estimateAiCostUsd, estimateTokenCount } from "@/lib/ai/usage";
 import type { LangPref, SummaryResult, SummaryUsage, SummaryPromptContext } from "@/lib/ai/summarize";
 import { toImportantDateArray, parseChatType, parseChatContext, applySummaryPromptContext } from "@/lib/ai/summarize";
@@ -328,18 +332,15 @@ export async function summarizeZipMessages(
   }
 
   const openai = getOpenAI();
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  const model = resolveSummarizeModel();
   const userPrompt = buildUserPrompt(text, outputLang, options?.context);
-  const completion = await openai.chat.completions.create({
-    model,
-    temperature: 0.2,
-    max_tokens: 1400,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: ZIP_SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-  });
+  const { completion, model: resolvedModel } =
+    await createJsonChatCompletionWithFallback(openai, {
+      model,
+      systemPrompt: ZIP_SYSTEM_PROMPT,
+      userPrompt,
+      maxCompletionTokens: 1400,
+    });
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
   const { summary, facts } = parseModelPayload(raw, outputLang);
@@ -359,7 +360,7 @@ export async function summarizeZipMessages(
   return {
     summary: summaryWithContext,
     facts,
-    usage: buildUsage(model, promptTokens, completionTokens),
+    usage: buildUsage(resolvedModel, promptTokens, completionTokens),
   };
 }
 

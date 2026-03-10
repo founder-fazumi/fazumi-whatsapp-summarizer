@@ -6,6 +6,195 @@
 
 ---
 
+## Story - Playwright localhost IPv4 harness fix (2026-03-11) [DONE]
+
+> Rule: local Playwright runs on Windows should default to a stable IPv4 loopback host so repo verification reflects app behavior instead of host-resolution drift.
+
+#### PWH1 - Default Playwright local runs to `127.0.0.1` [Codex]
+**Why:** `pnpm test` was failing on `ECONNREFUSED ::1:3000` because Playwright resolved `localhost` to IPv6 while the local Next server path was not accepting connections there consistently.
+**Files:** `lib/testing/playwright.ts`, `tasks/lessons.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] Local Playwright defaults use `http://127.0.0.1:<port>` unless `PLAYWRIGHT_BASE_URL` is explicitly set.
+- [x] `pnpm test` passes on the current Windows workspace.
+- [x] The lesson log and progress tracker record the host-resolution rule.
+
+---
+
+## Story - Summarize inline results assistant + wider canvas (2026-03-11) [DONE]
+
+> Spec file: `specs/summarize-inline-results-assistant-2026-03-11.md`
+> Rule: keep the paste-first workflow and existing summarize actions, but stop forcing users to scroll past setup cards before they can read the result.
+
+#### SIA1 - Refactor `/summarize` into a wider two-zone layout [Codex]
+**Why:** The current `max-w-2xl` shell and stacked support cards waste desktop space and push the generated summary too far down the page.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] `DashboardShell` no longer uses the narrow `max-w-2xl` constraint on `/summarize`.
+- [x] The paste composer stays primary and the summary block renders immediately below it.
+- [x] Output language, source/group setup, and ZIP import remain accessible without forcing the summary further down the page.
+
+#### SIA2 - Make the summary feel more actionable and assistant-led [Codex]
+**Why:** The result should feel like FAZUMI understands what a parent wants to do next, not just like a static report.
+**Files:** `components/SummaryDisplay.tsx`, `components/summary/FollowUpPanel.tsx`
+**Acceptance:**
+- [x] Summary actions for calendar, todo, and sharing remain prominent in the result surface.
+- [x] The follow-up panel copy is upgraded to feel more parent-specific and assistant-like.
+- [x] The follow-up panel keeps visible `BETA` treatment and remains bilingual and RTL-safe.
+
+#### SIA3 - Verify and record the redesign [Codex]
+**Why:** This is only done once the UX change is verified and the trackers reflect the new summarize layout rule.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] Decisions, lessons, and progress trackers record the inline-result summarize rule.
+
+---
+
+## Story - Summarize invalid-model fallback + Vercel env correction (2026-03-11) [DONE]
+
+> Spec file: `specs/summarize-invalid-model-fallback-2026-03-11.md`
+> Rule: a bad `OPENAI_MODEL` value must not take down both the landing demo and authenticated summarize flow.
+
+#### IMF1 - Add one shared invalid-model fallback [Codex]
+**Why:** Production verification showed the summarize 500 was coming from `Error: 400 invalid model ID`, so request-shape compatibility alone was not enough.
+**Files:** `lib/ai/openai-chat.ts`, `lib/ai/summarize.ts`, `lib/ai/summarize-zip.ts`
+**Acceptance:**
+- [x] The shared summarize helper retries exactly once with `gpt-4o-mini` when the configured model fails with `invalid model ID`.
+- [x] Text summarize and ZIP summarize both use the shared fallback helper.
+- [x] Usage metadata records the actual model that produced the summary.
+
+#### IMF2 - Verify and document the production fix [Codex]
+**Why:** This is only complete once the repo trackers and live deploy evidence reflect the real root cause and repair.
+**Files:** `specs/summarize-invalid-model-fallback-2026-03-11.md`, `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] The spec, todo entry, decision, lesson, and progress tracker record the invalid-model fallback rule.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` passes.
+- [x] Live production `POST /api/demo/summarize` returns summary JSON after the Vercel redeploy.
+- [x] `pnpm test` is attempted and its result is recorded.
+- [x] `pnpm test` passes.
+
+---
+
+## Story - Summarize OpenAI model compatibility hotfix (2026-03-10) [DONE]
+
+> Spec file: `specs/summarize-openai-model-compat-hotfix-2026-03-10.md`
+> Rule: keep the current Chat Completions summarize flow, but make the request shape safe for both the default `gpt-4o-mini` path and newer reasoning-model env values.
+
+#### OMC1 - Add one shared JSON chat-completion request builder [Codex]
+**Why:** The landing demo, authenticated summarize route, and ZIP path should not drift on OpenAI compatibility rules.
+**Files:** `lib/ai/openai-chat.ts`, `lib/ai/summarize.ts`, `lib/ai/summarize-zip.ts`
+**Acceptance:**
+- [x] Text summarize and ZIP summarize both use one shared builder.
+- [x] The request uses `max_completion_tokens` instead of deprecated `max_tokens`.
+- [x] GPT-5 and o-series chat models omit `temperature`, while current non-reasoning chat models keep deterministic temperature settings.
+
+#### OMC2 - Record and verify the hotfix [Codex]
+**Why:** Production bug fixes are only complete once the repo trackers reflect the new guardrail and the quality gates pass.
+**Files:** `specs/summarize-openai-model-compat-hotfix-2026-03-10.md`, `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] The spec, todo entry, decision, lesson, and progress tracker all record the compatibility rule.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
+---
+
+## Story - Profile identity sync + avatar upload (2026-03-10) [DONE]
+
+> Spec file: `specs/profile-identity-sync-avatar-upload-2026-03-10.md`
+> Rule: keep profile identity inside the existing Supabase stack; no external avatar host, no raw chat storage, and no broader account-management redesign.
+
+#### PIA1 - Make dashboard identity read the saved profile name [Codex]
+**Why:** The dashboard greeting should not wait for an auth-session metadata refresh after a profile save.
+**Files:** `app/(dashboard)/dashboard/page.tsx`, `components/dashboard/DashboardBanner.tsx`, shared profile-update event helper if needed
+**Acceptance:**
+- [x] `/dashboard` prefers `profiles.full_name` over stale auth metadata.
+- [x] The dashboard greeting updates after a profile-save event without requiring logout/login.
+- [x] English and Arabic dashboard copy still render correctly around the updated name.
+
+#### PIA2 - Replace avatar URL entry with click-to-upload in Settings [Codex]
+**Why:** Users should be able to click their current avatar and upload a real photo from the device instead of pasting a public URL.
+**Files:** `components/settings/SettingsPanel.tsx`, `components/layout/TopBar.tsx`, shared profile-update event helper if needed
+**Acceptance:**
+- [x] The current avatar in `/settings` is a real upload trigger with a hidden file input.
+- [x] Supported image uploads show immediate success feedback and update the visible avatar.
+- [x] Shell-visible avatar/name state updates immediately after save/upload.
+
+#### PIA3 - Add authenticated avatar upload persistence [Codex]
+**Why:** Device uploads need a server-owned path that stores only the avatar image and keeps profile identity in sync.
+**Files:** `app/api/profile/avatar/route.ts`, `app/api/profile/route.ts` if needed, storage helper/config files if needed
+**Acceptance:**
+- [x] Authenticated users can upload `jpg`, `png`, `webp`, or `gif` avatars through a dedicated API route.
+- [x] The route validates file type and size, stores the avatar in Supabase Storage, and persists the returned URL to both `profiles.avatar_url` and Auth `user_metadata.avatar_url`.
+- [x] Unauthenticated or invalid uploads return safe JSON errors.
+
+#### PIA4 - Record and verify the slice [Codex]
+**Why:** This is only done once the repo trackers and quality gates reflect the shipped behavior.
+**Files:** `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`, `tasks/todo.md`
+**Acceptance:**
+- [x] Decisions and lessons capture the new identity-sync and avatar-upload rules.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
+---
+
+## Story - Forgot password flow (2026-03-10) [DONE]
+
+> Spec file: `specs/forgot-password-flow-2026-03-10.md`
+> Rule: keep this scoped to Supabase Auth recovery using the existing callback flow; do not introduce a second auth provider, custom email service, or schema change.
+
+#### FP1 - Add forgot-password request UX on `/login` [Codex]
+**Why:** Users who signed up with email/password need a recovery entry point without leaving the existing auth screen.
+**Files:** `app/login/page.tsx`
+**Acceptance:**
+- [x] The login tab exposes a bilingual `Forgot password?` action.
+- [x] Submitting the request uses generic non-enumerating success copy.
+- [x] The reset-request path sends the user to `/reset-password` with a safe preserved `next` path.
+
+#### FP2 - Add the reset-password completion screen [Codex]
+**Why:** The user needs a dedicated screen to set a new password only after returning with a valid recovery session.
+**Files:** `app/reset-password/page.tsx`, `app/reset-password/layout.tsx`, `app/auth/callback/route.ts`
+**Acceptance:**
+- [x] `/reset-password` supports EN/AR copy, password confirmation, and minimum-length validation.
+- [x] Invalid or missing recovery sessions fall back to a safe login-return state.
+- [x] Successful password reset signs the user out globally and returns them to `/login?reset=success`.
+
+#### FP3 - Verify and document the recovery flow [Codex]
+**Why:** Auth changes are not done until they are exercised and recorded.
+**Files:** `e2e/app-smoke.spec.ts`, `e2e/support.ts`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`, `tasks/todo.md`
+**Acceptance:**
+- [x] Playwright covers the forgot-password request UI and recovery completion path.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
+---
+
+## Story - Payment CTA copy refinement (2026-03-10) [DONE]
+
+> Spec file: `specs/payment-cta-copy-refinement-2026-03-10.md`
+> Rule: keep this a payment-acquisition copy refinement only; do not touch webhook, entitlement, or paid-account management behavior.
+
+#### PCC1 - Align purchase CTA wording on landing, pricing, and billing [Codex]
+**Why:** The public-facing payment buttons should read as plain coming-soon copy instead of actionable purchase copy with an appended suffix.
+**Files:** `lib/payments-ui.ts`, `components/billing/CheckoutButton.tsx`
+**Acceptance:**
+- [x] Purchase buttons rendered through `CheckoutButton` show exact `Coming soon` / `قريبًا` copy.
+- [x] The disabled-state checkout guard still prevents any redirect to Lemon Squeezy checkout.
+
+#### PCC2 - Record and verify the refinement [Codex]
+**Files:** `specs/payment-cta-copy-refinement-2026-03-10.md`, `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] The payment coming-soon policy docs reflect the exact purchase-button copy.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
 ## Story - Linux build script portability hotfix (2026-03-10) [DONE]
 
 ## Story - Payments coming-soon gate (2026-03-10) [DONE]

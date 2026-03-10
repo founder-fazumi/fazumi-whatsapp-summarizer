@@ -8,6 +8,44 @@
 
 ---
 
+## L051 — Windows Playwright defaults should prefer `127.0.0.1` over `localhost`
+**Mistake:** We kept treating the repeated Playwright `ECONNREFUSED ::1:3000` failures as generic dev-server instability even after the app could be started separately.
+**Why:** On this Windows setup, Playwright was resolving `localhost` to IPv6 `::1`, while the local Next server path we were using for verification was not accepting connections there consistently.
+**Rule:** Default the local Playwright base URL to `127.0.0.1` unless a different host is explicitly requested through `PLAYWRIGHT_BASE_URL`.
+**Quick test:** Start the app locally and run `pnpm test`; the suite should target `http://127.0.0.1:<port>` instead of failing immediately on `ECONNREFUSED ::1:<port>`.
+
+## L049 — A valid OpenAI API key is not enough if the deployed model ID is wrong
+**Mistake:** We deployed a summarize hotfix that fixed request-shape compatibility, but production still failed because Vercel was pointing `OPENAI_MODEL` at an invalid model ID.
+**Why:** The original audit stopped at request construction and local static checks. We had not yet verified the live summarize path against production logs, so the real outage source stayed hidden behind the generic demo 500 message.
+**Rule:** Any summarize deploy must include one live production summarize smoke plus log inspection when the route still returns a generic AI failure, and the shared OpenAI helper should retry once with the safe default model when the configured model ID is invalid.
+**Quick test:** Set `OPENAI_MODEL` to an invalid string in a non-production environment, run both the landing demo and ZIP summarize paths, and confirm they fall back to `gpt-4o-mini` instead of returning a 500.
+
+## L048 — Shared summarize requests must stay compatible with the active OpenAI model family
+**Mistake:** The landing demo and authenticated summarize flow both depended on a chat-completions request that still sent deprecated `max_tokens` and always sent `temperature`, which can fail when `OPENAI_MODEL` is switched to newer reasoning-model families.
+**Why:** The summarize helpers were written against the older `gpt-4o-mini` request shape and duplicated the OpenAI call in more than one place, so a production model change could break both routes at once.
+**Rule:** Route all summarize chat-completion calls through one shared builder, use `max_completion_tokens`, and gate legacy sampling params like `temperature` by model-family support instead of assuming every model accepts the old payload.
+**Quick test:** Set `OPENAI_MODEL` to `gpt-4o-mini` and then to a GPT-5 or o-series chat model, run one summarize request through each path, and confirm neither request fails with an unsupported-parameter error.
+
+## L046 — Dashboard-visible identity cannot rely on stale auth metadata alone
+**Mistake:** The settings screen saved `full_name`, but the dashboard greeting still depended on auth metadata that could lag behind the saved profile row, and avatar changes relied on manual public URLs instead of a first-party upload path.
+**Why:** Profile identity had two partially independent sources of truth, and the dashboard/server path was reading the one with weaker freshness guarantees for this flow.
+**Rule:** Persist identity to `profiles` and Auth `user_metadata`, but render server-side dashboard identity from the `profiles` row and use an authenticated Supabase Storage upload route for clickable avatar changes.
+**Quick test:** Change the display name and avatar in `/settings`, then open `/dashboard` in both English and Arabic and confirm the greeting/avatar match without logging out or pasting a URL.
+
+## L045 — Supabase recovery links do not behave like OAuth callback links
+**Mistake:** The first forgot-password implementation tried to reuse `/auth/callback`, assuming Supabase password recovery would return the same `code` query parameter as OAuth.
+**Why:** We applied the OAuth/email-confirm callback pattern to a recovery flow that actually returned browser hash tokens in this app's Supabase setup.
+**Rule:** Treat Supabase password recovery as its own flow. Land it on a dedicated browser route, establish the session from the recovery hash when needed, then clear the hash before the user submits a new password.
+**Quick test:** Trigger a recovery link, confirm `/reset-password` shows the form, and make sure the URL no longer contains `#access_token=` before the password-submit click.
+
+## L044 — Pending-payment CTA copy needs exact wording, not an inferred suffix
+**Mistake:** We initially shipped the gated payment CTA state as actionable purchase labels with an appended `(coming soon)` suffix.
+**Why:** We optimized for a shared helper pattern without confirming whether the founder wanted appended wording or a plain non-action label on the public purchase buttons.
+**Rule:** When payments are not live, confirm the exact CTA wording for acquisition buttons and prefer explicit non-action copy if the request says the buttons should simply read `Coming soon`.
+**Quick test:** Open the landing pricing block, `/pricing`, and `/billing`; every purchase button should read `Coming soon` / `قريبًا` and stay disabled.
+
+---
+
 ## L005 — Next.js ESLint lints archived CommonJS service code
 **Mistake:** Running `pnpm lint` on the Next.js app also linted `services/wa-bot/src/*.js` (CommonJS require() style), causing 17 errors.
 **Why:** `eslint.config.mjs` has no explicit ignore for `services/`. The default Next.js ESLint config lints all JS/TS files in the project root recursively.
@@ -349,6 +387,22 @@
 **Why:** Payment acquisition copy is spread across pricing cards, founder pages, dashboard upsells, summarize gating, and modal links, so one-off edits drift quickly.
 **Rule:** Gate payment acquisition through one shared `paymentsComingSoon` flag plus a shared label helper, and route every purchase/upgrade CTA through that contract before showing live checkout copy again.
 **Quick test:** Open `/pricing`, `/founder-supporter`, `/billing`, and a free-user `/summarize` limit state; payment acquisition CTAs should include `(coming soon)` / `(قريبًا)`, and purchase buttons must stay disabled.
+
+---
+
+## L047 — Mirrored profile identity writes need rollback semantics and an explicit clear action
+**Mistake:** The profile/avatar change initially updated `profiles` and Auth metadata as separate writes without rollback, and replacing the avatar URL field accidentally removed the only visible way to clear an existing avatar.
+**Why:** The upload flow was implemented as a feature add, but optional identity fields still behave like two-phase state across `profiles`, Auth metadata, and storage; preserving the old clear path was easy to overlook once the input UI changed.
+**Rule:** Any identity field mirrored across `profiles` and Supabase Auth must update one store deterministically, roll back if the second write fails, and preserve an explicit clear/remove affordance when the field is optional.
+**Quick test:** Simulate a profile-write failure after the Auth update and confirm metadata rolls back; in `/settings`, an existing avatar must show a visible `Remove photo` action that clears both the UI and dashboard shell state.
+
+---
+
+## L050 — Result pages should not bury the payoff below setup controls
+**Mistake:** `/summarize` was optimized around configuration cards and route compactness, which left the actual summary lower in the page than the parent's primary reward.
+**Why:** The earlier conversational redesign focused on reducing page chrome, but it still treated output-language, setup, and ZIP controls as part of the main vertical flow instead of secondary support UI.
+**Rule:** When a route's main value is a generated result, keep that result in the first reading path. Put configuration and alternate-import tools beside it or after it, and surface result actions before long detail sections.
+**Quick test:** On desktop `/summarize`, paste a sample chat and submit; the saved banner, summary card, and action buttons should appear before any support cards or ZIP tools. On large screens, the action-center grid should stay readable without forcing three cramped columns at `xl`.
 
 ---
 

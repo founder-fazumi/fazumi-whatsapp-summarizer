@@ -38,7 +38,8 @@ export async function PATCH(req: NextRequest) {
     }
   }
   if (typeof body.full_name === "string") {
-    allowed.full_name = body.full_name.trim().slice(0, 100);
+    const trimmed = body.full_name.trim().slice(0, 100);
+    allowed.full_name = trimmed || null;
   }
   if (typeof body.avatar_url === "string") {
     const trimmed = body.avatar_url.trim();
@@ -52,18 +53,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
-    .from("profiles")
-    .update({ ...allowed, updated_at: new Date().toISOString() })
-    .eq("id", user.id);
+  const syncsIdentity = "full_name" in allowed || "avatar_url" in allowed;
+  const previousUserMetadata: Record<string, unknown> = {
+    ...(user.user_metadata ?? {}),
+  };
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  if ("full_name" in allowed || "avatar_url" in allowed) {
-    const nextUserMetadata: Record<string, unknown> = {
-      ...(user.user_metadata ?? {}),
+  if (syncsIdentity) {
+    const nextUserMetadata = {
+      ...previousUserMetadata,
     };
 
     if ("full_name" in allowed) {
@@ -81,6 +78,25 @@ export async function PATCH(req: NextRequest) {
     if (authUpdateError) {
       return NextResponse.json({ error: authUpdateError.message }, { status: 500 });
     }
+  }
+
+  const { error } = await admin
+    .from("profiles")
+    .update({ ...allowed, updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+
+  if (error) {
+    if (syncsIdentity) {
+      const { error: rollbackError } = await admin.auth.admin.updateUserById(user.id, {
+        user_metadata: previousUserMetadata,
+      });
+
+      if (rollbackError) {
+        console.error("[/api/profile] Failed to roll back auth metadata after profile write error.", rollbackError.message);
+      }
+    }
+
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   if ("summary_retention_days" in body) {

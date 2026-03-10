@@ -118,6 +118,11 @@ const UI_COPY = {
     addToCalendar: "Export calendar",
     addToTodo: "Send to action list",
     export: "Share with family",
+    useSummaryTitle: "Use this summary",
+    useSummaryBody: "Send dates to your calendar, turn tasks into a list, or share the key update with family.",
+    useSummaryCalendarHint: "Create a calendar file from the dates above.",
+    useSummaryTodoHint: "Push the action items into your family to-do list.",
+    useSummaryExportHint: "Download or share the parent-ready summary in one tap.",
     helpful: "Was this dashboard useful?",
     noStorage: "Stored here: this summary card. Raw chat text was not stored.",
     comingSoon: "Coming soon",
@@ -181,6 +186,11 @@ const UI_COPY = {
     addToCalendar: "صدّر التقويم",
     addToTodo: "أرسل إلى قائمة الإجراءات",
     export: "شارك مع العائلة",
+    useSummaryTitle: "استخدم هذا الملخص",
+    useSummaryBody: "أرسل المواعيد إلى التقويم، وحوّل المهام إلى قائمة، أو شارك التحديث المهم مع العائلة.",
+    useSummaryCalendarHint: "أنشئ ملف تقويم من المواعيد الظاهرة أعلاه.",
+    useSummaryTodoHint: "أضف عناصر الإجراءات إلى قائمة مهام العائلة.",
+    useSummaryExportHint: "نزّل الملخص أو شاركه بصيغة جاهزة للوالدين بنقرة واحدة.",
     helpful: "هل كانت هذه اللوحة مفيدة؟",
     noStorage: "المحفوظ هنا هو بطاقة الملخص فقط. لا يتم حفظ نص المحادثة الخام.",
     comingSoon: "قريبًا",
@@ -529,7 +539,7 @@ function SectionBlock({
     <section
       dir={isRtl ? "rtl" : "ltr"}
       lang={isRtl ? "ar" : "en"}
-      className={cn("px-4 py-4 text-start sm:px-5", isRtl && "font-arabic")}
+      className={cn("px-5 py-5 text-start sm:px-6", isRtl && "font-arabic")}
     >
       <div
         className="mb-3 flex items-center gap-2 text-[11px] font-semibold text-[var(--muted-foreground)]"
@@ -1028,19 +1038,16 @@ export function SummaryDisplay({
           </div>
         </div>
 
-        <div className="divide-y divide-[var(--border)]">
-          {SECTION_ORDER.map((key) => (
-            <SectionBlock
-              key={key}
-              sectionKey={key}
-              summary={summary}
-              outputLang={outputLang}
-            />
-          ))}
-        </div>
-
-        <div className="border-t border-[var(--border)] px-4 py-3 sm:px-5">
-          <div className="flex flex-wrap gap-2">
+        <div className="border-t border-[var(--border)] bg-[var(--surface)]/55 px-4 py-4 sm:px-5">
+          <div className="mb-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+              {copy.useSummaryTitle}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+              {copy.useSummaryBody}
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
             {ACTIONS.map(({ key, icon: Icon }) => {
               const label =
                 key === "calendar"
@@ -1048,6 +1055,12 @@ export function SummaryDisplay({
                   : key === "todo"
                     ? copy.addToTodo
                     : copy.export;
+              const hint =
+                key === "calendar"
+                  ? copy.useSummaryCalendarHint
+                  : key === "todo"
+                    ? copy.useSummaryTodoHint
+                    : copy.useSummaryExportHint;
               const isPending = pendingAction === key;
 
               return (
@@ -1059,23 +1072,39 @@ export function SummaryDisplay({
                     void handleActionClick(key);
                   }}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60",
+                    "flex min-h-[84px] w-full flex-col items-start justify-between rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-start hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60",
                     isPending && "opacity-50"
                   )}
                   disabled={actionMode === "disabled" || pendingAction !== null}
                   title={actionMode === "disabled" ? copy.comingSoon : undefined}
                   aria-busy={isPending}
                 >
-                  {isPending ? (
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  ) : (
-                    <Icon className="h-3.5 w-3.5 text-[var(--primary)]" />
-                  )}
-                  {label}
+                  <span className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                    {isPending ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <Icon className="h-4 w-4 text-[var(--primary)]" />
+                    )}
+                    {label}
+                  </span>
+                  <span className="text-xs leading-5 text-[var(--muted-foreground)]">
+                    {hint}
+                  </span>
                 </button>
               );
             })}
           </div>
+        </div>
+
+        <div className="divide-y divide-[var(--border)]">
+          {SECTION_ORDER.map((key) => (
+            <SectionBlock
+              key={key}
+              sectionKey={key}
+              summary={summary}
+              outputLang={outputLang}
+            />
+          ))}
         </div>
 
         {showSharePanel && (() => {
@@ -1184,11 +1213,11 @@ export function SummaryDisplay({
               </span>
             )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {actionCenterSections.map((section) => (
               <div
                 key={section.key}
-                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-3"
+                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-4"
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
                   {section.label}

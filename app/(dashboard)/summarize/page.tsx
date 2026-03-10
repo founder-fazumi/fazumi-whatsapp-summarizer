@@ -11,6 +11,7 @@ import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
 import { PmfSurveyModal } from "@/components/pmf/PmfSurveyModal";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
 import { FollowUpPanel } from "@/components/summary/FollowUpPanel";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,9 +58,9 @@ const SOURCE_OPTIONS: Array<{
   },
 ];
 const OUTPUT_LANGUAGE_OPTIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "en", label: "English" },
-  { value: "ar", label: "العربية" },
+  { value: "auto", label: { en: "Auto", ar: "تلقائي" } },
+  { value: "en", label: { en: "English", ar: "الإنجليزية" } },
+  { value: "ar", label: { en: "العربية", ar: "العربية" } },
 ] as const;
 const ZIP_RANGE_OPTIONS: Array<{
   value: SummarizeZipRange;
@@ -410,6 +411,14 @@ const COPY = {
     en: "Choose a fixed output language or let Fazumi detect it from the chat.",
     ar: "اختر لغة إخراج ثابتة أو دع Fazumi يكتشفها من المحادثة.",
   },
+  quickOptionsTitle: {
+    en: "Quick options",
+    ar: "خيارات سريعة",
+  },
+  quickOptionsHint: {
+    en: "Set the summary language and chat source here without leaving the paste box.",
+    ar: "حدّد لغة الملخص ومصدر المحادثة هنا من دون مغادرة مربع اللصق.",
+  },
   detectedLanguage: {
     en: "Detected input language",
     ar: "لغة الإدخال المكتشفة",
@@ -427,8 +436,8 @@ const COPY = {
     ar: "إعداد الاستيراد اليدوي",
   },
   setupHint: {
-    en: "Choose the chat source, save the group name, and reuse recent groups so repeat imports stay fast.",
-    ar: "اختر مصدر المحادثة واحفظ اسم المجموعة وأعد استخدام المجموعات الأخيرة حتى تبقى الاستيرادات المتكررة سريعة.",
+    en: "Keep school groups organised and reuse recent groups so repeat imports stay fast.",
+    ar: "حافظ على تنظيم مجموعات المدرسة وأعد استخدام المجموعات الأخيرة حتى تبقى الاستيرادات المتكررة سريعة.",
   },
   noSavedGroups: {
     en: "No saved groups yet. Your recent school groups will appear here after the first saved summary.",
@@ -1097,17 +1106,124 @@ export default function SummarizePage() {
     }
   }
 
+  const resolvedSummaryLocale =
+    outputLang === "auto"
+      ? (summary?.lang_detected === "ar" ? "ar" : "en")
+      : (outputLang === "ar" ? "ar" : "en");
+  const selectedOutputLanguage =
+    OUTPUT_LANGUAGE_OPTIONS.find((option) => option.value === outputLang) ?? OUTPUT_LANGUAGE_OPTIONS[0];
+  const selectedSource =
+    SOURCE_OPTIONS.find((option) => option.value === sourcePlatform) ?? SOURCE_OPTIONS[0];
+
+  function handleSourceSelect(option: ImportSourcePlatform) {
+    setSourceLocked(true);
+    setSourcePlatform(option);
+    trackEvent(AnalyticsEvents.SOURCE_SELECTED, {
+      sourcePlatform: option,
+      manual: true,
+    });
+  }
+
+  function renderOutputLanguageButtons(testIdPrefix: string) {
+    return (
+      <div
+        className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
+        role="group"
+        aria-label={pick(COPY.outputLanguage, locale)}
+      >
+        {OUTPUT_LANGUAGE_OPTIONS.map((option) => {
+          const active = outputLang === option.value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              data-testid={`${testIdPrefix}-${option.value}`}
+              aria-pressed={active}
+              onClick={() => setOutputLang(option.value)}
+              disabled={loading}
+              className={cn(
+                "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
+                active
+                  ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
+                loading && "cursor-not-allowed opacity-60"
+              )}
+            >
+              {pick(option.label, locale)}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderSourceButtons(testIdPrefix: string) {
+    return (
+      <div
+        className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
+        role="group"
+        aria-label={pick(COPY.sourceTitle, locale)}
+      >
+        {SOURCE_OPTIONS.map((option) => {
+          const active = sourcePlatform === option.value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              data-testid={`${testIdPrefix}-${option.value}`}
+              aria-pressed={active}
+              onClick={() => handleSourceSelect(option.value)}
+              disabled={loading}
+              className={cn(
+                "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
+                active
+                  ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
+                  : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
+                loading && "cursor-not-allowed opacity-60"
+              )}
+            >
+              {pick(option.label, locale)}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderSourceStatusPills() {
+    return (
+      <div className="flex flex-wrap gap-2 text-xs text-[var(--muted-foreground)]">
+        {sourceWasAutoDetected && (
+          <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
+            {pick(COPY.sourceAutoDetected, locale)}
+          </span>
+        )}
+        {detectedDraftLanguage && (
+          <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
+            {pick(COPY.detectedLanguage, locale)}:{" "}
+            {pick(detectedDraftLanguage === "ar" ? COPY.detectedArabic : COPY.detectedEnglish, locale)}
+          </span>
+        )}
+        <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
+          {pick(COPY.importFit, locale)}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <DashboardShell contentClassName="max-w-2xl">
+    <DashboardShell contentClassName="max-w-[92rem]">
       <FounderWelcomeModal isFounder={billingPlan === "founder"} />
       <PmfSurveyModal summaryCount={summaryCount} />
       <div
         dir={isRtl ? "rtl" : "ltr"}
         lang={locale}
-        className={cn("space-y-4", isRtl && "font-arabic")}
+        className={cn("space-y-5", isRtl && "font-arabic")}
       >
         {hasSavedMemory && (
-          <div className="mb-3 flex items-center gap-1.5 text-xs text-[var(--primary)]">
+          <div className="flex items-center gap-1.5 text-xs text-[var(--primary)]">
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
             <span>
               {locale === "ar"
@@ -1116,13 +1232,20 @@ export default function SummarizePage() {
             </span>
           </div>
         )}
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)] xl:items-start">
+          <div className="space-y-4">
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
-          <CardContent className="p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 shrink-0 text-[var(--primary)]" />
-              <h1 className="text-[var(--text-base)] font-semibold text-[var(--foreground)]">
-                {pick(COPY.title, locale)}
-              </h1>
+          <CardContent className="p-4 sm:p-5 lg:p-6">
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 shrink-0 text-[var(--primary)]" />
+                <h1 className="text-[var(--text-lg)] font-semibold text-[var(--foreground)]">
+                  {pick(COPY.title, locale)}
+                </h1>
+              </div>
+              <p className="max-w-3xl text-sm leading-6 text-[var(--muted-foreground)] sm:text-[15px]">
+                {pick(COPY.subtitle, locale)}
+              </p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)]">
@@ -1136,7 +1259,7 @@ export default function SummarizePage() {
                   rows={12}
                   disabled={loading}
                   className={cn(
-                    "min-h-[300px] resize-none border-0 bg-transparent px-4 py-4 text-[var(--text-base)] leading-relaxed shadow-none focus-visible:ring-0",
+                    "min-h-[300px] resize-none border-0 bg-transparent px-4 py-4 text-[var(--text-base)] leading-relaxed shadow-none focus-visible:ring-0 lg:min-h-[340px]",
                     isOverLimit && "bg-[var(--destructive-soft)]"
                   )}
                 />
@@ -1163,6 +1286,62 @@ export default function SummarizePage() {
                   {pick(COPY.textTooLong, locale)}
                 </div>
               )}
+
+              <Accordion
+                type="single"
+                collapsible
+                className="xl:hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-4"
+              >
+                <AccordionItem value="quick-options" className="border-0">
+                  <AccordionTrigger className="py-3 text-start hover:text-[var(--foreground)]">
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--foreground)]">
+                          {pick(COPY.quickOptionsTitle, locale)}
+                        </p>
+                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                          {pick(COPY.quickOptionsHint, locale)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 font-medium text-[var(--foreground)]">
+                          {pick(COPY.outputLanguage, locale)}: {pick(selectedOutputLanguage.label, locale)}
+                        </span>
+                        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 font-medium text-[var(--foreground)]">
+                          {pick(COPY.sourceTitle, locale)}: {pick(selectedSource.label, locale)}
+                        </span>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-4">
+                    <div className="grid gap-4">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                            {pick(COPY.outputLanguage, locale)}
+                          </p>
+                          <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                            {pick(COPY.outputLanguageHint, locale)}
+                          </p>
+                        </div>
+                        {renderOutputLanguageButtons("summary-mobile-lang")}
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                            {pick(COPY.sourceTitle, locale)}
+                          </p>
+                          <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                            {pick(COPY.sourceHint, locale)}
+                          </p>
+                        </div>
+                        {renderSourceButtons("summary-mobile-source")}
+                        {renderSourceStatusPills()}
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1231,7 +1410,120 @@ export default function SummarizePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
+        {error && (
+          <div className="status-destructive rounded-[var(--radius-xl)] border px-4 py-3 text-sm" role="alert" aria-live="polite">
+            {error}
+          </div>
+        )}
+
+        {limitReached && (
+          <div
+            data-testid="summary-limit-banner"
+            className="status-warning flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-4"
+            role="alert"
+            aria-live="polite"
+          >
+            <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                {pick(limitTitle, locale)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--foreground)]/80">
+                {pick(limitBody, locale)}
+              </p>
+              {limitBenefitLine && (
+                <p className="mt-2 text-sm text-[var(--foreground)]/80">
+                  {pick(limitBenefitLine, locale)}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {limitBenefits.map((benefit) => (
+                  <span
+                    key={benefit.en}
+                    className="rounded-full border border-current/15 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)]"
+                  >
+                    {pick(benefit, locale)}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {showsUpgradeBenefits && (
+                  <Link href="/pricing" className={buttonVariants({ size: "sm" })}>
+                    <ArrowUpCircle className="h-3.5 w-3.5" />
+                    {upgradeCtaLabel}
+                  </Link>
+                )}
+                <Link
+                  href="/history"
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  {pick(COPY.viewHistory, locale)}
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {summary && (
+          <div ref={summaryRef} className="space-y-3">
+            {submissionSource === "zip" && zipResultMeta && (
+              <div
+                data-testid="zip-processed-banner"
+                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm"
+                role="status"
+                aria-live="polite"
+              >
+                <p className="font-semibold text-[var(--foreground)]">
+                  {pick(COPY.zipProcessed, locale)}: {formatNumber(zipResultMeta.newMessagesProcessed)}
+                </p>
+                <p className="mt-1 text-[var(--muted-foreground)]">
+                  {zipResultMeta.groupTitle}
+                  {" • "}
+                  {pick(
+                    ZIP_RANGE_OPTIONS.find((option) => option.value === zipResultMeta.range)?.label ?? ZIP_RANGE_OPTIONS[0].label,
+                    locale
+                  )}
+                </p>
+              </div>
+            )}
+            {savedId && (
+              <div
+                data-testid="summary-saved-banner"
+                className="status-success flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-sm"
+                role="status"
+                aria-live="polite"
+              >
+                <Check className="h-4 w-4 shrink-0" />
+                <span>{pick(COPY.saved, locale)}</span>
+                <a
+                  href={`/history/${savedId}`}
+                  className="ms-auto text-xs underline hover:no-underline"
+                >
+                  {pick(COPY.view, locale)} →
+                </a>
+              </div>
+            )}
+            <SummaryDisplay
+              summary={summary}
+              outputLang={resolvedSummaryLocale}
+              familyContextActive={hasSavedMemory}
+              inlineNoticeIds={summaryNoticeIds}
+              onDismissNotice={(noticeId) => {
+                setSummaryNoticeIds((currentNoticeIds) => currentNoticeIds.filter((currentNoticeId) => currentNoticeId !== noticeId));
+              }}
+              actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
+            />
+            <FollowUpPanel
+              summary={summary}
+              locale={resolvedSummaryLocale}
+            />
+          </div>
+        )}
+          </div>
+
+          <div className="space-y-4 xl:sticky xl:top-6">
+
+        <Card className="hidden bg-[var(--surface-elevated)] shadow-[var(--shadow-card)] xl:block">
           <CardContent className="space-y-3 p-6 text-start">
             <div>
               <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
@@ -1241,35 +1533,7 @@ export default function SummarizePage() {
                 {pick(COPY.outputLanguageHint, locale)}
               </p>
             </div>
-            <div
-              className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
-              role="group"
-              aria-label={pick(COPY.outputLanguage, locale)}
-            >
-              {OUTPUT_LANGUAGE_OPTIONS.map((option) => {
-                const active = outputLang === option.value;
-
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    data-testid={`summary-lang-${option.value}`}
-                    aria-pressed={active}
-                    onClick={() => setOutputLang(option.value)}
-                    disabled={loading}
-                    className={cn(
-                      "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
-                      active
-                        ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
-                        : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
-                      loading && "cursor-not-allowed opacity-60"
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
+            {renderOutputLanguageButtons("summary-lang")}
           </CardContent>
         </Card>
 
@@ -1284,7 +1548,7 @@ export default function SummarizePage() {
               </p>
             </div>
 
-            <div className="space-y-3">
+            <div className="hidden space-y-3 xl:block">
               <div>
                 <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
                   {pick(COPY.sourceTitle, locale)}
@@ -1293,58 +1557,8 @@ export default function SummarizePage() {
                   {pick(COPY.sourceHint, locale)}
                 </p>
               </div>
-              <div
-                className="inline-flex flex-wrap gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1"
-                role="group"
-                aria-label={pick(COPY.sourceTitle, locale)}
-              >
-                {SOURCE_OPTIONS.map((option) => {
-                  const active = sourcePlatform === option.value;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      data-testid={`summary-source-${option.value}`}
-                      aria-pressed={active}
-                      onClick={() => {
-                        setSourceLocked(true);
-                        setSourcePlatform(option.value);
-                        trackEvent(AnalyticsEvents.SOURCE_SELECTED, {
-                          sourcePlatform: option.value,
-                          manual: true,
-                        });
-                      }}
-                      disabled={loading}
-                      className={cn(
-                        "min-h-10 rounded-full px-4 text-[var(--text-sm)] font-semibold transition-colors",
-                        active
-                          ? "bg-[var(--primary)] text-white shadow-[var(--shadow-xs)]"
-                          : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
-                        loading && "cursor-not-allowed opacity-60"
-                      )}
-                    >
-                      {pick(option.label, locale)}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs text-[var(--muted-foreground)]">
-                {sourceWasAutoDetected && (
-                  <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
-                    {pick(COPY.sourceAutoDetected, locale)}
-                  </span>
-                )}
-                {detectedDraftLanguage && (
-                  <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
-                    {pick(COPY.detectedLanguage, locale)}:{" "}
-                    {pick(detectedDraftLanguage === "ar" ? COPY.detectedArabic : COPY.detectedEnglish, locale)}
-                  </span>
-                )}
-                <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1">
-                  {pick(COPY.importFit, locale)}
-                </span>
-              </div>
+              {renderSourceButtons("summary-source")}
+              {renderSourceStatusPills()}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1537,60 +1751,6 @@ export default function SummarizePage() {
           </CardContent>
         </Card>
 
-        {error && (
-          <div className="status-destructive rounded-[var(--radius-xl)] border px-4 py-3 text-sm" role="alert" aria-live="polite">
-            {error}
-          </div>
-        )}
-
-        {limitReached && (
-          <div
-            data-testid="summary-limit-banner"
-            className="status-warning flex items-start gap-3 rounded-[var(--radius-xl)] border px-4 py-4"
-            role="alert"
-            aria-live="polite"
-          >
-            <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-[var(--foreground)]">
-                {pick(limitTitle, locale)}
-              </p>
-              <p className="mt-1 text-sm text-[var(--foreground)]/80">
-                {pick(limitBody, locale)}
-              </p>
-              {limitBenefitLine && (
-                <p className="mt-2 text-sm text-[var(--foreground)]/80">
-                  {pick(limitBenefitLine, locale)}
-                </p>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {limitBenefits.map((benefit) => (
-                  <span
-                    key={benefit.en}
-                    className="rounded-full border border-current/15 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)]"
-                  >
-                    {pick(benefit, locale)}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {showsUpgradeBenefits && (
-                  <Link href="/pricing" className={buttonVariants({ size: "sm" })}>
-                    <ArrowUpCircle className="h-3.5 w-3.5" />
-                    {upgradeCtaLabel}
-                  </Link>
-                )}
-                <Link
-                  href="/history"
-                  className={buttonVariants({ variant: "outline", size: "sm" })}
-                >
-                  {pick(COPY.viewHistory, locale)}
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-
         {zipNoNewMessages && (
           <div
             data-testid="zip-no-new-messages"
@@ -1614,66 +1774,8 @@ export default function SummarizePage() {
             </p>
           </div>
         )}
-
-        {summary && (
-          <div ref={summaryRef}>
-            {submissionSource === "zip" && zipResultMeta && (
-              <div
-                data-testid="zip-processed-banner"
-                className="mb-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm"
-                role="status"
-                aria-live="polite"
-              >
-                <p className="font-semibold text-[var(--foreground)]">
-                  {pick(COPY.zipProcessed, locale)}: {formatNumber(zipResultMeta.newMessagesProcessed)}
-                </p>
-                <p className="mt-1 text-[var(--muted-foreground)]">
-                  {zipResultMeta.groupTitle}
-                  {" • "}
-                  {pick(
-                    ZIP_RANGE_OPTIONS.find((option) => option.value === zipResultMeta.range)?.label ?? ZIP_RANGE_OPTIONS[0].label,
-                    locale
-                  )}
-                </p>
-              </div>
-            )}
-            {savedId && (
-              <div
-                data-testid="summary-saved-banner"
-                className="status-success mb-3 flex items-center gap-2 rounded-[var(--radius)] border px-3 py-2 text-sm"
-                role="status"
-                aria-live="polite"
-              >
-                <Check className="h-4 w-4 shrink-0" />
-                <span>{pick(COPY.saved, locale)}</span>
-                <a
-                  href={`/history/${savedId}`}
-                  className="ms-auto text-xs underline hover:no-underline"
-                >
-                  {pick(COPY.view, locale)} →
-                </a>
-              </div>
-            )}
-            <SummaryDisplay
-              summary={summary}
-              outputLang={outputLang === "auto" ? (summary.lang_detected === "ar" ? "ar" : "en") : outputLang}
-              familyContextActive={hasSavedMemory}
-              inlineNoticeIds={summaryNoticeIds}
-              onDismissNotice={(noticeId) => {
-                setSummaryNoticeIds((currentNoticeIds) => currentNoticeIds.filter((currentNoticeId) => currentNoticeId !== noticeId));
-              }}
-              actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
-            />
-            <FollowUpPanel
-              summary={summary}
-              locale={
-                outputLang === "auto"
-                  ? (summary.lang_detected === "ar" ? "ar" : "en")
-                  : (outputLang === "ar" ? "ar" : "en")
-              }
-            />
           </div>
-        )}
+        </div>
       </div>
     </DashboardShell>
   );

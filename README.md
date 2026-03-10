@@ -80,6 +80,17 @@ If Google is disabled:
 - Clicking it shows a clear in-app message that Google is not enabled in Supabase for this project.
 - Email/password login still works.
 
+## Password Reset Redirects (Supabase)
+
+Password recovery now sends users from `/login` to `/reset-password`.
+
+Make sure Supabase Auth URL configuration allows your reset route in both local and production environments, for example:
+
+- `http://localhost:3000/reset-password`
+- `https://your-domain/reset-password`
+
+If you use query-string variations on the reset route, allow the matching pattern in Supabase as well.
+
 For local smoke tests without Google, use seeded dev test users via:
 
 ```powershell

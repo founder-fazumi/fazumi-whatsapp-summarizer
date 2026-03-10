@@ -5,6 +5,11 @@ export type PaymentUiLocale = "en" | "ar";
 // Temporary manual gate until FAZUMI has an approved payment provider.
 export const paymentsComingSoon = true;
 
+export const paymentComingSoonLabel = {
+  en: "Coming soon",
+  ar: "قريبًا",
+} satisfies LocalizedCopy<string>;
+
 export const paymentProviderApprovalNote = {
   en: "Payments are coming soon while provider approval is pending.",
   ar: "الدفع قريبًا بينما ننتظر موافقة مزود الدفع.",

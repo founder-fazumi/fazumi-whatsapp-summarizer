@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpCircle, FileText, Clock, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -9,10 +10,12 @@ import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
 import { getTimeAwareGreeting, pick, t, type LocalizedCopy } from "@/lib/i18n";
+import { PROFILE_UPDATED_EVENT, type ProfileUpdatedDetail } from "@/lib/profile-events";
 import { paymentsComingSoon, withPaymentComingSoonLabel } from "@/lib/payments-ui";
 
 interface DashboardBannerProps {
   userName?: string | null;
+  fallbackUserName?: string | null;
   billingPlan?: string;
   trialExpiresAt?: string | null;
   summariesUsed?: number;
@@ -90,6 +93,7 @@ function planBadge(plan: string, trialExpiresAt?: string | null) {
 
 export function DashboardBanner({
   userName,
+  fallbackUserName,
   billingPlan = "free",
   trialExpiresAt,
   summariesUsed = 0,
@@ -100,6 +104,34 @@ export function DashboardBanner({
   summaryCountThisWeek,
 }: DashboardBannerProps) {
   const { locale } = useLang();
+  const [liveUserName, setLiveUserName] = useState(userName ?? fallbackUserName ?? null);
+
+  useEffect(() => {
+    setLiveUserName(userName ?? fallbackUserName ?? null);
+  }, [fallbackUserName, userName]);
+
+  useEffect(() => {
+    const handleProfileUpdated = (event: Event) => {
+      const detail =
+        event instanceof CustomEvent
+          ? (event.detail as ProfileUpdatedDetail | undefined)
+          : undefined;
+
+      if (detail && "fullName" in detail) {
+        const trimmedName =
+          typeof detail.fullName === "string" ? detail.fullName.trim() : "";
+
+        setLiveUserName(trimmedName || fallbackUserName || null);
+      }
+    };
+
+    window.addEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdated);
+
+    return () => {
+      window.removeEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdated);
+    };
+  }, [fallbackUserName]);
+
   const daysLeft = daysUntil(trialExpiresAt);
   const badge = planBadge(billingPlan, trialExpiresAt);
   const isFounder = billingPlan === "founder";
@@ -111,7 +143,7 @@ export function DashboardBanner({
   const usageLabel = summariesLimit > 0
     ? `${formatNumber(summariesUsed)}/${formatNumber(summariesLimit)}`
     : pick(COPY.upgradeUsage, locale);
-  const bannerName = userName ?? t("dashboard.name.placeholder", locale);
+  const bannerName = liveUserName ?? t("dashboard.name.placeholder", locale);
   const greeting = `${getTimeAwareGreeting(locale)}${locale === "ar" ? "، " : ", "}${bannerName}`;
   const summaryDeltaLabel = getSummaryDeltaLabel({
     locale,

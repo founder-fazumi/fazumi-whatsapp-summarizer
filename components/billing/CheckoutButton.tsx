@@ -8,9 +8,9 @@ import {
   normalizeVariantId,
 } from "@/lib/lemonsqueezy-config";
 import {
+  paymentComingSoonLabel,
   paymentProviderApprovalNote,
   paymentsComingSoon,
-  withPaymentComingSoonLabel,
 } from "@/lib/payments-ui";
 
 interface Props {
@@ -33,10 +33,9 @@ export function CheckoutButton({ variantId, children, className }: Props) {
     : isValidCheckoutVariantId(normalizedVariantId)
       ? "ready"
       : "invalid";
-  const label =
-    typeof children === "string" && paymentsComingSoon
-      ? withPaymentComingSoonLabel(children, locale)
-      : children;
+  const label = checkoutState === "coming_soon"
+    ? paymentComingSoonLabel[locale]
+    : children;
 
   const unavailableMessage = checkoutState === "coming_soon"
     ? paymentProviderApprovalNote[locale]

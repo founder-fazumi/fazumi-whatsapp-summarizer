@@ -2,6 +2,55 @@
 # Format: STORY_ID = STATUS [DONE | IN_PROGRESS | PENDING | BLOCKED]
 # Update this file after each story completes.
 
+# 2026-03-11
+# Playwright localhost IPv4 harness fix completed: local Playwright now defaults to `http://127.0.0.1:<port>` instead of `localhost`, which avoids the Windows `::1` resolution path that was causing repeated `ECONNREFUSED ::1:3000` failures during repo verification.
+# Files: lib/testing/playwright.ts, tasks/lessons.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` pass (`32 passed`, `3 skipped`).
+# Pattern: when local browser verification is failing on Windows loopback resolution rather than app behavior, pin the default test host to `127.0.0.1` and keep host overrides opt-in via env vars.
+#
+
+# 2026-03-11
+# Summarize inline results assistant shipped: `/summarize` now uses a wider two-zone layout so the composer and generated summary stay in the main reading path, while output-language, setup, and ZIP import controls move into a support rail. The summary card now promotes calendar/todo/share actions above the detailed sections, and the `Ask FAZUMI` panel uses more parent-specific BETA prompts derived from the current summary only.
+# Files: specs/summarize-inline-results-assistant-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, app/(dashboard)/summarize/page.tsx, components/SummaryDisplay.tsx, components/summary/FollowUpPanel.tsx
+# Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` pass (`32 passed`, `3 skipped`).
+# Pattern: when the result is the product payoff, keep the generated answer and its action buttons in the first reading path; alternate setup and import tools belong in a secondary rail so they do not bury first value.
+#
+
+# 2026-03-11
+# Summarize invalid-model fallback shipped: live production smoke on `POST /api/demo/summarize` initially reproduced the user-reported 500, Vercel logs exposed `Error: 400 invalid model ID`, and the shared summarize helper now retries once with `gpt-4o-mini` before failing. Production `OPENAI_MODEL` was reset to `gpt-4o-mini`, then the fix was redeployed and verified live on `https://fazumi.com`.
+# Files: specs/summarize-invalid-model-fallback-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, lib/ai/openai-chat.ts, lib/ai/summarize.ts, lib/ai/summarize-zip.ts
+# Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` pass (`32 passed`, `3 skipped`). Production deploy `https://fazumi-whatsapp-summarizer-8ya939r2f-founder-fazumis-projects.vercel.app` is aliased to `https://fazumi.com`, and live `POST https://fazumi.com/api/demo/summarize` returns summary JSON.
+# Pattern: summarize routes need both request-shape compatibility and a model-ID guardrail, because a bad deployment env value can otherwise break the landing demo and authenticated summarize flow at the same time.
+#
+
+# 2026-03-10
+# Summarize OpenAI model compatibility hotfix implemented: text and ZIP summarization now share one OpenAI JSON chat-completion builder, use `max_completion_tokens` instead of deprecated `max_tokens`, and omit `temperature` for GPT-5 / o-series chat models so production summarize does not break when `OPENAI_MODEL` points at a reasoning family.
+# Files: specs/summarize-openai-model-compat-hotfix-2026-03-10.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, lib/ai/openai-chat.ts, lib/ai/summarize.ts, lib/ai/summarize-zip.ts
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass.
+# Pattern: summarize routes should build OpenAI chat requests through one shared compatibility layer so a model-family change cannot silently break the landing demo and authenticated summarize flow at the same time.
+#
+
+# 2026-03-10
+# Profile identity sync + avatar upload completed: `/dashboard` now prefers the saved `profiles.full_name` value for its greeting, `/settings` replaces the avatar URL field with a click-to-upload device photo flow, and the shared top bar plus dashboard banner react immediately to profile update events without requiring logout/login.
+# Files: specs/profile-identity-sync-avatar-upload-2026-03-10.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, lib/profile-events.ts, app/(dashboard)/dashboard/page.tsx, components/dashboard/DashboardBanner.tsx, components/layout/TopBar.tsx, components/settings/SettingsPanel.tsx, app/api/profile/route.ts, app/api/profile/avatar/route.ts
+# Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` pass (`32 passed`, `3 skipped`).
+# Pattern: when profile identity is shown in both server-rendered dashboard content and client shell chrome, read the server dashboard name from `profiles` for freshness, mirror the same fields into auth metadata for shell consumers, and broadcast a small client event after saves/uploads so mounted UI updates immediately.
+#
+
+# 2026-03-10
+# Forgot-password flow completed: `/login` now includes a bilingual recovery request path with generic non-enumerating success copy, `/reset-password` handles the Supabase recovery redirect, clears the recovery hash, validates the new password, signs the user out globally, and returns them to `/login?reset=success`.
+# Files: specs/forgot-password-flow-2026-03-10.md, app/login/page.tsx, app/reset-password/layout.tsx, app/reset-password/page.tsx, app/auth/callback/route.ts, e2e/app-smoke.spec.ts, e2e/support.ts, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`32 passed`, `3 skipped`).
+# Pattern: Supabase password recovery must be treated as its own browser-handled redirect flow instead of assuming it will reuse the server-side OAuth callback contract.
+#
+
+# 2026-03-10
+# Payment CTA copy refinement completed: the landing pricing block plus `/pricing` and `/billing` now show exact `Coming soon` / `قريبًا` copy on purchase buttons, and the shared checkout gate still prevents any Lemon Squeezy checkout redirect while paid-account management links stay unchanged.
+# Files: specs/payment-cta-copy-refinement-2026-03-10.md, tasks/todo.md, tasks/lessons.md, docs/decisions.md, lib/payments-ui.ts, components/billing/CheckoutButton.tsx, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass.
+# Pattern: when provider approval is still pending, acquisition CTAs should use explicit non-action copy instead of action text plus a suffix.
+#
+
 # 2026-03-10
 # Payments coming-soon gate completed: added a shared payment-UI gate, disabled public checkout CTAs, and relabeled upgrade/view-plan acquisition surfaces with `(coming soon)` / `(قريبًا)` while keeping existing paid-user management links unchanged.
 # Files: specs/payments-coming-soon-gate-2026-03-10.md, tasks/todo.md, tasks/lessons.md, docs/decisions.md, lib/payments-ui.ts, components/billing/CheckoutButton.tsx, components/landing/Pricing.tsx, components/billing/BillingPlansPanel.tsx, components/dashboard/DashboardBanner.tsx, components/layout/Sidebar.tsx, components/landing/GoToAppButton.tsx, components/SummaryDisplay.tsx, app/(dashboard)/summarize/page.tsx, components/founder-support/FounderSupportPage.tsx, scripts/ralph/progress.txt
@@ -671,3 +720,12 @@ docs/decisions.md, scripts/ralph/progress.txt
 - Added narrow lint overrides for the newly introduced `react-hooks/purity` and `react-hooks/set-state-in-effect` rules so the security/tooling upgrade would not force unrelated refactors across pre-existing components.
 - Files touched: `specs/nextjs-security-branch-alignment-2026-03-10.md`, `package.json`, `pnpm-lock.yaml`, `eslint.config.mjs`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass; test summary = `31 passed, 3 skipped, 0 failed`.
+
+## 2026-03-10 — Profile identity rollback hardening + avatar removal + preview deploy
+- Fixed the two audit findings in the profile identity slice: `/settings` now shows an explicit `Remove photo` action when an avatar exists, and the avatar API now uses auth-first sync with rollback-safe profile writes plus a dedicated delete path.
+- Hardened avatar storage writes to use unique object keys, clean up uploaded files on failed auth/profile updates, and prune stale avatar files only after the new identity state is safely stored.
+- Extended the dashboard greeting fallback so clearing a saved name falls back to auth metadata/email immediately instead of leaving the banner blank.
+- Files touched: `app/api/profile/avatar/route.ts`, `app/api/profile/route.ts`, `app/(dashboard)/dashboard/page.tsx`, `components/dashboard/DashboardBanner.tsx`, `components/settings/SettingsPanel.tsx`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` pass; test summary = `32 passed, 3 skipped, 0 failed`.
+- Preview deploy: `https://fazumi-whatsapp-summarizer-1i0i4la5q-founder-fazumis-projects.vercel.app`
+- Patterns confirmed: mirrored profile identity fields need rollback semantics across `profiles` and Auth metadata, and replacing an input-based optional field must preserve an intentional clear/remove action in the UI.

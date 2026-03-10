@@ -242,6 +242,46 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 ## D027 - Payment acquisition stays in a coming-soon state until provider approval
 **Date:** 2026-03-10
 **Context:** FAZUMI's pricing and founder surfaces were already wired for Lemon Squeezy-style checkout, but provider approval is still pending and the public UI should not imply that payment is live.
-**Decision:** Keep pricing and upgrade surfaces visible, but gate all new payment-acquisition CTAs behind a shared coming-soon flag. Purchase buttons stay disabled with `(coming soon)` / `(قريبًا)` labels, while existing paid-account management links remain unchanged.
+**Decision:** Keep pricing and upgrade surfaces visible, but gate all new payment-acquisition CTAs behind a shared coming-soon flag. Purchase buttons stay disabled and use explicit `Coming soon` / `قريبًا` copy, while existing paid-account management links remain unchanged.
 **Consequences:** Users can still inspect plans and pricing, but they cannot be sent into a fake or premature checkout flow. Re-enabling payments later becomes one shared config change instead of a scattered copy pass across multiple routes.
+
+---
+
+## D028 - Password recovery uses a dedicated browser route, not the server auth callback
+**Date:** 2026-03-10
+**Context:** Email/password auth already existed, but adding forgot-password exposed that Supabase recovery links return browser hash tokens rather than the server-readable `code` used by OAuth and email-confirm flows.
+**Decision:** Start password recovery from `/login`, but send the recovery redirect straight to `/reset-password` instead of `/auth/callback`. The reset page establishes the recovery session from the Supabase hash payload, clears the hash from the URL, validates the new password, then signs the user out globally and returns them to `/login?reset=success`.
+**Consequences:** The recovery flow matches the way Supabase currently delivers reset sessions without requiring a custom email template or a second auth service. OAuth and other code-exchange flows keep using `/auth/callback`, while password reset remains isolated to one browser-only route.
+
+---
+
+## D029 - Dashboard identity prefers the profile row, and avatar uploads stay inside Supabase
+**Date:** 2026-03-10
+**Context:** `/settings` could save `full_name`, but `/dashboard` still derived its greeting from auth metadata that may lag behind the saved profile row. The same settings screen also required a pasted public avatar URL instead of a direct device upload flow.
+**Decision:** Server-rendered dashboard identity now prefers `profiles.full_name` over auth metadata, while still mirroring profile identity fields into Supabase Auth `user_metadata` for shell surfaces that depend on the auth user object. Avatar changes use an authenticated `/api/profile/avatar` upload route backed by a Supabase Storage `avatars` bucket instead of a manual URL field. Identity writes update Auth metadata first, roll back on downstream profile-write failure, and expose an explicit avatar-delete path instead of relying on a hidden clear-state side effect.
+**Consequences:** The dashboard greeting reflects the saved profile name without waiting on a later auth refresh, and profile photo changes stay within the existing Supabase stack with no external image host or raw chat storage impact. The settings UI keeps an intentional remove-photo affordance, and partial failures are less likely to leave the dashboard shell and profile row showing different identity data.
+
+---
+
+## D030 - Summary generation keeps a chat-completions request shape that is safe across model families
+**Date:** 2026-03-10
+**Context:** The landing demo and authenticated summarize flow share one OpenAI chat-completions request. A production model/env change can break both routes at once if the request still relies on deprecated or model-specific parameters.
+**Decision:** Keep the current chat-completions-based summarize flow for now, but centralize the JSON request builder and use `max_completion_tokens` instead of `max_tokens`. For GPT-5 and o-series chat models, omit legacy sampling controls like `temperature`; for current non-reasoning chat models, keep the deterministic temperature setting.
+**Consequences:** Summary generation is more resilient to `OPENAI_MODEL` changes without forcing a larger Responses API migration in this hotfix. Any future summarize-model change should go through the shared builder instead of hand-built request objects in each route.
+
+---
+
+## D031 - Summarize falls back to the safe default model if Vercel points at an invalid OpenAI model ID
+**Date:** 2026-03-11
+**Context:** Live production verification after D030 still showed `POST /api/demo/summarize` failing with `Error: 400 invalid model ID` in Vercel logs. Both the landing demo and the authenticated summarize flow depend on the same `OPENAI_MODEL` setting, so one bad Vercel value could still take down the whole summarize experience.
+**Decision:** Keep the shared Chat Completions summarize path, but add one shared retry guard: if the configured summarize model is rejected with `invalid model ID`, retry once with the known-safe default `gpt-4o-mini`, log the fallback server-side, and record the actual model used in usage metadata. Also reset the Vercel production `OPENAI_MODEL` value to `gpt-4o-mini` for the immediate recovery.
+**Consequences:** A bad `OPENAI_MODEL` env value now degrades to the safe default instead of surfacing a generic 500 to end users, and Vercel config drift is less likely to become a parent-facing outage. The app still logs the fallback so the misconfiguration can be corrected instead of silently living forever.
+
+---
+
+## D032 - `/summarize` keeps the generated result in the first reading path
+**Date:** 2026-03-11
+**Context:** The conversational redesign had already narrowed `/summarize`, but the page still stacked output-language, setup, and ZIP cards ahead of the actual result. On desktop this wasted width, and on the main parent flow it forced users to scroll past support controls before they could read the summary they just asked for.
+**Decision:** Keep `/summarize` paste-first, but widen the route canvas and split it into two zones: the main column owns the composer plus the generated result, while output-language, source/group setup, and ZIP import live in a secondary support rail. Within the result card, promote the calendar/todo/share actions above the detailed sections so the next step is visible immediately.
+**Consequences:** The summary now appears directly below the paste composer instead of below setup cards, which better matches the parent mental model of "paste, get the answer, then act on it." Secondary controls still exist, but they no longer dominate the first-value path or compress the result grid unnecessarily.
 

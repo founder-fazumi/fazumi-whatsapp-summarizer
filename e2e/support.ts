@@ -347,6 +347,46 @@ export async function loginWithEmail(page: Page, account: TestAccount) {
   }
 }
 
+export async function generateRecoveryLink(
+  email: string,
+  nextPath = "/reset-password?flow=recovery"
+) {
+  const admin = getAdminClient();
+  const redirectTo = `${getPlaywrightBaseUrl()}${nextPath}`;
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: {
+      redirectTo,
+    },
+  });
+
+  if (error) {
+    throw new Error(`Could not generate recovery link for ${email}: ${error.message}`);
+  }
+
+  const actionLink = data.properties?.action_link;
+  if (!actionLink) {
+    throw new Error(`Recovery link generation for ${email} returned no action link.`);
+  }
+
+  return actionLink;
+}
+
+export async function setAuthPassword(email: string, password: string) {
+  const admin = getAdminClient();
+  const user = await findUserByEmail(admin, email);
+  if (!user.id) {
+    throw new Error(`Could not resolve auth user ID for ${email}.`);
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(user.id, { password });
+
+  if (error) {
+    throw new Error(`Could not update auth password for ${email}: ${error.message}`);
+  }
+}
+
 export async function resetTestUser(
   email: string,
   options: {

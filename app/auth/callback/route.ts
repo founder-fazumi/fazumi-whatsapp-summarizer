@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const next = searchParams.get("next");
   const safeNext = next && next.startsWith("/") ? next : "/dashboard";
+  const isRecoveryFlow = safeNext.startsWith("/reset-password");
   const forwardedHost = request.headers.get("x-forwarded-host");
   const isLocalEnv = process.env.NODE_ENV === "development";
   const redirectOrigin =
@@ -19,6 +20,10 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(`${redirectOrigin}${safeNext}`);
     }
+  }
+
+  if (isRecoveryFlow) {
+    return NextResponse.redirect(`${redirectOrigin}/login?error=recovery_failed`);
   }
 
   // Auth failed — redirect to login with error flag
