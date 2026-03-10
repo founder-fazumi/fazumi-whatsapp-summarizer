@@ -6,6 +6,35 @@
 
 ---
 
+## Story - Linux build script portability hotfix (2026-03-10) [DONE]
+
+> Spec file: `specs/linux-build-script-portability-2026-03-10.md`
+> Rule: any npm pre-script that runs automatically in build or test flows must stay cross-platform; PowerShell is reserved for explicit Windows operator commands only.
+
+#### LBP1 - Add shared Node build-artifact cleanup [Codex]
+**Why:** Vercel Linux failed before `next build` because `prebuild` depended on `pwsh`, and local build/test flows could also leave stale `.next/dev` artifacts behind.
+**Files:** `scripts/clean-next-artifacts.mjs`, `package.json`
+**Acceptance:**
+- [x] `.next/trace` and `.next/dev` cleanup moved into a cross-platform Node helper.
+- [x] Cleanup stays best-effort and does not fail the build if those artifacts are already gone or locked.
+
+#### LBP2 - Remove PowerShell from auto-run pre-scripts [Codex]
+**Why:** The same portability issue can also affect non-Windows dev/test environments that invoke `pnpm dev`.
+**Files:** `package.json`
+**Acceptance:**
+- [x] `prebuild` uses the shared Node helper instead of `pwsh`.
+- [x] `predev` uses the same Node helper before the existing cache cleanup script.
+
+#### LBP3 - Verify and record the fix [Codex]
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] `pnpm build` passes.
+
+---
+
 ## Story - Summarize route resilience hotfix (2026-03-10) [DONE]
 
 > Spec file: user-requested hotfix (no standalone spec)

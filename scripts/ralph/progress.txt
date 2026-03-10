@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-10
+# Linux build script portability hotfix completed: the auto-run Next.js cleanup path now removes `.next/trace` and stale `.next/dev` artifacts through a shared Node helper, and both `predev` and `prebuild` no longer depend on `pwsh`, so Linux/Vercel builds and post-test local builds can reach `next build` normally.
+# Files: specs/linux-build-script-portability-2026-03-10.md, package.json, scripts/clean-next-artifacts.mjs, tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
+# Pattern: any npm script that runs automatically in build or dev startup must use a cross-platform helper, while PowerShell stays reserved for explicit Windows operator commands.
+#
+
+# 2026-03-10
 # Summarize resilience hotfix completed: text and ZIP summary saves now retry without newer optional summary columns when the DB schema lags, AI-request logging and todo seeding no longer abort the request on thrown transport failures, and `/history` now tolerates missing optional summary metadata fields.
 # Files: app/api/summarize/route.ts, lib/server/summaries.ts, app/(dashboard)/history/page.tsx, tasks/todo.md, tasks/lessons.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`31 passed`, `3 skipped`).

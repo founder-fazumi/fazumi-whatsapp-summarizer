@@ -320,6 +320,14 @@
 
 ---
 
+## L040 — Auto-run npm pre-scripts must not depend on PowerShell
+**Mistake:** `prebuild` invoked `pwsh`, so Vercel Linux failed before `next build` started, and the same auto-run cleanup path also left stale `.next/dev` artifacts in place after local dev/test runs.
+**Why:** A Windows-specific command was placed in an npm pre-script that runs automatically in cross-platform build environments.
+**Rule:** Any npm `pre*` script or CI/build script that runs automatically must use Node or another cross-platform runtime, and it should clear any stale Next.js dev artifacts that can poison a later production build. Keep PowerShell only for explicit operator-run Windows helpers such as `pnpm smoke`.
+**Quick test:** Run `pnpm test` followed by `pnpm build`, and confirm the build reaches `next build` without `pwsh: command not found` or a `.next/dev/types/validator.ts` compile error.
+
+---
+
 ## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
 **Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.

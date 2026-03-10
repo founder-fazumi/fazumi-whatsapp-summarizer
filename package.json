@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "pwsh -Command \"$paths = '.next/cache/.previewinfo','.next/trace'; foreach ($path in $paths) { if (Test-Path $path) { Remove-Item -Force $path -ErrorAction SilentlyContinue } }\" && node scripts/clean-next-dev-cache.mjs",
+    "predev": "node scripts/clean-next-artifacts.mjs && node scripts/clean-next-dev-cache.mjs",
     "dev": "next dev",
     "dev:webpack": "next dev",
-    "prebuild": "node -e \"try{require('fs').rmSync('.next/trace',{force:true,recursive:true})}catch{}\"",
+    "prebuild": "node scripts/clean-next-artifacts.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
