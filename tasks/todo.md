@@ -8,6 +8,48 @@
 
 ## Story - Linux build script portability hotfix (2026-03-10) [DONE]
 
+## Story - Summarize conversational redesign (2026-03-10) [DONE]
+
+> Spec file: `specs/summarize-conversational-redesign-2026-03-10.md`
+> Rule: keep summarize APIs, auth logic, analytics events, and existing `data-testid` attributes unchanged while tightening the page into a paste-first conversational flow.
+
+#### SCR1 - Narrow and simplify the summarize shell [Codex]
+**Why:** The summarize page currently feels like a stacked dashboard form instead of a compact assistant surface.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] `DashboardShell` uses `contentClassName="max-w-2xl"`.
+- [x] The top paste card uses lighter spacing without shrinking the textarea below the current 12 rows.
+- [x] `scrollToSummary()` snaps with `behavior: "instant"`.
+
+#### SCR2 - Remove the Memory + Autopilot card block [Codex]
+**Why:** That information belongs in settings/dashboard, not the main summarize workflow.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] The card block that rendered the Memory and Autopilot columns is removed from `/summarize`.
+- [x] Existing memory-related state still loads so the page can personalize the summary and header note.
+
+#### SCR3 - Add follow-up questions below the summary [Codex]
+**Why:** The result should feel interactive without adding another AI request.
+**Files:** `components/summary/FollowUpPanel.tsx`, `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] A new dismissible `FollowUpPanel` renders only when a summary exists.
+- [x] The panel derives 3-4 contextual questions from `SummaryResult` with no API call.
+- [x] The panel is bilingual and RTL-safe.
+
+#### SCR4 - Add lightweight saved-memory context above the form [Codex]
+**Why:** Removing the large memory card still needs a small signal when summaries are personalized.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] When `hasSavedMemory` is true, a one-line Sparkles notice appears above the input card.
+- [x] No existing `data-testid` attributes are renamed or removed.
+
+#### SCR5 - Verify and record the redesign [Codex]
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`, `tasks/lessons.md`
+**Acceptance:**
+- [x] `pnpm lint` passes after each coding phase.
+- [x] `pnpm typecheck` passes after each coding phase.
+- [x] Final `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass.
+
 > Spec file: `specs/linux-build-script-portability-2026-03-10.md`
 > Rule: any npm pre-script that runs automatically in build or test flows must stay cross-platform; PowerShell is reserved for explicit Windows operator commands only.
 

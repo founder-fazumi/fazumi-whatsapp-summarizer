@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArrowUpCircle, BellRing, Check, ShieldCheck, Sparkles, Upload } from "lucide-react";
+import { Archive, ArrowUpCircle, Check, Sparkles, Upload } from "lucide-react";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
 import { PmfSurveyModal } from "@/components/pmf/PmfSurveyModal";
 import { SummaryDisplay } from "@/components/SummaryDisplay";
+import { FollowUpPanel } from "@/components/summary/FollowUpPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -494,14 +495,6 @@ function detectDraftLanguage(text: string): "en" | "ar" | null {
   return arabicChars / totalAlpha >= 0.3 ? "ar" : "en";
 }
 
-function formatRetentionLabel(days: number | null, locale: "en" | "ar") {
-  if (days === null) {
-    return pick(COPY.retentionKeep, locale);
-  }
-
-  return `${formatNumber(days)} ${pick(COPY.retentionDays, locale)}`;
-}
-
 function buildMilestoneNoticeId(milestone: MilestoneThreshold): SummaryNoticeId {
   return `milestone-${milestone}`;
 }
@@ -547,7 +540,7 @@ export default function SummarizePage() {
   const [summaryNoticeIds, setSummaryNoticeIds] = useState<SummaryNoticeId[]>([]);
   const [savedGroups, setSavedGroups] = useState<SavedGroupOption[]>([]);
   const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext | null>(null);
-  const [summaryRetentionDays, setSummaryRetentionDays] = useState<number | null>(null);
+  const [, setSummaryRetentionDays] = useState<number | null>(null);
   const [summaryContextLoaded, setSummaryContextLoaded] = useState(false);
   const [zipResultMeta, setZipResultMeta] = useState<{
     range: SummarizeZipRange;
@@ -742,7 +735,7 @@ export default function SummarizePage() {
   function scrollToSummary() {
     setTimeout(() => {
       summaryRef.current?.scrollIntoView({
-        behavior: "smooth",
+        behavior: "instant",
         block: "start",
       });
     }, 100);
@@ -1101,23 +1094,33 @@ export default function SummarizePage() {
   }
 
   return (
-    <DashboardShell contentClassName="max-w-4xl">
+    <DashboardShell contentClassName="max-w-2xl">
       <FounderWelcomeModal isFounder={billingPlan === "founder"} />
       <PmfSurveyModal summaryCount={summaryCount} />
       <div
         dir={isRtl ? "rtl" : "ltr"}
         lang={locale}
-        className={cn("space-y-6", isRtl && "font-arabic")}
+        className={cn("space-y-4", isRtl && "font-arabic")}
       >
+        {hasSavedMemory && (
+          <div className="mb-3 flex items-center gap-1.5 text-xs text-[var(--primary)]">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              {locale === "ar"
+                ? "Fazumi يعرف عائلتك — ملخصاتك مخصصة لك."
+                : "Fazumi knows your family — summaries are personalised for you."}
+            </span>
+          </div>
+        )}
         <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
-          <CardContent className="p-6">
-            <div className="mb-4 flex items-center gap-2">
+          <CardContent className="p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
               <Sparkles className="h-4 w-4 shrink-0 text-[var(--primary)]" />
               <h1 className="text-[var(--text-base)] font-semibold text-[var(--foreground)]">
                 {pick(COPY.title, locale)}
               </h1>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)]">
                 <Textarea
                   data-testid="summary-input"
@@ -1129,12 +1132,12 @@ export default function SummarizePage() {
                   rows={12}
                   disabled={loading}
                   className={cn(
-                    "min-h-[300px] resize-none border-0 bg-transparent px-5 py-5 text-[var(--text-base)] leading-relaxed shadow-none focus-visible:ring-0",
+                    "min-h-[300px] resize-none border-0 bg-transparent px-4 py-4 text-[var(--text-base)] leading-relaxed shadow-none focus-visible:ring-0",
                     isOverLimit && "bg-[var(--destructive-soft)]"
                   )}
                 />
                 {showCount && (
-                  <div className="flex items-center justify-end border-t border-[var(--border)] px-4 py-3 text-sm">
+                  <div className="flex items-center justify-end border-t border-[var(--border)] px-4 py-2.5 text-sm">
                     <span
                       className={cn(
                         "tabular-nums",
@@ -1157,7 +1160,7 @@ export default function SummarizePage() {
                 </div>
               )}
 
-              <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     ref={textFileInputRef}
@@ -1657,89 +1660,16 @@ export default function SummarizePage() {
               }}
               actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
             />
+            <FollowUpPanel
+              summary={summary}
+              locale={
+                outputLang === "auto"
+                  ? (summary.lang_detected === "ar" ? "ar" : "en")
+                  : (outputLang === "ar" ? "ar" : "en")
+              }
+            />
           </div>
         )}
-
-        <Card className="bg-[var(--surface-elevated)] shadow-[var(--shadow-card)]">
-          <CardContent className="grid gap-4 p-6 lg:grid-cols-2">
-            <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-[var(--primary)]" />
-                <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
-                  {pick(COPY.memoryTitle, locale)}
-                </p>
-              </div>
-              <p className="mt-2 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
-                {pick(COPY.memoryBody, locale)}
-              </p>
-              {hasSavedMemory && savedFamilyContext ? (
-                <ul className="mt-3 space-y-2 text-sm text-[var(--foreground)]">
-                  {savedFamilyContext.school_name && <li>• {savedFamilyContext.school_name}</li>}
-                  {savedFamilyContext.child_name && <li>• {savedFamilyContext.child_name}</li>}
-                  {savedFamilyContext.class_name && <li>• {savedFamilyContext.class_name}</li>}
-                  {savedFamilyContext.teacher_names.map((name) => (
-                    <li key={name}>• {name}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-3 text-sm text-[var(--muted-foreground)]">
-                  {pick(COPY.memoryEmpty, locale)}
-                </p>
-              )}
-              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
-                {pick(COPY.retention, locale)}
-              </p>
-              <p className="mt-1 text-sm text-[var(--foreground)]">
-                {formatRetentionLabel(summaryRetentionDays, locale)}
-              </p>
-              <Link href="/settings" className="mt-4 inline-flex text-sm font-semibold text-[var(--primary)] hover:underline">
-                {pick(COPY.memoryEdit, locale)}
-              </Link>
-            </div>
-
-            <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="flex items-center gap-2">
-                <BellRing className="h-4 w-4 text-[var(--primary)]" />
-                <p className="text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
-                  {pick(COPY.autopilotTitle, locale)}
-                </p>
-              </div>
-              <p className="mt-2 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
-                {pick(COPY.autopilotBody, locale)}
-              </p>
-              <ul className="mt-3 space-y-2 text-sm text-[var(--foreground)]">
-                <li>• {pick(COPY.autopilotDigest, locale)}</li>
-                <li>• {pick(COPY.autopilotAlerts, locale)}</li>
-                <li>• {pick(COPY.autopilotReminders, locale)}</li>
-                <li>• {pick(COPY.autopilotActions, locale)}</li>
-              </ul>
-              <div className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3 text-sm">
-                <p className="font-semibold text-[var(--foreground)]">
-                  {pick(COPY.trustTitle, locale)}
-                </p>
-                <p className="mt-2 text-[var(--foreground)]">
-                  <span className="font-semibold">{pick(COPY.trustStoredLabel, locale)}:</span>{" "}
-                  {pick(COPY.trustStoredBody, locale)}
-                </p>
-                <p className="mt-2 text-[var(--foreground)]">
-                  <span className="font-semibold">{pick(COPY.trustNotStoredLabel, locale)}:</span>{" "}
-                  {pick(COPY.trustNotStoredBody, locale)}
-                </p>
-                <p className="mt-2 text-[var(--muted-foreground)]">
-                  {pick(COPY.trustZipBody, locale)}
-                </p>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link href="/dashboard" className={buttonVariants({ size: "sm" })}>
-                  {pick(COPY.autopilotCta, locale)}
-                </Link>
-                <Link href="/settings" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                  {pick(COPY.trustCta, locale)}
-                </Link>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </DashboardShell>
   );

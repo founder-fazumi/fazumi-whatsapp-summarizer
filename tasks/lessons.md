@@ -328,6 +328,14 @@
 
 ---
 
+## L041 — Summary-scoped dismissible UI must reset when a new summary arrives
+**Mistake:** The new follow-up panel initially kept its dismissed state when the user generated another summary in the same session.
+**Why:** The component stayed mounted under the same `summary && <FollowUpPanel />` branch, so `useState` persisted across prop changes.
+**Rule:** Any dismissible summary-side panel should reset its local state when the `summary` prop changes, or be keyed by summary identity so each new result starts fresh.
+**Quick test:** Dismiss the panel, generate a new summary, and confirm the panel reappears in its collapsed default state.
+
+---
+
 ## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
 **Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.

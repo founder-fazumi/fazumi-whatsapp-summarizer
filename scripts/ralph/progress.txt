@@ -643,3 +643,10 @@ docs/decisions.md, scripts/ralph/progress.txt
 - Fixed DAILY_CAP limit banner incorrectly showing /pricing link for trial users
 - Removed duplicate saveSummary from route.ts; now uses shared saveSummaryRecord
 - pnpm test: 31 passed, 3 skipped, 0 failed
+
+## 2026-03-10 — Summarize conversational redesign
+- Narrowed `/summarize` to a `max-w-2xl` shell, tightened the top paste card spacing, and switched summary scrolling to `behavior: "instant"` so the result snaps into view.
+- Removed the Memory + Autopilot card block from the summarize flow and replaced it with a lightweight saved-memory Sparkles notice above the form.
+- Added `components/summary/FollowUpPanel.tsx`, mounted it below `SummaryDisplay`, and derived 3-4 expandable follow-up questions from the existing `SummaryResult` without any new API call.
+- Files touched: `specs/summarize-conversational-redesign-2026-03-10.md`, `app/(dashboard)/summarize/page.tsx`, `components/summary/FollowUpPanel.tsx`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass; test summary = `31 passed, 3 skipped, 0 failed`.
