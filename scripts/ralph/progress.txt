@@ -2,6 +2,20 @@
 # Format: STORY_ID = STATUS [DONE | IN_PROGRESS | PENDING | BLOCKED]
 # Update this file after each story completes.
 
+# 2026-03-10
+# Emotional design Phase 6 analytics alignment completed: the summarize flow now records the requested `first_value_delivered` session-start metric, the result/paywall/PMF surfaces emit the missing Phase 6 analytics events, and the re-engagement cron route logs `reengagement_sent` server-side without importing browser analytics code.
+# Files: specs/emotional-design-phase-6-analytics-alignment-2026-03-10.md, tasks/todo.md, tasks/emotional-design-impl.md, tasks/lessons.md, lib/analytics.ts, app/(dashboard)/summarize/page.tsx, components/summary/StatusLine.tsx, components/SummaryDisplay.tsx, components/pmf/PmfSurveyModal.tsx, components/dashboard/UpgradeBanner.tsx, app/api/cron/reengagement/route.ts, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass. Event firing was verified by code-path review in this shell environment rather than a live browser/PostHog session.
+# Pattern: when an analytics phase specifies exact event names and fire points, replace the legacy alias and audit every named component or route directly instead of assuming the broad earlier instrumentation is sufficient.
+#
+
+# 2026-03-10
+# Emotional design Phase 5 alignment completed: the morning digest now speaks in 7-day summary and action-item totals with a no-activity fallback, re-engagement moved into its own protected hourly cron route with verified-email and 28-day cooldown checks, and the PMF modal now shows the requested second-screen `biggest_benefit` follow-up only for `very_disappointed`.
+# Files: specs/emotional-design-phase-5-retention-alignment-2026-03-10.md, tasks/todo.md, tasks/emotional-design-impl.md, tasks/lessons.md, lib/push/server.ts, scripts/schedule-morning-digest.ts, app/api/cron/reengagement/route.ts, components/pmf/PmfSurveyModal.tsx, vercel.json, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass. Browser-level PMF submission and live cron execution were not run in this shell environment.
+# Pattern: when a retention feature shares infrastructure with another scheduler, keep the delivery window logic reusable but give the feature its own protected cron boundary so copy, cooldowns, and user-level tracking can match the exact prompt without piggyback drift.
+#
+
 S001 = PENDING  # Next.js scaffold + dev tooling
 S002 = PENDING  # Supabase DB schema + RLS
 S003 = PENDING  # Paste text → AI summary → display
@@ -12,6 +26,76 @@ S007 = PENDING  # Dashboard: history list + detail view
 S008 = PENDING  # Lemon Squeezy payments + webhook
 S009 = PENDING  # Plan limits enforcement
 S010 = PENDING  # Referral system
+
+# 2026-03-10
+# Emotional design Phase 4 alignment completed: the summarize result now shows a quiet saved-school-context note when profile family memory exists, and the settings family-memory save action now confirms that future summaries will reflect the saved context without adding a toast or changing unrelated settings feedback.
+# Files: components/SummaryDisplay.tsx, app/(dashboard)/summarize/page.tsx, components/settings/SettingsPanel.tsx, tasks/emotional-design-impl.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when saved context affects model quality but the AI contract does not expose a match flag, surface the investment with an app-side signal from already-loaded profile data instead of broadening the prompt or response schema.
+#
+
+# 2026-03-10
+# Emotional design Phase 3 alignment completed: the dashboard upgrade banner now uses the requested Pro, Founder, and fallback welcome copy with a small `/summarize` link, and the summarize page now shows the exact DAILY_CAP / LIFETIME_CAP reassurance-plus-benefit copy plus a mobile near-limit indicator driven by live usage data.
+# Files: components/dashboard/UpgradeBanner.tsx, app/(dashboard)/dashboard/page.tsx, app/(dashboard)/summarize/page.tsx, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when post-checkout UX depends on a webhook that may not have finished yet, pass the best available entitlement into the banner and keep the fallback useful instead of inventing plan certainty.
+#
+
+# 2026-03-09
+# Emotional design Phase 1 completed: the summary result now adds a calm payoff block, a StatusLine built from existing structured summary data, visible family-context chips when saved memory is present, and a first-summary-only `time_to_first_value_recorded` analytics event from the summarize flow.
+# Files: components/SummaryDisplay.tsx, app/(dashboard)/summarize/page.tsx, lib/analytics.ts, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when the emotional gap is on the result screen, prefer reusing already-structured summary metadata and prompt-context echoes instead of changing the AI contract or weakening the privacy promise.
+#
+
+# 2026-03-09
+# Emotional design Phase 2 completed: the post-payment banner now explains the unlocked family benefits, the zero-history page teaches the first-use loop with a stronger CTA, and summarize limit messaging now distinguishes free-cap upgrade benefits from paid-plan daily limits.
+# Files: components/dashboard/UpgradeBanner.tsx, app/(dashboard)/history/page.tsx, app/(dashboard)/summarize/page.tsx, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass.
+# Pattern: when an emotional-state fix sits on an already-working flow, keep the behavior stable and change the framing first so users understand the benefit without retraining the route.
+#
+
+# 2026-03-09
+# Emotional design Phase 3 completed: the result screen now acknowledges value at key saved-summary thresholds and adds contextual nudges toward calendar export, family sharing, and searchable history without introducing any new product surface.
+# Files: components/SummaryDisplay.tsx, app/(dashboard)/summarize/page.tsx, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: discovery nudges work better when they are attached to the exact summary data that makes the next action useful, instead of being broadcast as generic feature marketing.
+#
+
+# 2026-03-09
+# Emotional design Phase 4 completed: the dashboard now compares current stats to the prior week and includes a small in-product weekly progress summary built from existing summary history, without extending push delivery yet.
+# Files: app/(dashboard)/dashboard/page.tsx, components/dashboard/DashboardBanner.tsx, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: progress feedback feels calmer when totals stay stable and the trend context explains the movement, instead of replacing the main metric with a trend-only view.
+#
+
+# 2026-03-09
+# Emotional design Phase 5 completed: the PMF modal keeps its existing one-question flow, but "Very disappointed" responders now have a short follow-up field whose `missing_if_gone` answer is submitted through the already-supported PMF API contract.
+# Files: components/pmf/PmfSurveyModal.tsx, app/api/pmf/route.ts, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when the backend contract already supports richer feedback, finish the client-side wiring first and avoid broadening the slice into redundant API changes.
+#
+
+# 2026-03-09
+# Emotional design Phase 6 completed: the existing 7 AM digest channel now sends a Sunday weekly-progress recap instead of a second daily notification, uses dedicated morning/weekly digest timestamps for safe dedupe, and updates the settings copy so the push opt-in remains explicit.
+# Files: supabase/migrations/2026030902_add_digest_delivery_tracking_to_push_subscriptions.sql, lib/push/server.ts, components/settings/SettingsPanel.tsx, scripts/schedule-morning-digest.ts, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when a new notification would otherwise double-send on the same day, fold it into the existing cadence window and separate the delivery timestamps instead of stacking another push path on top.
+#
+
+# 2026-03-09
+# Emotional design Phase 7 completed: users who have gone 14 or more days without a saved summary can now receive one calm re-engagement reminder per inactivity gap, tracked at the profile level and routed through the existing 7 AM notification window with explicit settings disclosure.
+# Files: supabase/migrations/2026030903_add_profile_reengagement_tracking.sql, lib/push/server.ts, components/settings/SettingsPanel.tsx, scripts/schedule-morning-digest.ts, tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint` and `pnpm typecheck` pass.
+# Pattern: when the product promise is once per inactivity gap, track the reminder on the user record rather than the browser subscription so multi-device opt-in does not turn into duplicate nudges.
+#
+
+# 2026-03-09
+# Emotional design Phase 8 completed: the rollout is now fully logged, `docs/decisions.md` records the final notification-cadence architecture, `tasks/lessons.md` captures the notification-scope mistake, and the final verification pass ended with green lint/typecheck/build plus a recorded Playwright server-start blocker.
+# Files: tasks/emotional-design-impl.md, tasks/todo.md, tasks/lessons.md, docs/decisions.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. `pnpm test` was attempted twice but the Playwright suite could not reach `http://localhost:3000` and failed with repeated `ECONNREFUSED ::1:3000`; `pwsh ./scripts/smoke.ps1` also timed out before returning a stable suite result.
+# Pattern: when final verification fails in generated build artifacts or browser harness startup rather than app source, fix the generated-state issue directly, rerun the static checks, and record the exact remaining environment blocker instead of smearing it across the feature summary.
+#
 
 # 2026-03-09
 # Founder supporter discoverability slice is code-complete: the desktop landing nav now includes an amber localized founder pill linking to `/founder-supporter`, and the Fazumi footer group adds a localized Founder Supporter link after Pricing on both desktop and mobile accordion layouts.
@@ -456,3 +540,87 @@ specs/admin-overview-kpi-strip-2026-03-09.md, tasks/todo.md
 ### Patterns confirmed
 - If a requested admin UI slice is described against an older snapshot, anchor the implementation to the live metrics type and record the drift before editing
 - Inline SVG sparklines are enough for compact KPI cards when the chart is decorative and empty-state-safe behavior matters more than adding another chart abstraction
+
+## Sprint: Emotional design audit baseline (2026-03-09)
+
+### What changed
+- `tasks/emotional-design-impl.md`: added the required Phase 0 log, baseline findings, blockers, and the scoped Phase 1-8 plan
+- `specs/emotional-design-improvements-2026-03-09.md`: reused the existing emotional-design spec as the Phase 0 source of truth for the rollout
+- `tasks/todo.md`: aligned Phase 0 planning with the existing EDI1-EDI8 checklist instead of creating a duplicate story section
+
+### Files touched
+tasks/emotional-design-impl.md, tasks/todo.md, scripts/ralph/progress.txt
+
+### Verification
+- Phase 0 was planning/documentation only; no product code changed yet
+- Required baseline files were inspected before implementation work starts
+
+### Patterns confirmed
+- The current summary payload plus `deriveActionCenter()` already provide enough structured signal to build a calm result StatusLine without changing the AI schema first
+- Existing PMF and push/digest infrastructure can be extended, but weekly-progress and inactivity notifications need their own cadence guard instead of reusing the daily digest timestamp
+
+## Sprint: Emotional design Phase 1 alignment (2026-03-10)
+
+### What changed
+- `components/summary/StatusLine.tsx`: added a dedicated calm status line with EN/AR action/date/payment phrasing, muted icon treatment, and RTL-safe count emphasis
+- `components/SummaryDisplay.tsx`: inserted the new StatusLine directly after the result header, added the `Saved ~X min` / `وفَّرت ~X دقيقة` header label, and kept the existing privacy footer untouched
+- `app/globals.css`: added a 300ms opacity-only summary fade-in utility because no existing fade-in class was present
+- `tasks/emotional-design-impl.md`: rewrote the log into the requested Phase 1 structure and recorded the checkpoint outcome
+
+### Files touched
+components/summary/StatusLine.tsx, components/SummaryDisplay.tsx,
+app/globals.css, tasks/emotional-design-impl.md, scripts/ralph/progress.txt
+
+### Verification
+- `pnpm lint` passed
+- `pnpm typecheck` passed
+- `pwsh ./scripts/smoke.ps1` was attempted for browser verification but timed out before it returned a stable result in this shell
+
+### Patterns confirmed
+- When a result-screen status treatment exists but does not match the required emotional contract, replace it with one dedicated component instead of layering more chip logic into the display file
+
+## Sprint: Emotional design Phase 2 alignment (2026-03-10)
+
+### What changed
+- `components/history/HistoryList.tsx`: moved the first-use history empty state into the component itself, added the requested bilingual `EmptyState` copy, and kept the search/filter shell unchanged for non-empty history states
+- `app/(dashboard)/dashboard/page.tsx`: added the lightweight zero-summary note directly below `DashboardBanner` with a link to `/summarize`
+- `app/(dashboard)/summarize/page.tsx` and `components/SummaryDisplay.tsx`: replaced the earlier ad hoc milestone/discovery treatment with dismissible inline notices under `StatusLine`, using thresholds `1`, `5`, `10`, `25`, `50` plus the one-time 5th-summary calendar nudge and browser-local once-only gating
+
+### Files touched
+components/history/HistoryList.tsx, app/(dashboard)/dashboard/page.tsx,
+app/(dashboard)/summarize/page.tsx, components/SummaryDisplay.tsx,
+tasks/emotional-design-impl.md, tasks/todo.md, tasks/lessons.md,
+scripts/ralph/progress.txt
+
+### Verification
+- `pnpm lint` passed
+- `pnpm typecheck` passed
+- `pnpm build` passed
+- `pwsh ./scripts/smoke.ps1` was attempted for browser-level verification but timed out before it returned a stable result in this shell
+
+### Patterns confirmed
+- When a phase requires one-time inline notices, drive them from the saved-result count in the page, gate them with browser-local keys, and render them directly under the existing status line instead of adding another card section later in the result
+
+## Sprint: Emotional design Phase 8 final audit closure (2026-03-10)
+
+### What changed
+- `components/SummaryDisplay.tsx`: restored the locked six-section result/export contract by merging structured `contacts` into the links section and expanded the 5th-summary discovery copy to teach both calendar export and family sharing
+- `components/history/HistoryList.tsx`: aligned the bulk history action label to `Delete all` / `حذف الكل` without changing the delete-all behavior or selector
+- `app/api/dev/create-test-accounts/route.ts` and `e2e/support.ts`: collapsed repeated auth-user scans into a single seeded-account pass and cached seeded IDs so Phase 8 Playwright smoke no longer stalls before UI assertions
+- `tasks/emotional-design-impl.md`, `tasks/lessons.md`, and `docs/decisions.md`: recorded the final audit evidence, the six-section output rule, and the regression-prevention lesson
+
+### Files touched
+components/SummaryDisplay.tsx, components/history/HistoryList.tsx,
+app/api/dev/create-test-accounts/route.ts, e2e/support.ts,
+tasks/emotional-design-impl.md, tasks/lessons.md,
+docs/decisions.md, scripts/ralph/progress.txt
+
+### Verification
+- `pnpm lint` passed
+- `pnpm typecheck` passed
+- `pnpm build` passed
+- `pnpm test` passed with `31 passed`, `3 skipped`
+
+### Patterns confirmed
+- If summary metadata grows, keep the locked parent-facing section contract stable and fold extra structured fields into an existing allowed section unless the product spec changes
+- If browser smoke depends on deterministic seed accounts, scan Supabase auth once and cache seeded account IDs instead of paging through the full auth list on every helper call

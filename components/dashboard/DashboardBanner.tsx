@@ -18,6 +18,8 @@ interface DashboardBannerProps {
   summaryCount?: number;
   groupCount?: number;
   summariesLimit?: number;
+  summaryCountLastWeek?: number;
+  summaryCountThisWeek?: number;
 }
 
 function daysUntil(dateStr: string | null | undefined): number {
@@ -31,6 +33,7 @@ const COPY = {
   founder: { en: "Founding Supporter", ar: "مؤسس داعم" },
   freeTrial: { en: "Free Trial", ar: "فترة تجريبية" },
   free: { en: "Free", ar: "مجاني" },
+  summaries: { en: "Summaries", ar: "الملخصات" },
   subtitle: {
     en: "Turn WhatsApp, Telegram, and Facebook school chats into one action-ready family dashboard with reminders, dates, and urgent follow-ups.",
     ar: "حوّل محادثات المدرسة من واتساب وتيليجرام وفيسبوك إلى لوحة عائلية واحدة جاهزة للتنفيذ مع التذكيرات والمواعيد والمتابعات العاجلة.",
@@ -43,6 +46,27 @@ const COPY = {
   timeSaved: { en: "Time Saved", ar: "الوقت الموفَّر" },
   activeGroups: { en: "Active groups", ar: "المجموعات النشطة" },
 } satisfies Record<string, LocalizedCopy<string>>;
+
+function getSummaryDeltaLabel(params: {
+  locale: "en" | "ar";
+  summaryCountThisWeek?: number;
+  summaryCountLastWeek?: number;
+}) {
+  const { locale, summaryCountThisWeek, summaryCountLastWeek } = params;
+
+  if (
+    typeof summaryCountThisWeek !== "number" ||
+    typeof summaryCountLastWeek !== "number" ||
+    summaryCountThisWeek <= 0 ||
+    summaryCountThisWeek <= summaryCountLastWeek
+  ) {
+    return null;
+  }
+
+  const delta = formatNumber(summaryCountThisWeek - summaryCountLastWeek);
+
+  return locale === "ar" ? `هذا الأسبوع ↑${delta}` : `↑${delta} this week`;
+}
 
 function planBadge(plan: string, trialExpiresAt?: string | null) {
   if (plan === "founder") {
@@ -71,6 +95,8 @@ export function DashboardBanner({
   summaryCount = 0,
   groupCount = 0,
   summariesLimit = 3,
+  summaryCountLastWeek,
+  summaryCountThisWeek,
 }: DashboardBannerProps) {
   const { locale } = useLang();
   const daysLeft = daysUntil(trialExpiresAt);
@@ -86,15 +112,29 @@ export function DashboardBanner({
     : pick(COPY.upgradeUsage, locale);
   const bannerName = userName ?? t("dashboard.name.placeholder", locale);
   const greeting = `${getTimeAwareGreeting(locale)}${locale === "ar" ? "، " : ", "}${bannerName}`;
+  const summaryDeltaLabel = getSummaryDeltaLabel({
+    locale,
+    summaryCountThisWeek,
+    summaryCountLastWeek,
+  });
 
-  const STATS: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: FileText, label: t("dash.summaries", locale), value: formatNumber(summaryCount) },
+  const STATS: { icon: LucideIcon; label: string; value: string; detail?: string | null }[] = [
+    {
+      icon: FileText,
+      label: pick(COPY.summaries, locale),
+      value: formatNumber(summaryCount),
+      detail: summaryDeltaLabel,
+    },
     {
       icon: Clock,
       label: pick(COPY.timeSaved, locale),
       value: locale === "ar" ? `${formatNumber(summaryCount * 4)} دقيقة` : `${formatNumber(summaryCount * 4)} min`,
     },
-    { icon: Users, label: pick(COPY.activeGroups, locale), value: formatNumber(groupCount) },
+    {
+      icon: Users,
+      label: pick(COPY.activeGroups, locale),
+      value: formatNumber(groupCount),
+    },
   ];
 
   return (
@@ -136,15 +176,22 @@ export function DashboardBanner({
 
             {/* Stats row */}
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-              {STATS.map(({ icon: Icon, label, value }, i) => (
+              {STATS.map(({ icon: Icon, label, value, detail }, i) => (
                 <div key={label} className="flex items-center gap-1.5">
                   {i > 0 && (
-                    <span className="hidden sm:block w-px h-4 bg-[var(--border)] mr-3" />
+                    <span aria-hidden="true" className="hidden h-4 w-px bg-[var(--border)] sm:block" />
                   )}
                   <Icon className="h-4 w-4 text-[var(--primary)]" />
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-xs font-medium text-[var(--muted-foreground)]">{label}</span>
-                    <span className="ml-1.5 text-sm font-bold text-[var(--foreground)]">{value}</span>
+                    <div className="mt-0.5 flex flex-wrap items-baseline gap-1.5">
+                      <span className="text-sm font-bold text-[var(--foreground)]">{value}</span>
+                      {detail ? (
+                        <span className="text-[10px] font-medium text-[var(--success)]">
+                          {detail}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               ))}

@@ -27,7 +27,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { formatNumber } from "@/lib/format";
-import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
+import { getDailyLimit, resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import { haptic } from "@/lib/haptics";
 import { emitDashboardInsightsRefresh } from "@/lib/hooks/useDashboardInsights";
 import { getSampleChat } from "@/lib/sampleChats";
@@ -78,9 +78,14 @@ const ZIP_RANGE_OPTIONS: Array<{
     },
   },
 ];
+const MILESTONE_THRESHOLDS = [1, 5, 10, 25, 50] as const;
+const SUMMARY_MILESTONE_STORAGE_PREFIX = "fazumi_milestone_seen";
+const SUMMARY_DISCOVERY_STORAGE_KEY = "fazumi_discovery_seen";
 
 type OutputLang = (typeof OUTPUT_LANGUAGE_OPTIONS)[number]["value"];
 type SubmissionSource = "text" | "zip";
+type MilestoneThreshold = (typeof MILESTONE_THRESHOLDS)[number];
+type SummaryNoticeId = `milestone-${MilestoneThreshold}` | "discovery-5";
 type SavedGroupOption = {
   id: string;
   title: string;
@@ -319,13 +324,69 @@ const COPY = {
     en: "We could not read that file. Try exporting the chat again.",
     ar: "تعذر قراءة هذا الملف. حاول تصدير المحادثة مرة أخرى.",
   },
-  limitBodyDaily: {
+  limitBodyDailyFree: {
     en: "You've reached today's limit. Your history is still available.",
-    ar: "لقد وصلت إلى حد اليوم. سجلك لا يزال متاحًا.",
+    ar: "لقد وصلت إلى حد اليوم. يبقى سجلك متاحًا.",
+  },
+  limitBodyDailyPaid: {
+    en: "You've reached today's plan limit. Your history, calendar export, and family sharing are still available. You can summarize again tomorrow.",
+    ar: "لقد وصلت إلى حد خطتك لليوم. يبقى السجل وتصدير التقويم والمشاركة العائلية متاحة. يمكنك التلخيص مرة أخرى غدًا.",
   },
   limitBodyLifetime: {
-    en: "You've used your free summaries. Upgrade to keep going.",
-    ar: "لقد استخدمت الملخصات المجانية. قم بالترقية للمتابعة.",
+    en: "You've used the free summaries included with your account. Your history is still available.",
+    ar: "لقد استخدمت الملخصات المجانية المضمنة في حسابك. يبقى سجلك متاحًا.",
+  },
+  limitBenefitDailyFree: {
+    en: "With Fazumi Pro: 50 summaries per day - enough for every school group, every day of the school term.",
+    ar: "مع Fazumi Pro: 50 ملخصاً يومياً - يكفي لكل مجموعة مدرسية، كل يوم خلال الفصل الدراسي.",
+  },
+  limitBenefitLifetime: {
+    en: "Fazumi Pro keeps your school history growing all year - summaries, dates, action items, always within reach.",
+    ar: "Fazumi Pro يبقي تاريخك المدرسي ينمو طوال العام - ملخصات، مواعيد، بنود إجراءات، دائماً في متناول يدك.",
+  },
+  limitTitleDailyFree: {
+    en: "Today's free summaries are used",
+    ar: "تم استخدام ملخصاتك المجانية لليوم",
+  },
+  limitTitleDailyPaid: {
+    en: "Today's summaries are complete",
+    ar: "اكتملت ملخصات اليوم",
+  },
+  limitTitleLifetime: {
+    en: "Your included free summaries are used",
+    ar: "تم استخدام الملخصات المجانية المتاحة لك",
+  },
+  limitBenefitVolume: {
+    en: "50 summaries a day",
+    ar: "50 ملخصًا يوميًا",
+  },
+  limitBenefitCalendar: {
+    en: "Calendar export",
+    ar: "تصدير التقويم",
+  },
+  limitBenefitSharing: {
+    en: "Family sharing",
+    ar: "المشاركة العائلية",
+  },
+  limitBenefitActions: {
+    en: "Synced action lists",
+    ar: "مزامنة قوائم الإجراءات",
+  },
+  limitBenefitHistory: {
+    en: "History stays available",
+    ar: "يبقى السجل متاحًا",
+  },
+  limitBenefitTomorrow: {
+    en: "Summaries reset tomorrow",
+    ar: "يتجدد التلخيص غدًا",
+  },
+  nearLimitOne: {
+    en: "1 summary remaining today",
+    ar: "ملخص واحد متبقٍ اليوم",
+  },
+  nearLimitZero: {
+    en: "0 summaries remaining today - resets at midnight",
+    ar: "لا ملخصات متبقية اليوم - تُجدَّد عند منتصف الليل",
   },
   viewHistory: {
     en: "View history",
@@ -441,6 +502,22 @@ function formatRetentionLabel(days: number | null, locale: "en" | "ar") {
   return `${formatNumber(days)} ${pick(COPY.retentionDays, locale)}`;
 }
 
+function buildMilestoneNoticeId(milestone: MilestoneThreshold): SummaryNoticeId {
+  return `milestone-${milestone}`;
+}
+
+function getMilestoneStorageKey(milestone: MilestoneThreshold, userId: string | null) {
+  return userId
+    ? `${SUMMARY_MILESTONE_STORAGE_PREFIX}_${milestone}_${userId}`
+    : `${SUMMARY_MILESTONE_STORAGE_PREFIX}_${milestone}`;
+}
+
+function getDiscoveryStorageKey(userId: string | null) {
+  return userId
+    ? `${SUMMARY_DISCOVERY_STORAGE_KEY}_${userId}`
+    : SUMMARY_DISCOVERY_STORAGE_KEY;
+}
+
 export default function SummarizePage() {
   const router = useRouter();
   const { locale } = useLang();
@@ -457,6 +534,8 @@ export default function SummarizePage() {
   const [billingPlan, setBillingPlan] = useState("free");
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [summariesUsed, setSummariesUsed] = useState(0);
+  const [summariesLimit, setSummariesLimit] = useState(0);
   const [outputLang, setOutputLang] = useState<OutputLang>(locale === "ar" ? "ar" : "auto");
   const [sourcePlatform, setSourcePlatform] = useState<ImportSourcePlatform>("whatsapp");
   const [sourceLocked, setSourceLocked] = useState(false);
@@ -465,9 +544,11 @@ export default function SummarizePage() {
   const [zipGroupName, setZipGroupName] = useState("");
   const [zipRange, setZipRange] = useState<SummarizeZipRange>("24h");
   const [summaryCount, setSummaryCount] = useState(0);
+  const [summaryNoticeIds, setSummaryNoticeIds] = useState<SummaryNoticeId[]>([]);
   const [savedGroups, setSavedGroups] = useState<SavedGroupOption[]>([]);
   const [savedFamilyContext, setSavedFamilyContext] = useState<FamilyContext | null>(null);
   const [summaryRetentionDays, setSummaryRetentionDays] = useState<number | null>(null);
+  const [summaryContextLoaded, setSummaryContextLoaded] = useState(false);
   const [zipResultMeta, setZipResultMeta] = useState<{
     range: SummarizeZipRange;
     groupTitle: string;
@@ -480,6 +561,7 @@ export default function SummarizePage() {
   const textFileInputRef = useRef<HTMLInputElement>(null);
   const zipFileInputRef = useRef<HTMLInputElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const sessionStartTimeRef = useRef(Date.now());
 
   const charCount = text.length;
   const remaining = MAX_CHARS - charCount;
@@ -492,6 +574,44 @@ export default function SummarizePage() {
   const sourceWasAutoDetected = Boolean(text.trim()) && !sourceLocked && detectedSource === sourcePlatform;
   const hasSavedMemory = savedFamilyContext ? familyContextHasSignal(savedFamilyContext) : false;
   const savedGroupNameSuggestions = savedFamilyContext?.group_names ?? [];
+  const showsUpgradeBenefits = limitCode === "LIFETIME_CAP" || isSubscribed === false;
+  const limitBenefitLine =
+    limitCode === "LIFETIME_CAP"
+      ? COPY.limitBenefitLifetime
+      : isSubscribed === false
+        ? COPY.limitBenefitDailyFree
+        : null;
+  const limitTitle =
+    limitCode === "LIFETIME_CAP"
+      ? COPY.limitTitleLifetime
+      : isSubscribed === false
+        ? COPY.limitTitleDailyFree
+        : COPY.limitTitleDailyPaid;
+  const limitBody =
+    limitCode === "LIFETIME_CAP"
+      ? COPY.limitBodyLifetime
+      : isSubscribed === false
+        ? COPY.limitBodyDailyFree
+        : COPY.limitBodyDailyPaid;
+  const limitBenefits = showsUpgradeBenefits
+    ? [
+      COPY.limitBenefitVolume,
+      COPY.limitBenefitCalendar,
+      COPY.limitBenefitSharing,
+      COPY.limitBenefitActions,
+    ]
+    : [
+      COPY.limitBenefitHistory,
+      COPY.limitBenefitCalendar,
+      COPY.limitBenefitSharing,
+      COPY.limitBenefitTomorrow,
+    ];
+  const remainingSummaries =
+    summariesLimit > 0 ? Math.max(summariesLimit - summariesUsed, 0) : null;
+  const showNearLimitIndicator =
+    summariesLimit > 0 && summariesUsed >= summariesLimit - 1;
+  const nearLimitCopy =
+    remainingSummaries === 0 ? COPY.nearLimitZero : COPY.nearLimitOne;
 
   useEffect(() => {
     let mounted = true;
@@ -507,15 +627,19 @@ export default function SummarizePage() {
             setBillingPlan("free");
             setIsSubscribed(false);
             setCurrentUserId(null);
+            setSummariesUsed(0);
+            setSummariesLimit(0);
             setSummaryCount(0);
             setSavedGroups([]);
             setSavedFamilyContext(null);
             setSummaryRetentionDays(null);
+            setSummaryContextLoaded(true);
           }
           return;
         }
 
-        const [{ data: profile }, { data: subscriptions }, { count }, { data: groups }] = await Promise.all([
+        const today = new Date().toISOString().slice(0, 10);
+        const [{ data: profile }, { data: subscriptions }, { data: usage }, { count }, { data: groups }] = await Promise.all([
           supabase
             .from("profiles")
             .select("plan, trial_expires_at, family_context, summary_retention_days")
@@ -530,6 +654,12 @@ export default function SummarizePage() {
             .from("subscriptions")
             .select("plan_type, status, current_period_end, updated_at, created_at")
             .eq("user_id", user.id),
+          supabase
+            .from("usage_daily")
+            .select("summaries_used")
+            .eq("user_id", user.id)
+            .eq("date", today)
+            .maybeSingle<{ summaries_used: number }>(),
           supabase
             .from("summaries")
             .select("id", { count: "exact", head: true })
@@ -555,6 +685,8 @@ export default function SummarizePage() {
           setBillingPlan(entitlement.billingPlan);
           setIsSubscribed(entitlement.hasPaidAccess);
           setCurrentUserId(user.id);
+          setSummariesUsed(usage?.summaries_used ?? 0);
+          setSummariesLimit(getDailyLimit(entitlement.tierKey));
           setSummaryCount((currentCount) => Math.max(currentCount, count ?? 0));
           setSavedFamilyContext(normalizeFamilyContext(profile?.family_context));
           setSummaryRetentionDays(normalizeSummaryRetentionDays(profile?.summary_retention_days));
@@ -566,13 +698,17 @@ export default function SummarizePage() {
               }))
               .filter((group) => group.title.length > 0)
           );
+          setSummaryContextLoaded(true);
         }
       } catch {
         if (mounted) {
           setBillingPlan("free");
           setIsSubscribed(false);
           setCurrentUserId(null);
+          setSummariesUsed(0);
+          setSummariesLimit(0);
           setSummaryCount(0);
+          setSummaryContextLoaded(true);
         }
       }
     }
@@ -598,6 +734,7 @@ export default function SummarizePage() {
   function resetOutputState() {
     setSummary(null);
     setSavedId(null);
+    setSummaryNoticeIds([]);
     setZipResultMeta(null);
     setZipNoNewMessages(null);
     setLimitReached(false);
@@ -611,6 +748,40 @@ export default function SummarizePage() {
         block: "start",
       });
     }, 100);
+  }
+
+  function queueSummaryNotices(nextSummaryCount: number) {
+    if (typeof window === "undefined") {
+      setSummaryNoticeIds([]);
+      return;
+    }
+
+    const nextNoticeIds: SummaryNoticeId[] = [];
+    const milestone = MILESTONE_THRESHOLDS.find((threshold) => threshold === nextSummaryCount);
+
+    if (milestone) {
+      const milestoneStorageKey = getMilestoneStorageKey(milestone, currentUserId);
+
+      if (!window.localStorage.getItem(milestoneStorageKey)) {
+        window.localStorage.setItem(milestoneStorageKey, "1");
+        trackEvent(AnalyticsEvents.MILESTONE_REACHED, {
+          milestone,
+          locale,
+        });
+        nextNoticeIds.push(buildMilestoneNoticeId(milestone));
+      }
+    }
+
+    if (nextSummaryCount === 5) {
+      const discoveryStorageKey = getDiscoveryStorageKey(currentUserId);
+
+      if (!window.localStorage.getItem(discoveryStorageKey)) {
+        window.localStorage.setItem(discoveryStorageKey, "1");
+        nextNoticeIds.push("discovery-5");
+      }
+    }
+
+    setSummaryNoticeIds(nextNoticeIds);
   }
 
   async function applySummaryResult(
@@ -645,6 +816,25 @@ export default function SummarizePage() {
       source: options.source,
     });
 
+    if (
+      summaryContextLoaded &&
+      summaryCount === 0 &&
+      options.savedId
+    ) {
+      trackEvent(AnalyticsEvents.FIRST_VALUE_DELIVERED, {
+        seconds_to_first_summary: Math.max(
+          0,
+          Math.round((Date.now() - sessionStartTimeRef.current) / 1000)
+        ),
+        char_count:
+          options.source === "text"
+            ? text.length
+            : nextSummary.char_count,
+        has_family_context: Boolean(hasSavedMemory),
+        locale,
+      });
+    }
+
     const nextGroupTitle =
       options.source === "zip"
         ? (options.groupTitle ?? zipGroupName.trim())
@@ -658,7 +848,14 @@ export default function SummarizePage() {
     }
 
     if (options.savedId) {
-      setSummaryCount((currentCount) => currentCount + 1);
+      const nextSummaryCount = summaryCount + 1;
+      setSummaryCount(nextSummaryCount);
+      setSummariesUsed((currentUsed) => currentUsed + 1);
+      if (summaryContextLoaded) {
+        queueSummaryNotices(nextSummaryCount);
+      } else {
+        setSummaryNoticeIds([]);
+      }
       emitDashboardInsightsRefresh();
       window.dispatchEvent(new Event("fazumi-todos-changed"));
     }
@@ -1014,6 +1211,14 @@ export default function SummarizePage() {
                   )}
                 </Button>
               </div>
+              {showNearLimitIndicator && (
+                <p
+                  data-testid="summary-near-limit-indicator"
+                  className="sm:hidden text-center text-xs text-[var(--muted-foreground)]"
+                >
+                  {pick(nearLimitCopy, locale)}
+                </p>
+              )}
               <p className="text-center text-[11px] text-[var(--muted-foreground)]">
                 {pick(COPY.privacy, locale)}
               </p>
@@ -1342,11 +1547,29 @@ export default function SummarizePage() {
           >
             <ArrowUpCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium">
-                {pick(limitCode === "LIFETIME_CAP" ? COPY.limitBodyLifetime : COPY.limitBodyDaily, locale)}
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                {pick(limitTitle, locale)}
               </p>
+              <p className="mt-1 text-sm text-[var(--foreground)]/80">
+                {pick(limitBody, locale)}
+              </p>
+              {limitBenefitLine && (
+                <p className="mt-2 text-sm text-[var(--foreground)]/80">
+                  {pick(limitBenefitLine, locale)}
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
-                {limitCode === "LIFETIME_CAP" && (
+                {limitBenefits.map((benefit) => (
+                  <span
+                    key={benefit.en}
+                    className="rounded-full border border-current/15 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)]"
+                  >
+                    {pick(benefit, locale)}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {showsUpgradeBenefits && (
                   <Link href="/pricing" className={buttonVariants({ size: "sm" })}>
                     <ArrowUpCircle className="h-3.5 w-3.5" />
                     {locale === "ar" ? "الترقية" : "Upgrade"}
@@ -1429,6 +1652,11 @@ export default function SummarizePage() {
             <SummaryDisplay
               summary={summary}
               outputLang={outputLang === "auto" ? (summary.lang_detected === "ar" ? "ar" : "en") : outputLang}
+              familyContextActive={hasSavedMemory}
+              inlineNoticeIds={summaryNoticeIds}
+              onDismissNotice={(noticeId) => {
+                setSummaryNoticeIds((currentNoticeIds) => currentNoticeIds.filter((currentNoticeId) => currentNoticeId !== noticeId));
+              }}
               actionMode={isSubscribed === null ? "disabled" : isSubscribed ? "active" : "gated"}
             />
           </div>

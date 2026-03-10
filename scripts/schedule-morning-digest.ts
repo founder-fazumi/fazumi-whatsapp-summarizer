@@ -1,7 +1,8 @@
 /**
- * Sends the morning web-push digest for users whose saved timezone is currently 7:00 AM.
- * The digest pulls up to three summaries from the previous local day and sends one push
- * notification per eligible subscription.
+ * Sends the 7:00 AM web-push digest for users whose saved timezone is currently 7:00 AM.
+ * Most days it summarizes the previous 7 days of saved school history, including
+ * action-item totals and optional group-name context. On Sunday, it sends the weekly
+ * progress recap instead of a second daily digest.
  *
  * Required env vars:
  * - `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL`
@@ -15,8 +16,9 @@
  *
  * Expected output:
  * - Prints a JSON object with digest counts such as `processedUsers`, `notifiedUsers`,
- *   `sentSubscriptions`, `skippedUsers`, `failedSubscriptions`, `staleRemoved`,
- *   `eligibleTimezones`, and `generatedAt`.
+ *   `sentSubscriptions`, `weeklyNotifiedUsers`, `weeklySentSubscriptions`,
+ *   `skippedUsers`, `failedSubscriptions`, `staleRemoved`, `eligibleTimezones`,
+ *   and `generatedAt`.
  */
 import { sendMorningDigest } from "@/lib/push/server";
 

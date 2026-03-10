@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 type TestPlan = "free" | "monthly" | "founder";
+const AUTH_PAGE_SIZE = 100;
 const TEST_ACCOUNTS = [
   {
     email: "admin@fazumi.test",
@@ -59,28 +60,40 @@ function buildProfilePatch(plan: TestPlan, fullName: string, role: "user" | "adm
 
 async function findUserByEmail(
   supabase: SupabaseClient,
-  email: string
+  emails: string[]
 ) {
+  const remainingEmails = new Set(emails.map((email) => email.toLowerCase()));
+  const matches = new Map<string, { id: string; email: string }>();
   let page = 1;
 
-  while (true) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 100 });
+  while (remainingEmails.size > 0) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: AUTH_PAGE_SIZE });
 
     if (error) {
       throw error;
     }
 
-    const match = data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase()) ?? null;
-    if (match) {
-      return match;
+    for (const user of data.users) {
+      const normalizedEmail = user.email?.toLowerCase();
+      if (!normalizedEmail || !remainingEmails.has(normalizedEmail)) {
+        continue;
+      }
+
+      matches.set(normalizedEmail, {
+        id: user.id,
+        email: normalizedEmail,
+      });
+      remainingEmails.delete(normalizedEmail);
     }
 
-    if (data.users.length < 100) {
-      return null;
+    if (data.users.length < AUTH_PAGE_SIZE) {
+      break;
     }
 
     page += 1;
   }
+
+  return matches;
 }
 
 export async function POST(request: NextRequest) {
@@ -110,14 +123,19 @@ export async function POST(request: NextRequest) {
   });
 
   const results: Array<{
+    id: string;
     email: string;
     password: string;
     plan: string;
     status: "created" | "updated";
   }> = [];
+  const existingUsers = await findUserByEmail(
+    supabase,
+    TEST_ACCOUNTS.map((account) => account.email)
+  );
 
   for (const account of TEST_ACCOUNTS) {
-    const existingUser = await findUserByEmail(supabase, account.email);
+    const existingUser = existingUsers.get(account.email.toLowerCase()) ?? null;
     let userId = existingUser?.id ?? null;
     const status: "created" | "updated" = existingUser ? "updated" : "created";
 
@@ -195,6 +213,7 @@ export async function POST(request: NextRequest) {
     }
 
     results.push({
+      id: userId,
       email: account.email,
       password: account.password,
       plan: account.plan,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
-import { Check, ChevronRight, Inbox, Link2, Search, Trash2 } from "lucide-react";
+import { Check, ChevronRight, FileText, Inbox, Link2, Search, Trash2 } from "lucide-react";
 import type { SummaryRow } from "@/components/history/types";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -183,6 +183,7 @@ export function HistoryList({
   const totalPages = Math.max(1, Math.ceil(clientTotalCount / pageSize));
   const startItem = clientTotalCount === 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
   const endItem = startItem === 0 ? 0 : startItem + Math.max(localSummaries.length - 1, 0);
+  const isFirstHistoryEmpty = clientTotalCount === 0 && !query && !groupFilter;
 
   return (
     <div
@@ -213,7 +214,7 @@ export function HistoryList({
             className="justify-start text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)] md:justify-center"
           >
             <Trash2 className="h-4 w-4" />
-            {deletingAll ? (locale === "ar" ? "جارٍ الحذف..." : "Deleting...") : (locale === "ar" ? "حذف السجل" : "Clear history")}
+            {deletingAll ? (locale === "ar" ? "جارٍ الحذف..." : "Deleting...") : (locale === "ar" ? "حذف الكل" : "Delete all")}
           </Button>
         ) : null}
       </div>
@@ -224,88 +225,105 @@ export function HistoryList({
         </div>
       ) : null}
 
-      <div className="surface-panel bg-[var(--surface-elevated)] p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end">
-          {groupOptions.length > 0 ? (
-            <div className="md:w-60">
-              <label htmlFor="history-group-filter" className="mb-2 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
-                {locale === "ar" ? "المجموعة" : "Group"}
-              </label>
-              <select
-                id="history-group-filter"
-                dir={isRtl ? "rtl" : "ltr"}
-                aria-label={locale === "ar" ? "تصفية حسب المجموعة" : "Filter by group"}
-                value={groupFilter}
-                onChange={(event) => setGroupFilter(event.target.value)}
-                className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)]"
-              >
-                <option value="">{locale === "ar" ? "كل المجموعات" : "All groups"}</option>
-                {groupOptions.map((groupName) => (
-                  <option key={groupName} value={groupName}>
-                    {groupName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
-          <form onSubmit={handleSearchSubmit} className="flex flex-1 flex-col gap-3 md:flex-row">
-            <div className="relative flex-1">
-              <label htmlFor="history-search" className="sr-only">
-                {locale === "ar" ? "ابحث في السجل" : "Search history"}
-              </label>
-              <Search className={cn("pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]", isRtl ? "right-3.5" : "left-3.5")} />
-              <Input
-                id="history-search"
-                aria-label={locale === "ar" ? "ابحث في السجل" : "Search history"}
-                value={searchValue}
-                onChange={(event) => setSearchValue(event.target.value)}
-                placeholder={locale === "ar" ? "ابحث في العناوين والملخصات..." : "Search titles and summaries..."}
-                className={cn(isRtl ? "pr-10" : "pl-10")}
-              />
-            </div>
-            <Button type="submit" variant="outline">
-              {locale === "ar" ? "بحث" : "Search"}
-            </Button>
-            {query ? (
-              <Button type="button" variant="ghost" onClick={clearSearch}>
-                {locale === "ar" ? "مسح" : "Clear"}
-              </Button>
+      {!isFirstHistoryEmpty ? (
+        <div className="surface-panel bg-[var(--surface-elevated)] p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            {groupOptions.length > 0 ? (
+              <div className="md:w-60">
+                <label htmlFor="history-group-filter" className="mb-2 block text-[var(--text-sm)] font-semibold text-[var(--foreground)]">
+                  {locale === "ar" ? "المجموعة" : "Group"}
+                </label>
+                <select
+                  id="history-group-filter"
+                  dir={isRtl ? "rtl" : "ltr"}
+                  aria-label={locale === "ar" ? "تصفية حسب المجموعة" : "Filter by group"}
+                  value={groupFilter}
+                  onChange={(event) => setGroupFilter(event.target.value)}
+                  className="h-11 w-full rounded-[var(--radius)] border border-[var(--input)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)]"
+                >
+                  <option value="">{locale === "ar" ? "كل المجموعات" : "All groups"}</option>
+                  {groupOptions.map((groupName) => (
+                    <option key={groupName} value={groupName}>
+                      {groupName}
+                    </option>
+                  ))}
+                </select>
+              </div>
             ) : null}
-          </form>
-        </div>
 
-        <div className="mt-4 flex flex-col gap-2 text-[var(--text-sm)] text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            {clientTotalCount === 0
-              ? locale === "ar"
-                ? "لا توجد نتائج مطابقة."
-                : "No matching summaries."
-              : groupFilter
-                ? locale === "ar"
-                  ? `عرض ${formatNumber(displayedSummaries.length)} من ${formatNumber(localSummaries.length)} للمجموعة المحددة`
-                  : `Showing ${formatNumber(displayedSummaries.length)} of ${formatNumber(localSummaries.length)} for this group`
-              : locale === "ar"
-                ? `عرض ${formatNumber(startItem)}-${formatNumber(endItem)} من ${formatNumber(clientTotalCount)}`
-                : `Showing ${formatNumber(startItem)}-${formatNumber(endItem)} of ${formatNumber(clientTotalCount)}`}
-          </p>
-          <p>
-            {totalPages > 1
-              ? locale === "ar"
-                ? `الصفحة ${formatNumber(currentPage)} من ${formatNumber(totalPages)}`
-                : `Page ${formatNumber(currentPage)} of ${formatNumber(totalPages)}`
-              : query
-                ? locale === "ar"
-                  ? "تم تطبيق البحث"
-                  : "Search applied"
-                : locale === "ar"
-                  ? "آخر الملخصات المحفوظة"
-                  : "Latest saved summaries"}
-          </p>
-        </div>
-      </div>
+            <form onSubmit={handleSearchSubmit} className="flex flex-1 flex-col gap-3 md:flex-row">
+              <div className="relative flex-1">
+                <label htmlFor="history-search" className="sr-only">
+                  {locale === "ar" ? "ابحث في السجل" : "Search history"}
+                </label>
+                <Search className={cn("pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]", isRtl ? "right-3.5" : "left-3.5")} />
+                <Input
+                  id="history-search"
+                  aria-label={locale === "ar" ? "ابحث في السجل" : "Search history"}
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder={locale === "ar" ? "ابحث في العناوين والملخصات..." : "Search titles and summaries..."}
+                  className={cn(isRtl ? "pr-10" : "pl-10")}
+                />
+              </div>
+              <Button type="submit" variant="outline">
+                {locale === "ar" ? "بحث" : "Search"}
+              </Button>
+              {query ? (
+                <Button type="button" variant="ghost" onClick={clearSearch}>
+                  {locale === "ar" ? "مسح" : "Clear"}
+                </Button>
+              ) : null}
+            </form>
+          </div>
 
-      {displayedSummaries.length === 0 ? (
+          <div className="mt-4 flex flex-col gap-2 text-[var(--text-sm)] text-[var(--muted-foreground)] sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {clientTotalCount === 0
+                ? locale === "ar"
+                  ? "لا توجد نتائج مطابقة."
+                  : "No matching summaries."
+                : groupFilter
+                  ? locale === "ar"
+                    ? `عرض ${formatNumber(displayedSummaries.length)} من ${formatNumber(localSummaries.length)} للمجموعة المحددة`
+                    : `Showing ${formatNumber(displayedSummaries.length)} of ${formatNumber(localSummaries.length)} for this group`
+                  : locale === "ar"
+                    ? `عرض ${formatNumber(startItem)}-${formatNumber(endItem)} من ${formatNumber(clientTotalCount)}`
+                    : `Showing ${formatNumber(startItem)}-${formatNumber(endItem)} of ${formatNumber(clientTotalCount)}`}
+            </p>
+            <p>
+              {totalPages > 1
+                ? locale === "ar"
+                  ? `الصفحة ${formatNumber(currentPage)} من ${formatNumber(totalPages)}`
+                  : `Page ${formatNumber(currentPage)} of ${formatNumber(totalPages)}`
+                : query
+                  ? locale === "ar"
+                    ? "تم تطبيق البحث"
+                    : "Search applied"
+                  : locale === "ar"
+                    ? "آخر الملخصات المحفوظة"
+                    : "Latest saved summaries"}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {isFirstHistoryEmpty ? (
+        <EmptyState
+          icon={FileText}
+          title={locale === "ar" ? "لا ملخصات بعد" : "No summaries yet"}
+          body={
+            locale === "ar"
+              ? "كل ملخص تنشئه يُحفظ هنا — قابل للبحث ومتاح عند الحاجة للتحقق من موعد أو تاريخ من فصل دراسي سابق."
+              : "Every summary you create is saved here — searchable and available when you need to check a deadline or date from a previous school term."
+          }
+          cta={{
+            label: locale === "ar" ? "لخِّص أول محادثة لك ←" : "Summarise your first chat →",
+            href: "/summarize",
+          }}
+          className="py-10"
+        />
+      ) : displayedSummaries.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title={

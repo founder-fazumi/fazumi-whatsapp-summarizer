@@ -6,6 +6,280 @@
 
 ---
 
+## Story - Emotional design Phase 6 analytics alignment (2026-03-10) [DONE]
+
+> Spec file: `specs/emotional-design-phase-6-analytics-alignment-2026-03-10.md`
+> Rule: align the live branch to the exact Phase 6 analytics contract before any later emotional-design work continues.
+
+#### EDI6A - Replace the first-value event contract [Codex]
+**Why:** The summarize flow still uses the earlier `time_to_first_value_recorded` shape and submit-start timing instead of the requested session-start `FIRST_VALUE_DELIVERED` event.
+**Files:** `lib/analytics.ts`, `app/(dashboard)/summarize/page.tsx`
+**Changes:** Add the new event constant, replace the older first-value event usage with the requested mount-time session-start approximation, and make sure it only fires on the first saved summary.
+**Acceptance:**
+- [x] `FIRST_VALUE_DELIVERED` exists in `lib/analytics.ts`.
+- [x] The summarize page uses a session-start `useRef(Date.now())` style timer.
+- [x] The event fires only when the account goes from `0` to `1` saved summaries.
+
+#### EDI6B - Wire the new client-side event surfaces [Codex]
+**Why:** Status, milestone, discovery, PMF follow-up, and upgrade-banner analytics are still missing from the exact components named in the prompt.
+**Files:** `components/summary/StatusLine.tsx`, `app/(dashboard)/summarize/page.tsx`, `components/SummaryDisplay.tsx`, `components/pmf/PmfSurveyModal.tsx`, `components/dashboard/UpgradeBanner.tsx`
+**Changes:** Fire the requested event names from the requested render/submit/dismiss points without changing the existing UI contracts.
+**Acceptance:**
+- [x] `STATUS_LINE_SHOWN` fires from `StatusLine.tsx`.
+- [x] `MILESTONE_REACHED` fires with `{ milestone: N }` from the milestone logic.
+- [x] `FEATURE_DISCOVERY_SHOWN` fires when the discovery nudge renders.
+- [x] `PMF_FOLLOWUP_SUBMITTED` fires after the follow-up textarea submit.
+- [x] `UPGRADE_BANNER_SEEN` and `UPGRADE_BANNER_DISMISSED` fire from `UpgradeBanner`.
+
+#### EDI6C - Add server-safe re-engagement tracking [Codex]
+**Why:** The Phase 5 cron route can send re-engagement pushes, but the exact Phase 6 measurement contract requires a server-safe `REENGAGEMENT_SENT` event/log without browser analytics imports.
+**Files:** `app/api/cron/reengagement/route.ts`, `lib/logger.ts` or existing server-safe helpers as needed
+**Changes:** Log or otherwise record `REENGAGEMENT_SENT` from the cron route when pushes are sent, using only server-safe code.
+**Acceptance:**
+- [x] Re-engagement sends produce a server-side `reengagement_sent` log/measurement when a push is sent.
+- [x] No browser PostHog client code is imported into a server file.
+
+#### EDI6D - Verify and record the Phase 6 checkpoint [Codex]
+**Why:** The analytics slice is not complete until the implementation log and progress tracker reflect the exact shipped delta and verification outcome.
+**Files:** `tasks/emotional-design-impl.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Changes:** Record the Phase 6 checkpoint, update the checklist status, and note the verification outcome.
+**Acceptance:**
+- [x] `tasks/emotional-design-impl.md` contains a Phase 6 checkpoint summary.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `scripts/ralph/progress.txt` records the Phase 6 analytics alignment.
+
+---
+
+## Story - Emotional design Phase 5 retention alignment (2026-03-10) [DONE]
+
+> Spec file: `specs/emotional-design-phase-5-retention-alignment-2026-03-10.md`
+> Rule: align the current branch to the user's exact Phase 5 retention-mechanics instructions before continuing later emotional-design work.
+
+#### EDI5A - Rework the morning digest payload around 7-day value [Codex]
+**Why:** The live morning digest still speaks in yesterday-summary terms and skips the requested fallback when no summaries exist in the last 7 days.
+**Files:** `lib/push/server.ts`, `scripts/schedule-morning-digest.ts`
+**Changes:** Replace the morning digest copy logic with a 7-day summary-count and action-item-count payload, add fallback copy for users with no summaries in the last 7 days, and personalize the body when saved group names are available.
+**Acceptance:**
+- [x] The morning digest uses the requested bilingual weekly-count copy.
+- [x] The digest still sends a calm fallback message when the 7-day window is empty.
+- [x] Group-name personalization is included only when recent group names are available.
+
+#### EDI5B - Add the dedicated re-engagement cron route [Codex]
+**Why:** The prompt requires a protected cron endpoint with explicit 14-day inactivity and 28-day cooldown rules instead of burying re-engagement inside the morning digest path.
+**Files:** `app/api/cron/reengagement/route.ts`, `lib/push/server.ts`, `vercel.json`, `supabase/migrations/2026030903_add_profile_reengagement_tracking.sql`
+**Changes:** Add a `CRON_SECRET`-protected re-engagement route, reuse the existing push infrastructure, respect verified-email and cooldown checks, and keep the migration-based tracking column in place.
+**Acceptance:**
+- [x] `/api/cron/reengagement` rejects unauthorized requests.
+- [x] Re-engagement only targets inactive users with verified email and active push subscriptions.
+- [x] A successful send updates `profiles.last_reengagement_sent_at` without storing raw chat text.
+- [x] The route cannot notify the same user more than once inside a 28-day window.
+
+#### EDI5C - Convert the PMF modal to the requested two-step follow-up [Codex]
+**Why:** The current modal captures extra text inline and uses the wrong follow-up field for the exact "Very disappointed" phase prompt.
+**Files:** `components/pmf/PmfSurveyModal.tsx`
+**Changes:** Keep the existing PMF modal entry point, save the selected PMF response first, then show the requested optional `biggest_benefit` follow-up screen only for `very_disappointed`.
+**Acceptance:**
+- [x] `very_disappointed` responses show the extra screen before the modal closes.
+- [x] `somewhat_disappointed` and `not_disappointed` still dismiss after the first submit.
+- [x] The follow-up posts `biggest_benefit` and remains bilingual plus RTL-safe.
+
+#### EDI5D - Verify and record the Phase 5 checkpoint [Codex]
+**Why:** The alignment is not complete until the log and repo trackers reflect the exact shipped delta and verification outcome.
+**Files:** `tasks/emotional-design-impl.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Changes:** Record the Phase 5 checkpoint, verification notes, and the exact files touched by the alignment pass.
+**Acceptance:**
+- [x] `tasks/emotional-design-impl.md` contains a Phase 5 checkpoint summary.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `scripts/ralph/progress.txt` records the Phase 5 alignment.
+
+---
+
+## Story - Emotional design Phase 3 alignment (2026-03-10) [DONE]
+
+> Spec file: `specs/emotional-design-improvements-2026-03-09.md`
+> Rule: align the current branch to the user's exact Phase 3 post-payment and limit-state instructions before continuing later emotional-design phases.
+
+#### EDI3A - Rewrite `UpgradeBanner` with plan-aware welcome copy [Codex]
+**Why:** The live banner still uses generic "plan is active" copy and does not reflect the user's exact Pro, Founder, or fallback wording.
+**Files:** `components/dashboard/UpgradeBanner.tsx`, `app/(dashboard)/dashboard/page.tsx`
+**Changes:** Pass the resolved billing plan into `UpgradeBanner`, swap the content to the requested Pro and Founder welcome copy, keep a graceful fallback when the plan is still unknown, and add the small `/summarize` text link without changing dismiss or URL cleanup behavior.
+**Acceptance:**
+- [x] Monthly and annual upgrades show the requested `Welcome to Fazumi Pro` copy.
+- [x] Founder upgrades show the requested founding-supporter copy.
+- [x] Unknown plans fall back gracefully.
+- [x] The `Start summarising` link points to `/summarize`.
+- [x] Auto-dismiss, manual dismiss, and `?upgraded=1` cleanup remain intact.
+
+#### EDI3B - Align `DAILY_CAP` and `LIFETIME_CAP` benefit messaging [Codex]
+**Why:** The summarize limit banner still uses older benefit-led paragraphs instead of the requested reassurance-plus-benefit structure.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Changes:** Keep the calm reassurance line for each limit state, append the requested Fazumi Pro benefit line for `DAILY_CAP` and `LIFETIME_CAP`, and leave the existing action buttons intact.
+**Acceptance:**
+- [x] `DAILY_CAP` keeps the history reassurance and adds the requested `50 summaries per day` benefit line.
+- [x] `LIFETIME_CAP` keeps the history reassurance and adds the requested year-round history-growth benefit line.
+- [x] Existing limit actions remain visible and bilingual.
+
+#### EDI3C - Add the mobile near-limit indicator [Codex]
+**Why:** The summarize page should warn the user softly when only one daily summary remains, before they hit the limit.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Changes:** Fetch `usage_daily.summaries_used`, derive the current daily limit from the resolved entitlement, and render the muted mobile-only remaining-count indicator directly below the main summarize button when the user is at one remaining summary or already at zero.
+**Acceptance:**
+- [x] The indicator shows only when `summariesUsed >= summariesLimit - 1`.
+- [x] The indicator is hidden on `sm` and larger breakpoints.
+- [x] The indicator uses the requested `1 remaining` / `0 remaining` bilingual copy.
+- [x] Usage stays in sync after a successful summary save.
+
+#### EDI3D - Verify and record the Phase 3 checkpoint [Codex]
+**Why:** The alignment is not complete until the implementation log, checklist, and progress tracker reflect the exact shipped delta and verification outcome.
+**Files:** `tasks/emotional-design-impl.md`, `tasks/todo.md`, `scripts/ralph/progress.txt`
+**Changes:** Record the Phase 3 checkpoint, verification status, and the exact scope of the alignment patch.
+**Acceptance:**
+- [x] `tasks/emotional-design-impl.md` contains a Phase 3 checkpoint summary.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `scripts/ralph/progress.txt` records the Phase 3 alignment.
+
+---
+
+## Story - Emotional design Phase 2 alignment (2026-03-10) [DONE]
+
+> Spec file: `specs/emotional-design-improvements-2026-03-09.md`
+> Rule: align the current branch to the user's exact Phase 2 requirements before continuing later emotional-design phases.
+
+#### EDI2A - Move the zero-history state into `HistoryList` [Codex]
+**Why:** The current route-level empty state bypasses the exact `HistoryList` rendering contract the phase requires.
+**Files:** `app/(dashboard)/history/page.tsx`, `components/history/HistoryList.tsx`
+**Changes:** Keep `/history` routed through `HistoryList`, hide the search/filter shell only for the first-use empty state, and replace that state with the requested `EmptyState` copy and `/summarize` CTA.
+**Acceptance:**
+- [x] First-time empty history renders from `components/history/HistoryList.tsx`.
+- [x] The empty-state CTA links to `/summarize`.
+- [x] Search, filter, and group-filter UI remain unchanged for non-empty history states.
+
+#### EDI2B - Add the first-summary dashboard note [Codex]
+**Why:** The dashboard needs a teachable zero-summary state instead of dropping straight into normal widgets with no guidance.
+**Files:** `app/(dashboard)/dashboard/page.tsx`
+**Changes:** Render the requested lightweight bilingual note below `DashboardBanner` only when `summaryCount === 0`.
+**Acceptance:**
+- [x] The note renders only when the user has zero saved summaries.
+- [x] The note includes a link to `/summarize`.
+
+#### EDI2C - Replace result notices with exact milestone and discovery logic [Codex]
+**Why:** The live result screen used the wrong thresholds and post-summary discovery cards instead of the requested inline notices.
+**Files:** `app/(dashboard)/summarize/page.tsx`, `components/SummaryDisplay.tsx`
+**Changes:** Drive dismissible inline notices from the saved summary count, use thresholds `1`, `5`, `10`, `25`, `50`, add the one-time 5th-summary calendar nudge, and gate both with localStorage keys following the `fazumi_milestone_seen` / `fazumi_discovery_seen` pattern.
+**Acceptance:**
+- [x] Milestone notices render immediately below `StatusLine`.
+- [x] Each notice is dismissible with an inline `X` button.
+- [x] The one-time discovery note appears on the 5th saved summary only.
+- [x] The six summary sections and privacy footer remain intact.
+
+#### EDI2D - Verify and record the Phase 2 checkpoint [Codex]
+**Why:** The phase is not complete until the log and checklist reflect the exact implementation and verification outcome.
+**Files:** `tasks/emotional-design-impl.md`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Changes:** Record the Phase 2 checkpoint, capture the spec-drift lesson, and store the static-check plus smoke-attempt results.
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` passes.
+- [x] The smoke-attempt timeout is recorded instead of being treated as a pass.
+
+---
+
+## Story - Emotional design improvements (2026-03-09) [DONE]
+
+> Spec file: `specs/emotional-design-improvements-2026-03-09.md`
+> Rule: complete phases in order; after every phase run `pnpm lint` and `pnpm typecheck`, then update `tasks/emotional-design-impl.md`. Run `pnpm build` after Phase 2 and Phase 8. Keep the result-screen privacy copy and `ShieldCheck` line unchanged.
+
+#### EDI1 - Add the result-screen payoff, StatusLine, and TTFV analytics [Codex]
+**Why:** The summarize flow already works, but it lands cold; Phase 1 should create an immediate calm-control moment without altering the saved summary contract.
+**Files:** `components/SummaryDisplay.tsx`, `app/(dashboard)/summarize/page.tsx`, `lib/analytics.ts`, `tasks/emotional-design-impl.md`
+**Changes:** Add a reassuring result-state header treatment, a StatusLine driven by existing summary/action-center data, light family-context reflection on the result screen, and a new time-to-first-value analytics event fired from the summarize flow.
+**Acceptance:**
+- [x] A calm emotional-payoff block appears on the saved result in both EN and AR.
+- [x] A StatusLine appears above the six sections and uses existing structured summary data only.
+- [x] Saved family context is reflected back when available without inventing facts.
+- [x] A new analytics event captures time-to-first-value safely without logging raw chat text.
+- [x] The existing privacy line and `ShieldCheck` icon remain visible and unchanged.
+- [x] `pnpm lint && pnpm typecheck` pass.
+
+#### EDI2 - Warm the payment, limit, and history-empty states [Codex]
+**Why:** Payment and blocked states should reinforce the family benefit, not just report system status, and the first empty history view should teach the product loop.
+**Files:** `components/dashboard/UpgradeBanner.tsx`, `app/(dashboard)/history/page.tsx`, `app/(dashboard)/summarize/page.tsx`, `tasks/emotional-design-impl.md`
+**Changes:** Rewrite the post-payment banner with benefit-led copy, replace the generic zero-history empty state, and expand limit-state messaging with concrete paid benefits while staying calm.
+**Acceptance:**
+- [x] `UpgradeBanner` explains what the family unlocks after payment in both EN and AR.
+- [x] The zero-history empty state teaches the first-use loop and points to summarize.
+- [x] Limit-state messaging includes specific upgrade benefits without fake urgency.
+- [x] `pnpm lint && pnpm typecheck` pass.
+- [x] `pnpm build` passes after Phase 2.
+
+#### EDI3 - Add milestone acknowledgements and discovery nudges [Codex]
+**Why:** The product already has useful secondary features; Phase 3 should reveal them at the right moment and acknowledge repeat value without turning the app into a game.
+**Files:** `components/SummaryDisplay.tsx`, `app/(dashboard)/summarize/page.tsx`, `components/dashboard/FamilyCoordinationCard.tsx`, `tasks/emotional-design-impl.md`
+**Changes:** Add calm milestone acknowledgements at summary thresholds and contextual nudges toward calendar export, family sharing, and history search using existing capabilities.
+**Acceptance:**
+- [x] Milestone acknowledgements appear at defined summary-count thresholds and feel adult/premium.
+- [x] Feature-discovery nudges point to already-shipped features only.
+- [x] Nudges are bilingual, RTL-safe, and non-spammy.
+- [x] `pnpm lint && pnpm typecheck` pass.
+
+#### EDI4 - Add dashboard progress signals and a weekly progress summary [Codex]
+**Why:** Parents should feel momentum over time, not just see static totals.
+**Files:** `app/(dashboard)/dashboard/page.tsx`, `components/dashboard/DashboardBanner.tsx`, `tasks/emotional-design-impl.md`
+**Changes:** Add trend indicators to the dashboard stats and a compact weekly progress summary using existing summary history data.
+**Acceptance:**
+- [x] Dashboard stats show simple trajectory indicators such as week-over-week delta.
+- [x] A weekly progress summary appears in-product with bilingual copy.
+- [x] The existing time-saved metric remains in `DashboardBanner`.
+- [x] `pnpm lint && pnpm typecheck` pass.
+
+#### EDI5 - Extend PMF follow-up for strong responders [Codex]
+**Why:** The current PMF modal only records the multiple-choice answer even though the API already supports richer feedback.
+**Files:** `components/pmf/PmfSurveyModal.tsx`, `app/api/pmf/route.ts`, `tasks/emotional-design-impl.md`
+**Changes:** Extend the modal so "Very disappointed" responders receive a short follow-up prompt and the answer is saved through the existing PMF route.
+**Acceptance:**
+- [x] The PMF modal still opens and submits normally for all users.
+- [x] "Very disappointed" responders get a short follow-up prompt without replacing the current survey.
+- [x] The richer PMF response is stored through the existing API contract.
+- [x] `pnpm lint && pnpm typecheck` pass.
+
+#### EDI6 - Add the smallest safe weekly digest delivery upgrade [Codex]
+**Why:** Weekly progress is more habit-forming when it can be delivered proactively, but only if the delivery path stays safe and capped.
+**Files:** `supabase/migrations/2026030902_add_digest_delivery_tracking_to_push_subscriptions.sql`, `lib/push/server.ts`, `components/settings/SettingsPanel.tsx`, `scripts/schedule-morning-digest.ts`, `tasks/emotional-design-impl.md`
+**Changes:** Reuse the existing push infrastructure for the smallest safe weekly-progress delivery path, or keep the digest in-app and explicitly record the push version as deferred if extra tracking would over-expand scope.
+**Acceptance:**
+- [x] Weekly progress delivery is implemented only if it can reuse current infrastructure safely.
+- [x] No raw chat text is sent in notifications.
+- [x] Delivery is capped to avoid spam and documented in the implementation log.
+- [x] `pnpm lint && pnpm typecheck` pass.
+
+#### EDI7 - Add inactivity re-engagement with once-per-gap protection [Codex]
+**Why:** Parents who go quiet for 14+ days should get one calm nudge, not a drip campaign.
+**Files:** `supabase/migrations/2026030903_add_profile_reengagement_tracking.sql`, `lib/push/server.ts`, `components/settings/SettingsPanel.tsx`, `scripts/schedule-morning-digest.ts`, `tasks/emotional-design-impl.md`
+**Changes:** Add a 14-day inactivity re-engagement trigger with one-send-per-gap protection using the smallest persistence needed for safe deduping.
+**Acceptance:**
+- [x] Re-engagement cannot fire more than once for the same inactivity gap.
+- [x] Copy is calm, bilingual, and benefit-led.
+- [x] Any persistence added is minimal and does not store raw chat text.
+- [x] `pnpm lint && pnpm typecheck` pass.
+
+#### EDI8 - Final verification and repo tracking [Codex]
+**Why:** The slice is not done until the repo trackers, lessons, and verification history reflect the shipped work.
+**Files:** `tasks/emotional-design-impl.md`, `tasks/todo.md`, `tasks/lessons.md`, `docs/decisions.md`, `scripts/ralph/progress.txt`
+**Changes:** Close the implementation log, record any new decisions or lessons, and run the required final verification without deploying or committing.
+**Acceptance:**
+- [x] `tasks/emotional-design-impl.md` contains a checkpoint summary for every completed phase.
+- [x] Any new architecture/security decisions are captured in `docs/decisions.md`.
+- [x] Any mistakes or corrected assumptions are captured in `tasks/lessons.md`.
+- [x] `scripts/ralph/progress.txt` records the rollout.
+- [x] `pnpm lint && pnpm typecheck` pass.
+- [x] `pnpm build` passes after Phase 8.
+- [x] Playwright/browser verification was attempted and the current environment blocker is recorded.
+
+---
+
 ## Story - Founder supporter nav + footer entry points (2026-03-09) [BLOCKED]
 
 > Spec file: `specs/founder-supporter-nav-footer-entry-2026-03-09.md`

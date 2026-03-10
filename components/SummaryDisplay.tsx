@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ThumbsUp, ThumbsDown, CalendarPlus, ListChecks, Download, Zap,
   AlignLeft, Calendar, Users, Link2, HelpCircle, ShieldCheck, X,
-  AlertTriangle, Phone, MapPin, Clock as ClockIcon,
+  AlertTriangle, MapPin, Clock as ClockIcon, Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SummaryResult, ImportantDate } from "@/lib/ai/summarize";
+import { StatusLine } from "@/components/summary/StatusLine";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { buttonVariants } from "@/components/ui/button";
@@ -36,7 +37,6 @@ const SECTION_META: Record<
   important_dates:  { en: "Important Dates",           ar: "المواعيد المهمة",       icon: Calendar    },
   action_items:     { en: "Action Items / To-Do",      ar: "الإجراءات المطلوبة",    icon: ListChecks  },
   people_classes:   { en: "People / Classes",          ar: "الأشخاص / المواد",      icon: Users       },
-  contacts:         { en: "Contacts",                  ar: "جهات الاتصال",          icon: Phone       },
   links:            { en: "Links & Attachments",       ar: "الروابط والمرفقات",     icon: Link2       },
   questions:        { en: "Questions to Ask",          ar: "أسئلة للمعلم / المدرسة", icon: HelpCircle },
 };
@@ -46,7 +46,6 @@ const SECTION_ORDER = [
   "important_dates",
   "action_items",
   "people_classes",
-  "contacts",
   "links",
   "questions",
 ] as const;
@@ -59,7 +58,6 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
     important_dates: "Important Dates",
     action_items: "Action Items",
     people_classes: "People / Classes",
-    contacts: "Contacts",
     links: "Links",
     questions: "Questions",
   },
@@ -68,7 +66,6 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
     important_dates: "المواعيد المهمة",
     action_items: "المهام المطلوبة",
     people_classes: "الأشخاص / المواد",
-    contacts: "جهات الاتصال",
     links: "الروابط",
     questions: "الأسئلة",
   },
@@ -79,7 +76,6 @@ const EXPORT_HEADING_EMOJIS: Record<SectionKey, string> = {
   important_dates: "📅",
   action_items: "✅",
   people_classes: "👥",
-  contacts: "📞",
   links: "🔗",
   questions: "❓",
 };
@@ -156,6 +152,26 @@ const UI_COPY = {
     sourceWhatsApp: "WhatsApp",
     sourceTelegram: "Telegram",
     sourceFacebook: "Facebook",
+    payoffTitleClear: "Nothing urgent needs your attention right now.",
+    payoffTitleUrgent: "The urgent items are surfaced first.",
+    payoffBody: "The key dates, actions, and follow-ups are organized below.",
+    familyContext: "Personalized with saved family context",
+    familyContextActiveNote: "Personalised to your saved school context",
+    statusActions: "Actions",
+    statusDates: "Dates",
+    statusPaymentsForms: "Payments/forms",
+    statusPeopleClasses: "People/classes",
+    statusLinks: "Links",
+    statusGeneralUpdate: "Summary ready",
+    statusUrgent: "Urgent follow-ups",
+    statusNothingUrgent: "Nothing urgent right now",
+    milestone1: "Your first summary is saved to history. You can search and access it any time.",
+    milestone5: "5 summaries saved — you've been on top of school communications for a few sessions.",
+    milestone10: "Summary #10 saved. You've built a searchable school record.",
+    milestone25: "25 summaries — your school history archive is growing.",
+    milestone50: "50 summaries saved. That is a full term's worth of school communications organised.",
+    discovery5: "Did you know? The dates extracted here can be added to your calendar, and Share with family can send the action list in one tap.",
+    dismissNotice: "Dismiss notice",
   },
   ar: {
     latestSummary: "اللوحة العائلية",
@@ -199,6 +215,26 @@ const UI_COPY = {
     sourceWhatsApp: "واتساب",
     sourceTelegram: "تيليجرام",
     sourceFacebook: "فيسبوك",
+    payoffTitleClear: "لا يوجد ما يحتاج انتباهك العاجل الآن.",
+    payoffTitleUrgent: "تم إبراز العناصر العاجلة أولًا.",
+    payoffBody: "تم ترتيب المواعيد والإجراءات والمتابعات المهمة أدناه.",
+    familyContext: "تم تخصيصه بذاكرة العائلة المحفوظة",
+    familyContextActiveNote: "مخصَّص وفق سياق مدرستك المحفوظ",
+    statusActions: "الإجراءات",
+    statusDates: "المواعيد",
+    statusPaymentsForms: "الرسوم/النماذج",
+    statusPeopleClasses: "الأشخاص/المواد",
+    statusLinks: "الروابط",
+    statusGeneralUpdate: "الملخص جاهز",
+    statusUrgent: "متابعات عاجلة",
+    statusNothingUrgent: "لا يوجد ما هو عاجل الآن",
+    milestone1: "حُفظ ملخصك الأول في السجل. يمكنك البحث فيه والوصول إليه في أي وقت.",
+    milestone5: "5 ملخصات محفوظة — أنت تتابع مراسلات المدرسة باستمرار.",
+    milestone10: "الملخص رقم 10 محفوظ. لقد بنيت سجلاً مدرسياً قابلاً للبحث.",
+    milestone25: "25 ملخصاً — أرشيف تاريخك المدرسي في نمو مستمر.",
+    milestone50: "50 ملخصاً محفوظاً. هذا ما يعادل فصلاً دراسياً كاملاً من مراسلات المدرسة منظَّمة.",
+    discovery5: "هل تعلم؟ يمكن إضافة المواعيد المستخرجة هنا إلى تقويمك، ويمكن لزر المشاركة مع العائلة إرسال قائمة الإجراءات بنقرة واحدة.",
+    dismissNotice: "إخفاء التنبيه",
   },
 } as const;
 
@@ -241,7 +277,7 @@ function buildSummaryExportText(
       const heading = includeHeadingEmojis
         ? `${EXPORT_HEADING_EMOJIS[sectionKey]} ${baseHeading}`
         : baseHeading;
-      const value = summary[sectionKey];
+      const value = sectionKey === "links" ? getMergedLinkItems(summary) : summary[sectionKey];
       const lines =
         sectionKey === "tldr"
           ? [typeof value === "string" && value.trim() ? value.trim() : emptyLabel]
@@ -442,6 +478,32 @@ function waitForNextPaint() {
   });
 }
 
+function compactUnique(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const items: string[] = [];
+
+  for (const value of values) {
+    const normalized = value?.trim();
+    if (!normalized) {
+      continue;
+    }
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    items.push(normalized);
+  }
+
+  return items;
+}
+
+function getMergedLinkItems(summary: SummaryResult) {
+  return compactUnique([...summary.links, ...summary.contacts]);
+}
+
 function SectionBlock({
   sectionKey,
   summary,
@@ -455,7 +517,7 @@ function SectionBlock({
   const label = meta[outputLang];
   const isRtl = outputLang === "ar";
   const copy = UI_COPY[outputLang];
-  const value = summary[sectionKey];
+  const value = sectionKey === "links" ? getMergedLinkItems(summary) : summary[sectionKey];
 
   const isEmpty =
     sectionKey === "tldr"
@@ -583,9 +645,33 @@ function SectionBlock({
   );
 }
 
+type SummaryDisplayCopy = (typeof UI_COPY)[OutputLang];
+
+function getInlineNoticeMessage(noticeId: string, copy: SummaryDisplayCopy) {
+  switch (noticeId) {
+    case "milestone-1":
+      return copy.milestone1;
+    case "milestone-5":
+      return copy.milestone5;
+    case "milestone-10":
+      return copy.milestone10;
+    case "milestone-25":
+      return copy.milestone25;
+    case "milestone-50":
+      return copy.milestone50;
+    case "discovery-5":
+      return copy.discovery5;
+    default:
+      return null;
+  }
+}
+
 interface SummaryDisplayProps {
   summary: SummaryResult;
   outputLang: OutputLang;
+  familyContextActive?: boolean;
+  inlineNoticeIds?: readonly string[];
+  onDismissNotice?: (noticeId: string) => void;
   actionMode?: ActionMode;
   upgradeHref?: string;
 }
@@ -593,6 +679,9 @@ interface SummaryDisplayProps {
 export function SummaryDisplay({
   summary,
   outputLang,
+  familyContextActive = false,
+  inlineNoticeIds = [],
+  onDismissNotice,
   actionMode = "disabled",
   upgradeHref = "/pricing",
 }: SummaryDisplayProps) {
@@ -606,8 +695,16 @@ export function SummaryDisplay({
   const copy = UI_COPY[outputLang];
   const isRtl = outputLang === "ar";
   const formattedCharCount = formatNumber(summary.char_count);
+  const savedMinutes = formatNumber(Math.max(2, Math.round(summary.char_count / 400)));
+  const savedTimeLabel = outputLang === "ar" ? `وفَّرت ~${savedMinutes} دقيقة` : `Saved ~${savedMinutes} min`;
   const actionCenter = deriveActionCenter(summary);
   const sourcePlatformLabel = getSourcePlatformLabel(summary, outputLang);
+  const discoveryTrackedKeyRef = useRef<string | null>(null);
+  const familyContextItems = compactUnique([
+    summary.chat_context?.child_name,
+    summary.chat_context?.class_name,
+    summary.chat_context?.school_name,
+  ]);
   const actionCenterSections = [
     { key: "due_today", label: copy.dueToday, items: actionCenter.due_today },
     { key: "upcoming_dates", label: copy.upcomingDates, items: actionCenter.upcoming_dates },
@@ -616,6 +713,22 @@ export function SummaryDisplay({
     { key: "questions", label: SECTION_META.questions[outputLang], items: actionCenter.questions },
     { key: "urgent_items", label: copy.urgent, items: actionCenter.urgent_items },
   ];
+  const discoveryNoticeKey = inlineNoticeIds.includes("discovery-5")
+    ? `${summary.char_count}:${outputLang}`
+    : null;
+
+  useEffect(() => {
+    if (!discoveryNoticeKey || discoveryTrackedKeyRef.current === discoveryNoticeKey) {
+      return;
+    }
+
+    discoveryTrackedKeyRef.current = discoveryNoticeKey;
+    trackEvent(AnalyticsEvents.FEATURE_DISCOVERY_SHOWN, {
+      feature: "calendar_export_and_family_share",
+      milestone: 5,
+      output_lang: outputLang,
+    });
+  }, [discoveryNoticeKey, outputLang]);
 
   async function runAction(actionKey: ActionKey, action: () => Promise<void> | void) {
     setPendingAction(actionKey);
@@ -784,7 +897,7 @@ export function SummaryDisplay({
     <div
       dir={isRtl ? "rtl" : "ltr"}
       lang={isRtl ? "ar" : "en"}
-      className={cn("space-y-3 text-start", isRtl && "font-arabic")}
+      className={cn("animate-summary-fade-in space-y-3 text-start", isRtl && "font-arabic")}
     >
       <Card className="overflow-hidden bg-[var(--surface-elevated)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)]/60 px-4 py-3 sm:px-5">
@@ -796,6 +909,9 @@ export function SummaryDisplay({
             <span className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--primary)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
               {copy.justNow}
+            </span>
+            <span className="text-xs text-[var(--muted-foreground)]">
+              {savedTimeLabel}
             </span>
             {summary.chat_type === "urgent_notice" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
@@ -822,6 +938,89 @@ export function SummaryDisplay({
               <span className="hidden sm:inline">{summary.chat_context.date_range}</span>
             )}
             <span>{formattedCharCount} {copy.chars}</span>
+          </div>
+        </div>
+
+        <div className="border-b border-[var(--border)] bg-[var(--surface)]/50 px-4 py-4 sm:px-5">
+          <StatusLine
+            summary={summary}
+            outputLang={outputLang}
+            className="mb-4"
+          />
+          {familyContextActive ? (
+            <p
+              data-testid="summary-family-context-note"
+              className="mb-4 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"
+            >
+              <Sparkles className="h-3 w-3 shrink-0" />
+              <span>{copy.familyContextActiveNote}</span>
+            </p>
+          ) : null}
+          {inlineNoticeIds.length > 0 ? (
+            <div className="mb-4 space-y-3">
+              {inlineNoticeIds.map((noticeId) => {
+                const message = getInlineNoticeMessage(noticeId, copy);
+
+                if (!message) {
+                  return null;
+                }
+
+                return (
+                  <div
+                    key={noticeId}
+                    data-testid={`summary-inline-notice-${noticeId}`}
+                    className="flex items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]/85 px-4 py-3"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <p className="min-w-0 flex-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                      {message}
+                    </p>
+                    {onDismissNotice ? (
+                      <button
+                        type="button"
+                        onClick={() => onDismissNotice(noticeId)}
+                        className="shrink-0 text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]"
+                        aria-label={copy.dismissNotice}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          <div
+            data-testid="summary-payoff"
+            className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-4"
+          >
+            <p className="text-sm font-semibold text-[var(--foreground)]">
+              {actionCenter.urgent_items.length > 0 ? copy.payoffTitleUrgent : copy.payoffTitleClear}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+              {copy.payoffBody}
+            </p>
+
+            {familyContextItems.length > 0 && (
+              <div
+                data-testid="summary-family-context"
+                className="mt-3 flex flex-wrap items-center gap-2"
+              >
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                  {copy.familyContext}
+                </span>
+                {familyContextItems.map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            )}
+
           </div>
         </div>
 

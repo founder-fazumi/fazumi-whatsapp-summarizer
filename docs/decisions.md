@@ -218,3 +218,22 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Add the founder transparency note at `/founder-support` as a public App Router page with route-level `robots: { index: false, follow: false }`, keep it out of the sitemap, and link to it from `/founder-supporter` with return CTAs back into the founder plan section.
 **Consequences:** Founder supporters get a calmer, trust-building explanation without cluttering the main founder offer or creating another indexed acquisition page. The route remains easy to share directly in founder conversations while staying intentionally secondary to `/founder-supporter`.
 
+---
+
+## D025 - Digest notifications share one 7 AM window, but their tracking scopes differ
+**Date:** 2026-03-09
+**Context:** The emotional-design rollout added a Sunday weekly progress recap and a 14-day inactivity reminder on top of the existing 7 AM morning digest. The original push scheduler only had one generic `push_subscriptions.last_notified_at`, which was too broad for multiple cadences and could let unrelated pushes suppress digest delivery.
+**Decision:** Keep all school-notification delivery inside the existing 7 AM local-time push window, but separate cadence tracking by scope:
+- Daily and weekly digest delivery are tracked on `push_subscriptions` via `last_morning_digest_at` and `last_weekly_digest_at`
+- Inactivity re-engagement is tracked on `profiles.last_reengagement_sent_at` so it stays once-per-gap at the user level
+- The Sunday weekly recap replaces that day's daily digest instead of sending a second notification
+**Consequences:** Notification behavior stays calmer and easier to audit. Generic push sends no longer interfere with digest cadence, weekly progress stays opt-in without doubling Sunday notifications, and inactivity reminders cannot repeat across multiple browser subscriptions until a new summary resets the gap.
+
+---
+
+## D026 - The summary result stays a six-section contract even when metadata grows
+**Date:** 2026-03-10
+**Context:** The structured summary schema includes `contacts`, but the locked FAZUMI output contract still requires six user-facing sections in a fixed order. The live result renderer had drifted into showing `Contacts` as a seventh card.
+**Decision:** Keep the user-facing result and export output at six sections. Preserve structured `contacts`, but fold them into `Links / Attachments referenced` unless the product contract is explicitly updated to add another section.
+**Consequences:** Schema growth does not silently change the parent-facing result UX. Any future summary field that wants its own card must go through spec, copy, and acceptance-criteria review first.
+

@@ -1,10 +1,7 @@
-import { Inbox, Sparkles } from "lucide-react";
 import { FounderWelcomeModal } from "@/components/founder/FounderWelcomeModal";
 import { HistoryList } from "@/components/history/HistoryList";
 import type { SummaryRow } from "@/components/history/types";
-import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/server";
 
@@ -151,28 +148,6 @@ export default async function HistoryPage({
     }
   } catch {
     // Supabase not configured
-  }
-
-  if (totalCount === 0 && !query) {
-    return (
-      <DashboardShell>
-        <EmptyState
-          icon={Inbox}
-          title={<LocalizedText en="No summaries yet. Paste a group chat to get started." ar="لا توجد ملخصات بعد. الصق محادثة للبدء." />}
-          body={
-            <LocalizedText
-              en="Your history will appear here."
-              ar="سيظهر سجلك هنا."
-            />
-          }
-          cta={{
-            label: <LocalizedText en="Summarize your first chat" ar="لخّص أول محادثة لك" />,
-            href: "/summarize",
-            icon: Sparkles,
-          }}
-        />
-      </DashboardShell>
-    );
   }
 
   return (

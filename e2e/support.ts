@@ -13,6 +13,7 @@ const ADMIN_EMAIL = "admin@fazumi.test";
 const FREE_EMAIL = "free@fazumi.test";
 const PAID_EMAIL = "paid@fazumi.test";
 const FOUNDER_EMAIL = "founder@fazumi.test";
+const TEST_ACCOUNT_EMAILS = [ADMIN_EMAIL, FREE_EMAIL, PAID_EMAIL, FOUNDER_EMAIL] as const;
 const FIXTURES_DIR = path.join(ROOT_DIR, "scripts", "webhooks", "fixtures");
 const RECURRING_FIXTURE_EMAILS: Record<string, string> = {
   subscription_payment_success: PAID_EMAIL,
@@ -33,6 +34,7 @@ type DevEnvResponse = {
 type AccountResponse = {
   ok: boolean;
   accounts: Array<{
+    id: string;
     email: string;
     password: string;
     plan: string;
@@ -41,6 +43,7 @@ type AccountResponse = {
 };
 
 type TestAccount = {
+  id?: string;
   email: string;
   password: string;
   plan: string;
@@ -77,6 +80,7 @@ type ZipSummaryState = {
 } | null;
 
 const envCache = loadLocalEnv();
+const seededAccountCache = new Map<string, TestAccount>();
 
 function loadLocalEnv() {
   const env: Record<string, string> = {};
@@ -209,6 +213,15 @@ export async function getDevEnv(request: APIRequestContext) {
 }
 
 export async function ensureTestAccounts(request: APIRequestContext) {
+  if (TEST_ACCOUNT_EMAILS.every((email) => seededAccountCache.has(email))) {
+    return {
+      admin: seededAccountCache.get(ADMIN_EMAIL) as TestAccount,
+      free: seededAccountCache.get(FREE_EMAIL) as TestAccount,
+      paid: seededAccountCache.get(PAID_EMAIL) as TestAccount,
+      founder: seededAccountCache.get(FOUNDER_EMAIL) as TestAccount,
+    };
+  }
+
   const response = await request.post("/api/dev/create-test-accounts");
   expect(response.ok()).toBeTruthy();
 
@@ -217,6 +230,7 @@ export async function ensureTestAccounts(request: APIRequestContext) {
   function getAccount(email: string) {
     const account = payload.accounts.find((item) => item.email === email);
     expect(account, `Missing seeded account for ${email}`).toBeTruthy();
+    seededAccountCache.set(email, account as TestAccount);
     return account as TestAccount;
   }
 
@@ -797,6 +811,14 @@ export async function summarizeWithSample(page: Page) {
 }
 
 async function findUserByEmail(admin: SupabaseClient, email: string) {
+  const cachedAccount = seededAccountCache.get(email.toLowerCase());
+  if (cachedAccount) {
+    return {
+      id: cachedAccount.id,
+      email: cachedAccount.email,
+    };
+  }
+
   let page = 1;
 
   while (true) {
@@ -808,6 +830,16 @@ async function findUserByEmail(admin: SupabaseClient, email: string) {
 
     const match = data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase()) ?? null;
     if (match) {
+      const normalizedEmail = match.email?.toLowerCase();
+      if (normalizedEmail) {
+        const cached = seededAccountCache.get(normalizedEmail);
+        if (cached) {
+          seededAccountCache.set(normalizedEmail, {
+            ...cached,
+            id: match.id,
+          });
+        }
+      }
       return match;
     }
 

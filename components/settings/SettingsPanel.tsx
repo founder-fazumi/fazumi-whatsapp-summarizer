@@ -136,6 +136,10 @@ const COPY = {
   },
   currency: { en: "Preferred currency", ar: "العملة المفضلة" },
   saveMemory: { en: "Save family memory", ar: "احفظ ذاكرة العائلة" },
+  memorySavedConfirmation: {
+    en: "Saved — your future summaries will reflect this context.",
+    ar: "تم الحفظ — ستعكس ملخصاتك المستقبلية هذا السياق.",
+  },
   trustTitle: { en: "Trust and retention", ar: "الثقة ومدة الاحتفاظ" },
   trustBody: {
     en: "Make storage rules obvious and let families control how long summaries stay in the account.",
@@ -158,18 +162,18 @@ const COPY = {
   },
   notificationsTitle: { en: "Notifications", ar: "الإشعارات" },
   notificationsBody: {
-    en: "Control the daily browser push alert for yesterday's school updates.",
-    ar: "تحكم في إشعار المتصفح اليومي لآخر تحديثات المدرسة من الأمس.",
+    en: "Control the 7 AM school notifications, including daily digests, a quiet Sunday weekly recap, and one gentle reminder after a long gap.",
+    ar: "تحكم في إشعارات المدرسة عند الساعة 7 صباحًا، وتشمل الملخص اليومي وملخص الأحد الأسبوعي الهادئ وتذكيرًا لطيفًا واحدًا بعد انقطاع طويل.",
   },
-  morningDigest: { en: "Morning digest", ar: "ملخص الصباح" },
+  morningDigest: { en: "School notifications", ar: "إشعارات المدرسة" },
   morningDigestHint: {
-    en: "Get a daily push notification with yesterday's school updates at 7 AM.",
-    ar: "احصل على إشعار يومي بتحديثات المدرسة من الأمس في الساعة السابعة صباحًا.",
+    en: "Includes the daily digest, the Sunday weekly recap, and at most one quiet reminder after a long inactive gap.",
+    ar: "تشمل الملخص اليومي وملخص الأحد الأسبوعي، وتذكيرًا هادئًا واحدًا كحد أقصى بعد فترة انقطاع طويلة.",
   },
   timezone: { en: "Your timezone", ar: "منطقتك الزمنية" },
   timezoneHint: {
-    en: "Used to send your morning digest at 7 AM local time.",
-    ar: "تُستخدم لإرسال ملخص الصباح في الساعة 7 صباحًا بتوقيتك المحلي.",
+    en: "Used to send your daily digest and Sunday weekly recap at 7 AM local time.",
+    ar: "تُستخدم لإرسال الملخص اليومي وملخص الأحد الأسبوعي عند الساعة 7 صباحًا بتوقيتك المحلي.",
   },
   browserTimezoneOption: {
     en: "(Your browser timezone)",
@@ -180,11 +184,11 @@ const COPY = {
     en: "Checking browser notification status...",
     ar: "جارٍ التحقق من حالة إشعارات المتصفح...",
   },
-  pushEnabled: { en: "Morning digest enabled.", ar: "تم تفعيل ملخص الصباح." },
-  pushDisabled: { en: "Morning digest turned off.", ar: "تم إيقاف ملخص الصباح." },
+  pushEnabled: { en: "Digest notifications enabled.", ar: "تم تفعيل إشعارات الملخص." },
+  pushDisabled: { en: "Digest notifications turned off.", ar: "تم إيقاف إشعارات الملخص." },
   pushError: {
-    en: "Could not update morning digest. Please try again.",
-    ar: "تعذر تحديث ملخص الصباح. حاول مرة أخرى.",
+    en: "Could not update digest notifications. Please try again.",
+    ar: "تعذر تحديث إشعارات الملخص. حاول مرة أخرى.",
   },
   pushPermissionDenied: {
     en: "Browser notification permission was not granted.",
@@ -433,6 +437,8 @@ export function SettingsPanel() {
   const [linksDraft, setLinksDraft] = useState("");
   const [savedLinksDraft, setSavedLinksDraft] = useState("");
   const [memoryStatus, setMemoryStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [showMemorySavedConfirmation, setShowMemorySavedConfirmation] = useState(false);
+  const [renderMemorySavedConfirmation, setRenderMemorySavedConfirmation] = useState(false);
   const [retentionDays, setRetentionDays] = useState<number | null>(null);
   const [savedRetentionDays, setSavedRetentionDays] = useState<number | null>(null);
   const [retentionStatus, setRetentionStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -525,6 +531,15 @@ export function SettingsPanel() {
     const timeoutId = window.setTimeout(() => setPushFeedback(null), 3000);
     return () => window.clearTimeout(timeoutId);
   }, [pushFeedback]);
+
+  useEffect(() => {
+    if (!showMemorySavedConfirmation) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setShowMemorySavedConfirmation(false), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [showMemorySavedConfirmation]);
 
   useEffect(() => {
     let active = true;
@@ -677,6 +692,8 @@ export function SettingsPanel() {
     });
 
     setMemoryStatus("saving");
+    setShowMemorySavedConfirmation(false);
+    setRenderMemorySavedConfirmation(false);
     try {
       await saveProfilePatch({ family_context: nextContext });
       const nextTeachers = nextContext.teacher_names.join("\n");
@@ -691,6 +708,8 @@ export function SettingsPanel() {
       setLinksDraft(nextLinks);
       setSavedLinksDraft(nextLinks);
       setMemoryStatus("saved");
+      setRenderMemorySavedConfirmation(true);
+      setShowMemorySavedConfirmation(true);
       trackEvent(AnalyticsEvents.FAMILY_CONTEXT_SAVED, {
         groupType: nextContext.group_type,
         preferredCurrency: nextContext.preferred_currency,
@@ -1143,7 +1162,22 @@ export function SettingsPanel() {
                 <Button type="button" onClick={() => void handleSaveMemory()} disabled={!memoryChanged || memoryStatus === "saving"}>
                   {memoryStatus === "saving" ? pick(locale, COPY.saving) : pick(locale, COPY.saveMemory)}
                 </Button>
-                {memoryStatus === "saved" && <span className="text-sm text-[var(--success)]">{pick(locale, COPY.saved)}</span>}
+                {renderMemorySavedConfirmation && (
+                  <p
+                    aria-live="polite"
+                    onTransitionEnd={() => {
+                      if (!showMemorySavedConfirmation) {
+                        setRenderMemorySavedConfirmation(false);
+                      }
+                    }}
+                    className={cn(
+                      "text-xs text-[var(--muted-foreground)] transition-opacity duration-300",
+                      showMemorySavedConfirmation ? "opacity-100" : "opacity-0"
+                    )}
+                  >
+                    {pick(locale, COPY.memorySavedConfirmation)}
+                  </p>
+                )}
                 {memoryStatus === "error" && <span className="text-sm text-[var(--destructive)]">{pick(locale, COPY.saveError)}</span>}
               </div>
             </>

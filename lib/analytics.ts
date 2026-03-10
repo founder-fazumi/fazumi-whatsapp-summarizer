@@ -12,10 +12,17 @@ let analyticsInitialized = false;
 
 export const AnalyticsEvents = {
   SUMMARY_CREATED: "summary_created",
+  FIRST_VALUE_DELIVERED: "first_value_delivered",
   SUMMARY_VIEWED: "summary_viewed",
   ACTIVATION_COMPLETED: "activation_completed",
   WEEKLY_REPEAT_USED: "weekly_repeat_used",
+  STATUS_LINE_SHOWN: "status_line_shown",
+  MILESTONE_REACHED: "milestone_reached",
+  FEATURE_DISCOVERY_SHOWN: "feature_discovery_shown",
+  REENGAGEMENT_SENT: "reengagement_sent",
   LIMIT_REACHED: "limit_reached",
+  UPGRADE_BANNER_SEEN: "upgrade_banner_seen",
+  UPGRADE_BANNER_DISMISSED: "upgrade_banner_dismissed",
   NOTIFICATION_ENABLED: "notification_enabled",
   NOTIFICATION_DISMISSED: "notification_dismissed",
   SOURCE_SELECTED: "source_selected",
@@ -24,6 +31,7 @@ export const AnalyticsEvents = {
   RETENTION_UPDATED: "retention_updated",
   ACCOUNT_DELETED: "account_deleted",
   PMF_SURVEY_SUBMITTED: "pmf_survey_submitted",
+  PMF_FOLLOWUP_SUBMITTED: "pmf_followup_submitted",
   ACTION_CENTER_USED: "action_center_used",
 } as const;
 
@@ -129,3 +137,33 @@ export function resetAnalytics() {
   posthog.reset();
   analyticsInitialized = false;
 }
+
+/**
+ * Analytics event reference
+ *
+ * Activation:
+ *   FIRST_VALUE_DELIVERED - time from session start to first successful summary
+ *
+ * Engagement:
+ *   SUMMARY_CREATED - every successful summary
+ *   ACTIVATION_COMPLETED - first summary in account lifetime
+ *   STATUS_LINE_SHOWN - result-screen emotional payoff is shown
+ *   ACTION_CENTER_USED - user interacts with action items
+ *
+ * Retention:
+ *   WEEKLY_REPEAT_USED - user returns within 7 days
+ *   MILESTONE_REACHED - user crosses a summary count milestone
+ *   FEATURE_DISCOVERY_SHOWN - in-app feature discovery nudge shown
+ *   REENGAGEMENT_SENT - inactivity re-engagement push delivered
+ *
+ * Conversion:
+ *   LIMIT_REACHED - daily or lifetime cap hit
+ *   UPGRADE_BANNER_SEEN - post-payment banner displayed
+ *   UPGRADE_BANNER_DISMISSED - post-payment banner closed
+ *
+ * Product quality:
+ *   PMF_SURVEY_SUBMITTED - PMF response submitted
+ *   PMF_FOLLOWUP_SUBMITTED - PMF follow-up text submitted
+ *   GROUP_SAVED - group name saved to profile
+ *   FAMILY_CONTEXT_SAVED - family context updated
+ */

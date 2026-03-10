@@ -271,3 +271,43 @@
 **Quick test:** When a shell prop like `breadcrumb?: React.ReactNode` exists, search both the repo and `tasks/todo.md` for the planned helper before deleting the file.
 
 ---
+
+## L034 — Notification cadence tracking must match the real delivery scope
+**Mistake:** The original push scheduler used one generic `push_subscriptions.last_notified_at` for every push send, which let unrelated summary-ready pushes interfere with morning-digest cadence and could not safely support weekly digests or once-per-gap re-engagement.
+**Why:** Notification timing was treated as one browser-level concern even after the product needed multiple cadences and one user-level reminder.
+**Rule:** Track each notification cadence on the narrowest truthful scope. Use subscription-level timestamps for digest sends tied to an opted-in browser, and user-level timestamps for reminder rules that must stay once-per-gap across devices. Never reuse a generic "last notified" field as the source of truth for multiple notification behaviors.
+**Quick test:** Send a summary-ready push, then run the digest scheduler and confirm the morning digest can still send. After a 14-day inactive gap, confirm one re-engagement reminder is recorded and no second reminder is eligible until a new summary is saved.
+
+---
+
+## L035 — Exact phase prompts outrank earlier broad audit interpretations
+**Mistake:** The earlier emotional-design pass treated milestone and discovery work as broadly complete even though the live result screen used different thresholds, different placement, and no browser-local once-only gating.
+**Why:** The implementation followed the audit theme instead of the exact phase checklist that specified thresholds, localStorage behavior, and placement under `StatusLine`.
+**Rule:** When a phase prompt gives exact thresholds, placement, dismissal rules, or storage-key behavior, implement that contract literally before marking the phase complete.
+**Quick test:** Compare the phase spec to the live code: milestones only at `1`, `5`, `10`, `25`, `50`; the discovery note only on the 5th saved summary; notices render immediately below `StatusLine`; and the localStorage keys follow the `fazumi_milestone_seen` / `fazumi_discovery_seen` pattern.
+
+---
+
+## L036 — Retention mechanics need to be re-checked against the exact notification and feedback contract
+**Mistake:** The earlier retention implementation folded re-engagement into the morning digest path and used the PMF modal's inline `missing_if_gone` field, which drifted from the later Phase 5 prompt.
+**Why:** The broad emotional-design spec was treated as complete even after the exact Phase 5 instructions narrowed the delivery shape, cooldown rule, and PMF follow-up field.
+**Rule:** When a later phase prompt specifies a separate cron surface, a cooldown window, or an exact analytics/feedback field like `biggest_benefit`, realign the live code to that contract instead of assuming the earlier broad implementation is still sufficient.
+**Quick test:** Confirm `/api/cron/reengagement` exists, requires `CRON_SECRET`, enforces the 28-day cooldown, and `components/pmf/PmfSurveyModal.tsx` only posts `biggest_benefit` from the second screen shown for `very_disappointed`.
+
+---
+
+## L037 — Analytics phases need an explicit event-to-surface audit before they are called complete
+**Mistake:** The earlier emotional-design pass kept a legacy first-value event name and missed exact Phase 6 fire points like `STATUS_LINE_SHOWN`, `UPGRADE_BANNER_SEEN`, and `PMF_FOLLOWUP_SUBMITTED`.
+**Why:** The implementation followed the broad rollout theme, but the exact event names and call sites from the later phase prompt were not audited component by component.
+**Rule:** When a phase prompt defines exact analytics events, map every requested event to a concrete component or route before marking the phase instrumented. Replace legacy aliases instead of keeping both unless there is a deliberate migration reason.
+**Quick test:** Run `rg -n "FIRST_VALUE_DELIVERED|STATUS_LINE_SHOWN|MILESTONE_REACHED|FEATURE_DISCOVERY_SHOWN|PMF_FOLLOWUP_SUBMITTED|UPGRADE_BANNER_SEEN|UPGRADE_BANNER_DISMISSED|reengagement_sent" app components lib` and confirm each event appears at the intended fire point with no stale app-code alias left behind.
+
+---
+
+## L038 — The summary result screen must keep the locked six-section contract
+**Mistake:** The emotional-design result screen drifted into showing a seventh `Contacts` card even though FAZUMI's locked output contract is still six user-facing sections.
+**Why:** The summary schema gained structured `contacts`, but the renderer/export layer surfaced that extra field directly instead of checking it against the product contract.
+**Rule:** When structured summary metadata grows, map the extra data into an allowed section or keep it internal until the product contract is explicitly changed. Do not add a new result card just because the schema exposes another array.
+**Quick test:** After any summary-schema change, open a saved summary and exported `.txt` and confirm the user-facing output still renders exactly six sections in the agreed order.
+
+---

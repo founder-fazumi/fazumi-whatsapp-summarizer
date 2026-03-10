@@ -37,6 +37,8 @@ export default async function DashboardPage() {
   let summariesUsed = 0;
   let summaryCount = 0;
   let groupCount = 0;
+  let summaryCountThisWeek: number | undefined;
+  let summaryCountLastWeek: number | undefined;
 
   try {
     const supabase = await createClient();
@@ -46,7 +48,10 @@ export default async function DashboardPage() {
       userName = (user.user_metadata?.full_name as string | null) ?? user.email?.split("@")[0] ?? null;
 
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: profile }, { data: usage }, { count }, { data: subscriptions }, { data: groupRows }] = await Promise.all([
+      const now = Date.now();
+      const weekStartIso = new Date(now - (7 * 24 * 60 * 60 * 1000)).toISOString();
+      const previousWeekStartIso = new Date(now - (14 * 24 * 60 * 60 * 1000)).toISOString();
+      const [{ data: profile }, { data: usage }, { count }, { data: subscriptions }, { data: groupRows }, { count: weeklyCount }, { count: previousWeeklyCount }] = await Promise.all([
         supabase
           .from("profiles")
           .select("plan, trial_expires_at")
@@ -57,7 +62,7 @@ export default async function DashboardPage() {
           .select("summaries_used")
           .eq("user_id", user.id)
           .eq("date", today)
-          .single<Pick<UsageDaily, "summaries_used">>(),
+          .maybeSingle<Pick<UsageDaily, "summaries_used">>(),
         supabase
           .from("summaries")
           .select("id", { count: "exact", head: true })
@@ -73,6 +78,19 @@ export default async function DashboardPage() {
           .eq("user_id", user.id)
           .is("deleted_at", null)
           .not("group_name", "is", null),
+        supabase
+          .from("summaries")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .is("deleted_at", null)
+          .gte("created_at", weekStartIso),
+        supabase
+          .from("summaries")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .is("deleted_at", null)
+          .gte("created_at", previousWeekStartIso)
+          .lt("created_at", weekStartIso),
       ]);
 
       const entitlement = resolveEntitlement({
@@ -93,6 +111,8 @@ export default async function DashboardPage() {
           .map((row) => row.group_name)
           .filter((groupName): groupName is string => groupName !== null)
       ).size;
+      summaryCountThisWeek = typeof weeklyCount === "number" ? weeklyCount : undefined;
+      summaryCountLastWeek = typeof previousWeeklyCount === "number" ? previousWeeklyCount : undefined;
     }
   } catch {
     // Supabase not configured — show dashboard with default values
@@ -105,7 +125,7 @@ export default async function DashboardPage() {
       <FounderWelcomeModal isFounder={billingPlan === "founder"} />
       <MeasurementTracker />
       <div className="space-y-5">
-        <UpgradeBanner />
+        <UpgradeBanner plan={billingPlan} />
         <DashboardBanner
           userName={userName}
           billingPlan={billingPlan}
@@ -114,7 +134,26 @@ export default async function DashboardPage() {
           summaryCount={summaryCount}
           groupCount={groupCount}
           summariesLimit={summariesLimit}
+          summaryCountThisWeek={summaryCountThisWeek}
+          summaryCountLastWeek={summaryCountLastWeek}
         />
+
+        {summaryCount === 0 ? (
+          <div className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+            <p className="text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
+              <LocalizedText
+                en="Paste your first school group chat to get started. Your summaries and school dates will appear here."
+                ar="الصق أول محادثة مجموعة مدرسية لتبدأ. ستظهر ملخصاتك ومواعيد المدرسة هنا."
+              />
+            </p>
+            <Link
+              href="/summarize"
+              className="mt-3 inline-flex text-sm font-semibold text-[var(--primary)] hover:underline"
+            >
+              <LocalizedText en="Open summarize" ar="افتح التلخيص" />
+            </Link>
+          </div>
+        ) : null}
 
         <Card className="bg-[var(--surface-elevated)]">
           <CardHeader>
