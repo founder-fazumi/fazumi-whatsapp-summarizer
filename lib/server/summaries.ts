@@ -7,6 +7,19 @@ export const MAX_SUMMARY_CHARS = 30_000;
 
 let aiRequestLogsUnavailable = false;
 let aiRequestLogsWarningShown = false;
+const OPTIONAL_SUMMARY_INSERT_COLUMNS = [
+  "urgent_action_items",
+  "contacts",
+  "chat_type",
+  "chat_context",
+  "group_name",
+  "group_id",
+  "source_kind",
+  "source_range",
+  "new_messages_count",
+] as const;
+
+type OptionalSummaryInsertColumn = (typeof OPTIONAL_SUMMARY_INSERT_COLUMNS)[number];
 
 export class PersistError extends Error {
   constructor(message: string, readonly code: string) {
@@ -69,26 +82,28 @@ function shouldSuppressAiRequestLogWarnings() {
   return process.env.NODE_ENV !== "production" || process.env.PLAYWRIGHT_TEST === "1";
 }
 
-function isMissingSummaryGroupNameColumnError(error: {
+function getMissingSummaryInsertColumn(error: {
   code?: string | null;
   message?: string | null;
   details?: string | null;
   hint?: string | null;
-}) {
+}): OptionalSummaryInsertColumn | null {
   const code = error.code ?? "";
   const message = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
 
-  return (
-    message.includes("group_name") &&
-    (
-      code === "42703" ||
-      code === "PGRST204" ||
-      message.includes("schema cache") ||
-      message.includes("column") ||
-      message.includes("does not exist") ||
-      message.includes("could not find")
-    )
-  );
+  const looksLikeMissingColumn =
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("column") ||
+    message.includes("does not exist") ||
+    message.includes("could not find");
+
+  if (!looksLikeMissingColumn) {
+    return null;
+  }
+
+  return OPTIONAL_SUMMARY_INSERT_COLUMNS.find((column) => message.includes(column)) ?? null;
 }
 
 function getSummaryInsertPayload(params: {
@@ -101,28 +116,33 @@ function getSummaryInsertPayload(params: {
   sourceRange?: SummarySourceRange | null;
   newMessagesCount?: number | null;
 }, options?: {
-  includeGroupName?: boolean;
+  omittedColumns?: ReadonlySet<OptionalSummaryInsertColumn>;
 }) {
+  const omittedColumns = options?.omittedColumns;
+  const shouldInclude = (column: OptionalSummaryInsertColumn) => !omittedColumns?.has(column);
+
   return {
     user_id: params.userId,
     title: makeSummaryTitle(params.summary.tldr),
     tldr: params.summary.tldr,
     important_dates: params.summary.important_dates,
     action_items: params.summary.action_items,
-    urgent_action_items: params.summary.urgent_action_items,
+    ...(shouldInclude("urgent_action_items")
+      ? { urgent_action_items: params.summary.urgent_action_items }
+      : {}),
     people_classes: params.summary.people_classes,
-    contacts: params.summary.contacts,
+    ...(shouldInclude("contacts") ? { contacts: params.summary.contacts } : {}),
     links: params.summary.links,
     questions: params.summary.questions,
-    chat_type: params.summary.chat_type,
-    chat_context: params.summary.chat_context,
+    ...(shouldInclude("chat_type") ? { chat_type: params.summary.chat_type } : {}),
+    ...(shouldInclude("chat_context") ? { chat_context: params.summary.chat_context } : {}),
     char_count: params.charCount,
     lang_detected: params.summary.lang_detected ?? "en",
-    ...(options?.includeGroupName === false ? {} : { group_name: params.groupName ?? null }),
-    ...(params.groupId ? { group_id: params.groupId } : {}),
-    ...(params.sourceKind ? { source_kind: params.sourceKind } : {}),
-    ...(params.sourceRange ? { source_range: params.sourceRange } : {}),
-    ...(typeof params.newMessagesCount === "number"
+    ...(shouldInclude("group_name") ? { group_name: params.groupName ?? null } : {}),
+    ...(shouldInclude("group_id") && params.groupId ? { group_id: params.groupId } : {}),
+    ...(shouldInclude("source_kind") && params.sourceKind ? { source_kind: params.sourceKind } : {}),
+    ...(shouldInclude("source_range") && params.sourceRange ? { source_range: params.sourceRange } : {}),
+    ...(shouldInclude("new_messages_count") && typeof params.newMessagesCount === "number"
       ? { new_messages_count: params.newMessagesCount }
       : {}),
   };
@@ -174,32 +194,42 @@ export async function logAiRequest(params: {
     return;
   }
 
-  const { error } = await admin.from("ai_request_logs").insert({
-    user_id: params.userId,
-    route: params.route,
-    model: params.model,
-    status: params.status,
-    input_chars: params.inputChars,
-    prompt_tokens: params.promptTokens,
-    completion_tokens: params.completionTokens,
-    total_tokens: params.totalTokens,
-    estimated_cost_usd: params.estimatedCostUsd,
-    latency_ms: params.latencyMs,
-    error_code: params.errorCode ?? null,
-  });
+  try {
+    const { error } = await admin.from("ai_request_logs").insert({
+      user_id: params.userId,
+      route: params.route,
+      model: params.model,
+      status: params.status,
+      input_chars: params.inputChars,
+      prompt_tokens: params.promptTokens,
+      completion_tokens: params.completionTokens,
+      total_tokens: params.totalTokens,
+      estimated_cost_usd: params.estimatedCostUsd,
+      latency_ms: params.latencyMs,
+      error_code: params.errorCode ?? null,
+    });
 
-  if (error) {
-    if (isAiRequestLogsMissingError(error.message)) {
-      aiRequestLogsUnavailable = true;
+    if (error) {
+      if (isAiRequestLogsMissingError(error.message)) {
+        aiRequestLogsUnavailable = true;
+        if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
+          console.warn("ai_request_logs table is unavailable. Skipping AI usage inserts.");
+          aiRequestLogsWarningShown = true;
+        }
+        return;
+      }
+
       if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
-        console.warn("ai_request_logs table is unavailable. Skipping AI usage inserts.");
+        console.warn("Could not record ai_request_logs row.", error.message);
         aiRequestLogsWarningShown = true;
       }
-      return;
     }
-
+  } catch (error) {
     if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
-      console.warn("Could not record ai_request_logs row.", error.message);
+      console.warn(
+        "Could not record ai_request_logs row.",
+        error instanceof Error ? error.message : String(error)
+      );
       aiRequestLogsWarningShown = true;
     }
   }
@@ -220,25 +250,29 @@ export async function saveSummaryRecord(params: {
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
-  let { data, error } = await admin
-    .from("summaries")
-    .insert(getSummaryInsertPayload(params))
-    .select("id")
-    .single<{ id: string }>();
+  const omittedColumns = new Set<OptionalSummaryInsertColumn>();
 
-  if (error && isMissingSummaryGroupNameColumnError(error)) {
-    ({ data, error } = await admin
+  for (let attempt = 0; attempt <= OPTIONAL_SUMMARY_INSERT_COLUMNS.length; attempt += 1) {
+    const { data, error } = await admin
       .from("summaries")
-      .insert(getSummaryInsertPayload(params, { includeGroupName: false }))
+      .insert(getSummaryInsertPayload(params, { omittedColumns }))
       .select("id")
-      .single<{ id: string }>());
-  }
+      .single<{ id: string }>();
 
-  if (error || !data?.id) {
+    if (!error && data?.id) {
+      return data.id;
+    }
+
+    const missingColumn = error ? getMissingSummaryInsertColumn(error) : null;
+    if (missingColumn && !omittedColumns.has(missingColumn)) {
+      omittedColumns.add(missingColumn);
+      continue;
+    }
+
     throw new PersistError("Could not save summary.", "SUMMARY_SAVE_FAILED");
   }
 
-  return data.id;
+  throw new PersistError("Could not save summary.", "SUMMARY_SAVE_FAILED");
 }
 
 export async function seedTodosFromSummary(userId: string, actionItems: string[]): Promise<void> {
@@ -262,7 +296,11 @@ export async function seedTodosFromSummary(userId: string, actionItems: string[]
     return;
   }
 
-  await admin.from("user_todos").insert(rows);
+  try {
+    await admin.from("user_todos").insert(rows);
+  } catch {
+    return;
+  }
 }
 
 async function incrementUsageDailyAtomic(

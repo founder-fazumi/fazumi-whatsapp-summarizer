@@ -6,6 +6,41 @@
 
 ---
 
+## Story - Summarize route resilience hotfix (2026-03-10) [DONE]
+
+> Spec file: user-requested hotfix (no standalone spec)
+> Rule: successful summaries must not fail because of optional summary columns or best-effort side effects.
+
+#### SRH1 - Harden summary insert fallback [Codex]
+**Why:** The summarize flow could still 500 when the `summaries` table lagged behind the latest optional metadata columns.
+**Files:** `app/api/summarize/route.ts`, `lib/server/summaries.ts`
+**Acceptance:**
+- [x] Text summarize retries summary inserts without newer optional columns when PostgREST reports a missing-column/schema-cache error.
+- [x] ZIP summarize gets the same insert fallback through `lib/server/summaries.ts`.
+
+#### SRH2 - Keep best-effort side effects non-fatal [Codex]
+**Why:** AI usage logging and todo seeding are secondary effects and should not turn a completed summary into a generic 500.
+**Files:** `app/api/summarize/route.ts`, `lib/server/summaries.ts`
+**Acceptance:**
+- [x] `logAiRequest()` swallows thrown network/fetch failures after warning instead of aborting the summarize request.
+- [x] `seedTodosFromSummary()` no longer throws back into the summarize request on insert failures.
+
+#### SRH3 - Keep history compatible with older summary metadata [Codex]
+**Why:** Once summarize can save without the latest optional fields, `/history` must also tolerate missing metadata columns.
+**Files:** `app/(dashboard)/history/page.tsx`
+**Acceptance:**
+- [x] `/history` progressively drops optional metadata fields from the select when PostgREST reports them missing.
+- [x] Missing optional history fields fall back to safe defaults in `SummaryRow`.
+
+#### SRH4 - Verify and record the hotfix [Codex]
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
+---
+
 ## Story - Emotional design Phase 6 analytics alignment (2026-03-10) [DONE]
 
 > Spec file: `specs/emotional-design-phase-6-analytics-alignment-2026-03-10.md`

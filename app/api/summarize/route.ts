@@ -24,6 +24,17 @@ const MAX_CHARS = 30_000;
 export const runtime = "nodejs";
 let aiRequestLogsUnavailable = false;
 let aiRequestLogsWarningShown = false;
+const OPTIONAL_SUMMARY_INSERT_COLUMNS = [
+  "urgent_action_items",
+  "contacts",
+  "chat_type",
+  "chat_context",
+  "group_name",
+  "group_id",
+  "source_kind",
+] as const;
+
+type OptionalSummaryInsertColumn = (typeof OPTIONAL_SUMMARY_INSERT_COLUMNS)[number];
 
 function makeTitle(tldr: string): string {
   const first = tldr.split(/[.\n]/)[0]?.trim() ?? tldr;
@@ -86,26 +97,28 @@ function sleep(ms: number) {
   });
 }
 
-function isMissingSummaryGroupNameColumnError(error: {
+function getMissingSummaryInsertColumn(error: {
   code?: string | null;
   message?: string | null;
   details?: string | null;
   hint?: string | null;
-}) {
+}): OptionalSummaryInsertColumn | null {
   const code = error.code ?? "";
   const message = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
 
-  return (
-    message.includes("group_name") &&
-    (
-      code === "42703" ||
-      code === "PGRST204" ||
-      message.includes("schema cache") ||
-      message.includes("column") ||
-      message.includes("does not exist") ||
-      message.includes("could not find")
-    )
-  );
+  const looksLikeMissingColumn =
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("column") ||
+    message.includes("does not exist") ||
+    message.includes("could not find");
+
+  if (!looksLikeMissingColumn) {
+    return null;
+  }
+
+  return OPTIONAL_SUMMARY_INSERT_COLUMNS.find((column) => message.includes(column)) ?? null;
 }
 
 class PersistError extends Error {
@@ -175,32 +188,42 @@ async function logAiRequest(params: {
     return;
   }
 
-  const { error } = await admin.from("ai_request_logs").insert({
-    user_id: params.userId,
-    route: "/api/summarize",
-    model: params.model,
-    status: params.status,
-    input_chars: params.inputChars,
-    prompt_tokens: params.promptTokens,
-    completion_tokens: params.completionTokens,
-    total_tokens: params.totalTokens,
-    estimated_cost_usd: params.estimatedCostUsd,
-    latency_ms: params.latencyMs,
-    error_code: params.errorCode ?? null,
-  });
+  try {
+    const { error } = await admin.from("ai_request_logs").insert({
+      user_id: params.userId,
+      route: "/api/summarize",
+      model: params.model,
+      status: params.status,
+      input_chars: params.inputChars,
+      prompt_tokens: params.promptTokens,
+      completion_tokens: params.completionTokens,
+      total_tokens: params.totalTokens,
+      estimated_cost_usd: params.estimatedCostUsd,
+      latency_ms: params.latencyMs,
+      error_code: params.errorCode ?? null,
+    });
 
-  if (error) {
-    if (isAiRequestLogsMissingError(error.message)) {
-      aiRequestLogsUnavailable = true;
+    if (error) {
+      if (isAiRequestLogsMissingError(error.message)) {
+        aiRequestLogsUnavailable = true;
+        if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
+          console.warn("ai_request_logs table is unavailable. Skipping AI usage inserts.");
+          aiRequestLogsWarningShown = true;
+        }
+        return;
+      }
+
       if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
-        console.warn("ai_request_logs table is unavailable. Skipping AI usage inserts.");
+        console.warn("Could not record ai_request_logs row.", error.message);
         aiRequestLogsWarningShown = true;
       }
-      return;
     }
-
+  } catch (error) {
     if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
-      console.warn("Could not record ai_request_logs row.", error.message);
+      console.warn(
+        "Could not record ai_request_logs row.",
+        error instanceof Error ? error.message : String(error)
+      );
       aiRequestLogsWarningShown = true;
     }
   }
@@ -220,38 +243,48 @@ async function saveSummary(
     throw new PersistError("Summary storage is not configured.", "PERSIST_NOT_CONFIGURED");
   }
 
-  const buildInsertPayload = (includeGroupName: boolean) => ({
+  const buildInsertPayload = (omittedColumns: ReadonlySet<OptionalSummaryInsertColumn>) => ({
     user_id: userId,
     title: makeTitle(summary.tldr),
     tldr: summary.tldr,
     important_dates: summary.important_dates,
     action_items: summary.action_items,
-    urgent_action_items: summary.urgent_action_items,
+    ...(!omittedColumns.has("urgent_action_items")
+      ? { urgent_action_items: summary.urgent_action_items }
+      : {}),
     people_classes: summary.people_classes,
-    contacts: summary.contacts,
+    ...(!omittedColumns.has("contacts") ? { contacts: summary.contacts } : {}),
     links: summary.links,
     questions: summary.questions,
-    chat_type: summary.chat_type,
-    chat_context: summary.chat_context,
+    ...(!omittedColumns.has("chat_type") ? { chat_type: summary.chat_type } : {}),
+    ...(!omittedColumns.has("chat_context") ? { chat_context: summary.chat_context } : {}),
     char_count: charCount,
     lang_detected: summary.lang_detected ?? "en",
-    ...(includeGroupName ? { group_name: options?.groupName ?? null } : {}),
-    ...(options?.groupId ? { group_id: options.groupId, source_kind: "text" } : { source_kind: "text" }),
+    ...(!omittedColumns.has("group_name") ? { group_name: options?.groupName ?? null } : {}),
+    ...(!omittedColumns.has("group_id") && options?.groupId ? { group_id: options.groupId } : {}),
+    ...(!omittedColumns.has("source_kind") ? { source_kind: "text" } : {}),
   });
 
-  let { data, error } = await admin.from("summaries").insert(buildInsertPayload(true))
-    .select("id").single<{ id: string }>();
+  const omittedColumns = new Set<OptionalSummaryInsertColumn>();
 
-  if (error && isMissingSummaryGroupNameColumnError(error)) {
-    ({ data, error } = await admin.from("summaries").insert(buildInsertPayload(false))
-      .select("id").single<{ id: string }>());
-  }
+  for (let attempt = 0; attempt <= OPTIONAL_SUMMARY_INSERT_COLUMNS.length; attempt += 1) {
+    const { data, error } = await admin.from("summaries").insert(buildInsertPayload(omittedColumns))
+      .select("id").single<{ id: string }>();
 
-  if (error || !data?.id) {
+    if (!error && data?.id) {
+      return data.id;
+    }
+
+    const missingColumn = error ? getMissingSummaryInsertColumn(error) : null;
+    if (missingColumn && !omittedColumns.has(missingColumn)) {
+      omittedColumns.add(missingColumn);
+      continue;
+    }
+
     throw new PersistError("Could not save summary.", "SUMMARY_SAVE_FAILED");
   }
 
-  return data.id;
+  throw new PersistError("Could not save summary.", "SUMMARY_SAVE_FAILED");
 }
 
 async function incrementUsageDailyAtomic(
@@ -302,7 +335,11 @@ async function seedTodosFromSummary(userId: string, actionItems: string[]): Prom
 
   if (rows.length === 0) return;
 
-  await admin.from("user_todos").insert(rows);
+  try {
+    await admin.from("user_todos").insert(rows);
+  } catch {
+    return;
+  }
 }
 
 async function incrementLifetimeFreeUsageAtomic(

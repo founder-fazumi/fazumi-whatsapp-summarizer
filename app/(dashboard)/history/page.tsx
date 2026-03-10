@@ -6,42 +6,58 @@ import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 import { createClient } from "@/lib/supabase/server";
 
 const PAGE_SIZE = 50;
+const OPTIONAL_HISTORY_FIELDS = [
+  "group_name",
+  "source_kind",
+  "source_range",
+  "new_messages_count",
+] as const;
+
+type OptionalHistoryField = (typeof OPTIONAL_HISTORY_FIELDS)[number];
 
 function sanitizeSearch(value: string) {
   return value.trim().replace(/[,%]/g, " ");
 }
 
-function isMissingSummaryGroupNameColumnError(error: {
+function getMissingHistoryField(error: {
   code?: string | null;
   message?: string | null;
   details?: string | null;
   hint?: string | null;
-}) {
+}): OptionalHistoryField | null {
   const code = error.code ?? "";
   const message = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
 
-  return (
-    message.includes("group_name") &&
-    (
-      code === "42703" ||
-      code === "PGRST204" ||
-      message.includes("schema cache") ||
-      message.includes("column") ||
-      message.includes("does not exist") ||
-      message.includes("could not find")
-    )
-  );
+  const looksLikeMissingColumn =
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("column") ||
+    message.includes("does not exist") ||
+    message.includes("could not find");
+
+  if (!looksLikeMissingColumn) {
+    return null;
+  }
+
+  return OPTIONAL_HISTORY_FIELDS.find((field) => message.includes(field)) ?? null;
 }
 
 function buildHistoryQuery(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   query: string,
-  includeGroupName = true
+  omittedFields = new Set<OptionalHistoryField>()
 ) {
-  const fields = includeGroupName
-    ? "id, title, tldr, created_at, char_count, group_name, lang_detected, source_kind, source_range, new_messages_count"
-    : "id, title, tldr, created_at, char_count, lang_detected, source_kind, source_range, new_messages_count";
+  const fields = [
+    "id",
+    "title",
+    "tldr",
+    "created_at",
+    "char_count",
+    "lang_detected",
+    ...OPTIONAL_HISTORY_FIELDS.filter((field) => !omittedFields.has(field)),
+  ].join(", ");
   let request = supabase
     .from("summaries")
     .select(fields, { count: "exact" })
@@ -62,23 +78,38 @@ async function loadHistoryPage(
   from: number,
   to: number
 ) {
-  let response = await buildHistoryQuery(supabase, userId, query, true).range(from, to);
+  const omittedFields = new Set<OptionalHistoryField>();
 
-  if (response.error && isMissingSummaryGroupNameColumnError(response.error)) {
-    response = await buildHistoryQuery(supabase, userId, query, false).range(from, to);
-    const fallbackRows = ((response.data ?? []) as unknown as Omit<SummaryRow, "group_name">[]);
-    return {
-      ...response,
-      data: fallbackRows.map((summary) => ({
-        ...summary,
-        group_name: null,
-      })),
-    };
+  for (let attempt = 0; attempt <= OPTIONAL_HISTORY_FIELDS.length; attempt += 1) {
+    const response = await buildHistoryQuery(supabase, userId, query, omittedFields).range(from, to);
+    const missingField = response.error ? getMissingHistoryField(response.error) : null;
+
+    if (!response.error || !missingField || omittedFields.has(missingField)) {
+      const fallbackRows = ((response.data ?? []) as unknown as Array<Partial<SummaryRow> & Pick<SummaryRow, "id" | "title" | "tldr" | "created_at" | "char_count" | "lang_detected">>);
+      return {
+        ...response,
+        data: fallbackRows.map((summary) => ({
+          id: summary.id,
+          title: summary.title,
+          tldr: summary.tldr,
+          created_at: summary.created_at,
+          char_count: summary.char_count,
+          lang_detected: summary.lang_detected,
+          group_name: summary.group_name ?? null,
+          source_kind: summary.source_kind ?? "text",
+          source_range: summary.source_range ?? null,
+          new_messages_count: summary.new_messages_count ?? null,
+        })),
+      };
+    }
+
+    omittedFields.add(missingField);
   }
 
   return {
-    ...response,
-    data: (response.data as SummaryRow[] | null) ?? [],
+    data: [] as SummaryRow[],
+    count: 0,
+    error: null,
   };
 }
 

@@ -311,3 +311,11 @@
 **Quick test:** After any summary-schema change, open a saved summary and exported `.txt` and confirm the user-facing output still renders exactly six sections in the agreed order.
 
 ---
+
+## L039 — Best-effort summarize side effects must never decide request success
+**Mistake:** The summarize request could still end in a generic `Failed to generate summary` error even after the AI summary was ready, because optional summary columns, AI-request logging, or todo seeding could throw inside the main request path.
+**Why:** The save fallback only handled `group_name`, and the "best-effort" helpers still allowed thrown fetch/network failures to bubble up.
+**Rule:** In summarize routes, only auth, limits, the AI call, and the final summary save are allowed to fail the request. Optional newer summary columns must degrade safely, and secondary effects like usage logging or todo seeding must swallow transport failures after warning.
+**Quick test:** Temporarily simulate a missing optional `summaries` column or an unavailable `ai_request_logs` / `user_todos` write path, then run summarize and confirm the request still returns `200` with a saved summary.
+
+---
