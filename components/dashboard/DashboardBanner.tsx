@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
 import { getTimeAwareGreeting, pick, t, type LocalizedCopy } from "@/lib/i18n";
+import { paymentsComingSoon, withPaymentComingSoonLabel } from "@/lib/payments-ui";
 
 interface DashboardBannerProps {
   userName?: string | null;
@@ -117,6 +118,9 @@ export function DashboardBanner({
     summaryCountThisWeek,
     summaryCountLastWeek,
   });
+  const upgradeLabel = paymentsComingSoon
+    ? withPaymentComingSoonLabel(t("dash.upgrade", locale), locale)
+    : t("dash.upgrade", locale);
 
   const STATS: { icon: LucideIcon; label: string; value: string; detail?: string | null }[] = [
     {
@@ -204,7 +208,7 @@ export function DashboardBanner({
                 className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
               >
                 <ArrowUpCircle className="h-3.5 w-3.5" />
-                {t("dash.upgrade", locale)}
+                {upgradeLabel}
               </Link>
             )}
           </div>

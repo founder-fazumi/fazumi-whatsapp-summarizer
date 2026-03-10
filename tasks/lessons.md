@@ -344,6 +344,14 @@
 
 ---
 
+## L043 — Payment-live copy must be gated from one shared source of truth
+**Mistake:** Public pricing, founder, and upgrade surfaces can easily imply live checkout before payment-provider approval if each component owns its own label and button state.
+**Why:** Payment acquisition copy is spread across pricing cards, founder pages, dashboard upsells, summarize gating, and modal links, so one-off edits drift quickly.
+**Rule:** Gate payment acquisition through one shared `paymentsComingSoon` flag plus a shared label helper, and route every purchase/upgrade CTA through that contract before showing live checkout copy again.
+**Quick test:** Open `/pricing`, `/founder-supporter`, `/billing`, and a free-user `/summarize` limit state; payment acquisition CTAs should include `(coming soon)` / `(قريبًا)`, and purchase buttons must stay disabled.
+
+---
+
 ## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
 **Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.

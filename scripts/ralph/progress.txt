@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-10
+# Payments coming-soon gate completed: added a shared payment-UI gate, disabled public checkout CTAs, and relabeled upgrade/view-plan acquisition surfaces with `(coming soon)` / `(قريبًا)` while keeping existing paid-user management links unchanged.
+# Files: specs/payments-coming-soon-gate-2026-03-10.md, tasks/todo.md, tasks/lessons.md, docs/decisions.md, lib/payments-ui.ts, components/billing/CheckoutButton.tsx, components/landing/Pricing.tsx, components/billing/BillingPlansPanel.tsx, components/dashboard/DashboardBanner.tsx, components/layout/Sidebar.tsx, components/landing/GoToAppButton.tsx, components/SummaryDisplay.tsx, app/(dashboard)/summarize/page.tsx, components/founder-support/FounderSupportPage.tsx, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`31 passed`, `3 skipped`). Playwright needed an outside-sandbox rerun so `pnpm dev` could start normally.
+# Pattern: when payment-provider approval is still pending, keep plan discovery visible but gate every acquisition CTA through one shared helper so pricing, founder, dashboard, and summarize surfaces cannot drift into "payments are live" copy.
+#
+
+# 2026-03-10
 # Stale branch cleanup completed: deleted local and remote `feat/incremental-zip-summarize`, which was still pointing at commit `a9b5873` with vulnerable `next@15.4.0`, so the Vercel CVE-2025-66478 build failure is resolved without any app code changes.
 # Files: scripts/ralph/progress.txt
 # Verification: `git branch -a` no longer lists `remotes/origin/feat/incremental-zip-summarize`; `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`31 passed`, `3 skipped`, `0 failed`).

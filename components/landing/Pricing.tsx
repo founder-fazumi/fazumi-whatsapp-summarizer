@@ -8,6 +8,7 @@ import { CheckoutButton } from "@/components/billing/CheckoutButton";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { paymentProviderApprovalNote, paymentsComingSoon } from "@/lib/payments-ui";
 import { lsVariantIds, lsVariantsConfigured } from "@/lib/config/public";
 
 type Billing = "monthly" | "yearly";
@@ -399,7 +400,15 @@ export function Pricing({
         <p className="mt-6 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
           {pick(COPY.refundNote, locale)}
         </p>
-        {!lsVariantsConfigured ? (
+        {paymentsComingSoon ? (
+          <p
+            className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]"
+            role="status"
+            aria-live="polite"
+          >
+            {pick(paymentProviderApprovalNote, locale)}
+          </p>
+        ) : !lsVariantsConfigured ? (
           <p
             className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]"
             role="status"

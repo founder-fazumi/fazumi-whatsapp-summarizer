@@ -237,3 +237,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep the user-facing result and export output at six sections. Preserve structured `contacts`, but fold them into `Links / Attachments referenced` unless the product contract is explicitly updated to add another section.
 **Consequences:** Schema growth does not silently change the parent-facing result UX. Any future summary field that wants its own card must go through spec, copy, and acceptance-criteria review first.
 
+---
+
+## D027 - Payment acquisition stays in a coming-soon state until provider approval
+**Date:** 2026-03-10
+**Context:** FAZUMI's pricing and founder surfaces were already wired for Lemon Squeezy-style checkout, but provider approval is still pending and the public UI should not imply that payment is live.
+**Decision:** Keep pricing and upgrade surfaces visible, but gate all new payment-acquisition CTAs behind a shared coming-soon flag. Purchase buttons stay disabled with `(coming soon)` / `(قريبًا)` labels, while existing paid-account management links remain unchanged.
+**Consequences:** Users can still inspect plans and pricing, but they cannot be sent into a fake or premature checkout flow. Re-enabling payments later becomes one shared config change instead of a scattered copy pass across multiple routes.
+

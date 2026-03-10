@@ -7,6 +7,11 @@ import {
   isValidCheckoutVariantId,
   normalizeVariantId,
 } from "@/lib/lemonsqueezy-config";
+import {
+  paymentProviderApprovalNote,
+  paymentsComingSoon,
+  withPaymentComingSoonLabel,
+} from "@/lib/payments-ui";
 
 interface Props {
   variantId: string;
@@ -19,15 +24,23 @@ export function CheckoutButton({ variantId, children, className }: Props) {
   const { locale } = useLang();
   const [loading, setLoading] = useState(false); // stays true after click (navigating away)
   const normalizedVariantId = normalizeVariantId(variantId);
-  const checkoutState = !lsVariantsConfigured
+  const checkoutState = paymentsComingSoon
+    ? "coming_soon"
+    : !lsVariantsConfigured
     ? "billing_missing"
     : !normalizedVariantId
     ? "missing"
     : isValidCheckoutVariantId(normalizedVariantId)
       ? "ready"
       : "invalid";
+  const label =
+    typeof children === "string" && paymentsComingSoon
+      ? withPaymentComingSoonLabel(children, locale)
+      : children;
 
-  const unavailableMessage = checkoutState === "billing_missing"
+  const unavailableMessage = checkoutState === "coming_soon"
+    ? paymentProviderApprovalNote[locale]
+    : checkoutState === "billing_missing"
     ? (locale === "ar" ? "لم يتم إعداد الدفع بعد." : "Billing is not configured yet.")
     : checkoutState === "missing"
       ? (locale === "ar"
@@ -46,6 +59,8 @@ export function CheckoutButton({ variantId, children, className }: Props) {
   }
 
   if (checkoutState !== "ready") {
+    const showUnavailableMessage = checkoutState !== "coming_soon";
+
     return (
       <>
         <button
@@ -55,15 +70,17 @@ export function CheckoutButton({ variantId, children, className }: Props) {
           className={className}
           aria-disabled="true"
         >
-          {children}
+          {label}
         </button>
-        <p
-          className="mt-2 text-xs leading-6 text-[var(--muted-foreground)]"
-          role="status"
-          aria-live="polite"
-        >
-          {unavailableMessage}
-        </p>
+        {showUnavailableMessage ? (
+          <p
+            className="mt-2 text-xs leading-6 text-[var(--muted-foreground)]"
+            role="status"
+            aria-live="polite"
+          >
+            {unavailableMessage}
+          </p>
+        ) : null}
       </>
     );
   }
@@ -75,7 +92,7 @@ export function CheckoutButton({ variantId, children, className }: Props) {
       disabled={loading}
       className={className}
     >
-      {loading ? (locale === "ar" ? "جارٍ التحويل…" : "Redirecting…") : children}
+      {loading ? (locale === "ar" ? "جارٍ التحويل…" : "Redirecting…") : label}
     </button>
   );
 }

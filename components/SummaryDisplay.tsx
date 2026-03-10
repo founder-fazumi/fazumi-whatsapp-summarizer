@@ -21,6 +21,7 @@ import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { deriveActionCenter } from "@/lib/summary-action-center";
 import { createClient } from "@/lib/supabase/client";
 import { mergeLocalTodoLabels, normalizeTodoLabel } from "@/lib/todos/local";
+import { paymentsComingSoon, withPaymentComingSoonLabel } from "@/lib/payments-ui";
 import { cn } from "@/lib/utils";
 
 type OutputLang = "en" | "ar";
@@ -694,6 +695,9 @@ export function SummaryDisplay({
   const [copiedTarget, setCopiedTarget] = useState<"fb" | null>(null);
   const copy = UI_COPY[outputLang];
   const isRtl = outputLang === "ar";
+  const upgradeCtaLabel = paymentsComingSoon
+    ? withPaymentComingSoonLabel(copy.upgradeCta, outputLang)
+    : copy.upgradeCta;
   const formattedCharCount = formatNumber(summary.char_count);
   const savedMinutes = formatNumber(Math.max(2, Math.round(summary.char_count / 400)));
   const savedTimeLabel = outputLang === "ar" ? `وفَّرت ~${savedMinutes} دقيقة` : `Saved ~${savedMinutes} min`;
@@ -1297,7 +1301,7 @@ export function SummaryDisplay({
                   className={cn(buttonVariants({ variant: "default" }))}
                   onClick={() => setDialogVariant(null)}
                 >
-                  {copy.upgradeCta}
+                  {upgradeCtaLabel}
                 </Link>
               )}
               <button

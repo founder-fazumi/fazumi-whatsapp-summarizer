@@ -24,6 +24,7 @@ import { FaqAccordionItem } from "@/components/ui/accordion";
 import { buttonVariants } from "@/components/ui/button";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { paymentsComingSoon, withPaymentComingSoonLabel } from "@/lib/payments-ui";
 import { cn } from "@/lib/utils";
 
 interface FounderSupportPageProps {
@@ -471,6 +472,12 @@ function PhotoPlaceholder({
 export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPageProps) {
   const { locale } = useLang();
   const isArabic = locale === "ar";
+  const heroPrimaryLabel = paymentsComingSoon
+    ? withPaymentComingSoonLabel(pick(PAGE_CONTENT.hero.primaryCta, locale), locale)
+    : pick(PAGE_CONTENT.hero.primaryCta, locale);
+  const finalPrimaryLabel = paymentsComingSoon
+    ? withPaymentComingSoonLabel(pick(PAGE_CONTENT.finalCta.primaryCta, locale), locale)
+    : pick(PAGE_CONTENT.finalCta.primaryCta, locale);
 
   return (
     <div
@@ -518,7 +525,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
                     />
                     <ActionLink
                       href={CTA_HREF}
-                      label={pick(PAGE_CONTENT.hero.primaryCta, locale)}
+                      label={heroPrimaryLabel}
                       variant="default"
                       icon={ArrowUpRight}
                     />
@@ -701,7 +708,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
                   />
                   <ActionLink
                     href={CTA_HREF}
-                    label={pick(PAGE_CONTENT.finalCta.primaryCta, locale)}
+                    label={finalPrimaryLabel}
                     variant="default"
                     icon={ArrowUpRight}
                   />

@@ -7,6 +7,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
+import { paymentsComingSoon, withPaymentComingSoonLabel } from "@/lib/payments-ui";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +91,9 @@ export function GoToAppButton({ children, className }: GoToAppButtonProps) {
     isLoggedIn: false,
   });
   const [open, setOpen] = useState(false);
+  const plansLabel = paymentsComingSoon
+    ? withPaymentComingSoonLabel(pick(COPY.cta, locale), locale)
+    : pick(COPY.cta, locale);
 
   useEffect(() => {
     let mounted = true;
@@ -138,7 +142,7 @@ export function GoToAppButton({ children, className }: GoToAppButtonProps) {
             className="inline-flex items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-hover)]"
             onClick={() => setOpen(false)}
           >
-            {pick(COPY.cta, locale)}
+            {plansLabel}
           </Link>
         </div>
       </Dialog>

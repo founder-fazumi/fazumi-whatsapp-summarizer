@@ -8,6 +8,34 @@
 
 ## Story - Linux build script portability hotfix (2026-03-10) [DONE]
 
+## Story - Payments coming-soon gate (2026-03-10) [DONE]
+
+> Spec file: `specs/payments-coming-soon-gate-2026-03-10.md`
+> Rule: disable new purchase acquisition UI until provider approval, but do not touch webhook/entitlement backend behavior for already-paid accounts.
+
+#### PCG1 - Add a shared payment coming-soon gate [Codex]
+**Why:** Purchase-related CTA text needs one source of truth so pricing, founder offer, and in-app upgrade surfaces do not drift.
+**Files:** `lib/config/public.ts` or shared payment UI helper
+**Acceptance:**
+- [x] A shared flag/helper exists for the temporary payment coming-soon state.
+- [x] English and Arabic CTA labels can append `(coming soon)` / `(قريبًا)` consistently.
+
+#### PCG2 - Gate purchase and upgrade CTA surfaces [Codex]
+**Why:** Public purchase buttons and upgrade links should stop implying live checkout while approval is pending.
+**Files:** `components/billing/CheckoutButton.tsx`, `components/landing/Pricing.tsx`, `components/founder-offer/FounderOfferPage.tsx`, `components/founder-support/FounderSupportPage.tsx`, `components/billing/BillingPlansPanel.tsx`, `components/dashboard/DashboardBanner.tsx`, `components/layout/Sidebar.tsx`, `components/landing/GoToAppButton.tsx`, `components/SummaryDisplay.tsx`, `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] Pricing and founder purchase CTAs show the coming-soon wording and do not redirect to checkout.
+- [x] Upgrade/view-plan links show the coming-soon wording.
+- [x] Existing paid-user management links remain untouched.
+- [x] Pricing shows a short provider-approval note.
+
+#### PCG3 - Verify and record the payment gate [Codex]
+**Files:** `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
 ## Story - Summarize conversational redesign (2026-03-10) [DONE]
 
 > Spec file: `specs/summarize-conversational-redesign-2026-03-10.md`

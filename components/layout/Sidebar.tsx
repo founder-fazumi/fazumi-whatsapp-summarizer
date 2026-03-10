@@ -14,6 +14,7 @@ import {
   resolveEntitlement,
   type EntitlementSubscription,
 } from "@/lib/limits";
+import { paymentsComingSoon, withPaymentComingSoonLabel } from "@/lib/payments-ui";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -166,6 +167,9 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   ];
   const showUsageCard = tierKey === "free" || tierKey === "trial";
   const usageDisplay = `${formatNumber(usageProgress.value)}/${formatNumber(usageProgress.max)}`;
+  const upgradeLabel = paymentsComingSoon
+    ? withPaymentComingSoonLabel(t("nav.upgrade", locale), locale)
+    : t("nav.upgrade", locale);
 
   return (
     <aside
@@ -230,7 +234,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
               onClick={onNavigate}
               className="inline-flex h-9 w-full items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] px-4 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
             >
-              {t("nav.upgrade", locale)}
+              {upgradeLabel}
             </Link>
           </div>
         </div>

@@ -33,6 +33,7 @@ import { haptic } from "@/lib/haptics";
 import { emitDashboardInsightsRefresh } from "@/lib/hooks/useDashboardInsights";
 import { getSampleChat } from "@/lib/sampleChats";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
+import { paymentsComingSoon, withPaymentComingSoonLabel } from "@/lib/payments-ui";
 import { mergeLocalTodoLabels } from "@/lib/todos/local";
 import { cn } from "@/lib/utils";
 
@@ -568,6 +569,9 @@ export default function SummarizePage() {
   const hasSavedMemory = savedFamilyContext ? familyContextHasSignal(savedFamilyContext) : false;
   const savedGroupNameSuggestions = savedFamilyContext?.group_names ?? [];
   const showsUpgradeBenefits = limitCode === "LIFETIME_CAP";
+  const upgradeCtaLabel = paymentsComingSoon
+    ? withPaymentComingSoonLabel(locale === "ar" ? "الترقية" : "Upgrade", locale)
+    : (locale === "ar" ? "الترقية" : "Upgrade");
   const limitBenefitLine =
     limitCode === "LIFETIME_CAP"
       ? COPY.limitBenefitLifetime
@@ -1573,7 +1577,7 @@ export default function SummarizePage() {
                 {showsUpgradeBenefits && (
                   <Link href="/pricing" className={buttonVariants({ size: "sm" })}>
                     <ArrowUpCircle className="h-3.5 w-3.5" />
-                    {locale === "ar" ? "الترقية" : "Upgrade"}
+                    {upgradeCtaLabel}
                   </Link>
                 )}
                 <Link
