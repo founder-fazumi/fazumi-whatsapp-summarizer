@@ -574,13 +574,11 @@ export default function SummarizePage() {
   const sourceWasAutoDetected = Boolean(text.trim()) && !sourceLocked && detectedSource === sourcePlatform;
   const hasSavedMemory = savedFamilyContext ? familyContextHasSignal(savedFamilyContext) : false;
   const savedGroupNameSuggestions = savedFamilyContext?.group_names ?? [];
-  const showsUpgradeBenefits = limitCode === "LIFETIME_CAP" || isSubscribed === false;
+  const showsUpgradeBenefits = limitCode === "LIFETIME_CAP";
   const limitBenefitLine =
     limitCode === "LIFETIME_CAP"
       ? COPY.limitBenefitLifetime
-      : isSubscribed === false
-        ? COPY.limitBenefitDailyFree
-        : null;
+      : null;
   const limitTitle =
     limitCode === "LIFETIME_CAP"
       ? COPY.limitTitleLifetime

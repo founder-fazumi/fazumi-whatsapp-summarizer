@@ -631,3 +631,8 @@ docs/decisions.md, scripts/ralph/progress.txt
 ### Patterns confirmed
 - If summary metadata grows, keep the locked parent-facing section contract stable and fold extra structured fields into an existing allowed section unless the product spec changes
 - If browser smoke depends on deterministic seed accounts, scan Supabase auth once and cache seeded account IDs instead of paging through the full auth list on every helper call
+
+## 2026-03-10 — Fix failing limits test + route.ts deduplication
+- Fixed DAILY_CAP limit banner incorrectly showing /pricing link for trial users
+- Removed duplicate saveSummary from route.ts; now uses shared saveSummaryRecord
+- pnpm test: 31 passed, 3 skipped, 0 failed

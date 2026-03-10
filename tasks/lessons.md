@@ -319,3 +319,9 @@
 **Quick test:** Temporarily simulate a missing optional `summaries` column or an unavailable `ai_request_logs` / `user_todos` write path, then run summarize and confirm the request still returns `200` with a saved summary.
 
 ---
+
+## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
+**Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
+**Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.
+**Rule:** DAILY_CAP = patience message only, no upgrade CTA. LIFETIME_CAP = upgrade CTA + pricing link. Always gate showsUpgradeBenefits on limitCode === "LIFETIME_CAP".
+**Quick test:** Run `pnpm test` — the "limits + gated export" Playwright spec asserts `a[href="/pricing"]` has count 0 for DAILY_CAP and count 1 for LIFETIME_CAP.
