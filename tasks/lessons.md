@@ -336,6 +336,14 @@
 
 ---
 
+## L042 — Next 16 ESLint must use native flat-config exports, not `FlatCompat` extends
+**Mistake:** After aligning `eslint-config-next` to 16.1.6, lint crashed before analysis with a circular-config error because the repo was still loading `next/core-web-vitals` and `next/typescript` through `FlatCompat`.
+**Why:** `eslint-config-next` 16 exports flat config arrays directly, so wrapping those configs through the legacy eslintrc compatibility layer is no longer valid.
+**Rule:** On Next 16+, import `eslint-config-next/core-web-vitals` and `eslint-config-next/typescript` directly in `eslint.config.mjs`, and layer only repo-specific overrides on top.
+**Quick test:** After any `eslint-config-next` 16 upgrade, run `pnpm lint` and confirm ESLint starts normally instead of failing with `Converting circular structure to JSON`.
+
+---
+
 ## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
 **Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.

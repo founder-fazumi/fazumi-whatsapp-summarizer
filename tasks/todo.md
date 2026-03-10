@@ -50,6 +50,34 @@
 - [x] `pnpm typecheck` passes after each coding phase.
 - [x] Final `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass.
 
+## Story - Next.js security branch alignment (2026-03-10) [DONE]
+
+> Spec file: `specs/nextjs-security-branch-alignment-2026-03-10.md`
+> Rule: keep app behavior unchanged; only align the dependency state needed to clear the Next.js security gate and verify the production build.
+
+#### NSA1 - Confirm the failing branch snapshot and security bump path [Codex]
+**Why:** The pasted Vercel log references a remote branch/commit, so the fix has to distinguish between stale branch state and current local state.
+**Files:** `package.json`, `pnpm-lock.yaml`, git history
+**Acceptance:**
+- [x] The failing branch commit is identified as still using vulnerable `next@15.4.0`.
+- [x] The existing security-upgrade commit path is identified in local git history.
+
+#### NSA2 - Align local Next.js tooling versions [Codex]
+**Why:** The local repo already runs `next@16.1.6`, but `eslint-config-next` is still on an older 15.x version.
+**Files:** `package.json`, `pnpm-lock.yaml`
+**Acceptance:**
+- [x] `next` remains on `16.1.6`.
+- [x] `eslint-config-next` is updated to `16.1.6`.
+- [x] Lockfile is regenerated to match.
+
+#### NSA3 - Verify the production-safe dependency state [Codex]
+**Files:** `tasks/todo.md`, `scripts/ralph/progress.txt`, `tasks/lessons.md`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] `pnpm build` passes.
+
 > Spec file: `specs/linux-build-script-portability-2026-03-10.md`
 > Rule: any npm pre-script that runs automatically in build or test flows must stay cross-platform; PowerShell is reserved for explicit Windows operator commands only.
 

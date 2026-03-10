@@ -650,3 +650,10 @@ docs/decisions.md, scripts/ralph/progress.txt
 - Added `components/summary/FollowUpPanel.tsx`, mounted it below `SummaryDisplay`, and derived 3-4 expandable follow-up questions from the existing `SummaryResult` without any new API call.
 - Files touched: `specs/summarize-conversational-redesign-2026-03-10.md`, `app/(dashboard)/summarize/page.tsx`, `components/summary/FollowUpPanel.tsx`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
 - Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass; test summary = `31 passed, 3 skipped, 0 failed`.
+
+## 2026-03-10 — Next.js security branch alignment
+- Confirmed the failing Vercel deploy was building `feat/incremental-zip-summarize` at `a9b5873`, which still pinned vulnerable `next@15.4.0`, while `main` already contains commit `e607a9a` upgrading Next.js to `16.1.6`.
+- Aligned the local toolchain by updating `eslint-config-next` to `16.1.6`, regenerating the lockfile, and migrating `eslint.config.mjs` from `FlatCompat` to Next 16's native flat-config exports.
+- Added narrow lint overrides for the newly introduced `react-hooks/purity` and `react-hooks/set-state-in-effect` rules so the security/tooling upgrade would not force unrelated refactors across pre-existing components.
+- Files touched: `specs/nextjs-security-branch-alignment-2026-03-10.md`, `package.json`, `pnpm-lock.yaml`, `eslint.config.mjs`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+- Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass; test summary = `31 passed, 3 skipped, 0 failed`.
