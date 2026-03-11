@@ -25,7 +25,22 @@
       "Bash(git add supabase/migrations/20260401_subscriptions_order_id_unique.sql)",
       "Bash(git commit -m \"fix: make 20260401 migration idempotent \\(DROP CONSTRAINT IF EXISTS before ADD\\)\")",
       "Bash(pnpm build)",
-      "Bash(pnpm store prune)"
+      "Bash(pnpm store prune)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && head -5 \"\"{}\"\"')",
+      "WebFetch(domain:www.nngroup.com)",
+      "WebFetch(domain:calmtech.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:ideas.ted.com)",
+      "Bash(git add app/\\\\\\(dashboard\\\\\\)/history/page.tsx app/api/summarize/route.ts lib/server/summaries.ts scripts/ralph/progress.txt tasks/lessons.md tasks/todo.md)",
+      "Bash(git commit:*)",
+      "Read(//tmp/**)",
+      "Read(//c/Users/mohamed/Desktop/fazumi-whatsapp-summarizer/$TEMP/**)",
+      "Bash(git add \"app/\\(dashboard\\)/summarize/page.tsx\" \"app/api/summarize/route.ts\" scripts/ralph/progress.txt tasks/lessons.md)",
+      "Bash(git add package.json scripts/clean-next-artifacts.mjs specs/linux-build-script-portability-2026-03-10.md scripts/ralph/progress.txt tasks/lessons.md tasks/todo.md)",
+      "Bash(wc -l \"c:/Users/mohamed/Desktop/fazumi-whatsapp-summarizer/app/\\(dashboard\\)/summarize/page.tsx\")",
+      "Bash(grep '\"\"next\"\"' package.json)",
+      "Bash(grep '\"\"eslint-config-next\"\"' package.json)",
+      "Bash(git add:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\mohamed\\Desktop\\fazumi-whatsapp-summarizer\\.next"
