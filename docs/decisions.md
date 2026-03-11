@@ -317,3 +317,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep the shared `BottomNav` active on dashboard routes until `xl`, move the desktop sidebar to the same `xl` breakpoint, and give the main dashboard content a safe-area-aware bottom clearance so lower-page actions stay reachable above the floating dock.
 **Consequences:** `/dashboard`, `/summarize`, `/history`, `/billing`, and `/settings` now keep a consistent touch-first dock on phones and tablets, while true desktop widths still use the sidebar. Future shell navigation changes should be handled in shared layout breakpoints rather than route-by-route patches.
 
+---
+
+## D037 - Legacy phone-burst coordination tables stay in `public`, but fail closed under RLS
+**Date:** 2026-03-11
+**Context:** Supabase flagged `public.worker_phone_locks` and `public.phone_bursts` with `rls_disabled_in_public`. These tables come from the archived WhatsApp bot burst/lock flow and are meant for server-side helper functions, not client reads or writes.
+**Decision:** Keep both tables in `public` for migration and helper-function compatibility, but add a corrective migration that enables RLS and installs deny-all policies. The supported access path remains server-side `SECURITY DEFINER` functions and `service_role`, not PostgREST client roles.
+**Consequences:** The Supabase linter no longer treats these helper tables as open public data, and future internal coordination tables must enable RLS even if they are not user-facing. We avoid a riskier schema move while still making the exposed schema fail closed.
+

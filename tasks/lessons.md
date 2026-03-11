@@ -8,6 +8,12 @@
 
 ---
 
+## L056 — Internal helper tables in `public` still need RLS
+**Mistake:** Legacy coordination tables like `worker_phone_locks` and `phone_bursts` were left in the exposed `public` schema without RLS because they were only intended for helper SQL functions.
+**Why:** We treated "not used by the web UI" as if it meant "not exposed," but Supabase still applies PostgREST and linter expectations to tables in `public`.
+**Rule:** Any table created in an exposed schema like `public` must enable RLS on creation, even if only `service_role` or `SECURITY DEFINER` functions are supposed to touch it.
+**Quick test:** Run the Supabase database linter after the migration and confirm there are no `rls_disabled_in_public` findings for internal helper tables.
+
 ## L051 — Windows Playwright defaults should prefer `127.0.0.1` over `localhost`
 **Mistake:** We kept treating the repeated Playwright `ECONNREFUSED ::1:3000` failures as generic dev-server instability even after the app could be started separately.
 **Why:** On this Windows setup, Playwright was resolving `localhost` to IPv6 `::1`, while the local Next server path we were using for verification was not accepting connections there consistently.

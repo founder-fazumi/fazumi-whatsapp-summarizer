@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-11
+# Supabase RLS hardening for the legacy phone-burst tables completed: added an idempotent migration that enables RLS and deny-all policies on `public.worker_phone_locks` and `public.phone_bursts`, keeping the archived WA-bot coordination flow server-only through existing helper functions.
+# Files: specs/supabase-rls-hardening-phone-burst-tables-2026-03-11.md, supabase/migrations/2026031101_harden_phone_burst_tables_rls.sql, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`32 passed`, `3 skipped`). `pnpm test` required an outside-sandbox rerun because the sandbox could not resolve the remote Supabase host.
+# Pattern: if a legacy internal table must stay in the exposed `public` schema for compatibility, enable RLS and fail closed instead of assuming "not used by the UI" is enough protection.
+#
+
+# 2026-03-11
 # Mobile/tablet floating bottom navigation shipped: the dashboard shell now keeps the bottom dock visible through tablet widths, delays the desktop sidebar until `xl`, and adds safe-area-aware bottom clearance so lower-page actions stay reachable on `/dashboard`, `/summarize`, `/history`, `/billing`, and `/settings`.
 # Files: specs/mobile-floating-bottom-nav-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, components/layout/DashboardShell.tsx, components/layout/BottomNav.tsx
 # Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`32 passed`, `3 skipped`).

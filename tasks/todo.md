@@ -6,6 +6,32 @@
 
 ---
 
+## Story - Supabase RLS hardening for legacy phone-burst tables (2026-03-11) [DONE]
+
+> Spec file: `specs/supabase-rls-hardening-phone-burst-tables-2026-03-11.md`
+> Rule: keep this scoped to the legacy WA-bot coordination tables. Do not redesign or revive the archived workflow; just make the exposed `public` tables fail closed for client roles.
+
+#### SRH1 - Add an idempotent corrective migration for the exposed helper tables [Codex]
+**Why:** Supabase flags `public.worker_phone_locks` and `public.phone_bursts` because both tables live in an exposed schema without RLS, even though they should only be touched by server-side helpers.
+**Files:** `supabase/migrations/2026031101_harden_phone_burst_tables_rls.sql`
+**Acceptance:**
+- [x] `public.worker_phone_locks` has RLS enabled.
+- [x] `public.phone_bursts` has RLS enabled.
+- [x] Direct client access to both tables fails closed.
+- [x] Existing helper functions keep their current behavior.
+
+#### SRH2 - Record the hardening slice and verify the repo [Codex]
+**Why:** Security fixes are only complete once the reasoning is documented and the normal repo checks still pass.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] The decision log records why the tables remain in `public` but now fail closed under RLS.
+- [x] The lessons log records the rule for internal tables inside exposed schemas.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
+---
+
 ## Story - Mobile/tablet floating bottom navigation (2026-03-11) [DONE]
 
 > Spec file: `specs/mobile-floating-bottom-nav-2026-03-11.md`
