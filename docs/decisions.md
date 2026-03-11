@@ -325,3 +325,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep both tables in `public` for migration and helper-function compatibility, but add a corrective migration that enables RLS and installs deny-all policies. The supported access path remains server-side `SECURITY DEFINER` functions and `service_role`, not PostgREST client roles.
 **Consequences:** The Supabase linter no longer treats these helper tables as open public data, and future internal coordination tables must enable RLS even if they are not user-facing. We avoid a riskier schema move while still making the exposed schema fail closed.
 
+---
+
+## D038 - Dashboard route transitions must not transform wrappers that contain fixed app chrome
+**Date:** 2026-03-11
+**Context:** The shared bottom dock on dashboard routes was already implemented as `position: fixed`, but on mobile it still appeared attached to the bottom of the page content on `/settings`. The route-group template was animating the entire dashboard subtree with `transform: translateY(...)`, which makes fixed descendants anchor to that transformed ancestor instead of the viewport in mobile browsers.
+**Decision:** Keep the dashboard route-entry polish, but use an opacity-only fade on the shared dashboard template and avoid wrapper transforms around fixed shell chrome such as the bottom dock.
+**Consequences:** The mobile dock stays pinned to the smartphone viewport while long dashboard pages scroll normally underneath it. Future shell or route-transition animations must be applied to scroll content only, or use non-transform effects, when the subtree contains fixed-position navigation or prompts.
+

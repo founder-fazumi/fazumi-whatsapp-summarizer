@@ -6,6 +6,30 @@
 
 ---
 
+## Story - Dashboard fixed bottom dock regression (2026-03-11) [DONE]
+
+> Spec file: `specs/dashboard-fixed-bottom-dock-regression-2026-03-11.md`
+> Rule: keep this scoped to the shared dashboard route wrapper. Do not redesign the dock; remove the wrapper behavior that breaks viewport-fixed positioning on mobile.
+
+#### DBD1 - Remove the transformed ancestor from dashboard route transitions [Codex]
+**Why:** A transformed dashboard template wrapper makes the mobile bottom dock behave like it is fixed to the page wrapper instead of the viewport.
+**Files:** `app/(dashboard)/template.tsx`
+**Acceptance:**
+- [x] Dashboard routes no longer animate with a wrapper `transform`.
+- [x] The route shell still fades in on entry.
+- [x] The shared bottom dock can stay viewport-fixed on mobile.
+
+#### DBD2 - Record and verify the regression fix [Codex]
+**Why:** Shared shell regressions need an explicit rule so future animation work does not quietly break fixed-position UI again.
+**Files:** `specs/dashboard-fixed-bottom-dock-regression-2026-03-11.md`, `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] Decisions, lessons, and Ralph progress record the fixed-position regression rule.
+
+---
+
 ## Story - Supabase RLS hardening for legacy phone-burst tables (2026-03-11) [DONE]
 
 > Spec file: `specs/supabase-rls-hardening-phone-burst-tables-2026-03-11.md`

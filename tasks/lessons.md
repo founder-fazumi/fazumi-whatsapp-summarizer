@@ -449,3 +449,11 @@
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.
 **Rule:** DAILY_CAP = patience message only, no upgrade CTA. LIFETIME_CAP = upgrade CTA + pricing link. Always gate showsUpgradeBenefits on limitCode === "LIFETIME_CAP".
 **Quick test:** Run `pnpm test` — the "limits + gated export" Playwright spec asserts `a[href="/pricing"]` has count 0 for DAILY_CAP and count 1 for LIFETIME_CAP.
+
+---
+
+## L056 — Fixed app chrome cannot live under transformed route wrappers
+**Mistake:** The dashboard template added a `translateY` entry animation to the whole dashboard subtree, which made the shared mobile bottom dock behave like it was fixed to the page wrapper instead of the viewport.
+**Why:** CSS `transform` was treated as a harmless polish layer on the route wrapper, but transformed ancestors change the containing block for `position: fixed` descendants on mobile browsers.
+**Rule:** If a route subtree contains fixed-position chrome like bottom docks, toasts, or prompts, do not animate the wrapper with `transform`. Use opacity-only transitions or animate an inner scroll-content container instead.
+**Quick test:** On a phone-sized viewport, open `/settings`, scroll near the footer, and confirm the bottom dock stays pinned to the viewport edge instead of traveling with the page content.

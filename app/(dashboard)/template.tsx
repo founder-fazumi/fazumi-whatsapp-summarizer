@@ -16,12 +16,10 @@ export default function DashboardTemplate({
     }
 
     el.style.opacity = "0";
-    el.style.transform = "translateY(4px)";
 
     const raf = requestAnimationFrame(() => {
-      el.style.transition = "opacity 0.18s ease, transform 0.18s ease";
+      el.style.transition = "opacity 0.18s ease";
       el.style.opacity = "1";
-      el.style.transform = "translateY(0)";
     });
 
     return () => cancelAnimationFrame(raf);

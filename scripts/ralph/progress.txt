@@ -764,3 +764,10 @@ docs/decisions.md, scripts/ralph/progress.txt
 - Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` pass; test summary = `32 passed, 3 skipped, 0 failed`.
 - Preview deploy: `https://fazumi-whatsapp-summarizer-1i0i4la5q-founder-fazumis-projects.vercel.app`
 - Patterns confirmed: mirrored profile identity fields need rollback semantics across `profiles` and Auth metadata, and replacing an input-based optional field must preserve an intentional clear/remove action in the UI.
+
+## 2026-03-11 — Dashboard mobile dock viewport fix
+- Removed the dashboard route-wrapper `translateY` animation so mobile `position: fixed` shell chrome stays anchored to the viewport instead of the page wrapper.
+- Kept the route-entry polish as an opacity-only fade and documented the fixed-position regression rule in the project logs.
+- Files touched: `specs/dashboard-fixed-bottom-dock-regression-2026-03-11.md`, `app/(dashboard)/template.tsx`, `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+- Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed; test summary = `32 passed, 3 skipped, 0 failed`.
+- Patterns confirmed: do not apply wrapper transforms to dashboard subtrees that contain fixed navigation, prompts, or other persistent app chrome.
