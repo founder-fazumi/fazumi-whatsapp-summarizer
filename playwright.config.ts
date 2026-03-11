@@ -1,9 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
-import { getPlaywrightBaseUrl } from "./lib/testing/playwright";
+import {
+  getPlaywrightBaseUrl,
+  getPlaywrightServerCommand,
+  shouldUseLocalPlaywrightServer,
+} from "./lib/testing/playwright";
 
 const baseURL = getPlaywrightBaseUrl();
 const useWebServer =
-  !process.env.CI && process.env.PLAYWRIGHT_NO_SERVER !== "1";
+  !process.env.CI &&
+  process.env.PLAYWRIGHT_NO_SERVER !== "1" &&
+  shouldUseLocalPlaywrightServer();
 
 export default defineConfig({
   testDir: ".",
@@ -32,14 +38,14 @@ export default defineConfig({
   ],
   webServer: useWebServer
     ? {
-        command: "pnpm dev",
+        command: getPlaywrightServerCommand(),
         env: {
           ...process.env,
           PLAYWRIGHT_TEST: "1",
         },
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 300_000,
       }
     : undefined,
 });
