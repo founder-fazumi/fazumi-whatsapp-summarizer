@@ -406,6 +406,14 @@
 
 ---
 
+## L052 — When a desktop support rail stacks on mobile, re-surface essential controls near the primary input
+**Mistake:** After moving `/summarize` support UI into a desktop side rail, the smaller-screen fallback still pushed summary-language and source controls below the result because the rail simply collapsed into a second vertical stack.
+**Why:** The desktop hierarchy was corrected first, but the responsive plan did not account for the fact that stacked rails can reintroduce the exact same interruption on tablet and mobile.
+**Rule:** If a support rail contains controls users need before submitting, add a compact progressive-disclosure version near the primary input for smaller screens and hide the duplicated support card content below that breakpoint.
+**Quick test:** In a viewport narrower than the `xl` breakpoint, open `/summarize` and confirm the paste card exposes a collapsible control block for summary language and chat source before submit, while the lower support stack does not repeat the same output-language card.
+
+---
+
 ## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
 **Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.

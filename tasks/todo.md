@@ -6,6 +6,30 @@
 
 ---
 
+## Story - Summarize mobile quick options for smaller screens (2026-03-11) [DONE]
+
+> Spec file: `specs/summarize-mobile-quick-options-2026-03-11.md`
+> Rule: when `/summarize` collapses below the desktop two-column layout, essential pre-submit controls still need to stay near the paste box instead of falling below the result.
+
+#### SMQ1 - Add adaptive quick options inside the composer [Codex]
+**Why:** The wider inline-result redesign fixed desktop, but below `xl` the output-language and source controls still dropped beneath the main result path and forced parents to choose between setup and first value.
+**Files:** `app/(dashboard)/summarize/page.tsx`
+**Acceptance:**
+- [x] A mobile/tablet quick-options accordion appears inside the paste composer before submit.
+- [x] Summary language and chat source remain adjustable there without leaving the composer.
+- [x] The lower support rail no longer repeats the same output-language card on smaller screens, and the setup card focuses on saved-group organization outside desktop layouts.
+
+#### SMQ2 - Verify and record the adaptive layout rule [Codex]
+**Why:** This layout pass is only releasable once the repo checks and trackers reflect the smaller-screen disclosure rule.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` passes.
+- [x] `pnpm test` passes.
+
+---
+
 ## Story - Playwright localhost IPv4 harness fix (2026-03-11) [DONE]
 
 > Rule: local Playwright runs on Windows should default to a stable IPv4 loopback host so repo verification reflects app behavior instead of host-resolution drift.

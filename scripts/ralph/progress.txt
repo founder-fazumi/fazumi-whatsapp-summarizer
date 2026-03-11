@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-11
+# Summarize adaptive quick options added: smaller screens now get a compact accordion directly under the paste box so parents can set summary language and chat source before submitting, while the desktop-only output-language card stays in the support rail and the lower setup card focuses on saved-group organization below `xl`.
+# Files: app/(dashboard)/summarize/page.tsx, specs/summarize-mobile-quick-options-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.
+# Pattern: when a desktop side rail collapses on smaller screens, re-surface the essential knobs inside the primary composer with progressive disclosure instead of letting the rail become a second long interruption.
+#
+
+# 2026-03-11
 # Playwright localhost IPv4 harness fix completed: local Playwright now defaults to `http://127.0.0.1:<port>` instead of `localhost`, which avoids the Windows `::1` resolution path that was causing repeated `ECONNREFUSED ::1:3000` failures during repo verification.
 # Files: lib/testing/playwright.ts, tasks/lessons.md, tasks/todo.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` pass (`32 passed`, `3 skipped`).

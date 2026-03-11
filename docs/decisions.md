@@ -285,3 +285,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep `/summarize` paste-first, but widen the route canvas and split it into two zones: the main column owns the composer plus the generated result, while output-language, source/group setup, and ZIP import live in a secondary support rail. Within the result card, promote the calendar/todo/share actions above the detailed sections so the next step is visible immediately.
 **Consequences:** The summary now appears directly below the paste composer instead of below setup cards, which better matches the parent mental model of "paste, get the answer, then act on it." Secondary controls still exist, but they no longer dominate the first-value path or compress the result grid unnecessarily.
 
+---
+
+## D033 - Smaller screens use progressive disclosure for summarize setup, not a second vertical stack
+**Date:** 2026-03-11
+**Context:** D032 fixed the main desktop reading path, but below the `xl` breakpoint the support rail still collapsed underneath the result. That meant parents on tablet and mobile had to scroll past the summary again to reach output-language and source controls that matter before submission.
+**Decision:** Keep the wider desktop two-zone layout, but add a compact quick-options accordion directly under the paste box for smaller screens. Put summary language and chat-source selection there, hide the duplicated output-language card below `xl`, and keep the lower setup card focused on saved-group organization when the support rail is stacked.
+**Consequences:** Parents can personalize the summary before submitting without losing the main paste-to-result flow, and smaller screens now follow the same primary/secondary hierarchy as desktop instead of turning the support rail into another long interruption.
+
