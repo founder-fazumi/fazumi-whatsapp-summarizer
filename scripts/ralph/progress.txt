@@ -3,6 +3,20 @@
 # Update this file after each story completes.
 
 # 2026-03-11
+# Mobile/tablet floating bottom navigation shipped: the dashboard shell now keeps the bottom dock visible through tablet widths, delays the desktop sidebar until `xl`, and adds safe-area-aware bottom clearance so lower-page actions stay reachable on `/dashboard`, `/summarize`, `/history`, `/billing`, and `/settings`.
+# Files: specs/mobile-floating-bottom-nav-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, components/layout/DashboardShell.tsx, components/layout/BottomNav.tsx
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`32 passed`, `3 skipped`).
+# Pattern: app-shell navigation breakpoints should follow the touch/navigation model instead of the first generic tablet breakpoint. If the bottom dock is the primary mobile affordance, keep it through tablet widths and reserve dock clearance in the shared shell.
+#
+
+# 2026-03-11
+# Typography readability pass shipped: FAZUMI now uses `Inter` for English UI, `Cairo` for Arabic UI, a 17px reading-first body/input baseline, and a 13px floor for parent-facing helper text. The cleanup also removed lingering 9-11px copy from the landing/login/summarize/history/result/shell surfaces so the product reads more like a messaging app on phones and tablets.
+# Files: specs/typography-readability-busy-parents-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, app/layout.tsx, app/globals.css, components/landing/Nav.tsx, app/login/page.tsx, app/(dashboard)/summarize/page.tsx, components/SummaryDisplay.tsx, components/history/HistoryList.tsx, components/dashboard/DashboardBanner.tsx, app/reset-password/page.tsx, components/summary/FollowUpPanel.tsx, components/layout/TopBar.tsx, components/layout/Sidebar.tsx, components/layout/BottomNav.tsx, components/layout/SearchDialog.tsx, components/errors/ErrorFallback.tsx
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`32 passed`, `3 skipped`).
+# Pattern: if a parent-facing typography pass changes only font tokens but leaves explicit 9-11px utilities in place, the live UX will still feel cramped. Audit both the global scale and one-off size overrides together.
+#
+
+# 2026-03-11
 # Summarize smoke hydration stabilized: the Playwright summarize flows now open `/summarize` through one shared readiness helper that waits for a single composer node and React hydration before interacting, which removed the last transient `summary-input` strict-mode failure from the release gate.
 # Files: specs/summarize-smoke-hydration-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, e2e/support.ts, e2e/app-smoke.spec.ts
 # Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`32 passed`, `3 skipped`).

@@ -62,7 +62,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
       {/* Navigation links */}
       <div dir={isArabic ? "rtl" : "ltr"} lang={dialogLocale} className="mt-3">
-        <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+        <p className="mb-1 px-1 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
           {isArabic ? "الانتقال إلى" : "Navigate to"}
         </p>
         <ul className="space-y-0.5">

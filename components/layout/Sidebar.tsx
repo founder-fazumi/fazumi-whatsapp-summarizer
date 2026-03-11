@@ -224,7 +224,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
                 </span>
               )}
             </div>
-            <div className="mb-2 flex items-center justify-between gap-3 text-[11px] text-[var(--muted-foreground)]">
+            <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[var(--muted-foreground)]">
               <span>{pick(COPY[usageProgress.label], locale)}</span>
               <span data-testid="sidebar-usage-label">{usageDisplay}</span>
             </div>

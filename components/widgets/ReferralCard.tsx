@@ -30,7 +30,7 @@ export function ReferralCard() {
           <Gift className="h-4 w-4 text-[var(--primary)]" />
           {pick(COPY.title, locale)}
         </CardTitle>
-        <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
+        <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
           {pick(COPY.subtitle, locale)}
         </p>
       </CardHeader>

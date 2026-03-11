@@ -301,3 +301,19 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep the UI behavior, but harden the Playwright flow: add one shared helper that opens `/summarize`, waits until exactly one composer node remains, and only then waits for React hydration and interacts with the page. Reuse that helper in summarize-related smoke flows instead of asserting immediately after `page.goto`.
 **Consequences:** Release verification now measures the stable summarize UI rather than a transient hydration race, which keeps the smoke suite aligned with actual user behavior without weakening the selector contract.
 
+---
+
+## D035 - Parent-facing typography uses Inter, Cairo, and a 17px reading-first base
+**Date:** 2026-03-11
+**Context:** The live FAZUMI stack had drifted to `Manrope` + `Alexandria` with several parent-facing chips, helper lines, and legal/auth notes still rendering at `9px`, `10px`, and `11px`. That felt closer to a display-marketing system than to a calm messaging/productivity surface for busy parents on phones and tablets.
+**Decision:** Use `Inter` for the Latin UI stack and `Cairo` for the Arabic UI stack. Raise the effective body/input baseline to a mobile-first 17px target, raise the small-text floor to 13px, and keep Arabic line-height looser than English. Parent-facing flows should not ship 9-11px copy except for intentional non-reading cases such as avatar initials.
+**Consequences:** Landing, auth, summarize, history, summary-result, and app-shell typography now read more like a messaging app than a marketing page. Future UI work should use the shared tokens in `app/globals.css` and avoid reintroducing tiny one-off text sizes on parent-facing surfaces.
+
+---
+
+## D036 - Dashboard-shell navigation stays bottom-docked through tablet widths
+**Date:** 2026-03-11
+**Context:** The FAZUMI app already had a floating bottom dock for the core dashboard routes, but the shared shell switched to the left sidebar at the `md` breakpoint. That made tablets lose the touch-first app navigation model even though the rest of the shell still behaved like a mobile layout.
+**Decision:** Keep the shared `BottomNav` active on dashboard routes until `xl`, move the desktop sidebar to the same `xl` breakpoint, and give the main dashboard content a safe-area-aware bottom clearance so lower-page actions stay reachable above the floating dock.
+**Consequences:** `/dashboard`, `/summarize`, `/history`, `/billing`, and `/settings` now keep a consistent touch-first dock on phones and tablets, while true desktop widths still use the sidebar. Future shell navigation changes should be handled in shared layout breakpoints rather than route-by-route patches.
+

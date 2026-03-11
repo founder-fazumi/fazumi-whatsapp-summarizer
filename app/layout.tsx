@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Alexandria, Manrope } from "next/font/google";
+import { Cairo, Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
@@ -8,8 +8,8 @@ import { Footer } from "@/components/landing/Footer";
 import type { Locale } from "@/lib/i18n";
 import { LANG_STORAGE_KEY } from "@/lib/preferences";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
@@ -17,12 +17,12 @@ const manrope = Manrope({
   fallback: ["system-ui", "sans-serif"],
 });
 
-const alexandria = Alexandria({
-  variable: "--font-alexandria",
+const cairo = Cairo({
+  variable: "--font-cairo",
   subsets: ["arabic", "latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
-  preload: false,
+  preload: true,
   fallback: ["system-ui", "sans-serif"],
 });
 
@@ -130,7 +130,7 @@ export default async function RootLayout({
     <html
       lang={initialLocale}
       dir={initialLocale === "ar" ? "rtl" : "ltr"}
-      className={`${manrope.variable} ${alexandria.variable}`}
+      className={`${inter.variable} ${cairo.variable}`}
       data-scroll-behavior="smooth"
       suppressHydrationWarning
     >

@@ -1303,7 +1303,7 @@ export default function SummarizePage() {
                           {pick(COPY.quickOptionsHint, locale)}
                         </p>
                       </div>
-                      <div className="flex flex-wrap gap-2 text-[11px]">
+                      <div className="flex flex-wrap gap-2 text-xs">
                         <span className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-1 font-medium text-[var(--foreground)]">
                           {pick(COPY.outputLanguage, locale)}: {pick(selectedOutputLanguage.label, locale)}
                         </span>
@@ -1403,7 +1403,7 @@ export default function SummarizePage() {
                   {pick(nearLimitCopy, locale)}
                 </p>
               )}
-              <p className="text-center text-[11px] text-[var(--muted-foreground)]">
+              <p className="text-center text-xs text-[var(--muted-foreground)]">
                 {pick(COPY.privacy, locale)}
               </p>
             </form>
@@ -1440,7 +1440,7 @@ export default function SummarizePage() {
                 {limitBenefits.map((benefit) => (
                   <span
                     key={benefit.en}
-                    className="rounded-full border border-current/15 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)]"
+                    className="rounded-full border border-current/15 bg-white/70 px-2.5 py-1 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)]"
                   >
                     {pick(benefit, locale)}
                   </span>

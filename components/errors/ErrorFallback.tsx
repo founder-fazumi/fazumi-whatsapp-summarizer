@@ -75,7 +75,7 @@ export function ErrorFallback({
               <summary className="cursor-pointer text-xs font-medium text-[var(--muted-foreground)]">
                 {locale === "ar" ? COPY.technical.ar : COPY.technical.en}
               </summary>
-              <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-[var(--destructive)]">
+              <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[var(--destructive)]">
                 {error.message}
               </pre>
             </details>

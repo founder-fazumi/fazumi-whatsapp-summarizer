@@ -117,7 +117,7 @@ export function CalendarWidget() {
                 setViewMonth(today.getMonth());
                 setViewYear(today.getFullYear());
               }}
-              className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-[10px] font-medium text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
+              className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs font-medium text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
             >
               {pick(COPY.today, locale)}
             </button>
@@ -136,7 +136,7 @@ export function CalendarWidget() {
       <CardContent className="px-3 pb-4">
         <div className="mb-1 grid grid-cols-7">
           {WEEKDAYS[locale].map((day) => (
-            <div key={day} className="py-1 text-center text-[10px] font-semibold text-[var(--muted-foreground)]">
+            <div key={day} className="py-1 text-center text-xs font-semibold text-[var(--muted-foreground)]">
               {day}
             </div>
           ))}
@@ -172,14 +172,14 @@ export function CalendarWidget() {
         </div>
 
         <div className="mt-3 border-t border-[var(--border)] pt-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
             {pick(COPY.upcoming, locale)}
           </p>
 
           {calendarItems.length === 0 ? (
             <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3">
               <p className="text-xs font-semibold text-[var(--foreground)]">{pick(COPY.emptyTitle, locale)}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+              <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
                 {pick(COPY.emptyBody, locale)}
               </p>
             </div>
@@ -189,9 +189,9 @@ export function CalendarWidget() {
                 <li key={item.id} className="flex items-start gap-2">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--primary)]" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] leading-snug text-[var(--foreground)]">{item.label}</p>
+                    <p className="text-xs leading-snug text-[var(--foreground)]">{item.label}</p>
                     {item.isoDate && (
-                      <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
+                      <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
                         {formatDate(item.isoDate, locale, {
                           month: "short",
                           day: "numeric",

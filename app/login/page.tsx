@@ -266,10 +266,10 @@ export default function LoginPage() {
   }
 
   const inputCls =
-    "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] sm:px-4 sm:py-3 sm:text-[var(--text-base)]";
+    "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] px-3 py-3 text-[var(--text-base)] outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] sm:px-4";
 
   const alertCls =
-    "rounded-[var(--radius)] px-3 py-1.5 text-xs sm:py-2 sm:text-[var(--text-sm)]";
+    "rounded-[var(--radius)] px-3 py-2 text-sm";
 
   return (
     <main
@@ -285,7 +285,7 @@ export default function LoginPage() {
         <div className="mb-4 flex flex-col items-center gap-1 sm:mb-8 sm:gap-2">
           <BrandLogo size="lg" className="h-10 w-10 sm:h-12 sm:w-12" />
           <span className="text-lg font-bold text-[var(--foreground)] sm:text-xl">Fazumi</span>
-          <span className="text-center text-xs text-[var(--muted-foreground)] sm:text-sm">
+          <span className="text-center text-sm text-[var(--muted-foreground)]">
             {locale === "ar" ? "لوحة عائلية جاهزة من محادثات المدرسة" : "An action-ready family dashboard from school chats"}
           </span>
         </div>
@@ -295,7 +295,7 @@ export default function LoginPage() {
             <h1 className="text-lg font-semibold text-[var(--text-strong)] sm:text-[var(--text-xl)]">
               {locale === "ar" ? "مرحبًا" : "Welcome"}
             </h1>
-            <CardDescription className="text-xs sm:text-sm">
+            <CardDescription className="text-sm">
               {locale === "ar" ? "سجّل الدخول أو أنشئ حسابًا مجانيًا للبدء" : "Log in or create a free account to get started"}
             </CardDescription>
           </CardHeader>
@@ -304,7 +304,7 @@ export default function LoginPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-9 w-full gap-2 px-3 text-sm sm:h-10 sm:px-4"
+                className="h-11 w-full gap-2 px-3 text-sm sm:px-4"
                 onClick={handleGoogleAuth}
                 disabled={authLoading || resetLoading}
               >
@@ -320,7 +320,7 @@ export default function LoginPage() {
               {/* Divider */}
               <div className="flex items-center gap-2 sm:gap-3">
                 <span className="flex-1 border-t border-[var(--border)]" />
-                <span className="text-[10px] text-[var(--muted-foreground)] sm:text-xs">{locale === "ar" ? "أو" : "or"}</span>
+                <span className="text-xs text-[var(--muted-foreground)]">{locale === "ar" ? "أو" : "or"}</span>
                 <span className="flex-1 border-t border-[var(--border)]" />
               </div>
             </>
@@ -336,15 +336,15 @@ export default function LoginPage() {
               }}
             >
               <TabsList className="w-full">
-                <TabsTrigger value="login" className="flex-1 px-2 py-1.5 text-xs sm:px-3 sm:text-sm">{locale === "ar" ? "تسجيل الدخول" : "Log in"}</TabsTrigger>
-                <TabsTrigger value="signup" className="flex-1 px-2 py-1.5 text-xs sm:px-3 sm:text-sm">{locale === "ar" ? "إنشاء حساب" : "Sign up"}</TabsTrigger>
+                <TabsTrigger value="login" className="flex-1 px-2 py-2 text-sm sm:px-3">{locale === "ar" ? "تسجيل الدخول" : "Log in"}</TabsTrigger>
+                <TabsTrigger value="signup" className="flex-1 px-2 py-2 text-sm sm:px-3">{locale === "ar" ? "إنشاء حساب" : "Sign up"}</TabsTrigger>
               </TabsList>
 
               {/* ── Login tab ── */}
               <TabsContent value="login" className="mt-3 sm:mt-4">
                 <form onSubmit={handleEmailLogin} className="space-y-2.5 sm:space-y-3">
                   <div>
-                    <label htmlFor="login-email" className="mb-1 block text-[13px] font-semibold text-[var(--foreground)] sm:text-[var(--text-sm)]">
+                    <label htmlFor="login-email" className="mb-1 block text-sm font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "البريد الإلكتروني" : "Email"}
                     </label>
                     <input
@@ -360,13 +360,13 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <div className="mb-1 flex items-center justify-between gap-3">
-                      <label htmlFor="login-pass" className="block text-[13px] font-semibold text-[var(--foreground)] sm:text-[var(--text-sm)]">
+                      <label htmlFor="login-pass" className="block text-sm font-semibold text-[var(--foreground)]">
                         {locale === "ar" ? "كلمة المرور" : "Password"}
                       </label>
                       <button
                         type="button"
                         data-testid="forgot-password-toggle"
-                        className="text-[11px] font-medium text-[var(--primary)] hover:underline sm:text-xs"
+                        className="text-xs font-medium text-[var(--primary)] hover:underline"
                         onClick={() => {
                           setShowForgotPassword((current) => !current);
                           setError(null);
@@ -405,7 +405,7 @@ export default function LoginPage() {
                   </div>
                   {showForgotPassword && (
                     <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--bg-2)] p-3">
-                      <p className="text-xs leading-5 text-[var(--muted-foreground)] sm:text-[var(--text-sm)]">
+                      <p className="text-sm leading-6 text-[var(--muted-foreground)]">
                         {locale === "ar"
                           ? "سنرسل رابطًا إلى البريد الإلكتروني أعلاه إذا كان مرتبطًا بحساب."
                           : "We’ll send a reset link to the email above if it belongs to an account."}
@@ -414,7 +414,7 @@ export default function LoginPage() {
                         <Button
                           type="button"
                           data-testid="forgot-password-submit"
-                          className="h-9 flex-1 text-sm sm:h-10"
+                          className="h-11 flex-1 text-sm"
                           disabled={authLoading || resetLoading}
                           onClick={() => void handleForgotPasswordRequest()}
                         >
@@ -429,7 +429,7 @@ export default function LoginPage() {
                         <Button
                           type="button"
                           variant="ghost"
-                          className="h-9 text-sm sm:h-10"
+                          className="h-11 text-sm"
                           onClick={() => setShowForgotPassword(false)}
                           disabled={authLoading || resetLoading}
                         >
@@ -448,7 +448,7 @@ export default function LoginPage() {
                       {success}
                     </p>
                   )}
-                  <Button type="submit" className="h-9 w-full text-sm sm:h-10" disabled={authLoading || resetLoading}>
+                  <Button type="submit" className="h-11 w-full text-sm" disabled={authLoading || resetLoading}>
                     {authLoading ? (locale === "ar" ? "جارٍ تسجيل الدخول…" : "Logging in…") : (locale === "ar" ? "تسجيل الدخول" : "Log in")}
                   </Button>
                 </form>
@@ -458,7 +458,7 @@ export default function LoginPage() {
               <TabsContent value="signup" className="mt-3 sm:mt-4">
                 <form onSubmit={handleEmailSignup} className="space-y-2.5 sm:space-y-3">
                   <div>
-                    <label htmlFor="signup-name" className="mb-1 block text-[13px] font-semibold text-[var(--foreground)] sm:text-[var(--text-sm)]">
+                    <label htmlFor="signup-name" className="mb-1 block text-sm font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "الاسم الكامل" : "Full name"}
                     </label>
                     <input
@@ -473,7 +473,7 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="signup-email" className="mb-1 block text-[13px] font-semibold text-[var(--foreground)] sm:text-[var(--text-sm)]">
+                    <label htmlFor="signup-email" className="mb-1 block text-sm font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "البريد الإلكتروني" : "Email"}
                     </label>
                     <input
@@ -488,7 +488,7 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="signup-pass" className="mb-1 block text-[13px] font-semibold text-[var(--foreground)] sm:text-[var(--text-sm)]">
+                    <label htmlFor="signup-pass" className="mb-1 block text-sm font-semibold text-[var(--foreground)]">
                       {locale === "ar" ? "كلمة المرور" : "Password"}
                     </label>
                     <div className="relative">
@@ -523,10 +523,10 @@ export default function LoginPage() {
                       {success}
                     </p>
                   )}
-                  <Button type="submit" className="h-9 w-full text-sm sm:h-10" disabled={authLoading || resetLoading}>
+                  <Button type="submit" className="h-11 w-full text-sm" disabled={authLoading || resetLoading}>
                     {authLoading ? (locale === "ar" ? "جارٍ إنشاء الحساب…" : "Creating account…") : (locale === "ar" ? "إنشاء حساب مجاني" : "Create free account")}
                   </Button>
-                  <p className="text-center text-[9px] text-[var(--muted-foreground)] sm:text-[10px]">
+                  <p className="text-center text-xs text-[var(--muted-foreground)]">
                     {locale === "ar" ? "تجربة مجانية لمدة 7 أيام · لا حاجة إلى بطاقة" : "7-day free trial · No credit card required"}
                   </p>
                 </form>
@@ -535,7 +535,7 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="mt-3 text-center text-[10px] leading-relaxed text-[var(--muted-foreground)] sm:mt-6 sm:text-xs">
+        <p className="mt-3 text-center text-xs leading-relaxed text-[var(--muted-foreground)] sm:mt-6">
           {locale === "ar" ? "بالمتابعة فإنك توافق على " : "By continuing you agree to our "}
           <Link href="/terms" className="text-[var(--primary)] hover:underline">{locale === "ar" ? "الشروط" : "Terms"}</Link>{" "}
           {locale === "ar" ? "و" : "and "}

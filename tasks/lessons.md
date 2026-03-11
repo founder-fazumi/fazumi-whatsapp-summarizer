@@ -422,6 +422,22 @@
 
 ---
 
+## L054 — Parent-facing typography needs a hard minimum readable size, not only nicer tokens
+**Mistake:** The app had earlier typography passes, but the live parent-facing UI still shipped multiple `9px`, `10px`, and `11px` labels across login, summarize, history, and shell surfaces.
+**Why:** The token system improved over time, but older one-off Tailwind sizes and small chip styles were left behind in key user flows, so the real experience drifted from the intended readability standard.
+**Rule:** Parent-facing FAZUMI surfaces must use the shared reading scale: `Inter` + `Cairo`, a 17px body/input baseline, and no 9-11px copy outside intentional non-reading exceptions such as avatar initials.
+**Quick test:** Run `rg -n "text-\\[9px\\]|text-\\[10px\\]|text-\\[11px\\]" app components --glob '!components/admin/**' --glob '!components/ui/avatar.tsx'` and confirm it returns only intentional exceptions.
+
+---
+
+## L055 — Tablet app shells should keep the mobile dock until true desktop width
+**Mistake:** The shared dashboard shell switched from the floating bottom dock to the sidebar at `md`, so tablet users lost the primary app navigation pattern too early.
+**Why:** The breakpoint followed a generic responsive-layout habit instead of the actual touch/navigation model of the FAZUMI app shell.
+**Rule:** On dashboard routes, keep the bottom dock active through tablet widths and only swap to the sidebar at `xl` unless a route has a documented desktop-only exception.
+**Quick test:** Check `/dashboard` at `768px` and `1024px` widths: the bottom nav should still be visible, the sidebar should be absent, and the final card/button should remain visible above the dock.
+
+---
+
 ## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
 **Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.

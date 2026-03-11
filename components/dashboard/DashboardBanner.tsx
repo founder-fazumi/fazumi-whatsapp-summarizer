@@ -182,7 +182,7 @@ export function DashboardBanner({
               <h1 className="text-[var(--text-2xl)] font-bold text-[var(--foreground)] sm:text-[var(--text-3xl)]">
                 {greeting}
               </h1>
-              <span className={`hidden sm:inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${badge.color}`}>
+              <span className={`hidden sm:inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${badge.color}`}>
                 {pick(COPY[badge.labelKey as keyof typeof COPY], locale)}
               </span>
             </div>
@@ -223,7 +223,7 @@ export function DashboardBanner({
                     <div className="mt-0.5 flex flex-wrap items-baseline gap-1.5">
                       <span className="text-sm font-bold text-[var(--foreground)]">{value}</span>
                       {detail ? (
-                        <span className="text-[10px] font-medium text-[var(--success)]">
+                        <span className="text-xs font-medium text-[var(--success)]">
                           {detail}
                         </span>
                       ) : null}

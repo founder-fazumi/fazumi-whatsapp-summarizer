@@ -20,16 +20,18 @@ export function DashboardShell({
   className,
   contentClassName,
 }: DashboardShellProps) {
+  const mobileDockSpacingClass = "pb-[calc(env(safe-area-inset-bottom)+7rem)] xl:pb-0";
+
   return (
     <div className={cn("min-h-screen bg-[var(--background)] text-[var(--foreground)]", className)}>
       <TopBar />
 
       <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <div className="hidden border-r border-[var(--sidebar-border)] md:flex md:w-[264px] md:shrink-0 md:flex-col md:overflow-y-auto">
+        <div className="hidden border-r border-[var(--sidebar-border)] xl:flex xl:w-[264px] xl:shrink-0 xl:flex-col xl:overflow-y-auto">
           <Sidebar className="h-full" />
         </div>
 
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <main className={cn("flex-1 overflow-y-auto", mobileDockSpacingClass)}>
           <div
             className={cn(
               "mx-auto w-full px-[var(--page-gutter)] py-6 md:py-8",

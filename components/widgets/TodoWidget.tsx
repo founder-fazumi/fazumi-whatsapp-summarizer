@@ -180,7 +180,7 @@ export function TodoWidget() {
             <p className="text-xs font-semibold text-[var(--foreground)]">
               {pick(COPY.emptyTitle, locale)}
             </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+            <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
               {pick(COPY.emptyBody, locale)}
             </p>
           </div>
@@ -197,7 +197,7 @@ export function TodoWidget() {
                 </p>
                 {item.due_date ? (
                   <div className="mt-1">
-                    <span className="inline-flex items-center rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
+                    <span className="inline-flex items-center rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-xs text-[var(--muted-foreground)]">
                       {formatDate(new Date(`${item.due_date}T00:00:00`), locale, {
                         month: "short",
                         day: "numeric",

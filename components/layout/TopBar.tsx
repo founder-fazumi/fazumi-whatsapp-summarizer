@@ -252,7 +252,7 @@ export function TopBar({ className }: TopBarProps) {
                   <p className="text-xs font-semibold leading-tight text-[var(--foreground)]">
                     {userName}
                   </p>
-                  <p className="text-[10px] leading-tight text-[var(--muted-foreground)]">
+                  <p className="text-xs leading-tight text-[var(--muted-foreground)]">
                     {isFounder ? (
                       <span className="inline-flex items-center gap-1 text-amber-500">
                         <Star className="h-3 w-3" />

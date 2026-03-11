@@ -387,7 +387,7 @@ export default function ResetPasswordPage() {
                       : "Update password"}
                 </Button>
 
-                <p className="text-center text-[10px] leading-relaxed text-[var(--muted-foreground)] sm:text-xs">
+                <p className="text-center text-xs leading-relaxed text-[var(--muted-foreground)]">
                   {locale === "ar"
                     ? "سنطلب منك تسجيل الدخول مرة أخرى بعد الحفظ لحماية حسابك."
                     : "We’ll ask you to log in again after saving to protect your account."}

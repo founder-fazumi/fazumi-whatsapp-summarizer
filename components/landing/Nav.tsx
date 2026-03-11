@@ -57,7 +57,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
   const themeToggleClass =
     "inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-2 text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
   const languageToggleClass =
-    "inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2.5 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-muted)]";
+    "inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-muted)]";
 
   const themeToggleButton = mounted ? (
     <button
@@ -88,7 +88,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
       aria-label={pick(COPY.toggle, locale)}
     >
       <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      <span className="hidden sm:inline text-xs">
+      <span className="hidden sm:inline text-sm">
         <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
         <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
         <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
@@ -103,7 +103,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
       aria-label="Language toggle"
     >
       <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      <span className="hidden sm:inline text-xs">
+      <span className="hidden sm:inline text-sm">
         <span className="font-bold text-[var(--foreground)]">EN</span>
         <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
         <span className="text-[var(--muted-foreground)]">عربي</span>
@@ -162,7 +162,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
               <GoToAppButton className="hidden items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:inline-flex">
                 {pick(COPY.dashboard, locale)} {dashboardArrow}
               </GoToAppButton>
-              <GoToAppButton className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-3 py-2 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:hidden">
+              <GoToAppButton className="inline-flex min-h-11 items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:hidden">
                 {pick(COPY.dashboard, locale)} {dashboardArrow}
               </GoToAppButton>
             </>
@@ -184,7 +184,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
               </div>
               <Link
                 href="/login?tab=signup"
-                className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-3 py-2 text-xs font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:hidden"
+                className="inline-flex min-h-11 items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:hidden"
               >
                 {t("auth.signup", locale)}
               </Link>

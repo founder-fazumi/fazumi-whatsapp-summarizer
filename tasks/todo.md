@@ -6,6 +6,71 @@
 
 ---
 
+## Story - Mobile/tablet floating bottom navigation (2026-03-11) [DONE]
+
+> Spec file: `specs/mobile-floating-bottom-nav-2026-03-11.md`
+> Rule: keep this scoped to the shared dashboard shell. Make the existing floating bottom nav the default app navigation on mobile and tablet layouts without redesigning route content.
+
+#### MBN1 - Extend the floating bottom nav through tablet widths [Codex]
+**Why:** The current shell switches to the sidebar too early, so tablet users lose the mobile app dock on the core routes.
+**Files:** `components/layout/DashboardShell.tsx`, `components/layout/BottomNav.tsx`
+**Acceptance:**
+- [x] The floating bottom nav remains visible on mobile and tablet-width dashboard routes.
+- [x] The left sidebar does not appear until larger desktop widths.
+- [x] The nav still stays hidden on larger desktop layouts where the sidebar is present.
+
+#### MBN2 - Reserve safe bottom space for docked navigation [Codex]
+**Why:** If the dock floats over the page, the shared shell needs enough bottom spacing so actions near the bottom of long pages remain reachable.
+**Files:** `components/layout/DashboardShell.tsx`, `components/layout/BottomNav.tsx`
+**Acceptance:**
+- [x] Bottom-of-page content stays visible above the floating dock on smaller screens.
+- [x] The dock still respects `safe-area-inset-bottom`.
+- [x] The summarize/history/billing/settings flows keep their existing behavior aside from the nav placement.
+
+#### MBN3 - Verify and document the shell rule [Codex]
+**Why:** Shared shell changes are only done once the repo checks and project logs reflect the responsive navigation rule.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] Decisions, lessons, and Ralph progress record the mobile/tablet dock rule.
+
+---
+
+## Story - Typography readability pass for busy parents (2026-03-11) [DONE]
+
+> Spec file: `specs/typography-readability-busy-parents-2026-03-11.md`
+> Rule: keep this scoped to readability. Improve font choice and minimum readable sizes on the core parent flows without changing branding colors, summary structure, or app architecture.
+
+#### TRP1 - Replace the EN/AR font stack and retune global text tokens [Codex]
+**Why:** The current `Manrope` + `Alexandria` stack and 16px/10px-heavy sizing read more like a display system than a calm messaging/productivity UI for busy parents.
+**Files:** `app/layout.tsx`, `app/globals.css`
+**Acceptance:**
+- [x] `Inter` replaces `Manrope` for the Latin stack.
+- [x] `Cairo` replaces `Alexandria` for the Arabic stack.
+- [x] The base body/input scale moves to a more readable mobile-first size, with a `13px` floor for small helper text.
+- [x] Arabic line-height remains looser than English, and iOS input zoom prevention still works.
+
+#### TRP2 - Remove tiny text from the core parent-facing flows [Codex]
+**Why:** The live audit found `9px`, `10px`, and `11px` copy on `/login`, `/summarize`, `/history`, landing nav, and the summary result itself.
+**Files:** `components/landing/Nav.tsx`, `components/landing/Hero.tsx`, `app/login/page.tsx`, `app/(dashboard)/summarize/page.tsx`, `components/SummaryDisplay.tsx`, `components/history/HistoryList.tsx`
+**Acceptance:**
+- [x] Parent-facing helper copy, chips, microcopy, and mobile CTAs on the audited flows no longer use `9px`, `10px`, or `11px`.
+- [x] The summarize, summary, and history views stay RTL-safe and mobile-safe after the scale increase.
+- [x] The landing/login/summarize flows keep their current structure and behavior.
+
+#### TRP3 - Verify and document the readability pass [Codex]
+**Why:** Typography changes are only complete once the repo checks pass and the rationale is written down for future UI work.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+- [x] Decisions, lessons, and Ralph progress record the readability rule.
+
+---
+
 ## Story - Summarize smoke hydration stabilization (2026-03-11) [DONE]
 
 > Spec file: `specs/summarize-smoke-hydration-2026-03-11.md`

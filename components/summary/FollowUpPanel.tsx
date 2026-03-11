@@ -148,7 +148,7 @@ export function FollowUpPanel({ summary, locale }: FollowUpPanelProps) {
           <span className="text-sm font-semibold text-[var(--foreground)]">
             {pick(COPY.title, locale)}
           </span>
-          <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--primary)]">
+          <span className="rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-[var(--primary)]">
             {pick(COPY.beta, locale)}
           </span>
         </div>

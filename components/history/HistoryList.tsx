@@ -362,11 +362,11 @@ export function HistoryList({
                         <h2 className="truncate text-[var(--text-lg)] font-semibold text-[var(--foreground)]">
                           {summary.title || (locale === "ar" ? "ملخص بدون عنوان" : "Untitled Summary")}
                         </h2>
-                        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-semibold text-[var(--text-strong)]">
+                        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--text-strong)]">
                           {LANG_LABEL[summary.lang_detected] ?? summary.lang_detected.toUpperCase()}
                         </span>
                         {summary.source_kind === "zip" && (
-                          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-semibold text-[var(--primary)]">
+                          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--primary)]">
                             ZIP
                           </span>
                         )}
@@ -379,7 +379,7 @@ export function HistoryList({
                         })}
                       </p>
                       {summary.group_name && (
-                        <span className="mt-2 inline-flex items-center rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--primary)]">
+                        <span className="mt-2 inline-flex items-center rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--primary)]">
                           {summary.group_name}
                         </span>
                       )}

@@ -542,7 +542,7 @@ function SectionBlock({
       className={cn("px-5 py-5 text-start sm:px-6", isRtl && "font-arabic")}
     >
       <div
-        className="mb-3 flex items-center gap-2 text-[11px] font-semibold text-[var(--muted-foreground)]"
+        className="mb-3 flex items-center gap-2 text-xs font-semibold text-[var(--muted-foreground)]"
       >
         {(() => {
           const Icon = meta.icon;
@@ -550,7 +550,7 @@ function SectionBlock({
         })()}
         <span>{label}</span>
         {isEmpty && (
-          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
+          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--muted-foreground)]">
             {copy.empty}
           </span>
         )}
@@ -576,14 +576,14 @@ function SectionBlock({
         <ul className="space-y-3">
           {(value as ImportantDate[]).map((item, i) => (
             <li key={i} className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]">
-              <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+              <span className="mt-[0.45rem] shrink-0 text-xs leading-none text-[var(--primary)]">●</span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span dir="auto" style={BIDI_TEXT_STYLE} className="font-medium leading-6">
                     {item.label}
                   </span>
                   {item.urgent && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
                       <AlertTriangle className="h-2.5 w-2.5" />
                       {copy.urgent}
                     </span>
@@ -612,7 +612,7 @@ function SectionBlock({
       ) : sectionKey === "action_items" && (summary.urgent_action_items?.length ?? 0) > 0 ? (
         <>
           <div className="mb-3 rounded-[var(--radius)] border border-orange-200 bg-orange-50 px-3 py-2.5 dark:border-orange-800/50 dark:bg-orange-900/20">
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-orange-700 dark:text-orange-400">
+            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-orange-700 dark:text-orange-400">
               <AlertTriangle className="h-3.5 w-3.5" />
               {copy.urgentBannerText}
             </div>
@@ -627,7 +627,7 @@ function SectionBlock({
           <ul className="space-y-2.5">
             {(value as string[]).map((item, i) => (
               <li key={i} className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]">
-                <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+                <span className="mt-[0.45rem] shrink-0 text-xs leading-none text-[var(--primary)]">●</span>
                 <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-7">{item}</span>
               </li>
             ))}
@@ -640,7 +640,7 @@ function SectionBlock({
               key={i}
               className="flex items-start gap-2.5 text-start text-sm text-[var(--card-foreground)]"
             >
-              <span className="mt-[0.45rem] shrink-0 text-[10px] leading-none text-[var(--primary)]">●</span>
+              <span className="mt-[0.45rem] shrink-0 text-xs leading-none text-[var(--primary)]">●</span>
               <span
                 dir="auto"
                 style={BIDI_TEXT_STYLE}
@@ -917,10 +917,10 @@ export function SummaryDisplay({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)]/60 px-4 py-3 sm:px-5">
           <div className="flex flex-wrap items-center gap-2">
             <Zap className="h-4 w-4 text-[var(--primary)]" />
-            <h2 className="text-sm font-semibold text-[var(--foreground)]">
+            <h2 className="text-base font-semibold text-[var(--foreground)]">
               {copy.latestSummary}
             </h2>
-            <span className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--primary)]">
+            <span className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--primary)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
               {copy.justNow}
             </span>
@@ -928,18 +928,18 @@ export function SummaryDisplay({
               {savedTimeLabel}
             </span>
             {summary.chat_type === "urgent_notice" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
                 <AlertTriangle className="h-2.5 w-2.5" />
                 {copy.chatTypeUrgent}
               </span>
             )}
             {summary.chat_type === "event_announcement" && (
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                 {copy.chatTypeEvent}
               </span>
             )}
             {summary.chat_type === "noisy_general_chat" && (
-              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--muted-foreground)]">
                 {copy.chatTypeNoisy}
               </span>
             )}
@@ -1021,13 +1021,13 @@ export function SummaryDisplay({
                 data-testid="summary-family-context"
                 className="mt-3 flex flex-wrap items-center gap-2"
               >
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
                   {copy.familyContext}
                 </span>
                 {familyContextItems.map((item) => (
                   <span
                     key={item}
-                    className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]"
+                    className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]"
                   >
                     {item}
                   </span>
@@ -1186,11 +1186,11 @@ export function SummaryDisplay({
                 </button>
               </div>
               {isTruncated && (
-                <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
                   {truncatedNote}
                 </p>
               )}
-              <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                 {copy.shareHint}
               </p>
             </div>
@@ -1203,12 +1203,12 @@ export function SummaryDisplay({
               {copy.actionCenter}
             </span>
             {summary.chat_context?.group_title && (
-              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--foreground)]">
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]">
                 {summary.chat_context.group_title}
               </span>
             )}
             {sourcePlatformLabel && (
-              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)]">
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--muted-foreground)]">
                 {sourcePlatformLabel}
               </span>
             )}
@@ -1219,14 +1219,14 @@ export function SummaryDisplay({
                 key={section.key}
                 className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-4"
               >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
                   {section.label}
                 </p>
                 {section.items.length > 0 ? (
                   <ul className="mt-2 space-y-2">
                     {section.items.map((item) => (
                       <li key={`${section.key}:${item}`} className="flex items-start gap-2 text-sm text-[var(--foreground)]">
-                        <span className="mt-1 text-[10px] text-[var(--primary)]">●</span>
+                        <span className="mt-1 text-xs text-[var(--primary)]">●</span>
                         <span dir="auto" style={BIDI_TEXT_STYLE} className="min-w-0 flex-1 leading-6">
                           {item}
                         </span>

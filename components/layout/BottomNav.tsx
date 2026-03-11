@@ -56,12 +56,12 @@ export function BottomNav() {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:hidden">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] xl:hidden">
       <nav
         dir={isRtl ? "rtl" : "ltr"}
         lang={locale}
         aria-label={pick({ en: "Bottom navigation", ar: "التنقل السفلي" }, locale)}
-        className="mx-auto max-w-[var(--reading-max)]"
+        className="pointer-events-auto mx-auto max-w-[var(--reading-max)]"
       >
         <div className="flex items-end justify-between gap-1 rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--glass-surface)] px-2 py-2 shadow-[var(--shadow-lg)] backdrop-blur-xl">
           {NAV_ITEMS.map(({ href, label, icon: Icon, primary }) => {
@@ -85,7 +85,7 @@ export function BottomNav() {
                   </span>
                   <span
                     className={cn(
-                      "text-[10px] font-semibold leading-none",
+                      "text-xs font-semibold leading-none",
                       active ? "text-[var(--primary)]" : "text-[var(--muted-foreground)]"
                     )}
                   >
@@ -115,7 +115,7 @@ export function BottomNav() {
                 >
                   <Icon className="h-4.5 w-4.5" />
                 </span>
-                <span className="text-[10px] font-medium leading-none">
+                <span className="text-xs font-medium leading-none">
                   {pick(label, locale)}
                 </span>
               </Link>
