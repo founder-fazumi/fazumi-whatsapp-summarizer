@@ -13,6 +13,7 @@ import {
   getDevEnv,
   getProfileState,
   loginWithEmail,
+  openSummarizePage,
   resetTestUser,
   setAuthPassword,
 } from "./support";
@@ -296,8 +297,7 @@ test("summarize smoke: paste-first UI renders and paid history export still work
   await mockSummarizeResponses(page, [{ status: 200, body: buildSummarizeSuccess(savedId) }]);
 
   await loginWithEmail(page, accounts.paid);
-  await page.goto("/summarize");
-  await expect(page.getByTestId("summary-input")).toBeVisible();
+  await openSummarizePage(page);
   await page.getByTestId("summary-use-sample").click();
   await page.getByTestId("summary-submit").click();
   await expect(page.getByTestId("summary-saved-banner")).toBeVisible();
@@ -348,7 +348,7 @@ test("limits + gated export: free trial blocks on the 4th summary and keeps expo
       { status: 402, body: { error: "limit_reached", code: "DAILY_CAP" } },
     ]);
 
-    await page.goto("/summarize");
+    await openSummarizePage(page);
     await page.getByTestId("summary-use-sample").click();
     await page.getByTestId("summary-submit").click();
     await expect(page.getByTestId("summary-saved-banner")).toBeVisible({ timeout: 60_000 });
@@ -357,13 +357,13 @@ test("limits + gated export: free trial blocks on the 4th summary and keeps expo
     await page.getByRole("button", { name: /Maybe later|لاحقًا/ }).click();
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      await page.goto("/summarize");
+      await openSummarizePage(page);
       await page.getByTestId("summary-use-sample").click();
       await page.getByTestId("summary-submit").click();
       await expect(page.getByTestId("summary-saved-banner")).toBeVisible({ timeout: 60_000 });
     }
 
-    await page.goto("/summarize");
+    await openSummarizePage(page);
     await page.getByTestId("summary-use-sample").click();
     await page.getByTestId("summary-submit").click();
     const limitBanner = page.getByTestId("summary-limit-banner");
@@ -376,7 +376,7 @@ test("limits + gated export: free trial blocks on the 4th summary and keeps expo
   await mockSummarizeResponses(page, [
     { status: 402, body: { error: "limit_reached", code: "LIFETIME_CAP" } },
   ]);
-  await page.goto("/summarize");
+  await openSummarizePage(page);
   await page.getByTestId("summary-use-sample").click();
   await page.getByTestId("summary-submit").click();
   const limitBanner = page.getByTestId("summary-limit-banner");

@@ -190,6 +190,19 @@ async function waitForReactHydration(page: Page, selector: string) {
   }, selector);
 }
 
+export async function waitForSummaryComposer(page: Page) {
+  const composer = page.locator('[data-testid="summary-input"]');
+
+  await expect.poll(async () => composer.count()).toBe(1);
+  await waitForReactHydration(page, '[data-testid="summary-input"]');
+  await expect(composer).toBeVisible();
+}
+
+export async function openSummarizePage(page: Page) {
+  await page.goto("/summarize");
+  await waitForSummaryComposer(page);
+}
+
 function getAdminClient(): SupabaseClient {
   const supabaseUrl = readEnv("SUPABASE_URL") || readEnv("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
@@ -844,7 +857,7 @@ export async function postWebhookFixture(fixtureName: "subscription_payment_succ
 }
 
 export async function summarizeWithSample(page: Page) {
-  await page.goto("/summarize");
+  await openSummarizePage(page);
   await page.getByTestId("summary-use-sample").click();
   await page.getByTestId("summary-submit").click();
   await expect(page.getByTestId("summary-saved-banner")).toBeVisible({ timeout: 90_000 });

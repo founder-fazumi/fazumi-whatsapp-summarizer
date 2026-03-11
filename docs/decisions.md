@@ -293,3 +293,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep the wider desktop two-zone layout, but add a compact quick-options accordion directly under the paste box for smaller screens. Put summary language and chat-source selection there, hide the duplicated output-language card below `xl`, and keep the lower setup card focused on saved-group organization when the support rail is stacked.
 **Consequences:** Parents can personalize the summary before submitting without losing the main paste-to-result flow, and smaller screens now follow the same primary/secondary hierarchy as desktop instead of turning the support rail into another long interruption.
 
+---
+
+## D034 - Summarize smoke opens the page through a readiness helper, not a raw route assertion
+**Date:** 2026-03-11
+**Context:** After the summarize layout became more adaptive, the last failing release test was the summarize smoke. The page could briefly expose two `summary-input` nodes during navigation/hydration, even though the stable post-hydration UI settled to one composer.
+**Decision:** Keep the UI behavior, but harden the Playwright flow: add one shared helper that opens `/summarize`, waits until exactly one composer node remains, and only then waits for React hydration and interacts with the page. Reuse that helper in summarize-related smoke flows instead of asserting immediately after `page.goto`.
+**Consequences:** Release verification now measures the stable summarize UI rather than a transient hydration race, which keeps the smoke suite aligned with actual user behavior without weakening the selector contract.
+

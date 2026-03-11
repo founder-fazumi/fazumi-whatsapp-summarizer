@@ -414,6 +414,14 @@
 
 ---
 
+## L053 — Adaptive page smokes should wait for one hydrated primary control, not the first matching node
+**Mistake:** The summarize smoke asserted on `getByTestId("summary-input")` immediately after navigation, and once the page became more adaptive it could briefly resolve to two composer nodes during hydration.
+**Why:** The smoke path was written for a simpler page shape and treated route transition completion as equivalent to stable hydrated UI, which is not always true on client-heavy dashboard pages.
+**Rule:** For adaptive dashboard flows, add one shared readiness helper that waits for the primary control count to settle, then waits for hydration, and only then interacts with the page.
+**Quick test:** Run `pnpm test` and confirm summarize smoke passes without strict-mode selector violations on `summary-input`.
+
+---
+
 ## L034 — DAILY_CAP and LIFETIME_CAP limit banners require different CTAs
 **Mistake:** showsUpgradeBenefits included `isSubscribed === false`, causing trial users who hit the daily cap to see an upgrade pricing link instead of a "come back tomorrow" message.
 **Why:** The condition was written to show benefits for any non-subscribed user regardless of which cap was hit.

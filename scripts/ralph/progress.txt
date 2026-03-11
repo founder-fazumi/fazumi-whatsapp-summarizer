@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-11
+# Summarize smoke hydration stabilized: the Playwright summarize flows now open `/summarize` through one shared readiness helper that waits for a single composer node and React hydration before interacting, which removed the last transient `summary-input` strict-mode failure from the release gate.
+# Files: specs/summarize-smoke-hydration-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt, e2e/support.ts, e2e/app-smoke.spec.ts
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass (`32 passed`, `3 skipped`).
+# Pattern: after responsive UI changes, stabilize smoke tests around the settled hydrated control state instead of asserting on the first matching node immediately after route navigation.
+# 
+
+# 2026-03-11
 # Summarize adaptive quick options added: smaller screens now get a compact accordion directly under the paste box so parents can set summary language and chat source before submitting, while the desktop-only output-language card stays in the support rail and the lower setup card focuses on saved-group organization below `xl`.
 # Files: app/(dashboard)/summarize/page.tsx, specs/summarize-mobile-quick-options-2026-03-11.md, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` pass.

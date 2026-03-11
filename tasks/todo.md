@@ -6,6 +6,23 @@
 
 ---
 
+## Story - Summarize smoke hydration stabilization (2026-03-11) [DONE]
+
+> Spec file: `specs/summarize-smoke-hydration-2026-03-11.md`
+> Rule: once `/summarize` becomes more adaptive, the smoke suite must wait for the stable hydrated composer instead of asserting during transient route-hydration duplication.
+
+#### SSH1 - Add one shared summarize-page readiness helper [Codex]
+**Why:** The release gate was down to one failing summarize smoke because `summary-input` could resolve to two transient nodes during navigation, even though the stable page settled correctly.
+**Files:** `e2e/support.ts`, `e2e/app-smoke.spec.ts`
+**Acceptance:**
+- [x] One helper opens `/summarize`, waits for a single `summary-input`, and then waits for React hydration.
+- [x] Summarize smoke and limits smoke flows reuse the helper instead of asserting on the raw route transition.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes (`32 passed`, `3 skipped`).
+
+---
+
 ## Story - Summarize mobile quick options for smaller screens (2026-03-11) [DONE]
 
 > Spec file: `specs/summarize-mobile-quick-options-2026-03-11.md`
