@@ -34,8 +34,6 @@ export default function LoginPage() {
   const [resetStatus, setResetStatus] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const [supabase] = useState(createClient);
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requestedTab = params.get("tab");
@@ -107,6 +105,7 @@ export default function LoginPage() {
   }
 
   async function startOAuth(provider: OAuthProvider) {
+    const supabase = createClient();
     setAuthLoading(true);
     setError(null);
     setSuccess(null);
@@ -132,6 +131,7 @@ export default function LoginPage() {
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
+    const supabase = createClient();
     setAuthLoading(true);
     setError(null);
     setSuccess(null);
@@ -148,6 +148,7 @@ export default function LoginPage() {
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
+    const supabase = createClient();
     setAuthLoading(true);
     setError(null);
     setSuccess(null);
@@ -224,6 +225,7 @@ export default function LoginPage() {
   }
 
   async function handleForgotPasswordRequest() {
+    const supabase = createClient();
     setResetLoading(true);
     setError(null);
     setSuccess(null);

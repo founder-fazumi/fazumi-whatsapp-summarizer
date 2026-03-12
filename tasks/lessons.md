@@ -8,6 +8,12 @@
 
 ---
 
+## L062 — Never initialize a Supabase browser client during render in a server-rendered client component
+**Mistake:** `/login` and `/reset-password` created the Supabase browser client with `useState(createClient)`, which let a server-rendered client component capture a non-browser auth client and complete login/recovery flows without ever writing auth cookies.
+**Why:** In the Next.js App Router, client components can still render on the server for the initial HTML. `createBrowserClient()` only gets cookie-backed browser storage when it is called in a real browser runtime.
+**Rule:** For browser-only Supabase auth work, instantiate the client inside event handlers, effects, or another post-hydration path. Do not create it during render or hook initialization in server-rendered client components.
+**Quick test:** Run a production build, log in with email/password, then hard-navigate to `/summarize`; the session must persist and browser cookies must include the Supabase auth cookie group.
+
 ## L061 — Server-side Supabase clients should ignore malformed auth-cookie groups instead of mutating them
 **Mistake:** A Playwright smoke that set a fake auth-cookie value under the real Supabase cookie name caused SSR auth recovery to choke on the malformed storage payload during public-route prefetching.
 **Why:** The server-side Supabase helpers passed any cookie with a matching auth-cookie name into `@supabase/ssr`, even if the combined cookie payload was obviously not a real encoded session.

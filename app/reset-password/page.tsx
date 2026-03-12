@@ -22,7 +22,6 @@ export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { locale } = useLang();
-  const [supabase] = useState(createClient);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -39,6 +38,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     let isMounted = true;
     let retryTimeout: number | null = null;
+    const supabase = createClient();
 
     function clearRecoveryHash() {
       if (!window.location.hash) {
@@ -153,10 +153,11 @@ export default function ResetPasswordPage() {
       }
       subscription.unsubscribe();
     };
-  }, [isRecoveryFlow, supabase]);
+  }, [isRecoveryFlow]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const supabase = createClient();
 
     if (password.length < 8) {
       setError(
