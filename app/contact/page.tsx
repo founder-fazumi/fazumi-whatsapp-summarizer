@@ -6,7 +6,7 @@ export default function ContactPage() {
     <PublicPageShell
       eyebrow={{ en: "Contact", ar: "اتصل بنا" }}
       title={{ en: "Contact Fazumi", ar: "اتصل بفازومي" }}
-      description={{ en: "Choose feedback or support, send the form, and it will land directly in FAZUMI's admin inbox for triage.", ar: "نحن هنا للمساعدة. اختر الملاحظات أو الدعم الفني، ثم أرسل النموذج ليصل مباشرة إلى صندوق إدارة فازومي للفرز والمتابعة." }}
+      description={{ en: "Questions about the product, account, billing, or refunds? Send a message here and Fazumi will reply by email.", ar: "هل لديك سؤال عن المنتج أو الحساب أو الفوترة أو الاسترداد؟ أرسل رسالتك هنا وسيرد عليك فازومي عبر البريد الإلكتروني." }}
     >
       <ContactForm />
     </PublicPageShell>

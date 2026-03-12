@@ -9,7 +9,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const LAST_UPDATED = "2026-03-06";
+const LAST_UPDATED = "2026-03-13";
 
 interface PrivacySection {
   title: LocalizedCopy<string>;
@@ -46,7 +46,7 @@ const COPY = {
           "Submitted content such as chat text or text files you send for summarization during a request.",
           "Saved summary cards and metadata such as the TL;DR, dates, action items, people or classes, links, questions, detected language, timestamps, and character count.",
           "Usage and plan data such as trial state, summary counters, subscription status, and product limits.",
-          "Billing records provided through Lemon Squeezy, including plan type, order or subscription IDs, renewal dates, and customer portal links. We do not store full payment card details.",
+          "Billing records provided by our authorised payment partner or Merchant of Record, including plan type, order or subscription IDs, renewal dates, and billing-portal links. We do not store full payment card details.",
           "Device, diagnostic, and compliance data such as IP address, user agent, consent records, basic security logs, and error monitoring data.",
         ],
         ar: [
@@ -54,7 +54,7 @@ const COPY = {
           "المحتوى المرسل مثل نص المحادثة أو الملفات النصية التي ترسلها للتلخيص أثناء الطلب.",
           "بطاقات الملخص المحفوظة وبياناتها مثل الخلاصة السريعة والتواريخ والمهام والأشخاص أو الصفوف والروابط والأسئلة واللغة المكتشفة والطوابع الزمنية وعدد الأحرف.",
           "بيانات الاستخدام والخطة مثل حالة الفترة التجريبية وعدادات التلخيص وحالة الاشتراك وحدود المنتج.",
-          "سجلات الفوترة القادمة من Lemon Squeezy، بما في ذلك نوع الخطة ومعرفات الطلب أو الاشتراك وتواريخ التجديد وروابط بوابة العميل. نحن لا نحفظ بيانات البطاقة الكاملة.",
+          "سجلات الفوترة التي يقدمها شريك الدفع المعتمد أو التاجر الرسمي، بما في ذلك نوع الخطة ومعرفات الطلب أو الاشتراك وتواريخ التجديد وروابط بوابة الفوترة. نحن لا نحفظ بيانات البطاقة الكاملة.",
           "بيانات الجهاز والتشخيص والامتثال مثل عنوان IP ومعرف المتصفح وسجلات الموافقة وبعض سجلات الأمان وبيانات مراقبة الأخطاء.",
         ],
       },
@@ -115,7 +115,7 @@ const COPY = {
           "OpenAI processes submitted chat text during summarization requests.",
           "Sentry helps us monitor application errors and diagnose failures.",
           "PostHog may process analytics or session replay data only after your opt-in and only when those features are enabled.",
-          "Lemon Squeezy handles hosted checkout, subscriptions, invoices, and the billing portal.",
+          "An authorised payment partner or Merchant of Record shown at checkout handles hosted checkout, subscriptions, invoices, and the billing portal.",
           "We do not sell your personal data.",
         ],
         ar: [
@@ -123,7 +123,7 @@ const COPY = {
           "تعالج OpenAI نص المحادثة المرسل أثناء طلبات التلخيص.",
           "تساعدنا Sentry في مراقبة أخطاء التطبيق وتشخيص الأعطال.",
           "قد تعالج PostHog بيانات التحليلات أو تسجيل الجلسات فقط بعد موافقتك وفقط عندما تكون هذه الميزات مفعلة.",
-          "تتولى Lemon Squeezy عمليات الدفع المستضافة والاشتراكات والفواتير وبوابة الفوترة.",
+          "يتولى شريك دفع معتمد أو تاجر رسمي يظهر عند الدفع عمليات الدفع المستضافة والاشتراكات والفواتير وبوابة الفوترة.",
           "نحن لا نبيع بياناتك الشخصية.",
         ],
       },

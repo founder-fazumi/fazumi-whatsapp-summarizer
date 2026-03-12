@@ -74,8 +74,18 @@ const FAQS = [
       ar: "كيف ألغي الاشتراك؟",
     },
     answer: {
-      en: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel. Paid access follows the latest subscription status, and billing recovery restores access once Lemon Squeezy marks it active again.",
-      ar: "افتح صفحة الفوترة بعد تسجيل الدخول واستخدم بوابة Lemon Squeezy الخاصة بالعميل لإلغاء الاشتراك. يعتمد الوصول المدفوع على آخر حالة للاشتراك، وتتم استعادته عند عودة الحالة إلى نشطة في Lemon Squeezy.",
+      en: "Open the billing page after signing in and use the billing portal linked there to manage or cancel your subscription. Cancellation stops future renewals, and paid access follows the latest subscription status in your account.",
+      ar: "افتح صفحة الفوترة بعد تسجيل الدخول واستخدم بوابة الفوترة المرتبطة هناك لإدارة الاشتراك أو إلغائه. ويؤدي الإلغاء إلى إيقاف التجديدات المستقبلية، بينما يتبع الوصول المدفوع أحدث حالة اشتراك ظاهرة في حسابك.",
+    },
+  },
+  {
+    question: {
+      en: "What is the refund policy for paid plans?",
+      ar: "ما سياسة الاسترداد للخطط المدفوعة؟",
+    },
+    answer: {
+      en: "You can request a refund within 14 days of the initial purchase date for a paid Fazumi plan. The authorised payment partner or Merchant of Record shown at checkout handles the final billing workflow.",
+      ar: "يمكنك طلب استرداد المبلغ خلال 14 يومًا من تاريخ الشراء الأول لأي خطة مدفوعة في فازومي. ويتولى شريك الدفع المعتمد أو التاجر الرسمي الموضح عند الدفع الخطوات النهائية للفوترة.",
     },
   },
 ] as const;

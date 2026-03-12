@@ -10,7 +10,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const LAST_UPDATED = "2026-03-06";
+const LAST_UPDATED = "2026-03-13";
 
 interface CookieSection {
   title: LocalizedCopy<string>;
@@ -108,13 +108,13 @@ const COPY = {
           "Necessary examples: sign-in or session storage from Supabase, consent state, and security-related storage.",
           "Preference examples: language and theme choices stored in cookies or local storage.",
           "Optional analytics examples: PostHog identifiers or replay settings only after you opt in and only if those features are enabled.",
-          "Hosted billing examples: Lemon Squeezy may use its own cookies on checkout, invoice, or billing-portal pages it hosts.",
+          "Hosted billing examples: the authorised payment partner or Merchant of Record shown at checkout may use its own cookies on checkout, invoice, or billing-portal pages it hosts.",
         ],
         ar: [
           "أمثلة الفئة الضرورية: تخزين تسجيل الدخول أو الجلسة من Supabase، وحالة الموافقة، وبعض عناصر التخزين المرتبطة بالأمان.",
           "أمثلة فئة التفضيلات: اختيار اللغة والمظهر عبر ملفات ارتباط أو تخزين محلي.",
           "أمثلة التحليلات الاختيارية: معرفات PostHog أو إعدادات تسجيل الجلسات فقط بعد موافقتك وفقط إذا كانت هذه الميزات مفعلة.",
-          "أمثلة الفوترة المستضافة: قد تستخدم Lemon Squeezy ملفاتها الخاصة في صفحات الدفع أو الفواتير أو بوابة الفوترة التي تستضيفها.",
+          "أمثلة الفوترة المستضافة: قد يستخدم شريك الدفع المعتمد أو التاجر الرسمي الموضح عند الدفع ملفات الارتباط الخاصة به في صفحات الدفع أو الفواتير أو بوابة الفوترة التي يستضيفها.",
         ],
       },
     },
@@ -155,12 +155,12 @@ const COPY = {
       items: {
         en: [
           "Supabase may set authentication or session cookies to keep you signed in.",
-          "Lemon Squeezy may set its own cookies on hosted checkout, invoice, or billing-portal pages.",
+          "The authorised payment partner or Merchant of Record shown at checkout may set its own cookies on hosted checkout, invoice, or billing-portal pages.",
           "PostHog may set browser storage for analytics or session replay only after your opt-in and only when those features are enabled.",
         ],
         ar: [
           "قد تضع Supabase ملفات مصادقة أو جلسة لإبقائك مسجلاً للدخول.",
-          "وقد تضع Lemon Squeezy ملفاتها الخاصة في صفحات الدفع أو الفواتير أو بوابة الفوترة المستضافة لديها.",
+          "وقد يضع شريك الدفع المعتمد أو التاجر الرسمي الموضح عند الدفع ملفات الارتباط الخاصة به في صفحات الدفع أو الفواتير أو بوابة الفوترة المستضافة لديه.",
           "وقد تنشئ PostHog تخزينًا في المتصفح للتحليلات أو تسجيل الجلسات فقط بعد موافقتك وفقط عندما تكون هذه الميزات مفعلة.",
         ],
       },

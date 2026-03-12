@@ -4,17 +4,17 @@ import { BILLING_CONTACT_EMAIL } from "@/lib/config/legal";
 
 const SECTIONS = [
   {
-    title: { en: "1. Monthly & Annual subscriptions", ar: "1. الاشتراكات الشهرية والسنوية" },
+    title: { en: "1. 14-day refund window", ar: "1. نافذة الاسترداد لمدة 14 يومًا" },
     body: {
-      en: "We offer a 7-day money-back guarantee on your first payment for monthly and annual plans. If you are not satisfied, contact us within 7 days of your first charge and we will issue a full refund. Subsequent renewals are not eligible for refunds.",
-      ar: "نقدم ضمان استرداد لمدة 7 أيام على أول دفعة في الخطط الشهرية والسنوية. وإذا لم تكن راضيًا، فتواصل معنا خلال 7 أيام من أول عملية خصم وسنقوم برد المبلغ كاملًا. أما عمليات التجديد اللاحقة فلا تكون مؤهلة للاسترداد.",
+      en: "Customers may request a refund within 14 days of the initial purchase date for Fazumi paid plans. This 14-day minimum applies to the first paid transaction that starts the plan.",
+      ar: "يمكن للعملاء طلب استرداد المبلغ خلال 14 يومًا من تاريخ الشراء الأول للخطط المدفوعة في Fazumi. وينطبق هذا الحد الأدنى البالغ 14 يومًا على أول عملية دفع تبدأ الخطة.",
     },
   },
   {
-    title: { en: "2. Founder lifetime access", ar: "2. باقة المؤسسين مدى الحياة" },
+    title: { en: "2. Cancellations and renewals", ar: "2. الإلغاء والتجديدات" },
     body: {
-      en: "Founder lifetime access is a one-time purchase and is final sale. No refunds are offered for founder purchases. By completing the purchase you acknowledge and agree to this policy.",
-      ar: "باقة المؤسسين مدى الحياة هي عملية شراء لمرة واحدة وتُعد بيعًا نهائيًا. لا نقدم استردادًا لمشتريات باقة المؤسسين. وبإتمام عملية الشراء فإنك تقر بهذه السياسة وتوافق عليها.",
+      en: "Monthly and annual subscriptions renew automatically until canceled. If you cancel, future renewals stop and your access continues through the current billing period. One-time founder purchases do not renew.",
+      ar: "تتجدد الاشتراكات الشهرية والسنوية تلقائيًا حتى يتم إلغاؤها. وإذا قمت بالإلغاء، تتوقف التجديدات المستقبلية ويستمر وصولك حتى نهاية فترة الفوترة الحالية. أما مشتريات باقة المؤسسين ذات الدفعة الواحدة فلا تتجدد.",
     },
   },
   {
@@ -25,8 +25,8 @@ const SECTIONS = [
     },
     contact: BILLING_CONTACT_EMAIL,
     bodySuffix: {
-      en: 'with the subject line "Refund request" and include your registered email address. Refunds are processed within 5–10 business days to your original payment method.',
-      ar: "مع كتابة \"طلب استرداد\" في عنوان الرسالة، وأرفق عنوان بريدك الإلكتروني المسجل. تتم معالجة الاستردادات خلال 5 إلى 10 أيام عمل إلى وسيلة الدفع الأصلية.",
+      en: 'with the subject line "Refund request" and include your registered email address. Eligible requests made within the refund window are handled according to the authorised payment partner or Merchant of Record standards shown at checkout and returned to the original payment method.',
+      ar: "مع كتابة \"طلب استرداد\" في عنوان الرسالة، وأرفق عنوان بريدك الإلكتروني المسجل. وتتم معالجة الطلبات المؤهلة المقدمة خلال نافذة الاسترداد وفق معايير شريك الدفع المعتمد أو التاجر الرسمي الموضحة عند الدفع، وتُعاد إلى وسيلة الدفع الأصلية.",
     },
   },
 ] as const;
@@ -36,7 +36,10 @@ export default function RefundsPage() {
     <PublicPageShell
       eyebrow={{ en: "Legal", ar: "قانوني" }}
       title={{ en: "Refund Policy", ar: "سياسة الاسترداد" }}
-      description={{ en: "Our 7-day money-back policy for monthly and annual plans.", ar: "ضمان الاسترداد لمدة 7 أيام على الخطط الشهرية والسنوية." }}
+      description={{
+        en: "How Fazumi handles refunds, cancellations, and renewals for paid plans.",
+        ar: "كيف يتعامل Fazumi مع الاسترداد والإلغاء والتجديدات للخطط المدفوعة.",
+      }}
     >
       <div className="space-y-6 max-w-3xl">
         <p className="text-xs text-[var(--muted-foreground)]">

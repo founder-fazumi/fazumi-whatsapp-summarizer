@@ -73,7 +73,7 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 - Free fallback: 3 lifetime summaries for no-card users after trial
 - Paid monthly: $9.99/mo — 50 summaries/day, 200/month
 - Paid annual: $99.99/yr — same limits
-- Founder LTD: $149 one-time, 200 seats max, includes 1-year top tier, NO refund
+- Founder: $149 one-time, 200 seats max; refund requests may be made within 14 days of the initial purchase
 - All limits enforced in server-side API routes (never trust client)
 **Consequences:** DB must track: `plan`, `trial_expires_at`, `summaries_today`, `summaries_month`, `lifetime_free_count`, `founder_seat`.
 
@@ -199,7 +199,7 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 ## D022 - Public founder offer lives at `/founder-supporter`, not `/founder`
 **Date:** 2026-03-09
 **Context:** FAZUMI now needs a dedicated public founder-offer landing page for campaigns and direct conversion, but `/founder` already exists as a logged-in dashboard page for recognized founder members.
-**Decision:** Keep `/founder` as the in-app founder recognition route and add the public marketing page at `/founder-supporter`. The public page reuses the existing founder checkout variant and the current public founder seat cap of `350`.
+**Decision:** Keep `/founder` as the in-app founder recognition route and add the public marketing page at `/founder-supporter`. The public page reuses the existing founder checkout variant and the current public founder seat cap of `200`.
 **Consequences:** Campaign traffic gets a purpose-built sales page without breaking existing founder UX inside the dashboard shell. Any future public founder CTA should point to `/founder-supporter`, while in-app founder recognition remains on `/founder`.
 
 ---
@@ -239,11 +239,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 
 ---
 
-## D027 - Payment acquisition stays in a coming-soon state until provider approval
+## D027 - Payment acquisition stays manually gated until public checkout is ready
 **Date:** 2026-03-10
-**Context:** FAZUMI's pricing and founder surfaces were already wired for Lemon Squeezy-style checkout, but provider approval is still pending and the public UI should not imply that payment is live.
-**Decision:** Keep pricing and upgrade surfaces visible, but gate all new payment-acquisition CTAs behind a shared coming-soon flag. Purchase buttons stay disabled and use explicit `Coming soon` / `قريبًا` copy, while existing paid-account management links remain unchanged.
-**Consequences:** Users can still inspect plans and pricing, but they cannot be sent into a fake or premature checkout flow. Re-enabling payments later becomes one shared config change instead of a scattered copy pass across multiple routes.
+**Context:** FAZUMI's pricing and founder surfaces were already wired for checkout, but the safest public posture was to avoid implying live self-serve billing until the public billing story and launch path were stable.
+**Decision:** Keep pricing and upgrade surfaces visible, but route new payment-acquisition CTAs through one shared manual-contact gate when public checkout is not ready. Existing paid-account management links remain unchanged.
+**Consequences:** Users can still inspect plans, request paid access, or get billing help without being sent into a fake or premature checkout flow. Re-enabling direct checkout later remains one shared config change instead of a scattered copy pass across multiple routes.
 
 ---
 
@@ -340,4 +340,12 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Context:** Supabase flagged `public.ai_request_logs` and `public.marketing_spend` because RLS was enabled without policies, while the archived WA phone-burst tables still need a repeatable fail-closed contract in the exposed `public` schema. Repo inspection showed these four tables are only used from trusted server code or existing helper/RPC flows, not from browser or authenticated PostgREST clients.
 **Decision:** For internal-only tables that remain in `public`, enable RLS and add an explicit deny-all policy. Do not add anon/authenticated allow policies unless a real browser/PostgREST use case is confirmed first. Supported access stays limited to `service_role` clients and existing `SECURITY DEFINER` / RPC helpers.
 **Consequences:** The schema now reflects the intended least-privilege contract instead of relying on implicit default-deny behavior. Accidental browser queries fail closed, and any future user-scoped access must be added deliberately with ownership-aware policies instead of by reusing internal tables.
+
+---
+
+## D040 - Public payment-review copy stays provider-neutral and uses one simple 14-day refund rule until checkout is fully live
+**Date:** 2026-03-13
+**Context:** Paddle provisionally approved `fazumi.com` but flagged the public refund policy because it used a 7-day window plus unsupported qualifiers and founder exclusions. At the same time, the site still mixed provider-specific Lemon Squeezy naming, staged-payment wording, and conflicting founder seat counts across pricing, legal, FAQ, billing, and founder pages.
+**Decision:** Keep the runtime billing implementation unchanged in this slice, but make all customer-facing payment copy follow one public rule: paid-plan refund requests may be made within 14 days of the initial purchase, cancellations stop future renewals, and public wording refers only to the authorised payment partner or Merchant of Record shown at checkout. Monthly and annual subscriptions remain the primary paid path; founder stays a secondary one-time offer with a public cap of `200`.
+**Consequences:** Public/legal/billing/founder surfaces now tell one consistent story that is safer for payment review. Internal implementation files and runbooks may stay provider-specific until an actual backend migration happens, but future public copy changes must pass a repo-wide search for stale provider names, refund qualifiers, and founder-cap drift before shipping.
 

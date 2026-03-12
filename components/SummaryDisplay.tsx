@@ -425,7 +425,7 @@ function buildCalendarExport(summary: SummaryResult): string | null {
 
       return [
         "BEGIN:VEVENT",
-        `UID:${formatIcsDate(start)}-${index}@fazumi.app`,
+        `UID:${formatIcsDate(start)}-${index}@fazumi.com`,
         `DTSTAMP:${formatIcsTimestamp(now)}`,
         dtstart,
         dtend,

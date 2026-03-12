@@ -30,7 +30,7 @@ const PLAN_LABELS: Record<PlanKey, { name: { en: string; ar: string }; price: { 
     color: "text-[var(--primary)]",
   },
   founder: {
-    name: { en: "Founder LTD", ar: "باقة المؤسسين" },
+    name: { en: "Founder", ar: "باقة المؤسسين" },
     price: { en: formatPrice(149), ar: formatPrice(149) },
     color: "text-[var(--accent-fox-deep)]",
   },
@@ -58,8 +58,8 @@ const PLAN_FEATURES: Record<PlanKey, { en: string; ar: string }[]> = {
   founder: [
     { en: "50 summaries / day", ar: "50 ملخصًا يوميًا" },
     { en: "200 / month", ar: "200 شهريًا" },
-    { en: "Lifetime access", ar: "وصول مدى الحياة" },
-    { en: "All future features", ar: "كل الميزات المستقبلية" },
+    { en: "One-time founder plan", ar: "خطة مؤسس بدفعة واحدة" },
+    { en: "Priority support and early feature access", ar: "دعم ذو أولوية ووصول مبكر للميزات" },
   ],
 };
 
@@ -157,7 +157,7 @@ export default async function BillingPage() {
                   <LocalizedText en="Billing" ar="الفوترة" />
                 </h1>
                 <CardDescription>
-                  <LocalizedText en="Manage your subscription and invoices" ar="أدر اشتراكك وفواتيرك" />
+                  <LocalizedText en="Manage your subscription and billing" ar="أدر اشتراكك وفوترتك" />
                 </CardDescription>
               </div>
             </div>
@@ -270,12 +270,12 @@ export default async function BillingPage() {
             {isFounderPlan && (
               <div className="rounded-[var(--radius-xl)] border border-amber-400 bg-amber-50 px-4 py-4 text-sm text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
                 <p className="font-semibold">
-                  <LocalizedText en="Your Lifetime Plan - Thank You" ar="خطتك مدى الحياة - شكرًا لك" />
+                  <LocalizedText en="Your founder plan" ar="خطة المؤسس الخاصة بك" />
                 </p>
                 <p className="mt-1.5 leading-6 text-amber-900 dark:text-amber-100/90">
                   <LocalizedText
-                    en="You are one of the founding supporters who made Fazumi possible. Your access never expires and you'll receive every future feature we ship."
-                    ar="أنت من الداعمين المؤسسين الذين جعلوا Fazumi ممكنًا. وصولك لا ينتهي أبدًا وستحصل على كل ميزة مستقبلية نطلقها."
+                    en="You are one of the early supporters who backed Fazumi. This is a one-time founder purchase, it does not renew, and founder-specific benefits follow the plan details shown at checkout."
+                    ar="أنت من الداعمين الأوائل الذين دعموا Fazumi. هذه عملية شراء لمرة واحدة ضمن باقة المؤسسين، ولا تتجدد، وتخضع مزايا المؤسس للتفاصيل الموضحة عند الدفع."
                   />
                 </p>
                 <div className="mt-3">
@@ -299,8 +299,8 @@ export default async function BillingPage() {
 
             <p className="text-xs text-[var(--muted-foreground)]">
               <LocalizedText
-                en="Invoice history is available in the Lemon Squeezy customer portal."
-                ar="سجل الفواتير متاح في بوابة عملاء Lemon Squeezy."
+                en="Invoice history is available in the billing portal linked above when available."
+                ar="سجل الفواتير متاح في بوابة الفوترة المرتبطة أعلاه عند توفرها."
               />
             </p>
           </CardContent>

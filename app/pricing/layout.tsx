@@ -3,11 +3,11 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: { absolute: "Fazumi Pricing — School Chat Summarizer Plans" },
   description:
-    "Simple, transparent pricing for Fazumi. Start with a free 7-day trial. Upgrade to monthly or annual for unlimited school chat summaries.",
+    "Simple, transparent pricing for Fazumi. Start with a free 7-day trial, then choose Pro monthly, Pro annual, or an optional founder plan.",
   openGraph: {
     title: "Fazumi Pricing — School Chat Summarizer Plans",
     description:
-      "Simple, transparent pricing for Fazumi. Start with a free 7-day trial. Upgrade to monthly or annual for unlimited school chat summaries.",
+      "Simple, transparent pricing for Fazumi. Start with a free 7-day trial, then choose Pro monthly, Pro annual, or an optional founder plan.",
     url: "/pricing",
     type: "website",
     images: [

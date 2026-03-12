@@ -19,7 +19,6 @@ interface NavProps {
 const COPY = {
   howItWorks: { en: "How it works", ar: "كيف يعمل" },
   pricing: { en: "Pricing", ar: "الأسعار" },
-  founder: { en: "Founder offer", ar: "عرض المؤسسين" },
   dashboard: { en: "Go to app", ar: "الذهاب إلى التطبيق" },
   toggle: { en: "Toggle language", ar: "تبديل اللغة" },
 } satisfies Record<string, LocalizedCopy<string>>;
@@ -151,12 +150,6 @@ export function Nav({ isLoggedIn }: NavProps) {
               className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             >
               {pick(COPY.pricing, locale)}
-            </Link>
-            <Link
-              href="/founder-supporter"
-              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-50/60 px-3 py-1 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
-            >
-              {pick(COPY.founder, locale)}
             </Link>
           </div>
 

@@ -61,11 +61,11 @@ const COPY = {
       icon: ShieldCheck,
     },
     {
-      title: { en: "Billing (Lemon Squeezy)", ar: "الفوترة (Lemon Squeezy)" },
+      title: { en: "Billing & checkout", ar: "الفوترة والدفع" },
       status: { en: "Provider backed", ar: "تعتمد على المزود" },
       note: {
-        en: "Checkout, billing recovery, and the customer portal depend on Lemon Squeezy when paid plans are enabled.",
-        ar: "يعتمد الدفع واستعادة الفوترة وبوابة العميل على Lemon Squeezy عند تفعيل الخطط المدفوعة.",
+        en: "Checkout, billing recovery, and the billing portal depend on the authorised payment partner configured for paid plans.",
+        ar: "يعتمد الدفع واستعادة الفوترة وبوابة الفوترة على شريك الدفع المعتمد المهيأ للخطط المدفوعة.",
       },
       icon: CreditCard,
     },

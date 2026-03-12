@@ -6,6 +6,39 @@
 
 ---
 
+## Story - Payment review readiness for Paddle (2026-03-13) [DONE]
+
+> Spec file: `specs/payment-review-readiness-paddle-2026-03-13.md`
+> Rule: prioritize refund-policy compliance first, keep public billing/legal wording provider-neutral, and leave runtime billing integration untouched in this slice.
+
+#### PRR1 - Align refund policy and legal copy to a simple 14-day minimum [Codex]
+**Why:** Paddle's current blocker is the live 7-day, exception-heavy refund story.
+**Files:** `app/refunds/page.tsx`, `app/refunds/layout.tsx`, `app/terms/page.tsx`, `app/privacy/page.tsx`, `app/cookie-policy/page.tsx`
+**Acceptance:**
+- [x] Public refund wording uses a simple 14-day minimum window.
+- [x] No public copy says founder/founder-supporter purchases are final sale or non-refundable.
+- [x] Terms, privacy, and cookie copy use provider-neutral billing language.
+
+#### PRR2 - Make pricing, FAQ, help, billing, and founder copy commercially coherent [Codex]
+**Why:** Public paid-plan language still mixes "coming soon", Lemon Squeezy naming, and a founder-first acquisition story.
+**Files:** `components/landing/Pricing.tsx`, `components/billing/CheckoutButton.tsx`, `components/billing/BillingPlansPanel.tsx`, `components/landing/FAQAccordion.tsx`, `app/page.tsx`, `app/faq/page.tsx`, `app/help/page.tsx`, `app/contact/page.tsx`, `components/contact/ContactForm.tsx`, `app/(dashboard)/billing/page.tsx`, `app/status/page.tsx`, `components/landing/Nav.tsx`, `components/landing/Footer.tsx`, `app/founder-supporter/page.tsx`, `components/founder-offer/content.ts`, `app/api/public/founder-seats/route.ts`, `public/llms.txt`
+**Acceptance:**
+- [x] Monthly and annual plans are the primary paid path.
+- [x] Public billing wording is provider-neutral and no longer says provider approval is pending.
+- [x] Founder support stays secondary and uses the 200-seat cap consistently.
+- [x] Support and billing contacts are visible in customer-readable copy.
+
+#### PRR3 - Verify and record the compliance pass [Codex]
+**Why:** This slice is only done once the repo checks and internal logs capture the updated review rule.
+**Files:** `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`, `tasks/todo.md`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` is run and its result is recorded.
+- [x] `pnpm test` is run and any pre-existing failures are called out separately.
+
+---
+
 ## Story - Supabase internal table RLS policy follow-up (2026-03-12) [DONE]
 
 > Spec file: `specs/supabase-internal-table-rls-policy-follow-up-2026-03-12.md`

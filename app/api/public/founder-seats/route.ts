@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const TOTAL_FOUNDER_SEATS = 350;
+const TOTAL_FOUNDER_SEATS = 200;
 
 export async function GET() {
   try {

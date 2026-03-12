@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   },
 };
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
 
 const faqWebPageSchema = {
   "@context": "https://schema.org",

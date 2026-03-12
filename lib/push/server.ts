@@ -66,7 +66,7 @@ const REENGAGEMENT_COOLDOWN_MS = 28 * 24 * 60 * 60 * 1000;
 function getVapidConfig() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT ?? "mailto:admin@fazumi.app";
+  const subject = process.env.VAPID_SUBJECT ?? "mailto:support@fazumi.com";
 
   return {
     publicKey,

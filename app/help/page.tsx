@@ -6,7 +6,7 @@ import { FaqAccordion } from "@/components/ui/accordion";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
-import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
+import { BILLING_CONTACT_EMAIL, LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
 import { formatNumber } from "@/lib/format";
 import { pick } from "@/lib/i18n";
@@ -113,12 +113,12 @@ const COPY = {
         en: [
           "Use /pricing to choose a plan and /billing to manage it later.",
           "If a subscription becomes past_due, paid access may be interrupted until payment details are updated.",
-          "Monthly and annual plans are eligible for a refund request within 7 days of the first charge only. Founder is final sale.",
+          `Refund requests can be made within 14 days of the initial purchase, and billing questions can be sent to ${BILLING_CONTACT_EMAIL}.`,
         ],
         ar: [
           "استخدم /pricing لاختيار الخطة و /billing لإدارتها لاحقًا.",
           "وإذا أصبحت حالة الاشتراك past_due فقد تتأثر المزايا المدفوعة إلى أن يتم تحديث بيانات الدفع.",
-          "أما الاسترداد فهو متاح فقط للخطط الشهرية والسنوية خلال 7 أيام من أول عملية دفع. أما باقة المؤسسين فهي نهائية ولا تشمل الاسترداد.",
+          `يمكن طلب الاسترداد خلال 14 يومًا من تاريخ الشراء الأول، ويمكن إرسال استفسارات الفوترة إلى ${BILLING_CONTACT_EMAIL}.`,
         ],
       },
     },
@@ -175,10 +175,11 @@ const COPY = {
   support: {
     title: { en: "Contact support", ar: "اتصل بالدعم الفني" },
     body: {
-      en: "For billing, account, or product questions:",
-      ar: "للاستفسارات المتعلقة بالفوترة أو الحساب أو المنتج:",
+      en: "For product or account help, contact support. For billing or refund help, contact billing:",
+      ar: "للمساعدة في المنتج أو الحساب تواصل مع الدعم. وللمساعدة في الفوترة أو الاسترداد تواصل مع فريق الفوترة:",
     },
     email: LEGAL_CONTACT_EMAIL,
+    billingEmail: BILLING_CONTACT_EMAIL,
   },
 } as const;
 
@@ -269,6 +270,13 @@ export default function HelpPage() {
                   dir="ltr"
                 >
                   {COPY.support.email}
+                </a>
+                <a
+                  href={`mailto:${COPY.support.billingEmail}`}
+                  className="text-sm font-medium text-[var(--primary)] hover:underline"
+                  dir="ltr"
+                >
+                  {COPY.support.billingEmail}
                 </a>
               </div>
             </div>

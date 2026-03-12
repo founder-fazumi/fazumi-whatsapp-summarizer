@@ -7,7 +7,7 @@ import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Pricing } from "@/components/landing/Pricing";
 import { resolveEntitlement, type EntitlementSubscription } from "@/lib/limits";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
 
 const organizationSchema = {
   "@context": "https://schema.org",
@@ -89,7 +89,15 @@ const faqSchema = {
       name: "How do I cancel my subscription?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Open the billing page after signing in and use the Lemon Squeezy customer portal to cancel. Paid access follows the latest subscription status, and billing recovery restores it once Lemon Squeezy marks the subscription active again.",
+        text: "Open the billing page after signing in and use the billing portal linked there to manage or cancel your subscription. Cancellation stops future renewals.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What is the refund policy for paid plans?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "You can request a refund within 14 days of the initial purchase date for a paid Fazumi plan. The payment partner shown at checkout handles the final billing workflow.",
       },
     },
   ],

@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
   const LEGAL_DATE = new Date("2026-02-27");
   const CONTENT_DATE = new Date("2026-03-07");
 

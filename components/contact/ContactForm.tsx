@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
+import { BILLING_CONTACT_EMAIL, LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -219,11 +219,11 @@ export function ContactForm() {
           <CardDescription>
             {mode === "feedback"
               ? locale === "ar"
-                ? "تصل الملاحظات مباشرة إلى صندوق ملاحظات الإدارة للتصنيف والمتابعة."
-                : "Feedback goes straight into the admin feedback inbox for review."
+                ? "تصل الملاحظات مباشرة إلى فريق فازومي حتى نتمكن من المتابعة عبر البريد الإلكتروني."
+                : "Feedback goes directly to Fazumi so we can follow up by email."
               : locale === "ar"
-                ? "تصل طلبات الدعم مباشرة إلى صندوق الدعم الإداري مع الحالة والأولوية."
-                : "Support requests land directly in the admin support inbox with status and priority."}
+                ? "تصل طلبات الدعم مباشرة إلى فريق فازومي حتى نتمكن من الرد عليك عبر البريد الإلكتروني."
+                : "Support requests go directly to Fazumi so we can reply by email."}
           </CardDescription>
         </CardHeader>
         <CardContent className={cn(isArabic && "text-right")}>
@@ -408,17 +408,24 @@ export function ContactForm() {
       <div className={cn("space-y-4", isArabic && "text-right")}>
         <Card>
           <CardHeader className={cn(isArabic && "text-right")}>
-            <CardTitle>{locale === "ar" ? "كيف تصل الرسائل" : "How messages arrive"}</CardTitle>
+            <CardTitle>{locale === "ar" ? "المساعدة المباشرة" : "Direct help"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-[var(--muted-foreground)]">
-            <p>{locale === "ar" ? "يتم حفظ الرسائل على الخادم ثم تظهر في لوحة الإدارة تحت تبويبي الملاحظات والدعم." : "Messages are stored server-side and appear in the admin inbox under Feedback and Support."}</p>
-            <p>{locale === "ar" ? "لا تحتاج إلى البريد الإلكتروني المحلي لإرسال الطلب." : "You do not need a local email app to submit a request."}</p>
+            <p>{locale === "ar" ? "استخدم النموذج إذا كنت تريد أن يرد عليك فازومي عبر البريد الإلكتروني بخصوص المنتج أو الحساب أو الفوترة أو الاسترداد." : "Use the form if you want Fazumi to reply by email about the product, your account, billing, or refunds."}</p>
+            <p>{locale === "ar" ? "يمكنك أيضًا الكتابة مباشرة إلى عناوين الدعم أو الفوترة أدناه." : "You can also write directly to the support or billing addresses below."}</p>
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
               className="inline-flex items-center gap-2 text-[var(--primary)] hover:underline"
             >
               <Mail className="h-4 w-4" />
               {SUPPORT_EMAIL}
+            </a>
+            <a
+              href={`mailto:${BILLING_CONTACT_EMAIL}`}
+              className="inline-flex items-center gap-2 text-[var(--primary)] hover:underline"
+            >
+              <Mail className="h-4 w-4" />
+              {BILLING_CONTACT_EMAIL}
             </a>
           </CardContent>
         </Card>

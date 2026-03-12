@@ -53,7 +53,7 @@ const labels: Record<string, Record<Locale, string>> = {
   "plan.founder.feature.badge": { en: "Founding Supporter badge", ar: "شارة العضو المؤسس" },
   "plan.founder.feature.community": { en: "Private WhatsApp group", ar: "مجموعة واتساب خاصة" },
   "pricing.billed.annually": { en: "billed annually", ar: "تُدفع سنويًا" },
-  "pricing.refund.founder": { en: "Founder is final", ar: "العضوية المؤسسية نهائية — لا استرداد" },
+  "pricing.refund.founder": { en: "14-day refund window on initial purchase", ar: "نافذة استرداد لمدة 14 يومًا على الشراء الأول" },
   // ── Contact ───────────────────────────────────────────────────
   "contact.title":     { en: "Contact us",            ar: "اتصل بنا" },
   "contact.subtitle":  { en: "We're here to help",    ar: "نحن هنا للمساعدة" },

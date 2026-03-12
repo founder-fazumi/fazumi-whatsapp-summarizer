@@ -3,7 +3,7 @@ import { FAQAccordion } from "@/components/landing/FAQAccordion";
 import { Nav } from "@/components/landing/Nav";
 import { Pricing } from "@/components/landing/Pricing";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
 
 const pricingSchema = {
   "@context": "https://schema.org",
@@ -38,7 +38,7 @@ const pricingSchema = {
     },
     {
       "@type": "Offer",
-      name: "Founder Lifetime",
+      name: "Founder Plan",
       price: "149.00",
       priceCurrency: "USD",
       priceValidUntil: "2027-01-01",

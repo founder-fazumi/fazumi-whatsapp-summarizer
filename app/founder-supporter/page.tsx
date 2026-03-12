@@ -6,10 +6,10 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "FAZUMI Founder Supporter | Early Access for Busy Parents",
+    absolute: "FAZUMI Founder Supporter | Early Support for Busy Parents",
   },
   description:
-    "Join FAZUMI as one of 350 Founder Supporters. Turn messy school WhatsApp messages into clear summaries, tasks, dates, and payments.",
+    "Optional early-supporter plan for up to 200 busy parents who want calmer school-message summaries, founder perks, and early product access.",
   alternates: {
     canonical: "/founder-supporter",
     languages: {
@@ -19,9 +19,9 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "FAZUMI Founder Supporter | Early Access for Busy Parents",
+    title: "FAZUMI Founder Supporter | Early Support for Busy Parents",
     description:
-      "Join FAZUMI as one of 350 Founder Supporters. Turn messy school WhatsApp messages into clear summaries, tasks, dates, and payments.",
+      "Optional early-supporter plan for up to 200 busy parents who want calmer school-message summaries, founder perks, and early product access.",
     url: "/founder-supporter",
     type: "website",
     images: [
@@ -35,9 +35,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "FAZUMI Founder Supporter | Early Access for Busy Parents",
+    title: "FAZUMI Founder Supporter | Early Support for Busy Parents",
     description:
-      "Join FAZUMI as one of 350 Founder Supporters. Turn messy school WhatsApp messages into clear summaries, tasks, dates, and payments.",
+      "Optional early-supporter plan for up to 200 busy parents who want calmer school-message summaries, founder perks, and early product access.",
     images: ["/twitter-card.png"],
   },
 };

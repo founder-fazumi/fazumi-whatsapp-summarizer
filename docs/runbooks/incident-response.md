@@ -26,7 +26,7 @@
 
 ```powershell
 # Quick health check
-Invoke-WebRequest https://fazumi.app/api/health
+Invoke-WebRequest https://fazumi.com/api/health
 ```
 
 ---

@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { pick } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
 
 const aboutOrgSchema = {
   "@context": "https://schema.org",

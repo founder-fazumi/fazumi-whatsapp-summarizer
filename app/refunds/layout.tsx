@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: { absolute: "Fazumi Refund Policy — 7-Day Money-Back Guarantee" },
+  title: { absolute: "Fazumi Refund Policy — 14-Day Initial Purchase Refunds" },
   description:
-    "Fazumi's refund and cancellation policy for monthly, annual, and Founder plans. 7-day money-back on monthly and annual.",
+    "Fazumi's refund and cancellation policy for paid plans. Refund requests may be made within 14 days of the initial purchase, and cancellations stop future renewals.",
   openGraph: {
-    title: "Fazumi Refund Policy — 7-Day Money-Back Guarantee",
+    title: "Fazumi Refund Policy — 14-Day Initial Purchase Refunds",
     description:
-      "Fazumi's refund and cancellation policy for monthly, annual, and Founder plans. 7-day money-back on monthly and annual.",
+      "Fazumi's refund and cancellation policy for paid plans. Refund requests may be made within 14 days of the initial purchase, and cancellations stop future renewals.",
     url: "/refunds",
     type: "website",
     images: [
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   },
 };
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
 
 const refundsSchemas = [
   {
@@ -34,9 +34,9 @@ const refundsSchemas = [
     name: "Refund Policy — Fazumi",
     url: `${APP_URL}/refunds`,
     description:
-      "Fazumi's refund and cancellation policy for monthly, annual, and Founder plans. 7-day money-back on monthly and annual.",
+      "Fazumi's refund and cancellation policy for paid plans. Refund requests may be made within 14 days of the initial purchase, and cancellations stop future renewals.",
     datePublished: "2026-02-27",
-    dateModified: "2026-02-27",
+    dateModified: "2026-03-13",
     inLanguage: ["en", "ar"],
   },
   {

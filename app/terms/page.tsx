@@ -13,7 +13,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const LAST_UPDATED = "2026-03-06";
+const LAST_UPDATED = "2026-03-13";
 
 interface TermsSection {
   title: LocalizedCopy<string>;
@@ -44,8 +44,8 @@ const COPY = {
         ar: "1. من نحن وقبول هذه الشروط",
       },
       body: {
-        en: "Fazumi is a web app for parents and guardians. It turns busy parent group chats into structured summary cards so families can catch important dates, tasks, and school updates faster. These Terms apply whenever you create an account, start a trial, buy a plan, or otherwise use Fazumi.",
-        ar: "Fazumi هو تطبيق ويب للآباء والأمهات وأولياء الأمور. يحول محادثات مجموعات أولياء الأمور المزدحمة إلى بطاقات ملخص منظمة حتى تتمكن العائلات من التقاط التواريخ المهمة والمهام والتحديثات المدرسية بسرعة أكبر. تنطبق هذه الشروط عند إنشاء حساب أو بدء فترة تجريبية أو شراء خطة أو استخدام Fazumi بأي شكل.",
+        en: "Fazumi is an independently operated web app from Qatar for parents and guardians. It turns busy parent group chats into structured summary cards so families can catch important dates, tasks, and school updates faster. These Terms apply whenever you create an account, start a trial, buy a plan, or otherwise use Fazumi.",
+        ar: "Fazumi هو تطبيق ويب يُدار بشكل مستقل من قطر للآباء والأمهات وأولياء الأمور. يحول محادثات مجموعات أولياء الأمور المزدحمة إلى بطاقات ملخص منظمة حتى تتمكن العائلات من التقاط التواريخ المهمة والمهام والتحديثات المدرسية بسرعة أكبر. تنطبق هذه الشروط عند إنشاء حساب أو بدء فترة تجريبية أو شراء خطة أو استخدام Fazumi بأي شكل.",
       },
       items: {
         en: [
@@ -167,23 +167,23 @@ const COPY = {
         ar: "7. الاشتراكات والفوترة والإلغاء والاسترداد",
       },
       body: {
-        en: "Paid plans are sold and billed through Lemon Squeezy, which acts as our merchant of record and payment processor for checkout, recurring billing, and the customer billing portal.",
-        ar: "تتم مبيعات الخطط المدفوعة وفوترتها عبر Lemon Squeezy، الذي يعمل بصفته التاجر الرسمي ومسؤول معالجة الدفع لعمليات الدفع والفوترة المتكررة وبوابة العميل الخاصة بالفوترة.",
+        en: "Paid plans may be sold and billed through an authorised payment partner or Merchant of Record shown at checkout. That partner handles checkout, recurring billing, invoices, and refund-processing standards for the transaction.",
+        ar: "قد تُباع الخطط المدفوعة وتُفوتر عبر شريك دفع معتمد أو تاجر رسمي يظهر عند الدفع. ويتولى ذلك الشريك معالجة الدفع والفوترة المتكررة والفواتير ومعايير معالجة الاسترداد الخاصة بالمعاملة.",
       },
       items: {
         en: [
           "Monthly and annual plans renew automatically until canceled before the next billing date.",
           "Founder access is a one-time purchase and does not renew.",
-          "You can manage or cancel a subscription through the Lemon Squeezy billing portal.",
+          "You can manage or cancel a subscription through the billing portal linked in your account or checkout emails.",
           "We do not store full payment card numbers.",
-          "Refund requests are handled under our Refund Policy, applicable law, and reasonable case-by-case review. Monthly and annual first charges may be eligible within 7 days; founder purchases are final except where law requires otherwise.",
+          "Customers may request a refund within 14 days of the initial purchase. Cancellation stops future renewals. Eligible requests are handled under our Refund Policy and the authorised payment partner or Merchant of Record standards shown at checkout.",
         ],
         ar: [
           "تتجدد الخطتان الشهرية والسنوية تلقائيًا ما لم يتم الإلغاء قبل تاريخ الفوترة التالي.",
           "أما وصول Founder فهو شراء لمرة واحدة ولا يتجدد.",
-          "يمكنك إدارة الاشتراك أو إلغاؤه من خلال بوابة الفوترة التابعة لـ Lemon Squeezy.",
+          "يمكنك إدارة الاشتراك أو إلغاؤه من خلال بوابة الفوترة المرتبطة داخل حسابك أو في رسائل الدفع الإلكترونية.",
           "نحن لا نحفظ أرقام بطاقات الدفع الكاملة.",
-          "تتم معالجة طلبات الاسترداد وفق سياسة الاسترداد والقانون المعمول به ومراجعة معقولة لكل حالة. قد تكون أول دفعة في الخطط الشهرية والسنوية مؤهلة خلال 7 أيام، بينما تكون مشتريات Founder نهائية ما لم يفرض القانون خلاف ذلك.",
+          "يمكن للعملاء طلب استرداد المبلغ خلال 14 يومًا من تاريخ الشراء الأول. ويؤدي الإلغاء إلى إيقاف التجديدات المستقبلية. وتتم معالجة الطلبات المؤهلة وفق سياسة الاسترداد ومعايير شريك الدفع المعتمد أو التاجر الرسمي الموضحة عند الدفع.",
         ],
       },
       links: [

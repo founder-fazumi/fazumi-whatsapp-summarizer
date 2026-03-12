@@ -517,10 +517,10 @@ test("billing smoke: billing view plans shows the correct cards for free, paid, 
   await loginWithEmail(page, accounts.founder);
   await page.goto("/billing");
   await expect(page.getByTestId("billing-current-plan")).toContainText(
-    /Founder LTD|باقة المؤسسين/
+    /Founder|باقة المؤسسين/
   );
   await expect(page.locator("body")).toContainText(
-    /Your Lifetime Plan - Thank You|خطتك مدى الحياة - شكرًا لك/
+    /Your founder plan|خطة المؤسس الخاصة بك/
   );
   await expect(page.getByTestId("billing-view-plans")).toHaveCount(0);
   await expect(page.getByRole("link", { name: /founding supporters story|قصة الداعمين المؤسسين/i })).toHaveCount(

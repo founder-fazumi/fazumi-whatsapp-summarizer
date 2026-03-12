@@ -32,7 +32,7 @@ Monitor build at: Vercel Dashboard → Deployments
 
 ```powershell
 # Health check
-Invoke-WebRequest https://fazumi.app/api/health
+Invoke-WebRequest https://fazumi.com/api/health
 # Expected: GET /api/health → { ok: true, env: { supabase: true, openai: true, lemonsqueezy: true }, envConfigured: true }
 ```
 
@@ -65,7 +65,7 @@ Full inventory: see `.claude/skills/vercel-deploy-release/SKILL.md`
 
 - [ ] All env vars set in Vercel (see vercel-deploy-release skill)
 - [ ] Supabase migrations applied to production (`supabase db push --include-all`)
-- [ ] Lemon Squeezy webhook URL registered: `https://fazumi.app/api/webhooks/lemonsqueezy`
+- [ ] Lemon Squeezy webhook URL registered: `https://fazumi.com/api/webhooks/lemonsqueezy`
 - [ ] Sentry DSN configured (SENTRY_DSN + NEXT_PUBLIC_SENTRY_DSN)
 - [ ] Custom domain configured in Vercel + DNS records set
 - [ ] `NEXT_PUBLIC_APP_URL` = production URL (not localhost)

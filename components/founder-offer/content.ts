@@ -4,7 +4,7 @@ import type { LocalizedCopy } from "@/lib/i18n";
 export const FOUNDER_OFFER_ROUTE = "/founder-supporter";
 export const FOUNDER_SUPPORT_ROUTE = "/founder-support";
 export const FOUNDER_OFFER_PRICE = 149;
-export const FOUNDER_OFFER_LIMIT = 350;
+export const FOUNDER_OFFER_LIMIT = 200;
 export const FOUNDER_OFFER_CHECKOUT_VARIANT = lsVariantIds.founder ?? "";
 export const FOUNDER_HOW_IT_WORKS_ID = "how-it-works";
 export const FOUNDER_PLAN_SECTION_ID = "founder-plan";
@@ -26,8 +26,8 @@ export const founderOfferContent = {
       ar: "حوّل فوضى رسائل المدرسة على واتساب إلى خطوات واضحة.",
     },
     body: {
-      en: "FAZUMI helps busy parents turn long, messy school messages into a simple summary, tasks, dates, and payments in seconds. Join as one of only 350 Founder Supporters and get early access, premium perks, and a chance to help shape FAZUMI from the start.",
-      ar: "يساعد FAZUMI الآباء المشغولين على تحويل رسائل المدرسة الطويلة والمبعثرة إلى ملخص بسيط، ومهام، ومواعيد، ومدفوعات خلال ثوانٍ. انضم كواحد من 350 من Founder Supporters فقط لتحصل على وصول مبكر، ومزايا مميزة، وفرصة للمساعدة في تشكيل FAZUMI من البداية.",
+      en: "FAZUMI helps busy parents turn long, messy school messages into a simple summary, tasks, dates, and payments in seconds. This optional founder offer is limited to 200 early supporters who want early access, premium perks, and a chance to help shape FAZUMI from the start.",
+      ar: "يساعد FAZUMI الآباء المشغولين على تحويل رسائل المدرسة الطويلة والمبعثرة إلى ملخص بسيط، ومهام، ومواعيد، ومدفوعات خلال ثوانٍ. هذا العرض الاختياري للمؤسسين محدود بـ 200 من الداعمين الأوائل الذين يريدون وصولًا مبكرًا، ومزايا مميزة، وفرصة للمساعدة في تشكيل FAZUMI من البداية.",
     },
     primaryCta: {
       en: "Become a Founder Supporter — $149",
@@ -39,8 +39,8 @@ export const founderOfferContent = {
     },
     badges: [
       {
-        en: "Limited to 350",
-        ar: "محدود بـ 350 فقط",
+        en: "Limited to 200",
+        ar: "محدود بـ 200 فقط",
       },
       {
         en: "One-time payment",
@@ -57,8 +57,8 @@ export const founderOfferContent = {
         ar: "دفعة واحدة",
       },
       {
-        en: "Limited to 350 spots",
-        ar: "محدود بـ 350 مقعدًا",
+        en: "Limited to 200 spots",
+        ar: "محدود بـ 200 مقعد",
       },
       {
         en: "Built for busy families in the GCC",
@@ -324,8 +324,8 @@ export const founderOfferContent = {
       },
     ],
     scarcityLine: {
-      en: "Only 350 Founder Supporter spots will ever be available.",
-      ar: "لن يتوفر أكثر من 350 مقعدًا لـ Founder Supporter على الإطلاق.",
+      en: "Only 200 Founder Supporter spots will ever be available.",
+      ar: "لن يتوفر أكثر من 200 مقعدًا لـ Founder Supporter على الإطلاق.",
     },
     cta: {
       en: "Claim My Founder Spot",
@@ -341,8 +341,8 @@ export const founderOfferContent = {
         ar: "من دون رسوم متكررة",
       },
       {
-        en: "Clear founder-only perks",
-        ar: "مزايا واضحة خاصة بالداعمين الأوائل",
+        en: "14-day refund window on the initial purchase",
+        ar: "نافذة استرداد لمدة 14 يومًا على الشراء الأول",
       },
     ],
   },
@@ -384,8 +384,8 @@ export const founderOfferContent = {
       },
       {
         title: {
-          en: "Be part of the first 350",
-          ar: "كن ضمن أول 350",
+          en: "Be part of the first 200",
+          ar: "كن ضمن أول 200",
         },
         body: {
           en: "A smaller early group means more attention, closer feedback, and founder-only context.",
@@ -515,8 +515,8 @@ export const founderOfferContent = {
     },
     {
       question: {
-        en: "Why is the number limited to 350?",
-        ar: "لماذا العدد محدود بـ 350؟",
+        en: "Why is the number limited to 200?",
+        ar: "لماذا العدد محدود بـ 200؟",
       },
       answer: {
         en: "Because the goal is a focused early group. A smaller founder circle makes it easier to support supporters well and learn from them properly.",
@@ -575,6 +575,16 @@ export const founderOfferContent = {
     },
     {
       question: {
+        en: "Can I request a refund?",
+        ar: "هل يمكنني طلب استرداد؟",
+      },
+      answer: {
+        en: "Yes. Refund requests can be made within 14 days of the initial founder purchase. This founder plan is a one-time payment and does not renew.",
+        ar: "نعم. يمكن طلب الاسترداد خلال 14 يومًا من تاريخ شراء باقة المؤسسين لأول مرة. وهذه الخطة دفعة واحدة ولا تتجدد.",
+      },
+    },
+    {
+      question: {
         en: "Why should I join now instead of later?",
         ar: "لماذا أنضم الآن بدلًا من الانتظار؟",
       },
@@ -586,8 +596,8 @@ export const founderOfferContent = {
   ] satisfies FaqItem[],
   finalCta: {
     title: {
-      en: "Join the first 350 parents helping shape FAZUMI",
-      ar: "انضم إلى أول 350 من الآباء الذين يساعدون في تشكيل FAZUMI",
+      en: "Join the first 200 parents helping shape FAZUMI",
+      ar: "انضم إلى أول 200 من الآباء الذين يساعدون في تشكيل FAZUMI",
     },
     body: {
       en: "If school WhatsApp messages are noisy, stressful, and easy to lose track of, FAZUMI is being built for you.",
@@ -616,8 +626,8 @@ export const founderOfferContent = {
       ar: "احجز مقعدي كمؤسس داعم — $149",
     },
     supportText: {
-      en: "Limited to 350 Founder Supporters",
-      ar: "محدود بـ 350 من Founder Supporters",
+      en: "Limited to 200 Founder Supporters",
+      ar: "محدود بـ 200 من Founder Supporters",
     },
   },
 } as const;

@@ -275,7 +275,7 @@ To test the GDPR consent banner from outside the EU:
 
 1. Connect to an EU server such as the Netherlands, Germany, or France.
 2. Clear browser cookies and localStorage for the app.
-3. Visit `https://fazumi.app`.
+3. Visit `https://fazumi.com`.
 4. The consent banner should appear.
 
 ### Option 2: Override the Browser Timezone (Development Only)

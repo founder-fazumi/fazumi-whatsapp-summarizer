@@ -2,16 +2,13 @@
 
 import { useState } from "react";
 import { useLang } from "@/lib/context/LangContext";
+import { BILLING_CONTACT_EMAIL } from "@/lib/config/legal";
 import { lsVariantsConfigured } from "@/lib/config/public";
 import {
   isValidCheckoutVariantId,
   normalizeVariantId,
 } from "@/lib/lemonsqueezy-config";
-import {
-  paymentComingSoonLabel,
-  paymentProviderApprovalNote,
-  paymentsComingSoon,
-} from "@/lib/payments-ui";
+import { paymentsComingSoon } from "@/lib/payments-ui";
 
 interface Props {
   variantId: string;
@@ -24,30 +21,26 @@ export function CheckoutButton({ variantId, children, className }: Props) {
   const { locale } = useLang();
   const [loading, setLoading] = useState(false); // stays true after click (navigating away)
   const normalizedVariantId = normalizeVariantId(variantId);
-  const checkoutState = paymentsComingSoon
-    ? "coming_soon"
-    : !lsVariantsConfigured
-    ? "billing_missing"
-    : !normalizedVariantId
-    ? "missing"
-    : isValidCheckoutVariantId(normalizedVariantId)
-      ? "ready"
-      : "invalid";
-  const label = checkoutState === "coming_soon"
-    ? paymentComingSoonLabel[locale]
-    : children;
+  const checkoutState = !paymentsComingSoon &&
+    lsVariantsConfigured &&
+    normalizedVariantId &&
+    isValidCheckoutVariantId(normalizedVariantId)
+    ? "ready"
+    : "contact_billing";
 
-  const unavailableMessage = checkoutState === "coming_soon"
-    ? paymentProviderApprovalNote[locale]
-    : checkoutState === "billing_missing"
-    ? (locale === "ar" ? "لم يتم إعداد الدفع بعد." : "Billing is not configured yet.")
-    : checkoutState === "missing"
-      ? (locale === "ar"
-          ? "قريبًا. سيتفعل الدفع فور إضافة معرفات الخطط."
-          : "Coming soon. Checkout unlocks once plan IDs are configured.")
-      : (locale === "ar"
-          ? "الدفع غير متاح مؤقتًا."
-          : "Checkout is temporarily unavailable.");
+  function handleContactBilling() {
+    setLoading(true);
+    const subject =
+      locale === "ar"
+        ? "استفسار عن خطة مدفوعة في فازومي"
+        : "Fazumi paid plan request";
+    const body =
+      locale === "ar"
+        ? "مرحبًا، أريد المساعدة بخصوص خطة مدفوعة في فازومي."
+        : "Hello, I would like help with a paid Fazumi plan.";
+    window.location.href =
+      `mailto:${BILLING_CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
 
   function handleClick() {
     setLoading(true);
@@ -58,29 +51,15 @@ export function CheckoutButton({ variantId, children, className }: Props) {
   }
 
   if (checkoutState !== "ready") {
-    const showUnavailableMessage = checkoutState !== "coming_soon";
-
     return (
-      <>
-        <button
-          type="button"
-          disabled
-          title={unavailableMessage}
-          className={className}
-          aria-disabled="true"
-        >
-          {label}
-        </button>
-        {showUnavailableMessage ? (
-          <p
-            className="mt-2 text-xs leading-6 text-[var(--muted-foreground)]"
-            role="status"
-            aria-live="polite"
-          >
-            {unavailableMessage}
-          </p>
-        ) : null}
-      </>
+      <button
+        type="button"
+        onClick={handleContactBilling}
+        disabled={loading}
+        className={className}
+      >
+        {loading ? (locale === "ar" ? "جارٍ الفتح…" : "Opening…") : children}
+      </button>
     );
   }
 
@@ -91,7 +70,7 @@ export function CheckoutButton({ variantId, children, className }: Props) {
       disabled={loading}
       className={className}
     >
-      {loading ? (locale === "ar" ? "جارٍ التحويل…" : "Redirecting…") : label}
+      {loading ? (locale === "ar" ? "جارٍ التحويل…" : "Redirecting…") : children}
     </button>
   );
 }

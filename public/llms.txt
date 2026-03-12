@@ -25,19 +25,20 @@ is saved to the user's personal history.
 - Free fallback: 3 lifetime summaries after trial ends
 - Monthly: USD 9.99/month — 50 summaries/day, 200/month
 - Annual: USD 99.99/year — same limits as monthly
-- Founder: USD 149 one-time — 200 seats max, includes future top tier, no refund
+- Founder: USD 149 one-time — 200 seats max, optional early-supporter plan
+- Refunds: refund requests for paid plans can be made within 14 days of the initial purchase; cancellations stop future renewals
 
 ## Key pages
-- Home and summarizer: https://fazumi.app
-- Pricing: https://fazumi.app/pricing
-- FAQ: https://fazumi.app/faq
-- Help & Support: https://fazumi.app/help
-- About: https://fazumi.app/about
-- Contact: https://fazumi.app/contact
-- Privacy Policy: https://fazumi.app/privacy
-- Terms of Service: https://fazumi.app/terms
-- Cookie Policy: https://fazumi.app/cookie-policy
-- Refund Policy: https://fazumi.app/refunds
+- Home and summarizer: https://fazumi.com
+- Pricing: https://fazumi.com/pricing
+- FAQ: https://fazumi.com/faq
+- Help & Support: https://fazumi.com/help
+- About: https://fazumi.com/about
+- Contact: https://fazumi.com/contact
+- Privacy Policy: https://fazumi.com/privacy
+- Terms of Service: https://fazumi.com/terms
+- Cookie Policy: https://fazumi.com/cookie-policy
+- Refund Policy: https://fazumi.com/refunds
 
 ## Privacy
 Fazumi never stores raw chat text or uploaded file contents.

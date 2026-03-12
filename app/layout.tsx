@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   ],
   applicationName: "Fazumi",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.app"
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com"
   ),
   alternates: {
     canonical: "/",

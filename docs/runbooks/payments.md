@@ -26,7 +26,7 @@ Billing UI and summarize limits read that shared entitlement decision path
 | `LEMONSQUEEZY_STORE_ID` | Vercel + .env.local | Your LS store ID |
 | `NEXT_PUBLIC_LS_MONTHLY_VARIANT` | Vercel + .env.local | Monthly plan variant ID |
 | `NEXT_PUBLIC_LS_ANNUAL_VARIANT` | Vercel + .env.local | Annual plan variant ID |
-| `NEXT_PUBLIC_LS_FOUNDER_VARIANT` | Vercel + .env.local | Founder LTD variant ID |
+| `NEXT_PUBLIC_LS_FOUNDER_VARIANT` | Vercel + .env.local | Founder plan variant ID |
 
 ---
 
@@ -113,6 +113,6 @@ SELECT COUNT(*) FROM subscriptions WHERE ls_order_id = 'order_test_founder_001';
 
 ## Refund policy
 
-- Monthly/Annual: 7-day money-back guarantee (process via LS dashboard → Orders → Refund)
-- Founder LTD: no refund (per `docs/decisions.md` D007)
+- Paid plans: refund requests may be made within 14 days of the initial purchase (process through the payment-partner order dashboard for the transaction)
+- Founder plan: same 14-day initial-purchase window; founder access is one-time and does not renew
 - After refund: mark the latest paid subscription row inactive/expired and mirror `profiles.plan` back to `free`

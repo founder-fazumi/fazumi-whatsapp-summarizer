@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Star } from "lucide-react";
+import { BILLING_CONTACT_EMAIL } from "@/lib/config/legal";
 import { cn } from "@/lib/utils";
 import { CheckoutButton } from "@/components/billing/CheckoutButton";
 import { useLang } from "@/lib/context/LangContext";
@@ -43,24 +44,36 @@ type Plan = FreePlan | ProPlan | FounderPlan;
 
 const COPY = {
   eyebrow: { en: "Pricing", ar: "الأسعار" },
-  title: { en: "Three plans. One clear path.", ar: "ثلاث خطط. مسار واضح واحد." },
+  title: { en: "Simple plans for busy parents.", ar: "خطط بسيطة لأولياء الأمور المشغولين." },
   subtitle: {
-    en: "Start free. Move to Pro for busy school weeks. Choose Founder for one payment and long-term access.",
-    ar: "ابدأ مجانًا. انتقل إلى برو في الأسابيع المدرسية المزدحمة. واختر باقة المؤسسين بدفعة واحدة ووصول طويل الأمد.",
+    en: "Start free. Upgrade to Pro when school weeks get busy. Founder is an optional early-supporter plan.",
+    ar: "ابدأ مجانًا. انتقل إلى برو عندما تزدحم الأسابيع المدرسية. أما باقة المؤسسين فهي خطة دعم مبكر اختيارية.",
   },
   monthlyToggle: { en: "Monthly", ar: "شهري" },
   yearlyToggle: { en: "Yearly", ar: "سنوي" },
   monthlySuffix: { en: "/mo", ar: "/شهريًا" },
   currentPlan: { en: "Current plan", ar: "الخطة الحالية" },
   foundingSupporter: { en: "Founding Supporter", ar: "عضو مؤسس" },
-  founderBilling: { en: "one-time · lifetime", ar: "دفعة واحدة · مدى الحياة" },
+  founderBilling: { en: "one-time founder plan", ar: "خطة مؤسس بدفعة واحدة" },
   refundNote: {
-    en: "7-day money-back on monthly and annual. Founder is final.",
-    ar: "استرداد خلال 7 أيام للاشتراكات الشهرية والسنوية. باقة المؤسس نهائية.",
+    en: "Refund requests can be made within 14 days of the initial purchase date for paid plans.",
+    ar: "يمكن طلب استرداد المبلغ خلال 14 يومًا من تاريخ الشراء الأول لأي خطة مدفوعة.",
   },
-  billingNotConfigured: {
-    en: "Billing is not configured yet.",
-    ar: "لم يتم إعداد الدفع بعد.",
+  billingExplain: {
+    en: "Monthly and annual plans renew automatically until cancelled. Cancellations stop future renewals.",
+    ar: "تتجدد الخطط الشهرية والسنوية تلقائيًا حتى يتم إلغاؤها. ويؤدي الإلغاء إلى إيقاف التجديدات المستقبلية.",
+  },
+  billingHelp: {
+    en: "Billing help",
+    ar: "مساعدة الفوترة",
+  },
+  proCtaPending: {
+    en: "Request Pro access",
+    ar: "اطلب الوصول إلى برو",
+  },
+  founderCtaPending: {
+    en: "Ask about founder access",
+    ar: "استفسر عن باقة المؤسسين",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 
@@ -120,20 +133,20 @@ const PLANS: Plan[] = [
     id: "founder",
     name: { en: "Founder", ar: "باقة المؤسسين" },
     description: {
-      en: "Lifetime access.",
-      ar: "وصول مدى الحياة.",
+      en: "Optional early-supporter plan.",
+      ar: "خطة دعم مبكر اختيارية.",
     },
     badge: { en: "Founding Supporter", ar: "عضو مؤسس" },
     featured: false,
     founderBadge: true,
-    ctaText: { en: "Claim founder access", ar: "احصل على وصول المؤسس" },
+    ctaText: { en: "Founder plan", ar: "خطة المؤسسين" },
     features: [
-      { en: "Lifetime access", ar: "وصول مدى الحياة" },
-      { en: "Founder badge and priority access", ar: "شارة المؤسس ووصول مبكر" },
-      { en: "Future top tier included for one year", ar: "يشمل أعلى فئة مستقبلية لمدة سنة" },
-      { en: "Final sale", ar: "بيع نهائي" },
+      { en: "One-time payment", ar: "دفعة واحدة" },
+      { en: "Founder recognition and priority support", ar: "تقدير المؤسس ودعم ذو أولوية" },
+      { en: "Early access to new features", ar: "وصول مبكر إلى الميزات الجديدة" },
+      { en: "Limited to 200 supporters", ar: "محدود بـ 200 داعم" },
     ],
-    seatsLeft: 350,
+    seatsLeft: 200,
   },
 ];
 
@@ -154,7 +167,7 @@ export function Pricing({
 }: PricingProps) {
   const { locale } = useLang();
   const [billing, setBilling] = useState<Billing>(() => (currentPlan === "monthly" ? "monthly" : "yearly"));
-  const [founderSeatsLeft, setFounderSeatsLeft] = useState<number>(350);
+  const [founderSeatsLeft, setFounderSeatsLeft] = useState<number>(200);
 
   useEffect(() => {
     fetch("/api/public/founder-seats")
@@ -236,6 +249,12 @@ export function Pricing({
         >
           {visiblePlans.map((plan) => {
             const isCurrentPlan = currentPlanId === plan.id;
+            const ctaText =
+              plan.id === "monthly" && paymentsComingSoon
+                ? COPY.proCtaPending
+                : plan.id === "founder" && paymentsComingSoon
+                  ? COPY.founderCtaPending
+                  : plan.ctaText;
 
             return (
               <div
@@ -373,7 +392,7 @@ export function Pricing({
                       "disabled:cursor-not-allowed disabled:opacity-70"
                     )}
                   >
-                    {pick(plan.ctaText, locale)}
+                    {pick(ctaText, locale)}
                   </CheckoutButton>
                 )}
 
@@ -400,23 +419,37 @@ export function Pricing({
         <p className="mt-6 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
           {pick(COPY.refundNote, locale)}
         </p>
-        {paymentsComingSoon ? (
+        <p className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
+          {pick(COPY.billingExplain, locale)}
+        </p>
+        {(paymentsComingSoon || !lsVariantsConfigured) ? (
           <p
             className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]"
             role="status"
             aria-live="polite"
           >
             {pick(paymentProviderApprovalNote, locale)}
-          </p>
-        ) : !lsVariantsConfigured ? (
-          <p
-            className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]"
-            role="status"
-            aria-live="polite"
-          >
-            {pick(COPY.billingNotConfigured, locale)}
+            {" "}
+            <a
+              href={`mailto:${BILLING_CONTACT_EMAIL}`}
+              className="font-medium text-[var(--primary)] hover:underline"
+              dir="ltr"
+            >
+              {BILLING_CONTACT_EMAIL}
+            </a>
+            .
           </p>
         ) : null}
+        <p className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
+          {pick(COPY.billingHelp, locale)}:{" "}
+          <a
+            href={`mailto:${BILLING_CONTACT_EMAIL}`}
+            className="font-medium text-[var(--primary)] hover:underline"
+            dir="ltr"
+          >
+            {BILLING_CONTACT_EMAIL}
+          </a>
+        </p>
       </div>
     </section>
   );

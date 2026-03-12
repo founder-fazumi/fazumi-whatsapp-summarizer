@@ -20,7 +20,7 @@ const PUBLIC_ROUTE_CHECKS: RouteCheck[] = [
   },
   {
     path: "/pricing",
-    ready: (page) => page.getByRole("heading", { name: /ثلاث خطط\. مسار واضح واحد\./i }),
+    ready: (page) => page.getByRole("heading", { name: /خطط بسيطة لأولياء الأمور المشغولين\./i }),
   },
   {
     path: "/about",

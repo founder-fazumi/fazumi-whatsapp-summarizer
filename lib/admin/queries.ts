@@ -1388,7 +1388,7 @@ export async function getAdminOverviewMetrics(): Promise<AdminOverviewMetrics> {
     totalAccounts === 0 ? 0 : roundPercentage((paidPlanUsers / totalAccounts) * 100);
   const trialConversion =
     trialStartedUsers === 0 ? 0 : roundPercentage((convertedTrialUsers / trialStartedUsers) * 100);
-  const founderCapacity = 350;
+  const founderCapacity = 200;
   const dau = dailyActiveUserIds.size;
   const previousDau = previousDailyActiveUserIds.size;
   const mau = monthlyActiveUserIds.size;

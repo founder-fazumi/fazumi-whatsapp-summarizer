@@ -7,6 +7,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/shared/BrandLogo";
+import { BILLING_CONTACT_EMAIL, LEGAL_CONTACT_EMAIL } from "@/lib/config/legal";
 
 function InstaLogo(props: ComponentProps<"svg">) {
   return (
@@ -37,7 +38,6 @@ const FOOTER_GROUPS = [
     links: [
       { label: { en: "About", ar: "من نحن" }, href: "/about" },
       { label: { en: "Pricing", ar: "الأسعار" }, href: "/pricing" },
-      { label: { en: "Founder Supporter", ar: "الداعم المؤسس" }, href: "/founder-supporter" },
       { label: { en: "Status", ar: "الحالة" }, href: "/status" },
     ],
   },
@@ -79,6 +79,8 @@ const COPY = {
     en: "Built by parents in Qatar. Focused on privacy, bilingual clarity, and calmer family coordination.",
     ar: "بناه أولياء أمور في قطر ويركز على الخصوصية والوضوح ثنائي اللغة وتنسيق العائلة بهدوء.",
   },
+  supportEmail: { en: "Support", ar: "الدعم" },
+  billingEmail: { en: "Billing", ar: "الفوترة" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 export function Footer() {
@@ -105,6 +107,28 @@ export function Footer() {
             <p className="mt-3 text-sm leading-relaxed text-[var(--muted-foreground)]">
               {pick(COPY.support, locale)}
             </p>
+            <div className="mt-4 flex flex-col gap-2 text-sm text-[var(--muted-foreground)]">
+              <p>
+                {pick(COPY.supportEmail, locale)}:{" "}
+                <a
+                  href={`mailto:${LEGAL_CONTACT_EMAIL}`}
+                  className="font-medium text-[var(--primary)] hover:underline"
+                  dir="ltr"
+                >
+                  {LEGAL_CONTACT_EMAIL}
+                </a>
+              </p>
+              <p>
+                {pick(COPY.billingEmail, locale)}:{" "}
+                <a
+                  href={`mailto:${BILLING_CONTACT_EMAIL}`}
+                  className="font-medium text-[var(--primary)] hover:underline"
+                  dir="ltr"
+                >
+                  {BILLING_CONTACT_EMAIL}
+                </a>
+              </p>
+            </div>
 
             <div className="mt-6">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">

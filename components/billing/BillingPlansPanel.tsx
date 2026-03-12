@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Pricing } from "@/components/landing/Pricing";
-import { paymentsComingSoon } from "@/lib/payments-ui";
 
 interface BillingPlansPanelProps {
   isLoggedIn: boolean;
@@ -47,10 +46,7 @@ export function BillingPlansPanel({
           data-testid="billing-view-plans"
           className="inline-flex items-center gap-2 rounded-[var(--radius)] bg-[var(--primary)] px-5 py-2.5 text-sm font-bold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
         >
-          <LocalizedText
-            en={paymentsComingSoon ? "View plans (coming soon)" : "View plans"}
-            ar={paymentsComingSoon ? "عرض الخطط (قريبًا)" : "عرض الخطط"}
-          />
+          <LocalizedText en="View plans" ar="عرض الخطط" />
           <ExternalLink className="h-4 w-4" />
         </button>
       </div>

@@ -88,8 +88,8 @@ const TABS = [
       {
         question: { en: "Can I get a refund?", ar: "هل يمكنني استرداد المبلغ؟" },
         answer: {
-          en: "Monthly and annual plans include a 7-day money-back guarantee. The Founder plan is final sale.",
-          ar: "تشمل الخطط الشهرية والسنوية ضمان استرداد 7 أيام. أما خطة المؤسس فهي بيع نهائي.",
+          en: "Refund requests for paid plans can be made within 14 days of the initial purchase. Cancellations stop future renewals.",
+          ar: "يمكن طلب استرداد المبلغ للخطط المدفوعة خلال 14 يومًا من تاريخ الشراء الأول. ويؤدي الإلغاء إلى إيقاف التجديدات المستقبلية.",
         },
       },
       {
@@ -102,8 +102,8 @@ const TABS = [
       {
         question: { en: "What is the Founder plan?", ar: "ما هي خطة المؤسس؟" },
         answer: {
-          en: "The Founder plan is a one-time lifetime deal with limited seats and future feature access.",
-          ar: "خطة المؤسس هي صفقة مدى الحياة بدفعة واحدة مع عدد مقاعد محدود ووصول إلى الميزات المستقبلية.",
+          en: "The Founder plan is a one-time early-supporter offer with limited seats, founder recognition, and early feature access.",
+          ar: "خطة المؤسس هي عرض دعم مبكر بدفعة واحدة مع عدد مقاعد محدود وتقدير للمؤسسين ووصول مبكر إلى الميزات.",
         },
       },
     ],

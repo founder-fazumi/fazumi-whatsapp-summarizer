@@ -20,9 +20,9 @@ export function buildCheckoutUrl({ variantId, email, userId, appUrl }: CheckoutP
   url.searchParams.set("checkout[custom][user_id]", userId);
   url.searchParams.set(
     "checkout[success_url]",
-    `${appUrl ?? "https://fazumi.app"}/dashboard?upgraded=1`
+    `${appUrl ?? "https://fazumi.com"}/dashboard?upgraded=1`
   );
-  url.searchParams.set("checkout[cancel_url]", `${appUrl ?? "https://fazumi.app"}/pricing`);
+  url.searchParams.set("checkout[cancel_url]", `${appUrl ?? "https://fazumi.com"}/pricing`);
   return url.toString();
 }
 

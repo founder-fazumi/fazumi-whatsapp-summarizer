@@ -495,3 +495,11 @@
 **Why:** CSS `transform` was treated as a harmless polish layer on the route wrapper, but transformed ancestors change the containing block for `position: fixed` descendants on mobile browsers.
 **Rule:** If a route subtree contains fixed-position chrome like bottom docks, toasts, or prompts, do not animate the wrapper with `transform`. Use opacity-only transitions or animate an inner scroll-content container instead.
 **Quick test:** On a phone-sized viewport, open `/settings`, scroll near the footer, and confirm the bottom dock stays pinned to the viewport edge instead of traveling with the page content.
+
+---
+
+## L057 — Public refund and billing copy must be audited as one system, not edited page-by-page
+**Mistake:** Refund, cancellation, provider, and founder wording drifted across pricing, legal pages, FAQ JSON-LD, the founder offer, the billing page, and machine-readable public text, which made the site look half-switched and pushed the public refund policy below Paddle's 14-day minimum.
+**Why:** Payment-review copy was spread across many public surfaces and some machine-readable metadata, so updating only one policy page was not enough to make the commercial story coherent.
+**Rule:** Any billing-policy change must be verified with one repo-wide scan across `app`, `components`, `lib`, `public`, and the internal source-of-truth docs (`docs/decisions.md`, runbooks, README) for refund windows, refund qualifiers, provider names, founder seat caps, staging language, and old production-domain defaults before release. Public copy stays provider-neutral until checkout is fully live, and the public refund rule must stay a simple 14-day initial-purchase minimum.
+**Quick test:** Run `rg -n "14-day|7-day money-back|final sale|no refund|Lemon Squeezy|coming soon|provider approval pending|350|fazumi\\.app" README.md docs app components lib public` and confirm the only remaining provider-specific hits are internal implementation code paths or verified social/profile links.
