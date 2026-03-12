@@ -26,12 +26,15 @@ export function DashboardShell({
     <div className={cn("min-h-screen bg-[var(--background)] text-[var(--foreground)]", className)}>
       <TopBar />
 
-      <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <div className="hidden border-r border-[var(--sidebar-border)] xl:flex xl:w-[264px] xl:shrink-0 xl:flex-col xl:overflow-y-auto">
+      <div className="flex min-h-[calc(100vh-3.5rem)] xl:h-[calc(100dvh-3.5rem)] xl:overflow-hidden">
+        <div className="hidden border-r border-[var(--sidebar-border)] xl:flex xl:h-full xl:w-[264px] xl:shrink-0 xl:flex-col xl:overflow-hidden">
           <Sidebar className="h-full" />
         </div>
 
-        <main className={cn("flex-1 overflow-y-auto", mobileDockSpacingClass)}>
+        <main
+          data-testid="dashboard-shell-main"
+          className={cn("flex-1 overflow-y-auto xl:h-full", mobileDockSpacingClass)}
+        >
           <div
             className={cn(
               "mx-auto w-full px-[var(--page-gutter)] py-6 md:py-8",
@@ -44,7 +47,7 @@ export function DashboardShell({
         </main>
 
         {rightColumn && (
-          <aside className="hidden border-l border-[var(--border)] xl:flex xl:w-[320px] xl:shrink-0 xl:flex-col xl:gap-4 xl:overflow-y-auto xl:bg-[var(--page-layer)] xl:px-5 xl:py-8">
+          <aside className="hidden border-l border-[var(--border)] xl:flex xl:h-full xl:w-[320px] xl:shrink-0 xl:flex-col xl:gap-4 xl:overflow-y-auto xl:bg-[var(--page-layer)] xl:px-5 xl:py-8">
             {rightColumn}
           </aside>
         )}

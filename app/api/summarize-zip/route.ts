@@ -6,7 +6,7 @@ import { summarizeZipMessages, type ZipFactCategory, type ZipFactItem, type ZipF
 import type { LangPref, SummaryResult, SummaryUsage, SummaryPromptContext } from "@/lib/ai/summarize";
 import { ensureChatGroup } from "@/lib/chat-groups";
 import { toImportantDateArray } from "@/lib/ai/summarize";
-import { extractTextFilesFromZip } from "@/lib/chat-import/zip";
+import { extractTextFilesFromZip, ZipImportError } from "@/lib/chat-import/zip";
 import {
   inferGroupLabelFromFilename,
   normalizeComparableText,
@@ -813,6 +813,21 @@ export async function POST(req: NextRequest) {
       ignoredFileCount,
     });
   } catch (err) {
+    if (err instanceof ZipImportError) {
+      logger.warn("request.rejected", {
+        userId: authedUserId,
+        errorCode: err.code,
+      });
+
+      return NextResponse.json(
+        {
+          error: err.message,
+          code: err.code,
+        },
+        { status: 400 }
+      );
+    }
+
     const message =
       err instanceof Error ? err.message : "An unexpected error occurred.";
     const errorCode =

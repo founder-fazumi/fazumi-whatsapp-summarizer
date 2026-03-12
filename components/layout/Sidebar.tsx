@@ -173,6 +173,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
   return (
     <aside
+      data-testid="dashboard-sidebar"
       dir={isArabic ? "rtl" : "ltr"}
       lang={locale}
       className={cn(

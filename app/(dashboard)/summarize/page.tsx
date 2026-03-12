@@ -894,6 +894,10 @@ export default function SummarizePage() {
       return pick(COPY.zipParseError, locale);
     }
 
+    if (errPayload.code === "INVALID_ZIP" || errPayload.code === "ZIP_TEXT_READ_FAILED") {
+      return pick(COPY.fileReadError, locale);
+    }
+
     return errPayload.error ?? pick(COPY.unknownError, locale);
   }
 

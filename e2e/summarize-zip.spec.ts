@@ -2,13 +2,16 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
+import JSZip from "jszip";
 import { expect, test } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { summarizeZipMessages } from "@/lib/ai/summarize-zip";
 import { ensureChatGroup } from "@/lib/chat-groups";
+import { extractTextFilesFromZip } from "@/lib/chat-import/zip";
 import { parseWhatsAppExport, type ParsedChatMessage } from "@/lib/chat-import/whatsapp";
 import {
   ensureTestAccounts,
+  getAuthCookieHeader,
   getDevEnv,
   getProfileState,
   getZipSummaryState,
@@ -104,6 +107,19 @@ function getAdminClient(): SupabaseClient {
 
 function encodeAiOverride(payload: ZipOverridePayload) {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+}
+
+async function createZipBuffer(entries: Array<{
+  name: string;
+  contents: string | Uint8Array;
+}>) {
+  const zip = new JSZip();
+
+  for (const entry of entries) {
+    zip.file(entry.name, entry.contents);
+  }
+
+  return zip.generateAsync({ type: "nodebuffer" });
 }
 
 function formatUtcWhatsappLine(date: Date, sender: string, body: string) {
@@ -266,12 +282,213 @@ test("WhatsApp export parser handles day-first and month-first formats", async (
   expect(monthFirstMessages[2].ts.toISOString()).toBe("2026-03-06T19:10:00.000Z");
 });
 
+test("ZIP text extraction keeps nested .txt files and ignores unsupported files", async () => {
+  const zipBuffer = await createZipBuffer([
+    {
+      name: "nested/Grade 4/chat.txt",
+      contents: "02/15/25, 9:23 AM - Ms. Sarah: Field trip payment is due tomorrow.",
+    },
+    {
+      name: "root/announcements.txt",
+      contents: "02/15/25, 10:15 AM - Parent Committee: Please submit the permission form.",
+    },
+    {
+      name: "nested/media/photo.jpg",
+      contents: new Uint8Array([1, 2, 3, 4]),
+    },
+  ]);
+
+  const extracted = await extractTextFilesFromZip(zipBuffer);
+
+  expect(extracted.ignoredFileCount).toBe(1);
+  expect(extracted.textFiles.map((file) => file.name)).toEqual([
+    "nested/Grade 4/chat.txt",
+    "root/announcements.txt",
+  ]);
+  expect(extracted.textFiles[0]?.text).toContain("Field trip payment");
+  expect(extracted.textFiles[1]?.text).toContain("permission form");
+});
+
 test("summarize-zip API rejects unauthenticated requests", async ({ request }) => {
   const response = await request.post("/api/summarize-zip");
 
   expect(response.status()).toBe(401);
   await expect(response.json()).resolves.toMatchObject({
     code: "AUTH_REQUIRED",
+  });
+});
+
+test("summarize-zip API returns clear errors for invalid and empty ZIP uploads", async ({
+  request,
+}) => {
+  const env = await getDevEnv(request);
+  test.skip(
+    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
+    env.hint ?? "Supabase dev env is required for ZIP upload validation."
+  );
+
+  const accounts = await ensureTestAccounts(request);
+  await resetTestUser(accounts.paid.email, { plan: "monthly" });
+  const cookieHeader = await getAuthCookieHeader(accounts.paid);
+
+  const invalidResponse = await request.post("/api/summarize-zip", {
+    headers: {
+      cookie: cookieHeader,
+    },
+    multipart: {
+      file: {
+        name: "broken.zip",
+        mimeType: "application/zip",
+        buffer: Buffer.from("not-a-zip", "utf8"),
+      },
+      range: "24h",
+      group_name: "Grade 4 Parents",
+      lang_pref: "en",
+    },
+  });
+
+  expect(invalidResponse.status()).toBe(400);
+  await expect(invalidResponse.json()).resolves.toMatchObject({
+    code: "INVALID_ZIP",
+  });
+
+  const emptyZip = await createZipBuffer([]);
+  const emptyResponse = await request.post("/api/summarize-zip", {
+    headers: {
+      cookie: cookieHeader,
+    },
+    multipart: {
+      file: {
+        name: "empty.zip",
+        mimeType: "application/zip",
+        buffer: emptyZip,
+      },
+      range: "24h",
+      group_name: "Grade 4 Parents",
+      lang_pref: "en",
+    },
+  });
+
+  expect(emptyResponse.status()).toBe(400);
+  await expect(emptyResponse.json()).resolves.toMatchObject({
+    code: "NO_TEXT_FILES",
+  });
+});
+
+test("summarize-zip API processes nested WhatsApp txt files and ignores unsupported files", async ({
+  request,
+}) => {
+  const env = await getDevEnv(request);
+  test.skip(
+    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
+    env.hint ?? "Supabase dev env is required for ZIP upload smoke."
+  );
+
+  const accounts = await ensureTestAccounts(request);
+  await resetTestUser(accounts.paid.email, { plan: "monthly" });
+  const cookieHeader = await getAuthCookieHeader(accounts.paid);
+
+  const groupName = "Grade 4 Parents";
+  const uploadZip = await createZipBuffer([
+    {
+      name: "exports/grade-4/chat-a.txt",
+      contents: [
+        "03/12/26, 8:10 AM - Ms. Sarah: Field trip payment is due tomorrow.",
+        "03/12/26, 8:15 AM - Parent Committee: Please submit the permission form today.",
+      ].join("\n"),
+    },
+    {
+      name: "exports/grade-4/chat-b.txt",
+      contents: "03/12/26, 8:20 AM - Ms. Sarah: Bus pickup starts at 7:10 AM tomorrow.",
+    },
+    {
+      name: "exports/grade-4/photo.jpg",
+      contents: new Uint8Array([5, 6, 7]),
+    },
+  ]);
+
+  const response = await request.post("/api/summarize-zip", {
+    headers: {
+      cookie: cookieHeader,
+      "x-fazumi-test-ai-response": encodeAiOverride({
+        summary: {
+          tldr: "Field trip reminders and a bus pickup update were shared for Grade 4.",
+          important_dates: ["Field trip payment due tomorrow", "Bus pickup starts at 7:10 AM tomorrow"],
+          action_items: ["Submit the permission form today"],
+          people_classes: ["Ms. Sarah", "Parent Committee"],
+          links: [],
+          questions: [],
+        },
+        facts: {
+          deadlines: [
+            {
+              title: "Field trip payment due",
+              date: "Tomorrow",
+              class_name: "Grade 4",
+              details: "Payment reminder",
+              display: "Field trip payment due tomorrow",
+              dedupe_key: "field-trip-payment|tomorrow|deadline|grade-4",
+            },
+          ],
+          tasks: [
+            {
+              title: "Submit permission form",
+              date: "Today",
+              class_name: "Grade 4",
+              details: "",
+              display: "Submit the permission form today",
+              dedupe_key: "submit-permission-form|today|task|grade-4",
+            },
+          ],
+          events: [
+            {
+              title: "Bus pickup update",
+              date: "7:10 AM tomorrow",
+              class_name: "Grade 4",
+              details: "",
+              display: "Bus pickup starts at 7:10 AM tomorrow",
+              dedupe_key: "bus-pickup|7:10-am-tomorrow|event|grade-4",
+            },
+          ],
+        },
+      }),
+    },
+    multipart: {
+      file: {
+        name: "grade-4-export.zip",
+        mimeType: "application/zip",
+        buffer: uploadZip,
+      },
+      range: "7d",
+      group_name: groupName,
+      lang_pref: "en",
+    },
+  });
+
+  expect(response.status()).toBe(200);
+  const payload = (await response.json()) as {
+    status: string;
+    savedId?: string | null;
+    ignoredFileCount?: number;
+    newMessagesProcessed?: number;
+  };
+
+  expect(payload).toMatchObject({
+    status: "ok",
+    ignoredFileCount: 1,
+  });
+  expect(payload.savedId).toBeTruthy();
+  expect(payload.newMessagesProcessed).toBe(3);
+
+  await expect.poll(async () => {
+    const state = await getZipSummaryState(accounts.paid.email, groupName);
+    return {
+      processed: state?.processedFingerprintCount ?? 0,
+      summaries: state?.summaries.length ?? 0,
+    };
+  }).toEqual({
+    processed: 3,
+    summaries: 1,
   });
 });
 

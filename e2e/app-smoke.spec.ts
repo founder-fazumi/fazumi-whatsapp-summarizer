@@ -220,6 +220,39 @@ test("auth + dashboard smoke: email login reaches dashboard", async ({ page, req
   await expect(page.locator('a[href="/billing"]').first()).toBeVisible();
 });
 
+test("desktop sidebar keeps lower nav items visible while content scrolls", async ({
+  page,
+  request,
+}) => {
+  const env = await getDevEnv(request);
+  test.skip(
+    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
+    env.hint ?? "Supabase dev env is required for sidebar smoke."
+  );
+
+  const accounts = await ensureTestAccounts(request);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await loginWithEmail(page, accounts.paid);
+  await page.goto("/summarize");
+
+  const sidebar = page.getByTestId("dashboard-sidebar");
+  const settingsLink = sidebar.locator('a[href="/settings"]');
+  const historyLink = sidebar.locator('a[href="/history"]');
+  const main = page.getByTestId("dashboard-shell-main");
+
+  await expect(settingsLink).toBeInViewport();
+
+  await page.evaluate(() => {
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+  await main.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+
+  await expect(settingsLink).toBeInViewport();
+  await expect(historyLink).toBeInViewport();
+});
+
 test("forgot-password smoke: login request + recovery reset works end to end", async ({
   page,
   request,
