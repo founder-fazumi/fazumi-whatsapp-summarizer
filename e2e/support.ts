@@ -6,6 +6,7 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { normalizeGroupKey } from "@/lib/chat-import/whatsapp";
+import { isSupabaseAuthCookieName } from "@/lib/supabase/auth-cookies";
 import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
 
 const ROOT_DIR = process.cwd();
@@ -188,11 +189,7 @@ function hasSupabaseAuthCookie(
     name: string;
   }>
 ) {
-  return cookies.some(({ name }) =>
-    name === "supabase-auth-token" ||
-    name.startsWith("supabase-auth-token.") ||
-    (name.startsWith("sb-") && name.includes("-auth-token"))
-  );
+  return cookies.some(({ name }) => isSupabaseAuthCookieName(name));
 }
 
 async function waitForReactHydration(page: Page, selector: string) {

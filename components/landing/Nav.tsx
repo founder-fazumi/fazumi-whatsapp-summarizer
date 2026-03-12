@@ -9,6 +9,7 @@ import { useMounted } from "@/lib/hooks/useMounted";
 import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 import { BrandLogo } from "@/components/shared/BrandLogo";
+import { isSupabaseAuthCookieName } from "@/lib/supabase/auth-cookies";
 import { cn } from "@/lib/utils";
 
 interface NavProps {
@@ -35,22 +36,28 @@ function hasSupabaseAuthCookie() {
       const separatorIndex = part.indexOf("=");
       const name = separatorIndex === -1 ? part : part.slice(0, separatorIndex);
 
-      return (
-        name === "supabase-auth-token" ||
-        name.startsWith("supabase-auth-token.") ||
-        (name.startsWith("sb-") && name.includes("-auth-token"))
-      );
+      return isSupabaseAuthCookieName(name);
     });
 }
 
-export function Nav({ isLoggedIn = false }: NavProps) {
+export function Nav({ isLoggedIn }: NavProps) {
   const { locale, setLocale } = useLang();
   const { theme, toggleTheme } = useTheme();
   const mounted = useMounted();
-  const [loggedIn, setLoggedIn] = useState(isLoggedIn);
+  const [loggedIn, setLoggedIn] = useState(Boolean(isLoggedIn));
 
   useEffect(() => {
-    setLoggedIn(isLoggedIn || hasSupabaseAuthCookie());
+    if (isLoggedIn === true) {
+      setLoggedIn(true);
+      return;
+    }
+
+    if (isLoggedIn === false) {
+      setLoggedIn(false);
+      return;
+    }
+
+    setLoggedIn(hasSupabaseAuthCookie());
   }, [isLoggedIn]);
 
   const themeToggleClass =

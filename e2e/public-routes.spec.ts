@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { getPlaywrightBaseUrl } from "@/lib/testing/playwright";
+import { getSupabaseAuthCookieBaseName } from "@/lib/supabase/auth-cookies";
+import { ensureTestAccounts, getAuthCookies, getDevEnv } from "./support";
 
 const BASE_URL = getPlaywrightBaseUrl();
 const LANG_STORAGE_KEY = "fazumi_lang";
@@ -133,6 +135,88 @@ for (const route of PUBLIC_ROUTES) {
   });
 }
 
+test("landing nav does not treat a stale auth cookie name as a logged-in session", async ({
+  page,
+}) => {
+  await page.context().addCookies([
+    {
+      name: "sb-stale-auth-token",
+      value: "stale-session",
+      url: BASE_URL,
+      sameSite: "Lax",
+    },
+  ]);
+
+  const response = await page.goto("/");
+
+  expect(response?.status(), "Expected / to return 200.").toBe(200);
+  await expect(page.getByRole("link", { name: "تسجيل الدخول" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "إنشاء حساب" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "الذهاب إلى التطبيق" })).toHaveCount(0);
+});
+
+test("public shell nav does not treat a stale auth cookie name as a logged-in session", async ({
+  page,
+}) => {
+  await page.context().addCookies([
+    {
+      name: "sb-stale-auth-token",
+      value: "stale-session",
+      url: BASE_URL,
+      sameSite: "Lax",
+    },
+  ]);
+
+  const response = await page.goto("/about");
+
+  expect(response?.status(), "Expected /about to return 200.").toBe(200);
+  await expect(page.getByRole("link", { name: "تسجيل الدخول" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "إنشاء حساب" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "الذهاب إلى التطبيق" })).toHaveCount(0);
+});
+
+test("public go-to-app CTA redirects unauthenticated cookie fallbacks to login", async ({
+  page,
+}) => {
+  const authCookieBaseName = getSupabaseAuthCookieBaseName();
+  test.skip(!authCookieBaseName, "Supabase public URL is required for auth-cookie CTA smoke.");
+
+  await page.context().addCookies([
+    {
+      name: authCookieBaseName ?? "sb-missing-auth-token",
+      value: "fake-session",
+      url: BASE_URL,
+      sameSite: "Lax",
+    },
+  ]);
+
+  const response = await page.goto("/about");
+
+  expect(response?.status(), "Expected /about to return 200.").toBe(200);
+  await expect(page.getByRole("button", { name: "الذهاب إلى التطبيق" })).toBeVisible();
+  await page.getByRole("button", { name: "الذهاب إلى التطبيق" }).click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fdashboard$/);
+  await expect(page.locator("#login-email")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("pricing nav keeps the app CTA for authenticated users", async ({ page, request }) => {
+  const env = await getDevEnv(request);
+  test.skip(
+    !env.env.supabaseUrl || !env.env.supabaseAnon || !env.env.serviceRole,
+    env.hint ?? "Supabase dev env is required for auth-aware public-nav smoke."
+  );
+
+  const accounts = await ensureTestAccounts(request);
+  await page.context().addCookies(await getAuthCookies(accounts.free));
+
+  const response = await page.goto("/pricing");
+
+  expect(response?.status(), "Expected /pricing to return 200.").toBe(200);
+  await expect(page.getByRole("button", { name: "الذهاب إلى التطبيق" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "تسجيل الدخول" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "إنشاء حساب" })).toHaveCount(0);
+});
 test("founder page redirects unauthenticated users to login", async ({ page }) => {
   await page.goto("/founder");
   await expect(page).toHaveURL(/\/login/);

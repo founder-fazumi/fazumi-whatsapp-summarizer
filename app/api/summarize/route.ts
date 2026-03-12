@@ -18,6 +18,7 @@ import {
   type EntitlementSubscription,
 } from "@/lib/limits";
 import { sendPushToUser } from "@/lib/push/server";
+import { isSupabaseAuthCookieName } from "@/lib/supabase/auth-cookies";
 
 import { createRouteLogger, getRequestId } from "@/lib/logger";
 
@@ -30,11 +31,7 @@ function makeTitle(tldr: string): string {
 }
 
 function hasSupabaseAuthCookie(req: NextRequest) {
-  return req.cookies.getAll().some(({ name }) =>
-    name === "supabase-auth-token" ||
-    name.startsWith("supabase-auth-token.") ||
-    (name.startsWith("sb-") && name.includes("-auth-token"))
-  );
+  return req.cookies.getAll().some(({ name }) => isSupabaseAuthCookieName(name));
 }
 
 function buildSummaryReadyPayload(summary: SummaryResult, savedId: string) {

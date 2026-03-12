@@ -14,6 +14,12 @@
 **Rule:** For public chrome, prefer existing auth signals like server props or Supabase auth cookies over mount-time `getUser()` round trips, and disable service-worker bootstrap explicitly when `PLAYWRIGHT_TEST=1` so release-gate tests do not inherit browser-lifecycle noise unrelated to product behavior.
 **Quick test:** Run `pnpm test` and `pnpm exec playwright test e2e/public-routes.spec.ts --reporter=line --repeat-each 3`; both should pass without teardown timeouts or extra public-route auth fetch noise.
 
+## L059 — Supabase auth-cookie heuristics must be scoped to the configured project ref
+**Mistake:** The public-nav fix initially kept a generic `sb-*-auth-token` matcher, which still treated unrelated cookie names like `sb-stale-auth-token` as real sessions on `PublicPageShell` routes.
+**Why:** Supabase cookie detection was tightened by shape only, not by the actual project ref derived from `NEXT_PUBLIC_SUPABASE_URL`, so the heuristic still accepted arbitrary `sb-...-auth-token` names.
+**Rule:** When using Supabase auth-cookie heuristics, match only the legacy `supabase-auth-token` names or the exact `sb-<configured-project-ref>-auth-token` base name plus chunk suffixes. Do not treat arbitrary `sb-...-auth-token` names as authenticated state.
+**Quick test:** With a `sb-stale-auth-token` cookie, `/` and a `PublicPageShell` route like `/about` must keep the logged-out CTA state; with the real project-ref cookie name and an invalid value, clicking `Go to app` must redirect to `/login?next=%2Fdashboard`.
+
 ---
 
 ## L057 — Playwright init scripts must not assume `document.documentElement` already exists

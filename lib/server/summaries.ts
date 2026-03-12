@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { SummaryResult } from "@/lib/ai/summarize";
 import { FREE_LIFETIME_CAP, getDailyLimit, getTierKey, getUtcDateKey } from "@/lib/limits";
+import { isSupabaseAuthCookieName } from "@/lib/supabase/auth-cookies";
 
 export const MAX_SUMMARY_CHARS = 30_000;
 
@@ -154,11 +155,7 @@ export function makeSummaryTitle(tldr: string): string {
 }
 
 export function hasSupabaseAuthCookie(req: NextRequest) {
-  return req.cookies.getAll().some(({ name }) =>
-    name === "supabase-auth-token" ||
-    name.startsWith("supabase-auth-token.") ||
-    (name.startsWith("sb-") && name.includes("-auth-token"))
-  );
+  return req.cookies.getAll().some(({ name }) => isSupabaseAuthCookieName(name));
 }
 
 export function getAdminClient() {

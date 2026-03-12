@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-12
+# Public auth-CTA hardening follow-up completed: the final audit found `PublicPageShell` routes still accepted arbitrary `sb-*-auth-token` names, so auth-cookie detection now matches only the configured Supabase project ref, the public `Go to app` fallback still redirects unauthenticated sessions to `/login?next=%2Fdashboard`, and Playwright coverage now locks both the landing and `PublicPageShell` stale-cookie regressions plus an authenticated `/pricing` nav check.
+# Files: lib/supabase/auth-cookies.ts, components/landing/Nav.tsx, app/api/summarize/route.ts, lib/server/summaries.ts, e2e/support.ts, e2e/public-routes.spec.ts, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm test -- e2e/public-routes.spec.ts --grep "pricing nav keeps the app CTA for authenticated users" --project=chromium --reporter=line` passed. `pnpm test -- e2e/public-routes.spec.ts --grep "landing nav does not treat a stale auth cookie name|public shell nav does not treat a stale auth cookie name|public go-to-app CTA redirects unauthenticated cookie fallbacks to login|pricing nav keeps the app CTA for authenticated users" --project=chromium --reporter=line` passed with `3 passed, 1 skipped` before the auth-only rerun confirmed the explicit server-auth-true path. Final `pnpm lint`, `pnpm typecheck`, and `pnpm build` all passed.
+# Pattern: public auth heuristics must key off the exact configured Supabase project ref, not any cookie with a similar `sb-...-auth-token` shape, and final release audits should probe both server-provided auth state and the undefined-prop fallback routes before shipping.
+#
+#
+# 2026-03-12
 # Repository health audit follow-up completed: the release-gate flake moved from test-only setup into runtime noise on public pages, so the landing nav now derives logged-in state from existing auth cookie/server signals instead of a mount-time `supabase.auth.getUser()` call, PWA/service-worker bootstrap is explicitly disabled when `PLAYWRIGHT_TEST=1`, and a `pnpm` override pins `serialize-javascript@^7.0.3` to clear the remaining Sentry/Webpack transitive vulnerability without changing framework versions.
 # Files: app/layout.tsx, components/landing/Nav.tsx, components/pwa/ServiceWorkerRegistrar.tsx, package.json, pnpm-lock.yaml, tasks/lessons.md, scripts/ralph/progress.txt
 # Verification: `pnpm install`, `pnpm lint`, `pnpm typecheck`, `PLAYWRIGHT_TEST=1 pnpm test`, `pnpm build`, `pnpm audit --prod`, and `pnpm exec playwright test e2e/public-routes.spec.ts --reporter=line --repeat-each 3` all pass. Main release gate result: `36 passed`, `3 skipped`, `0 failed`.

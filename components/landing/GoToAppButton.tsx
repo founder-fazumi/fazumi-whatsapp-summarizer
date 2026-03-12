@@ -114,6 +114,11 @@ export function GoToAppButton({ children, className }: GoToAppButtonProps) {
       setAccess(nextAccess);
     }
 
+    if (!nextAccess.isLoggedIn) {
+      router.push("/login?next=%2Fdashboard");
+      return;
+    }
+
     if (nextAccess.hasAccess) {
       router.push("/dashboard");
       return;
