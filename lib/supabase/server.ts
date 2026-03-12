@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { filterMalformedSupabaseAuthCookies } from "@/lib/supabase/auth-cookies";
 
 export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,7 +18,7 @@ export async function createClient() {
   return createServerClient(url, key, {
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        return filterMalformedSupabaseAuthCookies(cookieStore.getAll());
       },
       setAll(cookiesToSet) {
         try {

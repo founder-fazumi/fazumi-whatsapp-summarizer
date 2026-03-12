@@ -6,6 +6,32 @@
 
 ---
 
+## Story - Supabase internal table RLS policy follow-up (2026-03-12) [DONE]
+
+> Spec file: `specs/supabase-internal-table-rls-policy-follow-up-2026-03-12.md`
+> Rule: keep this scoped to internal/admin tables already in `public`. Do not add browser policies just to silence the linter; client access stays blocked unless a verified PostgREST caller exists.
+
+#### SIT1 - Map the flagged tables to real callers and add one corrective migration [Codex]
+**Why:** `public.ai_request_logs` and `public.marketing_spend` still relied on implicit default-deny RLS with no policies, and the legacy phone-burst tables need one idempotent fail-closed contract while the archived worker still uses server-side helper RPCs.
+**Files:** `specs/supabase-internal-table-rls-policy-follow-up-2026-03-12.md`, `supabase/migrations/2026031201_harden_internal_public_table_policies.sql`
+**Acceptance:**
+- [x] The spec records the current caller model for `worker_phone_locks`, `phone_bursts`, `ai_request_logs`, and `marketing_spend`.
+- [x] The new migration enables RLS and installs explicit deny-all policies on all four internal/admin tables.
+- [x] The migration does not add any anon/authenticated allow policy.
+- [x] Existing service-role or `SECURITY DEFINER` helper access remains unchanged.
+
+#### SIT2 - Document the least-privilege rule and verify the repo [Codex]
+**Why:** Security hardening is only complete once the access model is documented and the normal quality gates still pass.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] The decision log records that internal-only `public` tables must use explicit deny-all policies when the only callers are service-role or server helper functions.
+- [x] The lessons log records the rule for RLS-enabled internal tables with no policies.
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm test` passes.
+
+---
+
 ## Story - Dashboard fixed bottom dock regression (2026-03-11) [DONE]
 
 > Spec file: `specs/dashboard-fixed-bottom-dock-regression-2026-03-11.md`

@@ -8,6 +8,18 @@
 
 ---
 
+## L061 — Server-side Supabase clients should ignore malformed auth-cookie groups instead of mutating them
+**Mistake:** A Playwright smoke that set a fake auth-cookie value under the real Supabase cookie name caused SSR auth recovery to choke on the malformed storage payload during public-route prefetching.
+**Why:** The server-side Supabase helpers passed any cookie with a matching auth-cookie name into `@supabase/ssr`, even if the combined cookie payload was obviously not a real encoded session.
+**Rule:** Before handing request cookies to server-side Supabase SSR helpers, filter out malformed auth-cookie groups that do not look like real Supabase storage (`base64-...` or legacy raw JSON). Keep the browser-side auth-cookie heuristic unchanged so the public fallback CTA can still redirect invalid sessions to `/login`.
+**Quick test:** Run `pnpm test -- e2e/public-routes.spec.ts` and confirm the `public go-to-app CTA redirects unauthenticated cookie fallbacks to login` smoke passes without `Cannot create property 'user' on string 'fake-session'`.
+
+## L060 — Internal-only tables should not rely on implicit default-deny RLS
+**Mistake:** `ai_request_logs` and `marketing_spend` were created with RLS enabled but no policies, which left the fail-closed intent implicit and kept the Supabase linter noisy.
+**Why:** We treated "no browser usage" as enough protection, but internal tables inside the exposed `public` schema still need an explicit schema contract.
+**Rule:** For internal-only tables in exposed schemas, add an explicit deny-all RLS policy at creation time or via a corrective migration, and keep positive policies out until a verified PostgREST/browser caller exists.
+**Quick test:** Run the Supabase linter and inspect repo callsites; internal-only tables should show explicit deny-all policies and no direct browser `from(\"<table>\")` usage.
+
 ## L058 — Public chrome and PWA bootstraps must not add avoidable browser-side flake to release-gate tests
 **Mistake:** The landing navigation fetched `supabase.auth.getUser()` on mount just to decide whether to show the app CTA, and PWA service-worker registration still booted during Playwright's production-mode runs, which added unnecessary client-side churn around otherwise static public-route smoke checks.
 **Why:** We relied on browser-time side effects for public-shell affordances and treated `NODE_ENV=production` as sufficient to enable PWA bootstrap, even when the same runtime was being used for deterministic automated tests.

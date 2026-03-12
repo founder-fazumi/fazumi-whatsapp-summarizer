@@ -333,3 +333,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep the dashboard route-entry polish, but use an opacity-only fade on the shared dashboard template and avoid wrapper transforms around fixed shell chrome such as the bottom dock.
 **Consequences:** The mobile dock stays pinned to the smartphone viewport while long dashboard pages scroll normally underneath it. Future shell or route-transition animations must be applied to scroll content only, or use non-transform effects, when the subtree contains fixed-position navigation or prompts.
 
+---
+
+## D039 - Internal-only `public` tables must declare fail-closed RLS explicitly
+**Date:** 2026-03-12
+**Context:** Supabase flagged `public.ai_request_logs` and `public.marketing_spend` because RLS was enabled without policies, while the archived WA phone-burst tables still need a repeatable fail-closed contract in the exposed `public` schema. Repo inspection showed these four tables are only used from trusted server code or existing helper/RPC flows, not from browser or authenticated PostgREST clients.
+**Decision:** For internal-only tables that remain in `public`, enable RLS and add an explicit deny-all policy. Do not add anon/authenticated allow policies unless a real browser/PostgREST use case is confirmed first. Supported access stays limited to `service_role` clients and existing `SECURITY DEFINER` / RPC helpers.
+**Consequences:** The schema now reflects the intended least-privilege contract instead of relying on implicit default-deny behavior. Accidental browser queries fail closed, and any future user-scoped access must be added deliberately with ownership-aware policies instead of by reusing internal tables.
+

@@ -11,6 +11,7 @@ import {
   isAdminRoutePath,
   sanitizeAdminNextPath,
 } from "@/lib/admin/auth";
+import { filterMalformedSupabaseAuthCookies } from "@/lib/supabase/auth-cookies";
 import { CONSENT_REGION_COOKIE } from "@/lib/compliance/gdpr";
 
 const PROTECTED_PATHS = [
@@ -49,6 +50,18 @@ function withSupabaseCookies(source: NextResponse, target: NextResponse) {
   });
 
   return target;
+}
+
+function isRecoverableSupabaseCookieError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("cannot create property 'user' on string") ||
+    message.includes('cannot create property "user" on string')
+  );
 }
 
 function createAdminLoginRedirect(request: NextRequest) {
@@ -128,7 +141,7 @@ export async function updateSession(request: NextRequest) {
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll() {
-        return request.cookies.getAll();
+        return filterMalformedSupabaseAuthCookies(request.cookies.getAll());
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) =>
@@ -142,9 +155,18 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+
+  try {
+    const {
+      data: { user: nextUser },
+    } = await supabase.auth.getUser();
+    user = nextUser;
+  } catch (error) {
+    if (!isRecoverableSupabaseCookieError(error)) {
+      throw error;
+    }
+  }
 
   const isProtected = PROTECTED_PATHS.some((protectedPath) =>
     path.startsWith(protectedPath)
