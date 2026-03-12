@@ -80,7 +80,7 @@ const PUBLIC_ROUTES: PublicRoute[] = [
   {
     path: "/pricing",
     assertVisible: (page) =>
-      page.getByRole("heading", { name: /ثلاث خطط\. مسار واضح واحد\./i }),
+      page.getByRole("heading", { name: /خطط بسيطة لأولياء الأمور المشغولين\./i }),
   },
   {
     path: "/founder-supporter",
