@@ -124,7 +124,7 @@ export default async function RootLayout({
   const initialLocale: Locale =
     cookieStore.get(LANG_STORAGE_KEY)?.value === "en" ? "en" : "ar";
   const disableServiceWorkerBootstrap =
-    process.env.NODE_ENV !== "production" ? "true" : "false";
+    process.env.NODE_ENV !== "production" || process.env.PLAYWRIGHT_TEST === "1";
 
   return (
     <html
@@ -132,6 +132,7 @@ export default async function RootLayout({
       dir={initialLocale === "ar" ? "rtl" : "ltr"}
       className={`${inter.variable} ${cairo.variable}`}
       data-scroll-behavior="smooth"
+      data-disable-pwa={disableServiceWorkerBootstrap ? "true" : "false"}
       suppressHydrationWarning
     >
       <head>

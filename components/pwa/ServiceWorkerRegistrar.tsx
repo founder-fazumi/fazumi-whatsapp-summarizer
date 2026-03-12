@@ -68,7 +68,9 @@ async function unregisterFazumiServiceWorker(clearAllCaches: boolean) {
 
 export function ServiceWorkerRegistrar() {
   useEffect(() => {
-    const pwaEnabled = process.env.NODE_ENV === "production";
+    const pwaEnabled =
+      process.env.NODE_ENV === "production" &&
+      document.documentElement.dataset.disablePwa !== "true";
     sessionStorage.removeItem(CHUNK_RELOAD_GUARD_KEY);
 
     const onWindowError = (event: ErrorEvent) => {

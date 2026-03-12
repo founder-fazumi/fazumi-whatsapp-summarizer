@@ -3,6 +3,13 @@
 # Update this file after each story completes.
 
 # 2026-03-12
+# Repository health audit follow-up completed: the release-gate flake moved from test-only setup into runtime noise on public pages, so the landing nav now derives logged-in state from existing auth cookie/server signals instead of a mount-time `supabase.auth.getUser()` call, PWA/service-worker bootstrap is explicitly disabled when `PLAYWRIGHT_TEST=1`, and a `pnpm` override pins `serialize-javascript@^7.0.3` to clear the remaining Sentry/Webpack transitive vulnerability without changing framework versions.
+# Files: app/layout.tsx, components/landing/Nav.tsx, components/pwa/ServiceWorkerRegistrar.tsx, package.json, pnpm-lock.yaml, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm install`, `pnpm lint`, `pnpm typecheck`, `PLAYWRIGHT_TEST=1 pnpm test`, `pnpm build`, `pnpm audit --prod`, and `pnpm exec playwright test e2e/public-routes.spec.ts --reporter=line --repeat-each 3` all pass. Main release gate result: `36 passed`, `3 skipped`, `0 failed`.
+# Pattern: if a release-gate flake only appears in production-mode browser runs, audit public-page client bootstraps and service-worker behavior before tightening assertions; public chrome should avoid remote auth fetches when a cookie signal is already available, and security-only transitive CVEs are often safest to fix with a narrow package-manager override.
+#
+
+# 2026-03-12
 # Public-route Playwright hardening completed: the `/founder` unauth redirect flake was traced to an unsafe locale `addInitScript` in `e2e/public-routes.spec.ts`, that helper now guards transient pre-document access, and a shared horizontal-overflow reporter plus `e2e/mobile-overflow.spec.ts` now smoke key public/authenticated routes at `375px` and `320px` without changing product UI.
 # Files: e2e/public-routes.spec.ts, e2e/support.ts, e2e/mobile-overflow.spec.ts, tasks/lessons.md, scripts/ralph/progress.txt
 # Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. `pnpm test` passes (`36 passed`, `3 skipped`) against a fresh `next start` server on `http://127.0.0.1:3018` with `PLAYWRIGHT_TEST=1`.

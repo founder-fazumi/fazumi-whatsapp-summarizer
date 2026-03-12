@@ -8,6 +8,14 @@
 
 ---
 
+## L058 — Public chrome and PWA bootstraps must not add avoidable browser-side flake to release-gate tests
+**Mistake:** The landing navigation fetched `supabase.auth.getUser()` on mount just to decide whether to show the app CTA, and PWA service-worker registration still booted during Playwright's production-mode runs, which added unnecessary client-side churn around otherwise static public-route smoke checks.
+**Why:** We relied on browser-time side effects for public-shell affordances and treated `NODE_ENV=production` as sufficient to enable PWA bootstrap, even when the same runtime was being used for deterministic automated tests.
+**Rule:** For public chrome, prefer existing auth signals like server props or Supabase auth cookies over mount-time `getUser()` round trips, and disable service-worker bootstrap explicitly when `PLAYWRIGHT_TEST=1` so release-gate tests do not inherit browser-lifecycle noise unrelated to product behavior.
+**Quick test:** Run `pnpm test` and `pnpm exec playwright test e2e/public-routes.spec.ts --reporter=line --repeat-each 3`; both should pass without teardown timeouts or extra public-route auth fetch noise.
+
+---
+
 ## L057 — Playwright init scripts must not assume `document.documentElement` already exists
 **Mistake:** The public-routes suite wrote `document.documentElement.lang/dir` directly inside `page.addInitScript`, which intermittently threw before `/founder` finished redirecting and made the redirect smoke fail even though the product behavior was correct.
 **Why:** Playwright init scripts can run before the DOM root is attached, so direct `document.documentElement` access is timing-sensitive and turns a harness helper into a flaky page error source.

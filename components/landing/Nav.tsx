@@ -6,7 +6,6 @@ import { Globe, Moon, Sun } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useMounted } from "@/lib/hooks/useMounted";
-import { createClient } from "@/lib/supabase/client";
 import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 import { BrandLogo } from "@/components/shared/BrandLogo";
@@ -24,6 +23,26 @@ const COPY = {
   toggle: { en: "Toggle language", ar: "تبديل اللغة" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
+function hasSupabaseAuthCookie() {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .some((part) => {
+      const separatorIndex = part.indexOf("=");
+      const name = separatorIndex === -1 ? part : part.slice(0, separatorIndex);
+
+      return (
+        name === "supabase-auth-token" ||
+        name.startsWith("supabase-auth-token.") ||
+        (name.startsWith("sb-") && name.includes("-auth-token"))
+      );
+    });
+}
+
 export function Nav({ isLoggedIn = false }: NavProps) {
   const { locale, setLocale } = useLang();
   const { theme, toggleTheme } = useTheme();
@@ -31,27 +50,7 @@ export function Nav({ isLoggedIn = false }: NavProps) {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn);
 
   useEffect(() => {
-    let isActive = true;
-
-    async function syncUser() {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getUser();
-        if (isActive) {
-          setLoggedIn(Boolean(data.user));
-        }
-      } catch {
-        if (isActive) {
-          setLoggedIn(isLoggedIn);
-        }
-      }
-    }
-
-    void syncUser();
-
-    return () => {
-      isActive = false;
-    };
+    setLoggedIn(isLoggedIn || hasSupabaseAuthCookie());
   }, [isLoggedIn]);
 
   const themeToggleClass =
