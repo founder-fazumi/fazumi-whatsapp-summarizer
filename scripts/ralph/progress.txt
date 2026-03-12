@@ -2,6 +2,13 @@
 # Format: STORY_ID = STATUS [DONE | IN_PROGRESS | PENDING | BLOCKED]
 # Update this file after each story completes.
 
+# 2026-03-12
+# Public-route Playwright hardening completed: the `/founder` unauth redirect flake was traced to an unsafe locale `addInitScript` in `e2e/public-routes.spec.ts`, that helper now guards transient pre-document access, and a shared horizontal-overflow reporter plus `e2e/mobile-overflow.spec.ts` now smoke key public/authenticated routes at `375px` and `320px` without changing product UI.
+# Files: e2e/public-routes.spec.ts, e2e/support.ts, e2e/mobile-overflow.spec.ts, tasks/lessons.md, scripts/ralph/progress.txt
+# Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build` pass. `pnpm test` passes (`36 passed`, `3 skipped`) against a fresh `next start` server on `http://127.0.0.1:3018` with `PLAYWRIGHT_TEST=1`.
+# Pattern: when a browser suite mixes redirect assertions with locale/bootstrap helpers, treat init-script DOM access as timing-sensitive harness code and validate the release gate only against a freshly started build runtime after `next build`.
+#
+
 # 2026-03-11
 # Supabase RLS hardening for the legacy phone-burst tables completed: added an idempotent migration that enables RLS and deny-all policies on `public.worker_phone_locks` and `public.phone_bursts`, keeping the archived WA-bot coordination flow server-only through existing helper functions.
 # Files: specs/supabase-rls-hardening-phone-burst-tables-2026-03-11.md, supabase/migrations/2026031101_harden_phone_burst_tables_rls.sql, tasks/todo.md, docs/decisions.md, tasks/lessons.md, scripts/ralph/progress.txt

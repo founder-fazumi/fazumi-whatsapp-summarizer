@@ -79,6 +79,24 @@ type ZipSummaryState = {
   }>;
 } | null;
 
+type HorizontalOverflowElement = {
+  descriptor: string;
+  scrollWidth: number;
+  clientWidth: number;
+  rectWidth: number;
+  rectLeft: number;
+  rectRight: number;
+  overflowX: string;
+};
+
+type HorizontalOverflowReport = {
+  viewportWidth: number;
+  htmlScrollWidth: number;
+  bodyScrollWidth: number;
+  wideElements: HorizontalOverflowElement[];
+  outOfBoundsElements: HorizontalOverflowElement[];
+};
+
 const envCache = loadLocalEnv();
 const seededAccountCache = new Map<string, TestAccount>();
 
@@ -201,6 +219,131 @@ export async function waitForSummaryComposer(page: Page) {
 export async function openSummarizePage(page: Page) {
   await page.goto("/summarize");
   await waitForSummaryComposer(page);
+}
+
+export async function getHorizontalOverflowReport(
+  page: Page,
+  tolerance = 1
+): Promise<HorizontalOverflowReport> {
+  return page.evaluate((currentTolerance) => {
+    const viewportWidth = window.innerWidth;
+    const root = document.documentElement;
+    const body = document.body;
+    const seenDescriptors = new Set<string>();
+
+    function toDescriptor(element: HTMLElement) {
+      const tagName = element.tagName.toLowerCase();
+      const id = element.id ? `#${element.id}` : "";
+      const testId = element.dataset.testid ? `[data-testid="${element.dataset.testid}"]` : "";
+      const className = typeof element.className === "string"
+        ? element.className
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 3)
+            .map((name) => `.${name}`)
+            .join("")
+        : "";
+
+      return `${tagName}${id}${testId}${className}`;
+    }
+
+    function collectElements(predicate: (element: HTMLElement, rect: DOMRect, overflowX: string) => boolean) {
+      const matches: HorizontalOverflowElement[] = [];
+
+      for (const element of Array.from(document.body?.querySelectorAll<HTMLElement>("*") ?? [])) {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        const isVisible =
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          Number(style.opacity || "1") > 0 &&
+          rect.width > 0 &&
+          rect.height > 0;
+
+        if (!isVisible || !predicate(element, rect, style.overflowX)) {
+          continue;
+        }
+
+        const descriptor = toDescriptor(element);
+        if (seenDescriptors.has(descriptor)) {
+          continue;
+        }
+
+        seenDescriptors.add(descriptor);
+        matches.push({
+          descriptor,
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          rectWidth: Number(rect.width.toFixed(2)),
+          rectLeft: Number(rect.left.toFixed(2)),
+          rectRight: Number(rect.right.toFixed(2)),
+          overflowX: style.overflowX,
+        });
+
+        if (matches.length >= 8) {
+          break;
+        }
+      }
+
+      return matches;
+    }
+
+    return {
+      viewportWidth,
+      htmlScrollWidth: root?.scrollWidth ?? 0,
+      bodyScrollWidth: body?.scrollWidth ?? 0,
+      wideElements: collectElements((element, rect, overflowX) => {
+        const allowsOverflow = overflowX !== "hidden" && overflowX !== "clip";
+        return (
+          rect.width > viewportWidth + currentTolerance ||
+          (allowsOverflow && element.scrollWidth > viewportWidth + currentTolerance)
+        );
+      }),
+      outOfBoundsElements: collectElements((_element, rect) => {
+        return rect.left < -currentTolerance || rect.right > viewportWidth + currentTolerance;
+      }),
+    };
+  }, tolerance);
+}
+
+function formatHorizontalOverflowElements(elements: HorizontalOverflowElement[]) {
+  if (elements.length === 0) {
+    return "none";
+  }
+
+  return elements
+    .map((element) =>
+      `${element.descriptor} rect=${element.rectLeft}-${element.rectRight} width=${element.rectWidth} scroll=${element.scrollWidth}`
+    )
+    .join("; ");
+}
+
+export async function expectNoHorizontalOverflow(
+  page: Page,
+  label: string,
+  tolerance = 1
+) {
+  const report = await getHorizontalOverflowReport(page, tolerance);
+  const diagnostics =
+    ` viewport=${report.viewportWidth}px html=${report.htmlScrollWidth}px body=${report.bodyScrollWidth}px` +
+    ` wide=[${formatHorizontalOverflowElements(report.wideElements)}]` +
+    ` outOfBounds=[${formatHorizontalOverflowElements(report.outOfBoundsElements)}]`;
+
+  expect(
+    report.htmlScrollWidth,
+    `${label}: documentElement.scrollWidth exceeded the viewport.${diagnostics}`
+  ).toBeLessThanOrEqual(report.viewportWidth + tolerance);
+
+  expect(
+    report.bodyScrollWidth,
+    `${label}: body.scrollWidth exceeded the viewport.${diagnostics}`
+  ).toBeLessThanOrEqual(report.viewportWidth + tolerance);
+
+  expect(
+    report.wideElements,
+    `${label}: found visible elements wider than the viewport.${diagnostics}`
+  ).toHaveLength(0);
 }
 
 function getAdminClient(): SupabaseClient {

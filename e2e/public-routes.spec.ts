@@ -15,8 +15,15 @@ async function clearLocaleState(page: Page) {
     }
 
     document.cookie = `${storageKey}=; path=/; max-age=0`;
-    document.documentElement.lang = "ar";
-    document.documentElement.dir = "rtl";
+    try {
+      const root = document.documentElement;
+      if (root) {
+        root.lang = "ar";
+        root.dir = "rtl";
+      }
+    } catch {
+      // Ignore transient document access failures before the page is ready.
+    }
   }, { storageKey: LANG_STORAGE_KEY });
 }
 
@@ -39,8 +46,15 @@ async function setLocale(page: Page, locale: "en" | "ar") {
       }
 
       document.cookie = `${storageKey}=${localeValue}; path=/`;
-      document.documentElement.lang = localeValue;
-      document.documentElement.dir = localeValue === "ar" ? "rtl" : "ltr";
+      try {
+        const root = document.documentElement;
+        if (root) {
+          root.lang = localeValue;
+          root.dir = localeValue === "ar" ? "rtl" : "ltr";
+        }
+      } catch {
+        // Ignore transient document access failures before the page is ready.
+      }
     },
     { localeValue: locale, storageKey: LANG_STORAGE_KEY }
   );

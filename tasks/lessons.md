@@ -8,6 +8,12 @@
 
 ---
 
+## L057 — Playwright init scripts must not assume `document.documentElement` already exists
+**Mistake:** The public-routes suite wrote `document.documentElement.lang/dir` directly inside `page.addInitScript`, which intermittently threw before `/founder` finished redirecting and made the redirect smoke fail even though the product behavior was correct.
+**Why:** Playwright init scripts can run before the DOM root is attached, so direct `document.documentElement` access is timing-sensitive and turns a harness helper into a flaky page error source.
+**Rule:** Any Playwright `addInitScript` that touches DOM globals must guard `document.documentElement` access and degrade safely when the document is still initializing.
+**Quick test:** Repeat the affected test with `--repeat-each 5` and confirm there are no `Cannot set properties of null (setting 'lang')` page errors.
+
 ## L056 — Internal helper tables in `public` still need RLS
 **Mistake:** Legacy coordination tables like `worker_phone_locks` and `phone_bursts` were left in the exposed `public` schema without RLS because they were only intended for helper SQL functions.
 **Why:** We treated "not used by the web UI" as if it meant "not exposed," but Supabase still applies PostgREST and linter expectations to tables in `public`.
