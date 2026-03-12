@@ -122,6 +122,21 @@ async function createZipBuffer(entries: Array<{
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
+function corruptZipCrc(buffer: Buffer) {
+  const corrupted = Buffer.from(buffer);
+  const localHeaderOffset = corrupted.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+  const centralHeaderOffset = corrupted.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+
+  if (localHeaderOffset === -1 || centralHeaderOffset === -1) {
+    throw new Error("Expected ZIP headers to be present before corrupting CRC.");
+  }
+
+  corrupted.writeUInt32LE(0x12345678, localHeaderOffset + 14);
+  corrupted.writeUInt32LE(0x12345678, centralHeaderOffset + 16);
+
+  return corrupted;
+}
+
 function formatUtcWhatsappLine(date: Date, sender: string, body: string) {
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   const day = String(date.getUTCDate()).padStart(2, "0");
@@ -309,6 +324,19 @@ test("ZIP text extraction keeps nested .txt files and ignores unsupported files"
   expect(extracted.textFiles[1]?.text).toContain("permission form");
 });
 
+test("ZIP text extraction rejects CRC-corrupted archives", async () => {
+  const zipBuffer = await createZipBuffer([
+    {
+      name: "nested/Grade 4/chat.txt",
+      contents: "02/15/25, 9:23 AM - Ms. Sarah: Field trip payment is due tomorrow.",
+    },
+  ]);
+
+  await expect(extractTextFilesFromZip(corruptZipCrc(zipBuffer))).rejects.toMatchObject({
+    code: "INVALID_ZIP",
+  });
+});
+
 test("summarize-zip API rejects unauthenticated requests", async ({ request }) => {
   const response = await request.post("/api/summarize-zip");
 
@@ -349,6 +377,35 @@ test("summarize-zip API returns clear errors for invalid and empty ZIP uploads",
 
   expect(invalidResponse.status()).toBe(400);
   await expect(invalidResponse.json()).resolves.toMatchObject({
+    code: "INVALID_ZIP",
+  });
+
+  const corruptedZip = corruptZipCrc(
+    await createZipBuffer([
+      {
+        name: "grade-4/chat.txt",
+        contents: "03/12/26, 8:10 AM - Ms. Sarah: Field trip payment is due tomorrow.",
+      },
+    ])
+  );
+  const corruptedResponse = await request.post("/api/summarize-zip", {
+    headers: {
+      cookie: cookieHeader,
+    },
+    multipart: {
+      file: {
+        name: "corrupted.zip",
+        mimeType: "application/zip",
+        buffer: corruptedZip,
+      },
+      range: "24h",
+      group_name: "Grade 4 Parents",
+      lang_pref: "en",
+    },
+  });
+
+  expect(corruptedResponse.status()).toBe(400);
+  await expect(corruptedResponse.json()).resolves.toMatchObject({
     code: "INVALID_ZIP",
   });
 

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
-import { Footer } from "@/components/landing/Footer";
+import { RouteAwareFooter } from "@/components/layout/RouteAwareFooter";
 import type { Locale } from "@/lib/i18n";
 import { LANG_STORAGE_KEY } from "@/lib/preferences";
 
@@ -154,7 +154,7 @@ export default async function RootLayout({
       <body className="font-sans antialiased">
         <AppProviders initialLocale={initialLocale}>
           {children}
-          <Footer />
+          <RouteAwareFooter />
         </AppProviders>
       </body>
     </html>

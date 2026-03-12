@@ -28,7 +28,7 @@ export async function extractTextFilesFromZip(
   let zip: JSZip;
 
   try {
-    zip = await JSZip.loadAsync(buffer);
+    zip = await JSZip.loadAsync(buffer, { checkCRC32: true });
   } catch {
     throw new ZipImportError(
       "We could not open that ZIP archive. Export the chat again and upload a fresh ZIP.",
