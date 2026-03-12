@@ -136,6 +136,7 @@ for (const route of PUBLIC_ROUTES) {
 test("founder page redirects unauthenticated users to login", async ({ page }) => {
   await page.goto("/founder");
   await expect(page).toHaveURL(/\/login/);
+  await expect(page.locator("#login-email")).toBeVisible();
 });
 
 test("founder supporter exposes the transparency note link", async ({ page }) => {
