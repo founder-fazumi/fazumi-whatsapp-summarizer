@@ -9,9 +9,21 @@ export async function GET(request: NextRequest) {
   const isRecoveryFlow = safeNext.startsWith("/reset-password");
   const forwardedHost = request.headers.get("x-forwarded-host");
   const isLocalEnv = process.env.NODE_ENV === "development";
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const configuredHost = (() => {
+    try {
+      return configuredAppUrl ? new URL(configuredAppUrl).host : null;
+    } catch {
+      return null;
+    }
+  })();
+  const trustedForwardedHost =
+    forwardedHost && configuredHost && forwardedHost === configuredHost
+      ? forwardedHost
+      : null;
   const redirectOrigin =
-    !isLocalEnv && forwardedHost
-      ? `https://${forwardedHost}`
+    !isLocalEnv && trustedForwardedHost
+      ? `https://${trustedForwardedHost}`
       : origin;
 
   if (code) {

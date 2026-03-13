@@ -15,11 +15,11 @@ type ContactMode = "feedback" | "support";
 type FeedbackType = "feature" | "bug" | "praise" | "complaint";
 
 const RATINGS = [
-  { value: "love", emoji: "😍", label: "Loved it" },
-  { value: "good", emoji: "🙂", label: "Pretty good" },
-  { value: "okay", emoji: "😐", label: "Needs work" },
-  { value: "bad", emoji: "😕", label: "Frustrating" },
-  { value: "rough", emoji: "😩", label: "Very rough" },
+  { value: "love", emoji: "😍", label: { en: "Loved it", ar: "أحببته" } },
+  { value: "good", emoji: "🙂", label: { en: "Pretty good", ar: "جيد" } },
+  { value: "okay", emoji: "😐", label: { en: "Needs work", ar: "يحتاج تحسين" } },
+  { value: "bad", emoji: "😕", label: { en: "Frustrating", ar: "محبط" } },
+  { value: "rough", emoji: "😤", label: { en: "Very rough", ar: "صعب جداً" } },
 ] as const;
 
 const SUPPORT_EMAIL = LEGAL_CONTACT_EMAIL;
@@ -251,7 +251,7 @@ export function ContactForm() {
                       <button
                         key={item.value}
                         type="button"
-                        aria-label={item.label}
+                        aria-label={pick(item.label, locale)}
                         onClick={() => setRating(item.value)}
                         className={cn(
                           "rounded-2xl border px-3 py-3 text-center transition-colors",
@@ -263,13 +263,7 @@ export function ContactForm() {
                       >
                         <span className="block text-2xl">{item.emoji}</span>
                         <span className="mt-1 block text-xs font-medium text-[var(--muted-foreground)]">
-                          {locale === "ar"
-                            ? item.value === "love" ? "أعجبني جدًا"
-                              : item.value === "good" ? "جيد جدًا"
-                              : item.value === "okay" ? "يحتاج تحسينًا"
-                              : item.value === "bad" ? "مزعج"
-                              : "صعب جدًا"
-                            : item.label}
+                          {pick(item.label, locale)}
                         </span>
                       </button>
                     ))}

@@ -8,6 +8,13 @@ import {
 } from "@/lib/lemonsqueezy-config";
 
 export async function POST(req: NextRequest) {
+  if (process.env.PAYMENTS_ENABLED !== "1") {
+    return NextResponse.json(
+      { error: "Checkout is not available yet.", code: "PAYMENTS_NOT_ENABLED" },
+      { status: 503 }
+    );
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

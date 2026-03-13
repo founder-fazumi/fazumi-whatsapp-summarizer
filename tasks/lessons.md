@@ -16,7 +16,31 @@
 
 ---
 
-## L064 - Local Playwright runs cannot rely on the built-in webServer launcher in this Windows sandbox
+## L066 — Never accept a normal login session as proof of recovery intent
+**Mistake:** The password reset page initially treated any valid auth session as sufficient for showing the reset form, which could let a logged-in user accidentally trigger password reset without recovery intent.
+**Why:** We checked only `session?.user` without verifying the session came from a recovery flow.
+**Rule:** Never accept a normal login session as proof of recovery intent — check `recovery_sent_at` or the recovery hash in the URL before showing the reset form.
+**Quick test:** Log in normally, manually visit `/reset-password?flow=recovery` without a recovery link, and confirm the reset form does not appear.
+
+---
+
+## L067 — Never use hardcoded UUIDs as env var defaults for payment-critical config
+**Mistake:** The billing config used hardcoded UUID fallbacks for Lemon Squeezy variant IDs, which could make the app appear configured when payment env vars were actually missing.
+**Why:** We treated fallback values as a convenience for local dev, but payment-critical config should fail closed instead of silently using stale defaults.
+**Rule:** Never use hardcoded UUIDs as env var defaults for payment-critical config — fall back to empty string so `lsVariantsConfigured` becomes false when env vars are missing.
+**Quick test:** Unset `NEXT_PUBLIC_LS_*_VARIANT` env vars and confirm checkout buttons show "contact billing" state instead of navigating to a hardcoded URL.
+
+---
+
+## L068 — The API delete verb and the history query filter must agree on the deletion model
+**Mistake:** The delete routes used hard-delete (`.delete()`) while the history query did not filter by `deleted_at`, which created a mismatch between the API contract and the UI behavior.
+**Why:** We treated delete as a simple removal operation without considering that soft-delete requires both the write path and read path to agree on the deletion model.
+**Rule:** The API delete verb and the history query filter must agree on the deletion model — if using soft-delete, both the write path (`.update({ deleted_at })`) and read path (`.is("deleted_at", null)`) must use the same contract.
+**Quick test:** Delete a summary, refresh the history page, and confirm the deleted row no longer appears; verify the database row has `deleted_at` set instead of being removed.
+
+---
+
+## L069 — Local Playwright runs cannot rely on the built-in webServer launcher in this Windows sandbox
 **Mistake:** `pnpm test` depended on Playwright's `webServer` hook to run `pnpm build && pnpm exec next start`, but the runner could not spawn that child process locally and the suite fell through to `ECONNREFUSED 127.0.0.1:3100`.
 **Why:** The app and port were fine; the failure happened one layer earlier in the local harness, where Playwright's shell-based `webServer` startup hit `spawn EPERM` before any server was listening.
 **Rule:** When local sandbox policy blocks Playwright's `webServer` launcher, wrap `playwright test` in a script that starts the server first, sets `PLAYWRIGHT_NO_SERVER=1`, and always stops the server in `finally`. Do not rely on npm `pretest`/`posttest` for cleanup after failing runs.

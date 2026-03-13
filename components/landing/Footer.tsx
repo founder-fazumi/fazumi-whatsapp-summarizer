@@ -113,6 +113,7 @@ export function Footer() {
                   href={`mailto:${LEGAL_CONTACT_EMAIL}`}
                   className="font-medium text-[var(--primary)] hover:underline"
                   dir="ltr"
+                  lang="en"
                 >
                   {LEGAL_CONTACT_EMAIL}
                 </a>
@@ -123,6 +124,7 @@ export function Footer() {
                   href={`mailto:${BILLING_CONTACT_EMAIL}`}
                   className="font-medium text-[var(--primary)] hover:underline"
                   dir="ltr"
+                  lang="en"
                 >
                   {BILLING_CONTACT_EMAIL}
                 </a>

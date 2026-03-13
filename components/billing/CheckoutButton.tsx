@@ -44,10 +44,26 @@ export function CheckoutButton({ variantId, children, className }: Props) {
 
   function handleClick() {
     setLoading(true);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://fazumi.com";
-    const redirectUrl = `${appUrl}/dashboard?upgraded=1`;
-    const checkoutUrl = `https://fazumi.lemonsqueezy.com/checkout/buy/${normalizedVariantId}?checkout[redirect_url]=${encodeURIComponent(redirectUrl)}`;
-    window.location.href = checkoutUrl;
+    fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variant: normalizedVariantId }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          console.error("[checkout]", json.error ?? res.status);
+          setLoading(false);
+          return;
+        }
+        const { url } = (await res.json()) as { url: string };
+        if (url) {
+          window.location.href = url;
+        }
+      })
+      .catch(() => {
+        setLoading(false);
+      });
   }
 
   if (checkoutState !== "ready") {

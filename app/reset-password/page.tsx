@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { useLang } from "@/lib/context/LangContext";
 import { createClient } from "@/lib/supabase/client";
+import { getWeakPasswordMessage } from "@/lib/supabase/password-security";
 import { cn } from "@/lib/utils";
 
 type RecoveryState = "checking" | "ready" | "invalid";
@@ -100,7 +101,11 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      if (session?.user) {
+      const isRecoverySession =
+        session?.user &&
+        (window.location.hash.includes("type=recovery") ||
+          session.user.recovery_sent_at != null);
+      if (isRecoverySession) {
         clearRecoveryHash();
         setRecoveryState("ready");
         return;
@@ -184,9 +189,10 @@ export default function ResetPasswordPage() {
 
     if (updateError) {
       setError(
-        locale === "ar"
-          ? "تعذر تحديث كلمة المرور. افتح الرابط الأحدث من بريدك وحاول مرة أخرى."
-          : "Could not update your password. Open the newest email link and try again."
+        getWeakPasswordMessage(locale, updateError) ??
+          (locale === "ar"
+            ? "تعذر تحديث كلمة المرور. افتح الرابط الأحدث من بريدك وحاول مرة أخرى."
+            : "Could not update your password. Open the newest email link and try again.")
       );
       setSubmitting(false);
       return;

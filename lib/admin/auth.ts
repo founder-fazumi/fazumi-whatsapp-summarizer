@@ -50,7 +50,9 @@ function getAdminCookieSecret() {
   const credentials = getAdminCredentials();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
-  return `fazumi-admin:${credentials?.username ?? "disabled"}:${credentials?.password ?? "disabled"}:${serviceRoleKey}`;
+  return credentials
+    ? `fazumi-admin:${credentials.username}:${credentials.password}:${serviceRoleKey}`
+    : `fazumi-admin-disabled:${serviceRoleKey}:no-credentials-configured-${serviceRoleKey.slice(-8)}`;
 }
 
 function getSigningKey() {

@@ -33,8 +33,9 @@ export async function DELETE(request: NextRequest) {
   const ids = Array.from(new Set((payload?.ids ?? []).filter((value): value is string => typeof value === "string" && value.length > 0)));
   let query = admin
     .from("summaries")
-    .delete()
-    .eq("user_id", user.id);
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("user_id", user.id)
+    .is("deleted_at", null);
 
   if (ids.length > 0) {
     query = query.in("id", ids);

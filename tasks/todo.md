@@ -6,6 +6,96 @@
 
 ---
 
+## Story - Security & reliability audit fixes (2026-03-13) [DONE]
+
+> Rule: implement only the pre-approved audit fixes. No refactoring, no new dependencies, no architecture changes.
+
+#### Fix 1 — Remove hardcoded fallback Lemon Squeezy variant UUIDs [Codex]
+**Files:** `lib/config/public.ts`
+**Acceptance:**
+- [x] Replaced hardcoded UUID fallbacks with empty string `""` for all three variant env vars
+- [x] `lsVariantsConfigured` becomes false when env vars are missing
+- [x] No hardcoded UUID strings remain in the file
+
+#### Fix 2 — Password reset page must not accept a normal login session as a valid recovery session [Codex]
+**Files:** `app/reset-password/page.tsx`
+**Acceptance:**
+- [x] Added `isRecoverySession` check requiring `type=recovery` in hash or `session.user.recovery_sent_at != null`
+- [x] Normal signed-in users manually visiting `/reset-password?flow=recovery` without recovery evidence do not see the reset form
+- [x] Real recovery flow still works
+
+#### Fix 3 — Switch delete routes from hard-delete to soft-delete [Codex]
+**Files:** `app/api/summaries/[id]/route.ts`, `app/api/summaries/route.ts`
+**Acceptance:**
+- [x] Both routes now use `.update({ deleted_at: ... })` instead of `.delete()`
+- [x] Added `.is("deleted_at", null)` guard to prevent double-deletion
+- [x] Already soft-deleted summaries are no longer treated as normal success path
+
+#### Fix 4 — Contact form rating button aria-labels must be bilingual [Codex]
+**Files:** `components/contact/ContactForm.tsx`
+**Acceptance:**
+- [x] `RATINGS` array updated to bilingual `{ en, ar }` structure
+- [x] All rating button `aria-label` and visible labels use `pick(item.label, locale)`
+- [x] In English mode, aria-labels read English; in Arabic mode, aria-labels read Arabic
+
+#### Fix 5 — Add a 20-second timeout to OpenAI chat completion calls [Codex]
+**Files:** `lib/ai/openai-chat.ts`
+**Acceptance:**
+- [x] Added AbortController-based 20-second timeout to raw API call
+- [x] Happy path stays unchanged
+- [x] Calls abort after 20 seconds instead of hanging
+
+#### Fix 6 — CheckoutButton must use /api/checkout instead of direct Lemon Squeezy navigation [Codex]
+**Files:** `components/billing/CheckoutButton.tsx`
+**Acceptance:**
+- [x] Replaced direct LS URL navigation with `POST /api/checkout` call
+- [x] Sends `{ variant: normalizedVariantId }` in request body
+- [x] Navigates to returned URL on success, resets loading on failure
+
+#### Fix 7 — Add a server-side payments gate to the checkout route [Codex]
+**Files:** `app/api/checkout/route.ts`, `.env.local.example`
+**Acceptance:**
+- [x] Returns 503 `PAYMENTS_NOT_ENABLED` when `PAYMENTS_ENABLED !== "1"`
+- [x] Route proceeds normally when `PAYMENTS_ENABLED=1`
+- [x] `.env.local.example` documents the new variable
+
+#### Fix 8 — Validate x-forwarded-host against configured app URL in auth callback [Codex]
+**Files:** `app/auth/callback/route.ts`
+**Acceptance:**
+- [x] Only trusts `x-forwarded-host` if it exactly matches the host of `NEXT_PUBLIC_APP_URL`
+- [x] Falls back safely to `origin` when config is missing, malformed, or doesn't match
+- [x] Matching forwarded host uses the configured production host
+
+#### Fix 9 — AI request logging should warn on first failure and every 50th failure [Codex]
+**Files:** `lib/server/summaries.ts`
+**Acceptance:**
+- [x] Replaced `aiRequestLogsWarningShown` boolean with `aiRequestLogsFailureCount` counter
+- [x] Logs warnings on failure counts 1, 50, 100, 150, etc.
+- [x] Failures between those counts remain silent
+
+#### Fix 10 — Footer email links need lang="en" [Codex]
+**Files:** `components/landing/Footer.tsx`
+**Acceptance:**
+- [x] Added `lang="en"` to both `mailto:` anchor tags (support and billing)
+- [x] Existing `dir="ltr"` preserved
+
+#### Fix 11 — Admin HMAC secret must not use predictable "disabled" fallback [Codex]
+**Files:** `lib/admin/auth.ts`
+**Acceptance:**
+- [x] Replaced predictable `"disabled"` fallback with safer pattern including `no-credentials-configured` suffix
+- [x] Includes last 8 chars of service role key when credentials are missing
+
+#### Fix 12 — Dev mock signup endpoint must always be blocked in production [Codex]
+**Files:** `app/api/dev/mock-signup/route.ts`
+**Acceptance:**
+- [x] Removed `PLAYWRIGHT_TEST !== "1"` exception from production guard
+- [x] Endpoint always returns 404 in production
+- [x] Development local-request guard remains unchanged
+
+**Verification note:** All 12 audit fixes implemented and verified. `pnpm lint`, `pnpm typecheck`, `pnpm test` (47 passed, 3 skipped), and `pnpm build` all pass. No application code changes beyond the approved fixes.
+
+---
+
 ## Story - Dashboard scrollbar and footer layout polish (2026-03-13) [DONE]
 
 > Spec file: `specs/layout-polish-scrollbars-footer-2026-03-13.md`

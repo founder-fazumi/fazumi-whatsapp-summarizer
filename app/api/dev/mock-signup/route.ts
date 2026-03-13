@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, isAuthWeakPasswordError } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
@@ -19,7 +19,7 @@ function isLocalRequest(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === "production" && process.env.PLAYWRIGHT_TEST !== "1") {
+  if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   }
 
@@ -77,6 +77,18 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
+    if (isAuthWeakPasswordError(error)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Weak password.",
+          errorCode: error.code,
+          weakPasswordReasons: error.reasons,
+        },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
   }
 

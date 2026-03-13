@@ -7,7 +7,7 @@ import { isSupabaseAuthCookieName } from "@/lib/supabase/auth-cookies";
 export const MAX_SUMMARY_CHARS = 30_000;
 
 let aiRequestLogsUnavailable = false;
-let aiRequestLogsWarningShown = false;
+let aiRequestLogsFailureCount = 0;
 const OPTIONAL_SUMMARY_INSERT_COLUMNS = [
   "urgent_action_items",
   "contacts",
@@ -209,25 +209,37 @@ export async function logAiRequest(params: {
     if (error) {
       if (isAiRequestLogsMissingError(error.message)) {
         aiRequestLogsUnavailable = true;
-        if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
+        if (!shouldSuppressAiRequestLogWarnings() && aiRequestLogsFailureCount === 0) {
           console.warn("ai_request_logs table is unavailable. Skipping AI usage inserts.");
-          aiRequestLogsWarningShown = true;
         }
         return;
       }
 
-      if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
-        console.warn("Could not record ai_request_logs row.", error.message);
-        aiRequestLogsWarningShown = true;
+      aiRequestLogsFailureCount = (aiRequestLogsFailureCount ?? 0) + 1;
+      if (aiRequestLogsFailureCount === 1 || aiRequestLogsFailureCount % 50 === 0) {
+        console.warn(
+          JSON.stringify({
+            source: "lib/server/summaries",
+            event: "ai_request_logs_insert_failed",
+            errorMessage: String(error),
+            failureCount: aiRequestLogsFailureCount,
+            ts: new Date().toISOString(),
+          })
+        );
       }
     }
   } catch (error) {
-    if (!shouldSuppressAiRequestLogWarnings() && !aiRequestLogsWarningShown) {
+    aiRequestLogsFailureCount = (aiRequestLogsFailureCount ?? 0) + 1;
+    if (aiRequestLogsFailureCount === 1 || aiRequestLogsFailureCount % 50 === 0) {
       console.warn(
-        "Could not record ai_request_logs row.",
-        error instanceof Error ? error.message : String(error)
+        JSON.stringify({
+          source: "lib/server/summaries",
+          event: "ai_request_logs_insert_failed",
+          errorMessage: String(error),
+          failureCount: aiRequestLogsFailureCount,
+          ts: new Date().toISOString(),
+        })
       );
-      aiRequestLogsWarningShown = true;
     }
   }
 }

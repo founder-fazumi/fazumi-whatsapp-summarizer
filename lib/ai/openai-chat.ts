@@ -57,14 +57,22 @@ async function createCompletionForModel(
     maxCompletionTokens: number;
   }
 ): Promise<ChatCompletion> {
-  return openai.chat.completions.create(
-    buildJsonChatCompletionRequest({
-      model: params.model,
-      systemPrompt: params.systemPrompt,
-      userPrompt: params.userPrompt,
-      maxCompletionTokens: params.maxCompletionTokens,
-    })
-  );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await openai.chat.completions.create(
+      buildJsonChatCompletionRequest({
+        model: params.model,
+        systemPrompt: params.systemPrompt,
+        userPrompt: params.userPrompt,
+        maxCompletionTokens: params.maxCompletionTokens,
+      }),
+      { signal: controller.signal }
+    );
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function createJsonChatCompletionWithFallback(
