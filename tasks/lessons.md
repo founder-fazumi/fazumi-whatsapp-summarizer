@@ -8,6 +8,14 @@
 
 ---
 
+## L065 - App Router hidden loading shells can duplicate strict Playwright locators for shared dashboard chrome
+**Mistake:** The dashboard sidebar smoke targeted `getByTestId("dashboard-sidebar").locator('a[href="/settings"]')` as if the dashboard shell existed only once in the DOM, so the test failed in strict mode on `/summarize`.
+**Why:** During App Router navigation, the visible dashboard page can coexist briefly with a hidden loading/template copy of `DashboardShell`, which duplicates the same `data-testid` and link hrefs even though only one sidebar is user-visible.
+**Rule:** When a Playwright smoke is asserting an on-screen dashboard chrome contract, target the visible shell elements (`[data-testid="..."]:visible`) instead of raw duplicated DOM nodes that only exist for hidden route-transition fallbacks.
+**Quick test:** Run `pnpm test -- --grep "desktop sidebar keeps lower nav items visible while content scrolls"` and confirm the smoke passes without a strict-mode violation while the sidebar links remain in view after the main pane scrolls.
+
+---
+
 ## L064 - Local Playwright runs cannot rely on the built-in webServer launcher in this Windows sandbox
 **Mistake:** `pnpm test` depended on Playwright's `webServer` hook to run `pnpm build && pnpm exec next start`, but the runner could not spawn that child process locally and the suite fell through to `ECONNREFUSED 127.0.0.1:3100`.
 **Why:** The app and port were fine; the failure happened one layer earlier in the local harness, where Playwright's shell-based `webServer` startup hit `spawn EPERM` before any server was listening.

@@ -235,11 +235,14 @@ test("desktop sidebar keeps lower nav items visible while content scrolls", asyn
   await loginWithEmail(page, accounts.paid);
   await page.goto("/summarize");
 
-  const sidebar = page.getByTestId("dashboard-sidebar");
+  // App Router transitions can keep a hidden loading shell in the DOM briefly.
+  // Target the visible dashboard shell so this smoke reflects the user-visible sidebar.
+  const sidebar = page.locator('[data-testid="dashboard-sidebar"]:visible');
   const settingsLink = sidebar.locator('a[href="/settings"]');
   const historyLink = sidebar.locator('a[href="/history"]');
-  const main = page.getByTestId("dashboard-shell-main");
+  const main = page.locator('[data-testid="dashboard-shell-main"]:visible');
 
+  await expect(sidebar).toHaveCount(1);
   await expect(settingsLink).toBeInViewport();
 
   await page.evaluate(() => {

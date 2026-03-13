@@ -36,7 +36,7 @@
 - [x] `pnpm build` passes.
 - [x] The decision, lesson, and Ralph progress logs capture the shell/footer rule.
 
-**Verification note:** `pnpm test` still has one pre-existing failure in `e2e/app-smoke.spec.ts` (`desktop sidebar keeps lower nav items visible while content scrolls`) caused by the duplicate `/settings` sidebar locator already called out in the existing checklist. The rest of the suite completed with `39 passed`, `4 skipped`, and `6 did not run` after the first failure stopped the remainder.
+**Verification note:** The remaining release blocker was resolved on 2026-03-13 by updating the dashboard sidebar smoke to target the visible shell only. Next.js App Router keeps a hidden loading/template copy of `DashboardShell` in the DOM during route transitions, so the strict locator needed to reflect the user-visible sidebar. Full release gate after the fix: `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` (`47 passed`, `3 skipped`).
 
 ---
 
@@ -70,7 +70,7 @@
 - [x] `pnpm build` passes.
 - [x] Useful Playwright coverage or smoke evidence is recorded for the touched UI.
 
-**Verification note:** `pnpm test` exercises the touched `/faq` and `/help` routes successfully in `e2e/public-routes.spec.ts`. The full suite still has one unrelated pre-existing failure in `e2e/app-smoke.spec.ts` due a duplicate `/settings` sidebar locator inside the dashboard shell.
+**Verification note:** `pnpm test` exercises the touched `/faq` and `/help` routes successfully in `e2e/public-routes.spec.ts`, and the previously unrelated dashboard-shell strict-locator blocker was resolved later on 2026-03-13. Current full-suite status after the follow-up fix: `47 passed`, `3 skipped`.
 
 ---
 
