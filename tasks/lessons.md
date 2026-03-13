@@ -8,6 +8,14 @@
 
 ---
 
+## L064 - Local Playwright runs cannot rely on the built-in webServer launcher in this Windows sandbox
+**Mistake:** `pnpm test` depended on Playwright's `webServer` hook to run `pnpm build && pnpm exec next start`, but the runner could not spawn that child process locally and the suite fell through to `ECONNREFUSED 127.0.0.1:3100`.
+**Why:** The app and port were fine; the failure happened one layer earlier in the local harness, where Playwright's shell-based `webServer` startup hit `spawn EPERM` before any server was listening.
+**Rule:** When local sandbox policy blocks Playwright's `webServer` launcher, wrap `playwright test` in a script that starts the server first, sets `PLAYWRIGHT_NO_SERVER=1`, and always stops the server in `finally`. Do not rely on npm `pretest`/`posttest` for cleanup after failing runs.
+**Quick test:** Run `pnpm test -- --grep "summarize API rejects unauthenticated requests"` and confirm the suite no longer fails immediately with `ECONNREFUSED 127.0.0.1:3100`.
+
+---
+
 ## L063 — A shared root footer and a route-level `100vh` shell will fight each other
 **Mistake:** Public/auth page wrappers used `min-h-screen` or `100dvh` even though the shared marketing footer was rendered outside those wrappers in `app/layout.tsx`, which pushed the footer below the fold on shorter pages.
 **Why:** We sized individual route shells as if they owned the full viewport, but the actual page chrome contract lived one level higher in the root layout.
