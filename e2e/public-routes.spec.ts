@@ -232,6 +232,54 @@ test("founder supporter exposes the transparency note link", async ({ page }) =>
   ).toHaveAttribute("href", "/founder-support");
 });
 
+test("public faq accordion keeps a single item open at a time", async ({ page }) => {
+  await setLocale(page, "en");
+
+  const response = await page.goto("/faq");
+
+  expect(response?.status(), "Expected /faq to return 200.").toBe(200);
+
+  const firstQuestion = page.getByRole("button", { name: "How does Fazumi work?" });
+  const secondQuestion = page.getByRole("button", { name: "Is my chat data private?" });
+  const firstAnswer = page.getByText(
+    "Paste school chat text from WhatsApp, Telegram, or Facebook, or upload the export.",
+    { exact: false }
+  );
+  const secondAnswer = page.getByText("Your raw chat text is never stored.", { exact: false });
+
+  await expect(firstQuestion).toHaveAttribute("aria-expanded", "true");
+  await expect(firstAnswer).toBeVisible();
+  await expect(secondQuestion).toHaveAttribute("aria-expanded", "false");
+  await expect(secondAnswer).toHaveCount(0);
+
+  await secondQuestion.click();
+  await expect(secondQuestion).toHaveAttribute("aria-expanded", "true");
+  await expect(secondAnswer).toBeVisible();
+  await expect(firstQuestion).toHaveAttribute("aria-expanded", "false");
+  await expect(firstAnswer).toHaveCount(0);
+
+  await secondQuestion.click();
+  await expect(secondQuestion).toHaveAttribute("aria-expanded", "false");
+  await expect(secondAnswer).toHaveCount(0);
+});
+
+test("help page keeps support and billing contacts as separate actions", async ({ page }) => {
+  await setLocale(page, "en");
+
+  const response = await page.goto("/help");
+
+  expect(response?.status(), "Expected /help to return 200.").toBe(200);
+
+  const main = page.getByRole("main");
+  const supportLink = main.locator('a[href="mailto:support@fazumi.com"]');
+  const billingLink = main.locator('a[href="mailto:billing@fazumi.com"]');
+
+  await expect(supportLink).toHaveCount(1);
+  await expect(billingLink).toHaveCount(1);
+  await expect(supportLink).toBeVisible();
+  await expect(billingLink).toBeVisible();
+});
+
 test("public about: Arabic locale renders with RTL and no unverified trust claims", async ({
   page,
 }) => {

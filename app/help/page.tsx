@@ -264,20 +264,22 @@ export default function HelpPage() {
                 <p className="text-sm text-[var(--muted-foreground)]">
                   <LocalizedText en={COPY.support.body.en} ar={COPY.support.body.ar} />
                 </p>
-                <a
-                  href={`mailto:${COPY.support.email}`}
-                  className="text-sm font-medium text-[var(--primary)] hover:underline"
-                  dir="ltr"
-                >
-                  {COPY.support.email}
-                </a>
-                <a
-                  href={`mailto:${COPY.support.billingEmail}`}
-                  className="text-sm font-medium text-[var(--primary)] hover:underline"
-                  dir="ltr"
-                >
-                  {COPY.support.billingEmail}
-                </a>
+                <div className={cn("flex flex-col gap-2 pt-1", isArabic && "items-end")}>
+                  <a
+                    href={`mailto:${COPY.support.email}`}
+                    className="inline-flex w-fit max-w-full break-all text-sm font-medium text-[var(--primary)] hover:underline"
+                    dir="ltr"
+                  >
+                    {COPY.support.email}
+                  </a>
+                  <a
+                    href={`mailto:${COPY.support.billingEmail}`}
+                    className="inline-flex w-fit max-w-full break-all text-sm font-medium text-[var(--primary)] hover:underline"
+                    dir="ltr"
+                  >
+                    {COPY.support.billingEmail}
+                  </a>
+                </div>
               </div>
             </div>
           </CardContent>

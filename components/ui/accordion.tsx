@@ -248,18 +248,55 @@ interface FaqAccordionProps {
     answer: string;
   }>;
   className?: string;
+  defaultOpenFirst?: boolean;
+  buttonClassName?: string;
+  contentClassName?: string;
+  questionClassName?: string;
+  answerClassName?: string;
 }
 
-export function FaqAccordion({ items, className }: FaqAccordionProps) {
+export function FaqAccordion({
+  items,
+  className,
+  defaultOpenFirst = false,
+  buttonClassName,
+  contentClassName,
+  questionClassName,
+  answerClassName,
+}: FaqAccordionProps) {
   return (
-    <div className={cn("divide-y divide-[var(--border)]", className)}>
-      {items.map((item) => (
-        <FaqAccordionItem
-          key={item.question}
-          question={item.question}
-          answer={item.answer}
-        />
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue={defaultOpenFirst && items.length > 0 ? "0" : undefined}
+      className={className}
+    >
+      {items.map((item, index) => (
+        <AccordionItem
+          key={`${item.question}-${index}`}
+          value={String(index)}
+          className="border-b border-[var(--border)] last:border-0"
+        >
+          <AccordionTrigger
+            className={cn(
+              "rounded-[var(--radius)] text-[var(--text-sm)] font-medium text-[var(--foreground)]",
+              buttonClassName
+            )}
+          >
+            <span className={cn("flex-1", questionClassName)}>{item.question}</span>
+          </AccordionTrigger>
+          <AccordionContent className={cn("pb-4", contentClassName)}>
+            <p
+              className={cn(
+                "text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]",
+                answerClassName
+              )}
+            >
+              {item.answer}
+            </p>
+          </AccordionContent>
+        </AccordionItem>
       ))}
-    </div>
+    </Accordion>
   );
 }

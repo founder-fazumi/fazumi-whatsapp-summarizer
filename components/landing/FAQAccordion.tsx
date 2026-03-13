@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { FaqAccordionItem } from "@/components/ui/accordion";
+import { FaqAccordion } from "@/components/ui/accordion";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -134,20 +134,18 @@ export function FAQAccordion({
           </div>
         ) : null}
 
-        <div className={cn("surface-panel bg-[var(--surface-elevated)] px-5 sm:px-6", showHeading && "mt-8")}>
-          {FAQS.map((item, index) => (
-            <FaqAccordionItem
-              key={`${item.question.en}-${index}`}
-              question={pick(item.question, locale)}
-              answer={pick(item.answer, locale)}
-              defaultOpen={index === 0}
-              buttonClassName="min-h-12 py-5"
-              questionClassName="text-[var(--text-base)] font-semibold text-[var(--foreground)]"
-              contentClassName="pb-5"
-              answerClassName="mt-3 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]"
-            />
-          ))}
-        </div>
+        <FaqAccordion
+          items={FAQS.map((item) => ({
+            question: pick(item.question, locale),
+            answer: pick(item.answer, locale),
+          }))}
+          defaultOpenFirst
+          className={cn("surface-panel bg-[var(--surface-elevated)] px-5 sm:px-6", showHeading && "mt-8")}
+          buttonClassName="min-h-12 py-5"
+          questionClassName="text-[var(--text-base)] font-semibold text-[var(--foreground)]"
+          contentClassName="pb-5"
+          answerClassName="mt-3 text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]"
+        />
 
         {showMoreLink ? (
           <div className="mt-6 flex justify-center">

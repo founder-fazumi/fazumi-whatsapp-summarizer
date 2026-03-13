@@ -466,6 +466,14 @@
 
 ---
 
+## L058 — Public-page link assertions must be scoped when the footer repeats the same mailto targets
+**Mistake:** A new `/help` Playwright check asserted `mailto:support@fazumi.com` and `mailto:billing@fazumi.com` globally, which failed because the footer exposes the same links in addition to the main support block.
+**Why:** The test assumed those contact links were unique on the page and ignored the shared site footer.
+**Rule:** On public pages, scope assertions for repeated CTAs or mailto links to the intended region such as `main`, the card body, or a named section instead of relying on page-global uniqueness.
+**Quick test:** If a public-route selector targets a link or CTA that can also appear in the footer or nav, use a region locator first and assert `toHaveCount(1)` inside that region.
+
+---
+
 ## L054 — Parent-facing typography needs a hard minimum readable size, not only nicer tokens
 **Mistake:** The app had earlier typography passes, but the live parent-facing UI still shipped multiple `9px`, `10px`, and `11px` labels across login, summarize, history, and shell surfaces.
 **Why:** The token system improved over time, but older one-off Tailwind sizes and small chip styles were left behind in key user flows, so the real experience drifted from the intended readability standard.

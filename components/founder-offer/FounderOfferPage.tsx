@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { CheckoutButton } from "@/components/billing/CheckoutButton";
 import { Nav } from "@/components/landing/Nav";
-import { FaqAccordionItem } from "@/components/ui/accordion";
+import { FaqAccordion } from "@/components/ui/accordion";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLang } from "@/lib/context/LangContext";
@@ -569,18 +569,16 @@ export function FounderOfferPage({ isLoggedIn = false }: FounderOfferPageProps) 
             <div className="surface-panel-elevated px-6 py-7 sm:px-8">
               <SectionHeading title={pick(content.faqTitle, locale)} centered />
 
-              <div className="mt-8">
-                {content.faq.map((item, index) => (
-                  <FaqAccordionItem
-                    key={item.question.en}
-                    question={pick(item.question, locale)}
-                    answer={pick(item.answer, locale)}
-                    defaultOpen={index === 0}
-                    buttonClassName="min-h-14 py-5 text-[var(--text-base)] font-semibold"
-                    answerClassName="max-w-3xl text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]"
-                  />
-                ))}
-              </div>
+              <FaqAccordion
+                items={content.faq.map((item) => ({
+                  question: pick(item.question, locale),
+                  answer: pick(item.answer, locale),
+                }))}
+                defaultOpenFirst
+                className="mt-8"
+                buttonClassName="min-h-14 py-5 text-[var(--text-base)] font-semibold"
+                answerClassName="max-w-3xl text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]"
+              />
             </div>
           </div>
         </section>

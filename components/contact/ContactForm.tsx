@@ -413,20 +413,22 @@ export function ContactForm() {
           <CardContent className="space-y-3 text-sm text-[var(--muted-foreground)]">
             <p>{locale === "ar" ? "استخدم النموذج إذا كنت تريد أن يرد عليك فازومي عبر البريد الإلكتروني بخصوص المنتج أو الحساب أو الفوترة أو الاسترداد." : "Use the form if you want Fazumi to reply by email about the product, your account, billing, or refunds."}</p>
             <p>{locale === "ar" ? "يمكنك أيضًا الكتابة مباشرة إلى عناوين الدعم أو الفوترة أدناه." : "You can also write directly to the support or billing addresses below."}</p>
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
-              className="inline-flex items-center gap-2 text-[var(--primary)] hover:underline"
-            >
-              <Mail className="h-4 w-4" />
-              {SUPPORT_EMAIL}
-            </a>
-            <a
-              href={`mailto:${BILLING_CONTACT_EMAIL}`}
-              className="inline-flex items-center gap-2 text-[var(--primary)] hover:underline"
-            >
-              <Mail className="h-4 w-4" />
-              {BILLING_CONTACT_EMAIL}
-            </a>
+            <div className={cn("flex flex-col gap-2 pt-1", isArabic && "items-end")}>
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="inline-flex w-fit max-w-full items-center gap-2 break-all text-[var(--primary)] hover:underline"
+              >
+                <Mail className="h-4 w-4 shrink-0" />
+                {SUPPORT_EMAIL}
+              </a>
+              <a
+                href={`mailto:${BILLING_CONTACT_EMAIL}`}
+                className="inline-flex w-fit max-w-full items-center gap-2 break-all text-[var(--primary)] hover:underline"
+              >
+                <Mail className="h-4 w-4 shrink-0" />
+                {BILLING_CONTACT_EMAIL}
+              </a>
+            </div>
           </CardContent>
         </Card>
 

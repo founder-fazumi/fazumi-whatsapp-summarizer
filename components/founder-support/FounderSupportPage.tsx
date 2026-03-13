@@ -20,7 +20,7 @@ import {
   FOUNDER_OFFER_ROUTE,
   FOUNDER_PLAN_SECTION_ID,
 } from "@/components/founder-offer/content";
-import { FaqAccordionItem } from "@/components/ui/accordion";
+import { FaqAccordion } from "@/components/ui/accordion";
 import { buttonVariants } from "@/components/ui/button";
 import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
@@ -672,18 +672,16 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
             <div className="surface-panel-elevated px-6 py-7 sm:px-8">
               <SectionHeading title={PAGE_CONTENT.faqTitle} centered />
 
-              <div className="mt-8">
-                {PAGE_CONTENT.faq.map((item, index) => (
-                  <FaqAccordionItem
-                    key={item.question.en}
-                    question={pick(item.question, locale)}
-                    answer={pick(item.answer, locale)}
-                    defaultOpen={index === 0}
-                    buttonClassName="min-h-14 py-5 text-[var(--text-base)] font-semibold"
-                    answerClassName="max-w-3xl text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]"
-                  />
-                ))}
-              </div>
+              <FaqAccordion
+                items={PAGE_CONTENT.faq.map((item) => ({
+                  question: pick(item.question, locale),
+                  answer: pick(item.answer, locale),
+                }))}
+                defaultOpenFirst
+                className="mt-8"
+                buttonClassName="min-h-14 py-5 text-[var(--text-base)] font-semibold"
+                answerClassName="max-w-3xl text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]"
+              />
             </div>
           </div>
         </section>

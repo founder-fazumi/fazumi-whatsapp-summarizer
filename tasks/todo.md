@@ -6,6 +6,40 @@
 
 ---
 
+## Story - Support contact layout and public accordion polish (2026-03-13) [DONE]
+
+> Spec file: `specs/support-layout-accordion-polish-2026-03-13.md`
+> Rule: keep this slice limited to the public support/contact email layout and shared FAQ-style accordion behavior. Do not touch unrelated auth or payment-copy logic.
+
+#### SAP1 - Separate stacked support and billing contact actions [Codex]
+**Why:** `/help` still renders the support and billing addresses as adjacent inline text, which looks broken and hurts trust.
+**Files:** `app/help/page.tsx`, `components/contact/ContactForm.tsx`
+**Acceptance:**
+- [x] Public support/billing links are clearly separated and readable.
+- [x] The layout stays clean on narrow mobile widths.
+- [x] No brittle spacing-only text hacks are introduced.
+
+#### SAP2 - Make public FAQ accordions single-open [Codex]
+**Why:** Public FAQ/help/founder accordions currently let multiple answers stay open at once because each item owns its own local state.
+**Files:** `components/ui/accordion.tsx`, `components/landing/FAQAccordion.tsx`, `components/landing/FAQ.tsx`, `components/founder-offer/FounderOfferPage.tsx`, `components/founder-support/FounderSupportPage.tsx`
+**Acceptance:**
+- [x] Opening one FAQ item closes the previously open one on the public FAQ-style surfaces.
+- [x] Clicking the open item collapses it.
+- [x] Existing visual styling stays intact.
+
+#### SAP3 - Verify the follow-up polish [Codex]
+**Why:** This slice is only worth shipping if the UI patch is verified and stays isolated from the unrelated local worktree dirt.
+**Files:** `e2e/public-routes.spec.ts`, `tasks/todo.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` passes.
+- [x] Useful Playwright coverage or smoke evidence is recorded for the touched UI.
+
+**Verification note:** `pnpm test` exercises the touched `/faq` and `/help` routes successfully in `e2e/public-routes.spec.ts`. The full suite still has one unrelated pre-existing failure in `e2e/app-smoke.spec.ts` due a duplicate `/settings` sidebar locator inside the dashboard shell.
+
+---
+
 ## Story - Payment review readiness for Paddle (2026-03-13) [DONE]
 
 > Spec file: `specs/payment-review-readiness-paddle-2026-03-13.md`
