@@ -28,10 +28,10 @@ export function PublicPageShell({
     <div
       dir={isArabic ? "rtl" : "ltr"}
       lang={locale}
-      className={cn("min-h-screen bg-[var(--background)]", isArabic && "font-arabic")}
+      className={cn("flex flex-1 flex-col bg-[var(--background)]", isArabic && "font-arabic")}
     >
       <Nav />
-      <main className="page-shell page-section-tight">
+      <main className="page-shell page-section-tight flex-1">
         <div className={cn("hero-backdrop surface-panel-elevated relative mb-8 overflow-hidden px-[var(--card-padding-lg)] py-[var(--card-padding-lg)]", isArabic && "text-right", className)}>
           {eyebrow && (
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">

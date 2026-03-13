@@ -8,6 +8,12 @@
 
 ---
 
+## L063 — A shared root footer and a route-level `100vh` shell will fight each other
+**Mistake:** Public/auth page wrappers used `min-h-screen` or `100dvh` even though the shared marketing footer was rendered outside those wrappers in `app/layout.tsx`, which pushed the footer below the fold on shorter pages.
+**Why:** We sized individual route shells as if they owned the full viewport, but the actual page chrome contract lived one level higher in the root layout.
+**Rule:** If a footer is owned by the root layout, route wrappers that should show it must fill the available layout column instead of reserving a second full-viewport shell. Keep nested pane scrolling opt-in and scoped, not global.
+**Quick test:** Open a short public route like `/about` or `/contact` plus `/login`; the footer should be visible/reachable without the route root consuming an extra full-screen block, while dashboard routes like `/dashboard` stay footerless.
+
 ## L062 — Never initialize a Supabase browser client during render in a server-rendered client component
 **Mistake:** `/login` and `/reset-password` created the Supabase browser client with `useState(createClient)`, which let a server-rendered client component capture a non-browser auth client and complete login/recovery flows without ever writing auth cookies.
 **Why:** In the Next.js App Router, client components can still render on the server for the initial HTML. `createBrowserClient()` only gets cookie-backed browser storage when it is called in a real browser runtime.

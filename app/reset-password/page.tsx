@@ -217,7 +217,7 @@ export default function ResetPasswordPage() {
       dir={locale === "ar" ? "rtl" : "ltr"}
       lang={locale}
       className={cn(
-        "flex min-h-[100dvh] items-start justify-center bg-[var(--background)] px-3 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:min-h-screen sm:items-center sm:px-4 sm:py-12",
+        "flex flex-1 items-start justify-center bg-[var(--background)] px-3 pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-center sm:px-4 sm:py-12",
         locale === "ar" && "font-arabic"
       )}
     >

@@ -151,10 +151,12 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className="font-sans antialiased">
+      <body className="min-h-screen font-sans antialiased">
         <AppProviders initialLocale={initialLocale}>
-          {children}
-          <RouteAwareFooter />
+          <div className="flex min-h-screen flex-col">
+            <div className="flex flex-1 flex-col">{children}</div>
+            <RouteAwareFooter />
+          </div>
         </AppProviders>
       </body>
     </html>

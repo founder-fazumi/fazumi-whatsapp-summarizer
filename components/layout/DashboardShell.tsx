@@ -33,7 +33,7 @@ export function DashboardShell({
 
         <main
           data-testid="dashboard-shell-main"
-          className={cn("flex-1 overflow-y-auto xl:h-full", mobileDockSpacingClass)}
+          className={cn("scrollbar-hidden flex-1 overflow-y-auto xl:h-full", mobileDockSpacingClass)}
         >
           <div
             className={cn(
@@ -47,7 +47,7 @@ export function DashboardShell({
         </main>
 
         {rightColumn && (
-          <aside className="hidden border-l border-[var(--border)] xl:flex xl:h-full xl:w-[320px] xl:shrink-0 xl:flex-col xl:gap-4 xl:overflow-y-auto xl:bg-[var(--page-layer)] xl:px-5 xl:py-8">
+          <aside className="scrollbar-hidden hidden border-l border-[var(--border)] xl:flex xl:h-full xl:w-[320px] xl:shrink-0 xl:flex-col xl:gap-4 xl:overflow-y-auto xl:bg-[var(--page-layer)] xl:px-5 xl:py-8">
             {rightColumn}
           </aside>
         )}

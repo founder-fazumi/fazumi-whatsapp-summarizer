@@ -6,6 +6,40 @@
 
 ---
 
+## Story - Dashboard scrollbar and footer layout polish (2026-03-13) [DONE]
+
+> Spec file: `specs/layout-polish-scrollbars-footer-2026-03-13.md`
+> Rule: keep this slice limited to shared shell/layout behavior. Do not change auth, billing, or page content logic.
+
+#### LSF1 - Hide dashboard pane scrollbar chrome without breaking scroll [Codex]
+**Why:** The desktop dashboard shell intentionally uses nested scroll panes, but the visible browser scrollbars on the center pane and right rail add UI noise.
+**Files:** `components/layout/DashboardShell.tsx`, `app/globals.css`
+**Acceptance:**
+- [x] The center dashboard pane still scrolls normally.
+- [x] The right dashboard rail still scrolls normally.
+- [x] Scrollbar hiding is scoped to the dashboard shell and remains cross-browser safe.
+
+#### LSF2 - Restore footer reachability on routes that should include the shared footer [Codex]
+**Why:** The root layout renders one shared footer, but several public/auth wrappers still force their own viewport-height shells and push that footer below the fold on shorter pages.
+**Files:** `app/layout.tsx`, `components/layout/PublicPageShell.tsx`, `components/layout/RouteAwareFooter.tsx`, `app/login/page.tsx`, `app/reset-password/page.tsx`
+**Acceptance:**
+- [x] Public and auth routes that are supposed to show the shared footer keep it visible/reachable.
+- [x] Footerless dashboard routes stay footerless.
+- [x] Existing responsive behavior and page content remain intact.
+
+#### LSF3 - Verify and record the shell polish [Codex]
+**Why:** Shared layout changes are only safe to ship once the repo checks and shell rules are documented.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] `pnpm build` passes.
+- [x] The decision, lesson, and Ralph progress logs capture the shell/footer rule.
+
+**Verification note:** `pnpm test` still has one pre-existing failure in `e2e/app-smoke.spec.ts` (`desktop sidebar keeps lower nav items visible while content scrolls`) caused by the duplicate `/settings` sidebar locator already called out in the existing checklist. The rest of the suite completed with `39 passed`, `4 skipped`, and `6 did not run` after the first failure stopped the remainder.
+
+---
+
 ## Story - Support contact layout and public accordion polish (2026-03-13) [DONE]
 
 > Spec file: `specs/support-layout-accordion-polish-2026-03-13.md`
