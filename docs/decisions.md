@@ -357,3 +357,11 @@ Decisions are recorded in chronological order. Each entry includes context, the 
 **Decision:** Keep the footer owned by the root layout and keep dashboard/app-shell routes footerless. Public/auth wrappers that should participate in the shared footer flow must fill the available flex column from the root layout instead of reserving an independent full viewport height. For the dashboard desktop panes, hide scrollbar chrome with a scoped utility class while preserving the existing `overflow-y-auto` behavior.
 **Consequences:** Short public/auth routes can keep their footer visible or readily reachable without per-page footer duplication, while dashboard panes still scroll independently without turning off scrollbars across the rest of the app. Future shared shells should decide footer ownership at the layout boundary first, then size route content to that contract instead of stacking another `100vh` wrapper on top.
 
+---
+
+## D042 - Locale-sensitive public surfaces must follow the live EN/AR context, while public reading scale stays scoped
+**Date:** 2026-03-13
+**Context:** The public site already uses `LangContext` to drive the EN/AR toggle, `document.lang`, and `document.dir`, but `/about` was still reading locale from cookies inside its own page component. That let the page drift from the live toggle state after hydration. The same slice also needed larger public informational copy, but applying that size globally would have changed dashboard/productivity surfaces that were not part of the request.
+**Decision:** Any public surface that must respond immediately to the EN/AR toggle after hydration should derive locale, `lang`, and `dir` from the live client language context instead of reading its own server-side cookie snapshot. Public informational pages should use shared public-reading typography utilities layered through `PublicPageShell`, so public body copy can change as one scoped system without changing dashboard body text.
+**Consequences:** `/about`, `/status`, and future locale-sensitive public routes stay synchronized with the shared language toggle and avoid one-off RTL drift. Public reading-size changes can be made centrally and safely, while dashboard and app-shell typography keep their existing scale unless explicitly included in a later slice.
+

@@ -24,8 +24,8 @@ const COPY = {
     title: { en: "Static status note", ar: "ملاحظة حالة ثابتة" },
     badge: { en: "Manual updates only", ar: "تحديثات يدوية فقط" },
     body: {
-      en: "This page is not fed by live uptime monitoring. It explains the core services Fazumi depends on and points to the internal health endpoint used for basic checks.",
-      ar: "لا تعتمد هذه الصفحة على مراقبة مباشرة لوقت التشغيل. هي تشرح الخدمات الأساسية التي يعتمد عليها Fazumi وتشير إلى مسار الفحص الداخلي المستخدم للتحقق الأساسي.",
+      en: "This page is not fed by live uptime monitoring. It explains the core services Fazumi depends on and what this public note can realistically confirm.",
+      ar: "لا تعتمد هذه الصفحة على مراقبة مباشرة لوقت التشغيل. وهي تشرح الخدمات الأساسية التي يعتمد عليها فازومي وما الذي يمكن لهذه الملاحظة العامة تأكيده بشكل واقعي.",
     },
     date: {
       en: `Snapshot date: ${SNAPSHOT_DATE}`,
@@ -85,14 +85,6 @@ const COPY = {
     },
     email: LEGAL_CONTACT_EMAIL,
   },
-  health: {
-    title: { en: "Internal health checks", ar: "فحوصات الصحة الداخلية" },
-    body: {
-      en: "The /api/health endpoint exists for internal checks and returns simple booleans only. It is not a public real-time status feed.",
-      ar: "يوجد المسار /api/health لأغراض الفحص الداخلي ويعيد قيَمًا منطقية بسيطة فقط. وهو ليس لوحة حالة مباشرة للعامة.",
-    },
-    link: { en: "View /api/health", ar: "عرض /api/health" },
-  },
 } as const;
 
 export default function StatusPage() {
@@ -116,13 +108,13 @@ export default function StatusPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                 <LocalizedText en={COPY.current.label.en} ar={COPY.current.label.ar} />
               </p>
-              <h2 className="mt-1 text-2xl font-semibold text-[var(--foreground)]">
+              <h2 className="public-section-title mt-1 font-semibold text-[var(--foreground)]">
                 <LocalizedText en={COPY.current.title.en} ar={COPY.current.title.ar} />
               </h2>
-              <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+              <p className="public-body-copy mt-2 text-[var(--muted-foreground)]">
                 <LocalizedText en={COPY.current.body.en} ar={COPY.current.body.ar} />
               </p>
-              <p className="mt-2 text-sm text-[var(--muted-foreground)]/85">
+              <p className="mt-2 text-base text-[var(--muted-foreground)]/85">
                 <LocalizedText en={COPY.current.date.en} ar={COPY.current.date.ar} />
               </p>
             </div>
@@ -139,13 +131,13 @@ export default function StatusPage() {
                 <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                   <Icon className="h-5 w-5" />
                 </div>
-                <CardTitle>{pick(title, locale)}</CardTitle>
+                <CardTitle className="public-section-title">{pick(title, locale)}</CardTitle>
               </CardHeader>
               <CardContent className={cn("space-y-3", isArabic && "text-right")}>
                 <span className="inline-flex rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]">
                   {pick(status, locale)}
                 </span>
-                <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                <p className="public-body-copy text-[var(--muted-foreground)]">
                   {pick(note, locale)}
                 </p>
               </CardContent>
@@ -156,10 +148,10 @@ export default function StatusPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader className={cn(isArabic && "text-right")}>
-              <CardTitle>{pick(COPY.history.title, locale)}</CardTitle>
+              <CardTitle className="public-section-title">{pick(COPY.history.title, locale)}</CardTitle>
             </CardHeader>
             <CardContent className={cn(isArabic && "text-right")}>
-              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+              <p className="public-body-copy text-[var(--muted-foreground)]">
                 {pick(COPY.history.body, locale)}
               </p>
             </CardContent>
@@ -167,35 +159,20 @@ export default function StatusPage() {
 
           <Card>
             <CardHeader className={cn(isArabic && "text-right")}>
-              <CardTitle>{pick(COPY.support.title, locale)}</CardTitle>
+              <CardTitle className="public-section-title">{pick(COPY.support.title, locale)}</CardTitle>
             </CardHeader>
             <CardContent className={cn("space-y-4", isArabic && "text-right")}>
               <div className="space-y-2">
-                <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                <p className="public-body-copy text-[var(--muted-foreground)]">
                   {pick(COPY.support.body, locale)}
                 </p>
                 <a
                   href={`mailto:${COPY.support.email}`}
-                  className="inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                  className="inline-flex text-base font-medium text-[var(--primary)] hover:underline"
                   dir="ltr"
                 >
                   {COPY.support.email}
                 </a>
-              </div>
-
-              <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                <p className="text-sm font-semibold text-[var(--foreground)]">
-                  {pick(COPY.health.title, locale)}
-                </p>
-                <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-                  {pick(COPY.health.body, locale)}
-                </p>
-                <Link
-                  href="/api/health"
-                  className="mt-3 inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
-                >
-                  {pick(COPY.health.link, locale)}
-                </Link>
               </div>
             </CardContent>
           </Card>

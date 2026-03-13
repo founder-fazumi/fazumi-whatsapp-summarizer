@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -28,6 +29,13 @@ const MONTH_NAMES: Record<"en" | "ar", string[]> = {
 const COPY = {
   today: { en: "Today", ar: "اليوم" },
   upcoming: { en: "Important Dates", ar: "المواعيد المهمة" },
+  selectedDate: { en: "Selected day", ar: "اليوم المحدد" },
+  selectedDateEmptyTitle: { en: "No items on this date.", ar: "لا توجد عناصر في هذا التاريخ." },
+  selectedDateEmptyBody: {
+    en: "Choose another marked date to review the linked school updates.",
+    ar: "اختر تاريخًا آخر يحمل علامة لمراجعة التحديثات المدرسية المرتبطة به.",
+  },
+  openSummary: { en: "Open summary", ar: "افتح الملخص" },
   emptyTitle: { en: "Nothing here yet.", ar: "لا يوجد شيء هنا بعد." },
   emptyBody: {
     en: "Nothing here yet.",
@@ -49,6 +57,8 @@ export function CalendarWidget() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const isArabic = locale === "ar";
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
@@ -77,6 +87,7 @@ export function CalendarWidget() {
     `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
   function prev() {
+    setSelectedDateKey(null);
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear((year) => year - 1);
@@ -87,6 +98,7 @@ export function CalendarWidget() {
   }
 
   function next() {
+    setSelectedDateKey(null);
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear((year) => year + 1);
@@ -96,11 +108,23 @@ export function CalendarWidget() {
     setViewMonth((month) => month + 1);
   }
 
+  const selectedDateItems = selectedDateKey
+    ? calendarItems.filter((item) => item.dateKey === selectedDateKey)
+    : calendarItems;
+  const selectedDateLabel = selectedDateKey
+    ? formatDate(new Date(`${selectedDateKey}T12:00:00Z`), locale, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
   return (
-    <Card>
+    <Card dir={isArabic ? "rtl" : "ltr"} lang={locale} className={cn(isArabic && "font-arabic")}>
       <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between">
           <button
+            type="button"
             onClick={prev}
             aria-label={locale === "ar" ? "الشهر السابق" : "Previous month"}
             className="rounded-full p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
@@ -113,9 +137,11 @@ export function CalendarWidget() {
               {MONTH_NAMES[locale][viewMonth]} {formatNumber(viewYear)}
             </span>
             <button
+              type="button"
               onClick={() => {
                 setViewMonth(today.getMonth());
                 setViewYear(today.getFullYear());
+                setSelectedDateKey(null);
               }}
               className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs font-medium text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
             >
@@ -124,6 +150,7 @@ export function CalendarWidget() {
           </div>
 
           <button
+            type="button"
             onClick={next}
             aria-label={locale === "ar" ? "الشهر التالي" : "Next month"}
             className="rounded-full p-1.5 text-[var(--muted-foreground)] hover:bg-[var(--surface-muted)]"
@@ -146,19 +173,38 @@ export function CalendarWidget() {
           {cells.map((day, index) => {
             if (!day) return <div key={`empty-${index}`} />;
 
-            const eventCount = eventsByDate[dateKey(day)] ?? 0;
+            const currentDateKey = dateKey(day);
+            const eventCount = eventsByDate[currentDateKey] ?? 0;
+            const isSelected = selectedDateKey === currentDateKey;
             return (
               <div key={`${viewYear}-${viewMonth}-${day}`} className="flex flex-col items-center py-0.5">
-                <span
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDateKey((current) => (current === currentDateKey ? null : currentDateKey));
+                  }}
+                  aria-pressed={isSelected}
+                  aria-label={
+                    eventCount > 0
+                      ? locale === "ar"
+                        ? `اعرض تفاصيل ${formatNumber(day)}`
+                        : `Show details for ${formatNumber(day)}`
+                      : locale === "ar"
+                        ? `${formatNumber(day)}`
+                        : String(day)
+                  }
                   className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium leading-none",
+                    "flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium leading-none transition-colors",
                     isToday(day)
                       ? "bg-[var(--primary)] font-bold text-white"
-                      : "cursor-default text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+                      : isSelected
+                        ? "bg-[var(--surface-muted)] text-[var(--foreground)]"
+                        : "text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
+                    eventCount > 0 && !isToday(day) && "ring-1 ring-[var(--primary)]/30"
                   )}
                 >
                   {formatNumber(day)}
-                </span>
+                </button>
                 {eventCount > 0 && (
                   <div className="mt-0.5 flex gap-0.5">
                     {Array.from({ length: Math.min(eventCount, 3) }, (_, dotIndex) => (
@@ -172,9 +218,14 @@ export function CalendarWidget() {
         </div>
 
         <div className="mt-3 border-t border-[var(--border)] pt-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            {pick(COPY.upcoming, locale)}
-          </p>
+          <div className={cn("mb-2 flex items-baseline justify-between gap-3", isArabic && "text-right")}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+              {selectedDateLabel ? pick(COPY.selectedDate, locale) : pick(COPY.upcoming, locale)}
+            </p>
+            {selectedDateLabel ? (
+              <span className="text-xs font-medium text-[var(--text-strong)]">{selectedDateLabel}</span>
+            ) : null}
+          </div>
 
           {calendarItems.length === 0 ? (
             <div className="rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3">
@@ -183,15 +234,24 @@ export function CalendarWidget() {
                 {pick(COPY.emptyBody, locale)}
               </p>
             </div>
+          ) : selectedDateKey && selectedDateItems.length === 0 ? (
+            <div className={cn("rounded-[var(--radius)] bg-[var(--surface-muted)] px-3 py-3", isArabic && "text-right")}>
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                {pick(COPY.selectedDateEmptyTitle, locale)}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--muted-foreground)]">
+                {pick(COPY.selectedDateEmptyBody, locale)}
+              </p>
+            </div>
           ) : (
             <ul className="space-y-2">
-              {calendarItems.map((item) => (
-                <li key={item.id} className="flex items-start gap-2">
+              {selectedDateItems.map((item) => (
+                <li key={item.id} className={cn("flex items-start gap-2", isArabic && "flex-row-reverse text-right")}>
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--primary)]" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs leading-snug text-[var(--foreground)]">{item.label}</p>
+                    <p className="text-sm leading-snug text-[var(--foreground)]">{item.label}</p>
                     {item.isoDate && (
-                      <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                      <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
                         {formatDate(item.isoDate, locale, {
                           month: "short",
                           day: "numeric",
@@ -199,6 +259,12 @@ export function CalendarWidget() {
                         })}
                       </p>
                     )}
+                    <Link
+                      href={`/history/${item.summaryId}`}
+                      className="mt-1 inline-flex text-sm font-medium text-[var(--primary)] hover:underline"
+                    >
+                      {pick(COPY.openSummary, locale)}
+                    </Link>
                   </div>
                 </li>
               ))}

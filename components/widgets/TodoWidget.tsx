@@ -10,6 +10,7 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/client";
 import { readLocalTodos } from "@/lib/todos/local";
+import { cn } from "@/lib/utils";
 
 const SUMMARY_SAVED_EVENT = "fazumi-summary-saved";
 const TODOS_CHANGED_EVENT = "fazumi-todos-changed";
@@ -44,6 +45,7 @@ type TodoSupabase = ReturnType<typeof createClient>;
 
 export function TodoWidget() {
   const { locale } = useLang();
+  const isArabic = locale === "ar";
   const [todoItems, setTodoItems] = useState<TodoPreview[]>(_cachedItems);
   const [pendingCount, setPendingCount] = useState(_cachedCount);
   const [storageMode, setStorageMode] = useState<"remote" | "local">("remote");
@@ -154,8 +156,8 @@ export function TodoWidget() {
   }, []);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card dir={isArabic ? "rtl" : "ltr"} lang={locale} className={isArabic ? "font-arabic" : undefined}>
+      <CardHeader className={cn("pb-2", isArabic && "text-right")}>
         <CardTitle className="text-sm">
           {pick(COPY.title, locale)}{" "}
           <span className="font-normal text-[var(--muted-foreground)]">
@@ -163,7 +165,7 @@ export function TodoWidget() {
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 pb-3">
+      <CardContent className={cn("space-y-2 pb-3", isArabic && "text-right")}>
         {storageMode === "local" ? (
           <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-3">
             <p className="text-caption font-semibold text-[var(--foreground)]">
@@ -188,7 +190,10 @@ export function TodoWidget() {
           todoItems.map((item) => (
             <div
               key={item.id}
-              className="flex items-start gap-2 rounded-[var(--radius)] px-2.5 py-2 transition-colors hover:bg-[var(--surface-muted)]"
+              className={cn(
+                "flex items-start gap-2 rounded-[var(--radius)] px-2.5 py-2 transition-colors hover:bg-[var(--surface-muted)]",
+                isArabic && "flex-row-reverse text-right"
+              )}
             >
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
               <div className="min-w-0 flex-1">

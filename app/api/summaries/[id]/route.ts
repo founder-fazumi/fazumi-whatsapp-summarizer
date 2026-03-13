@@ -35,10 +35,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
   const { data, error } = await admin
     .from("summaries")
-    .update({ deleted_at: new Date().toISOString() })
+    .delete()
     .eq("id", summaryId)
     .eq("user_id", user.id)
-    .is("deleted_at", null)
     .select("id")
     .maybeSingle<{ id: string }>();
 

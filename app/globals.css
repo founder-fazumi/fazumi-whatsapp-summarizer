@@ -14,6 +14,9 @@
   --text-4xl: 2.75rem;
   --text-5xl: 3.5rem;
   --text-6xl: 4.5rem;
+  --text-public-body: 1.375rem;
+  --text-public-section-title: 1.75rem;
+  --text-public-page-title: clamp(2.375rem, 2.6vw + 1.35rem, 4rem);
 
   /* 4/8/12/16 rhythm */
   --space-1: 0.25rem;
@@ -522,6 +525,21 @@ p,
   box-shadow: var(--shadow-card);
 }
 
+.public-page-title {
+  font-size: var(--text-public-page-title);
+  line-height: var(--leading-tight);
+}
+
+.public-section-title {
+  font-size: var(--text-public-section-title);
+  line-height: var(--leading-snug);
+}
+
+.public-body-copy {
+  font-size: var(--text-public-body);
+  line-height: 1.75;
+}
+
 button,
 .btn {
   line-height: 1.25;
@@ -622,7 +640,7 @@ html[lang="ar"] :where(h3, h4) {
   letter-spacing: 0;
 }
 
-html[lang="ar"] :where(p, .body-text) {
+html[lang="ar"] :where(p, .body-text, .public-body-copy) {
   line-height: var(--leading-loose);
 }
 

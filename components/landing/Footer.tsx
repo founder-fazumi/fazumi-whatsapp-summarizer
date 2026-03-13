@@ -46,7 +46,6 @@ const FOOTER_GROUPS = [
     title: { en: "Help", ar: "المساعدة" },
     links: [
       { label: { en: "Support", ar: "الدعم" }, href: "/contact" },
-      { label: { en: "FAQ", ar: "الأسئلة الشائعة" }, href: "/faq" },
       { label: { en: "Help centre", ar: "مركز المساعدة" }, href: "/help" },
     ],
   },
@@ -218,24 +217,10 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-3 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 border-t border-[var(--border)] pt-6">
           <p className="text-sm text-[var(--muted-foreground)]">
             © {year} Fazumi. {pick(COPY.rights, locale)}
           </p>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link
-              href="/privacy"
-              className="text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-            >
-              {pick({ en: "Privacy-first", ar: "الخصوصية أولًا" }, locale)}
-            </Link>
-            <Link
-              href="/faq"
-              className="text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-            >
-              {pick({ en: "FAQ", ar: "الأسئلة الشائعة" }, locale)}
-            </Link>
-          </div>
         </div>
       </div>
     </footer>

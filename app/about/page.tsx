@@ -1,5 +1,6 @@
+"use client";
+
 import Link from "next/link";
-import { cookies } from "next/headers";
 import {
   CheckCircle2,
   Globe2,
@@ -11,6 +12,7 @@ import {
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLang } from "@/lib/context/LangContext";
 import { pick } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -158,9 +160,8 @@ const COPY = {
   ctaButton: { en: "Start free trial", ar: "ابدأ التجربة المجانية" },
 } as const;
 
-export default async function AboutPage() {
-  const cookieStore = await cookies();
-  const locale = cookieStore.get("fazumi_lang")?.value === "en" ? "en" : "ar";
+export default function AboutPage() {
+  const { locale } = useLang();
   const isArabic = locale === "ar";
   const founderList = pick<readonly string[]>(COPY.founderList, locale);
 
@@ -185,7 +186,7 @@ export default async function AboutPage() {
       >
         <Card className="hero-backdrop overflow-hidden">
           <CardContent className="flex flex-col gap-6 px-6 py-6 sm:px-8 sm:py-8">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className={cn("flex flex-wrap items-center gap-3", isArabic && "justify-end")}>
               <BrandLogo size="lg" />
               <span className="inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)]">
                 {pick(COPY.originBadge, locale)}
@@ -204,10 +205,10 @@ export default async function AboutPage() {
                     isArabic && "text-right"
                   )}
                 >
-                  <p className="text-sm font-semibold text-[var(--foreground)]">
+                  <p className="text-lg font-semibold leading-snug text-[var(--foreground)]">
                     {pick(highlight.title, locale)}
                   </p>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
+                  <p className="public-body-copy mt-2 text-[var(--muted-foreground)]">
                     {pick(highlight.body, locale)}
                   </p>
                 </div>
@@ -223,12 +224,11 @@ export default async function AboutPage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                   <HeartHandshake className="h-5 w-5" />
                 </div>
-                <CardTitle>{pick(COPY.storyTitle, locale)}</CardTitle>
+                <CardTitle className="public-section-title">{pick(COPY.storyTitle, locale)}</CardTitle>
               </div>
             </CardHeader>
             <CardContent className={cn(isArabic && "text-right")}>
-              {/* TODO: verify metric before launch */}
-              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+              <p className="public-body-copy text-[var(--muted-foreground)]">
                 {pick(COPY.storyBody, locale)}
               </p>
             </CardContent>
@@ -240,20 +240,20 @@ export default async function AboutPage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                   <MapPinned className="h-5 w-5" />
                 </div>
-                <CardTitle>{pick(COPY.founderTitle, locale)}</CardTitle>
+                <CardTitle className="public-section-title">{pick(COPY.founderTitle, locale)}</CardTitle>
               </div>
             </CardHeader>
             <CardContent className={cn("space-y-4", isArabic && "text-right")}>
-              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+              <p className="public-body-copy text-[var(--muted-foreground)]">
                 {pick(COPY.founderBody, locale)}
               </p>
               <div className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                <p className="text-sm font-semibold text-[var(--foreground)]">
+                <p className="text-lg font-semibold leading-snug text-[var(--foreground)]">
                   {pick(COPY.founderListTitle, locale)}
                 </p>
                 <ul
                   className={cn(
-                    "mt-3 list-disc space-y-2 text-sm leading-7 text-[var(--muted-foreground)]",
+                    "public-body-copy mt-3 list-disc space-y-2 text-[var(--muted-foreground)]",
                     isArabic ? "pr-5 text-right" : "pl-5"
                   )}
                 >
@@ -272,14 +272,14 @@ export default async function AboutPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
-              <CardTitle>{pick(COPY.missionTitle, locale)}</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className={cn(isArabic && "text-right")}>
-            <p className="text-sm leading-7 text-[var(--foreground)]">
-              {pick(COPY.missionBody, locale)}
-            </p>
-          </CardContent>
+                <CardTitle className="public-section-title">{pick(COPY.missionTitle, locale)}</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className={cn(isArabic && "text-right")}>
+              <p className="public-body-copy text-[var(--foreground)]">
+                {pick(COPY.missionBody, locale)}
+              </p>
+            </CardContent>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -290,11 +290,11 @@ export default async function AboutPage() {
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
                     <value.icon className="h-5 w-5" />
                   </div>
-                  <CardTitle>{pick(value.title, locale)}</CardTitle>
+                  <CardTitle className="public-section-title">{pick(value.title, locale)}</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className={cn(isArabic && "text-right")}>
-                <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                <p className="public-body-copy text-[var(--muted-foreground)]">
                   {pick(value.body, locale)}
                 </p>
               </CardContent>
@@ -306,10 +306,10 @@ export default async function AboutPage() {
           <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
             <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between", isArabic && "sm:flex-row-reverse")}>
               <div className={cn("max-w-2xl", isArabic && "text-right")}>
-                <h2 className="text-2xl font-bold text-[var(--foreground)]">
+                <h2 className="public-section-title font-bold text-[var(--foreground)]">
                   {pick(COPY.ctaTitle, locale)}
                 </h2>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+                <p className="public-body-copy mt-3 text-[var(--muted-foreground)]">
                   {pick(COPY.ctaBody, locale)}
                 </p>
               </div>

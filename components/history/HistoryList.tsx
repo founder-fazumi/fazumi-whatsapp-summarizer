@@ -7,6 +7,7 @@ import { Check, ChevronRight, FileText, Inbox, Link2, Search, Trash2 } from "luc
 import type { SummaryRow } from "@/components/history/types";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useLang } from "@/lib/context/LangContext";
 import { formatDate, formatNumber } from "@/lib/format";
@@ -64,10 +65,10 @@ export function HistoryList({
   const [searchValue, setSearchValue] = useState(query);
   const [groupFilter, setGroupFilter] = useState("");
   const [clientTotalCount, setClientTotalCount] = useState(totalCount);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [deletingAll, setDeletingAll] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const groupOptions = Array.from(
     new Set(summaries.map((summary) => summary.group_name).filter((groupName): groupName is string => Boolean(groupName)))
@@ -75,11 +76,19 @@ export function HistoryList({
   const displayedSummaries = groupFilter
     ? localSummaries.filter((summary) => summary.group_name === groupFilter)
     : localSummaries;
+  const displayedIds = displayedSummaries.map((summary) => summary.id);
+  const selectedIdSet = new Set(selectedIds);
+  const selectedCount = selectedIds.length;
+  const allDisplayedSelected =
+    displayedIds.length > 0 && displayedIds.every((summaryId) => selectedIdSet.has(summaryId));
+  const deleteTargetCount = pendingDeleteIds?.length ?? 0;
 
   useEffect(() => {
     setLocalSummaries(summaries);
     setSearchValue(query);
     setClientTotalCount(totalCount);
+    setSelectedIds([]);
+    setPendingDeleteIds(null);
   }, [query, summaries, totalCount]);
 
   useEffect(() => {
@@ -88,22 +97,45 @@ export function HistoryList({
     }
   }, [groupFilter, groupOptions]);
 
-  async function handleDelete(id: string) {
-    setDeletingId(id);
+  useEffect(() => {
+    setSelectedIds([]);
+    setPendingDeleteIds(null);
+  }, [groupFilter]);
+
+  async function handleDelete(ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    const deletedOnPageCount = localSummaries.filter((summary) => uniqueIds.includes(summary.id)).length;
+
+    if (deletedOnPageCount === 0) {
+      setPendingDeleteIds(null);
+      return;
+    }
+
+    setIsDeleting(true);
     setActionError(null);
+
     const previousSummaries = localSummaries;
-    setLocalSummaries((current) => current.filter((summary) => summary.id !== id));
-    setClientTotalCount((current) => Math.max(0, current - 1));
+    const previousTotal = clientTotalCount;
+    const nextCount = Math.max(0, previousTotal - deletedOnPageCount);
+
+    setLocalSummaries((current) => current.filter((summary) => !uniqueIds.includes(summary.id)));
+    setSelectedIds((current) => current.filter((summaryId) => !uniqueIds.includes(summaryId)));
+    setClientTotalCount(nextCount);
 
     try {
-      const response = await fetch(`/api/summaries/${id}`, { method: "DELETE" });
-      const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      const response = await fetch("/api/summaries", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: uniqueIds }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; deletedCount?: number }
+        | null;
 
       if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error ?? "Could not delete summary.");
+        throw new Error(payload?.error ?? "Could not delete summaries.");
       }
 
-      const nextCount = Math.max(0, clientTotalCount - 1);
       const lastPage = Math.max(1, Math.ceil(nextCount / pageSize));
       if (nextCount > 0 && currentPage > lastPage && pathname) {
         router.push(buildHistoryHref(pathname, query, lastPage));
@@ -115,40 +147,19 @@ export function HistoryList({
       }
     } catch {
       setLocalSummaries(previousSummaries);
-      setClientTotalCount(clientTotalCount);
-      setActionError(locale === "ar" ? "تعذر حذف الملخص. حاول مرة أخرى." : "Could not delete the summary. Try again.");
-    } finally {
-      setDeletingId(null);
-      setConfirmDeleteId(null);
-    }
-  }
-
-  async function handleDeleteAll() {
-    setDeletingAll(true);
-    setActionError(null);
-    const previousSummaries = localSummaries;
-    const previousTotal = clientTotalCount;
-    setLocalSummaries([]);
-    setClientTotalCount(0);
-
-    try {
-      const response = await fetch("/api/summaries", { method: "DELETE" });
-      const payload = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-
-      if (!response.ok || !payload?.ok) {
-        throw new Error(payload?.error ?? "Could not delete summaries.");
-      }
-
-      if (pathname) {
-        router.push(pathname);
-        router.refresh();
-      }
-    } catch {
-      setLocalSummaries(previousSummaries);
       setClientTotalCount(previousTotal);
-      setActionError(locale === "ar" ? "تعذر حذف السجل. حاول مرة أخرى." : "Could not delete the history. Try again.");
+      setActionError(
+        locale === "ar"
+          ? uniqueIds.length === 1
+            ? "تعذر حذف الملخص. حاول مرة أخرى."
+            : "تعذر حذف الملخصات المحددة. حاول مرة أخرى."
+          : uniqueIds.length === 1
+            ? "Could not delete the summary. Try again."
+            : "Could not delete the selected summaries. Try again."
+      );
     } finally {
-      setDeletingAll(false);
+      setIsDeleting(false);
+      setPendingDeleteIds(null);
     }
   }
 
@@ -180,6 +191,38 @@ export function HistoryList({
     }
   }
 
+  function toggleSelection(summaryId: string) {
+    setSelectedIds((current) =>
+      current.includes(summaryId)
+        ? current.filter((id) => id !== summaryId)
+        : [...current, summaryId]
+    );
+  }
+
+  function toggleAllDisplayed() {
+    setSelectedIds((current) => {
+      const currentSet = new Set(current);
+
+      if (allDisplayedSelected) {
+        return current.filter((summaryId) => !displayedIds.includes(summaryId));
+      }
+
+      for (const summaryId of displayedIds) {
+        currentSet.add(summaryId);
+      }
+
+      return Array.from(currentSet);
+    });
+  }
+
+  function openDeleteDialog(ids: string[]) {
+    if (ids.length === 0) {
+      return;
+    }
+
+    setPendingDeleteIds(Array.from(new Set(ids)));
+  }
+
   const totalPages = Math.max(1, Math.ceil(clientTotalCount / pageSize));
   const startItem = clientTotalCount === 0 ? 0 : ((currentPage - 1) * pageSize) + 1;
   const endItem = startItem === 0 ? 0 : startItem + Math.max(localSummaries.length - 1, 0);
@@ -204,18 +247,33 @@ export function HistoryList({
         </div>
 
         {clientTotalCount > 0 ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleDeleteAll()}
-            disabled={deletingAll}
-            data-testid="history-delete-all"
-            className="justify-start text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)] md:justify-center"
-          >
-            <Trash2 className="h-4 w-4" />
-            {deletingAll ? (locale === "ar" ? "جارٍ الحذف..." : "Deleting...") : (locale === "ar" ? "حذف الكل" : "Delete all")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[var(--text-sm)] text-[var(--foreground)]">
+              <input
+                type="checkbox"
+                checked={allDisplayedSelected}
+                onChange={toggleAllDisplayed}
+                data-testid="history-select-all"
+                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)]"
+              />
+              <span>{locale === "ar" ? "تحديد كل الظاهر" : "Select visible"}</span>
+            </label>
+            {selectedCount > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => openDeleteDialog(selectedIds)}
+                data-testid="history-delete-selected"
+                className="justify-start text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)] md:justify-center"
+              >
+                <Trash2 className="h-4 w-4" />
+                {locale === "ar"
+                  ? `حذف المحدد (${formatNumber(selectedCount)})`
+                  : `Delete selected (${formatNumber(selectedCount)})`}
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -341,8 +399,6 @@ export function HistoryList({
       ) : (
         <div className="space-y-3">
           {displayedSummaries.map((summary) => {
-            const isConfirming = confirmDeleteId === summary.id;
-            const isDeleting = deletingId === summary.id;
             const isCopied = copiedId === summary.id;
 
             return (
@@ -351,67 +407,79 @@ export function HistoryList({
                 data-testid="history-row"
                 className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--primary)]"
               >
-                <Link
-                  href={`/history/${summary.id}`}
-                  data-testid="history-row-link"
-                  className="block"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate text-[var(--text-lg)] font-semibold text-[var(--foreground)]">
-                          {summary.title || (locale === "ar" ? "ملخص بدون عنوان" : "Untitled Summary")}
-                        </h2>
-                        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--text-strong)]">
-                          {LANG_LABEL[summary.lang_detected] ?? summary.lang_detected.toUpperCase()}
-                        </span>
-                        {summary.source_kind === "zip" && (
-                          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--primary)]">
-                            ZIP
+                <div className="flex items-start gap-3">
+                  <label className="pt-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedIdSet.has(summary.id)}
+                      onChange={() => toggleSelection(summary.id)}
+                      data-testid="history-select-row"
+                      aria-label={locale === "ar" ? "تحديد هذا الملخص" : "Select this summary"}
+                      className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)]"
+                    />
+                  </label>
+                  <Link
+                    href={`/history/${summary.id}`}
+                    data-testid="history-row-link"
+                    className="block min-w-0 flex-1"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="truncate text-[var(--text-lg)] font-semibold text-[var(--foreground)]">
+                            {summary.title || (locale === "ar" ? "ملخص بدون عنوان" : "Untitled Summary")}
+                          </h2>
+                          <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--text-strong)]">
+                            {LANG_LABEL[summary.lang_detected] ?? summary.lang_detected.toUpperCase()}
+                          </span>
+                          {summary.source_kind === "zip" && (
+                            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold text-[var(--primary)]">
+                              ZIP
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
+                          {formatDate(summary.created_at, locale, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </p>
+                        {summary.group_name && (
+                          <span className="mt-2 inline-flex items-center rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--primary)]">
+                            {summary.group_name}
                           </span>
                         )}
-                      </div>
-                      <p className="mt-1 text-[var(--text-sm)] text-[var(--muted-foreground)]">
-                        {formatDate(summary.created_at, locale, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                      {summary.group_name && (
-                        <span className="mt-2 inline-flex items-center rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--primary)]">
-                          {summary.group_name}
-                        </span>
-                      )}
-                      {summary.source_kind === "zip" && (
-                        <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                          {[
-                            getRangeLabel(summary.source_range, locale),
-                            typeof summary.new_messages_count === "number"
-                              ? locale === "ar"
-                                ? `${formatNumber(summary.new_messages_count)} رسالة جديدة`
-                                : `${formatNumber(summary.new_messages_count)} new messages`
-                              : null,
-                          ].filter(Boolean).join(" • ")}
+                        {summary.source_kind === "zip" && (
+                          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                            {[
+                              getRangeLabel(summary.source_range, locale),
+                              typeof summary.new_messages_count === "number"
+                                ? locale === "ar"
+                                  ? `${formatNumber(summary.new_messages_count)} رسالة جديدة`
+                                  : `${formatNumber(summary.new_messages_count)} new messages`
+                                : null,
+                            ].filter(Boolean).join(" • ")}
+                          </p>
+                        )}
+                        <p className="mt-2 line-clamp-2 text-[var(--text-sm)] leading-6 text-[var(--muted-foreground)]">
+                          {summary.tldr}
                         </p>
-                      )}
-                      <p className="mt-2 line-clamp-2 text-[var(--text-sm)] leading-6 text-[var(--muted-foreground)]">
-                        {summary.tldr}
-                      </p>
-                      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                        {locale === "ar"
-                          ? `${formatNumber(summary.char_count)} حرف`
-                          : `${formatNumber(summary.char_count)} characters`}
-                      </p>
+                        <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                          {locale === "ar"
+                            ? `${formatNumber(summary.char_count)} حرف`
+                            : `${formatNumber(summary.char_count)} characters`}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        className={cn(
+                          "mt-0.5 h-5 w-5 shrink-0 text-[var(--muted-foreground)]",
+                          isRtl && "rotate-180"
+                        )}
+                      />
                     </div>
-                    <ChevronRight
-                      className={cn(
-                        "mt-0.5 h-5 w-5 shrink-0 text-[var(--muted-foreground)]",
-                        isRtl && "rotate-180"
-                      )}
-                    />
-                  </div>
-                </Link>
+                  </Link>
+                </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3">
                   <Button
@@ -424,45 +492,78 @@ export function HistoryList({
                     {isCopied ? (locale === "ar" ? "تم النسخ" : "Copied") : (locale === "ar" ? "نسخ الرابط" : "Copy link")}
                   </Button>
 
-                  {!isConfirming ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirmDeleteId(summary.id)}
-                      className="text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {locale === "ar" ? "حذف" : "Delete"}
-                    </Button>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[var(--text-sm)]">
-                      <span className="text-[var(--muted-foreground)]">
-                        {locale === "ar" ? "تأكيد الحذف؟" : "Delete this?"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(summary.id)}
-                        disabled={isDeleting}
-                        className="font-semibold text-[var(--destructive)] disabled:opacity-50"
-                      >
-                        {isDeleting ? (locale === "ar" ? "جارٍ..." : "Deleting...") : (locale === "ar" ? "نعم" : "Yes")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="text-[var(--muted-foreground)] hover:text-[var(--text-strong)]"
-                      >
-                        {locale === "ar" ? "لا" : "No"}
-                      </button>
-                    </div>
-                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openDeleteDialog([summary.id])}
+                    className="text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {locale === "ar" ? "حذف" : "Delete"}
+                  </Button>
                 </div>
               </article>
             );
           })}
         </div>
       )}
+
+      <Dialog
+        open={pendingDeleteIds !== null}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setPendingDeleteIds(null);
+          }
+        }}
+        title={
+          deleteTargetCount > 1
+            ? locale === "ar"
+              ? "حذف الملخصات المحددة"
+              : "Delete selected summaries"
+            : locale === "ar"
+              ? "حذف الملخص"
+              : "Delete summary"
+        }
+      >
+        <div dir={isRtl ? "rtl" : "ltr"} lang={locale} className={cn("space-y-4", isRtl && "font-arabic text-right")}>
+          <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
+            {deleteTargetCount > 1
+              ? locale === "ar"
+                ? `سيتم حذف ${formatNumber(deleteTargetCount)} ملخصات نهائيًا من السجل. هل تريد المتابعة؟`
+                : `This will permanently delete ${formatNumber(deleteTargetCount)} summaries from your history. Continue?`
+              : locale === "ar"
+                ? "سيتم حذف هذا الملخص نهائيًا من السجل. هل تريد المتابعة؟"
+                : "This will permanently delete this summary from your history. Continue?"}
+          </p>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingDeleteIds(null)}
+              disabled={isDeleting}
+            >
+              {locale === "ar" ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleDelete(pendingDeleteIds ?? [])}
+              disabled={isDeleting}
+              data-testid="history-delete-confirm"
+              className="whitespace-normal"
+            >
+              {isDeleting
+                ? locale === "ar"
+                  ? "جارٍ الحذف..."
+                  : "Deleting..."
+                : locale === "ar"
+                  ? "نعم، احذف"
+                  : "Yes, delete"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       {clientTotalCount > 0 && totalPages > 1 ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

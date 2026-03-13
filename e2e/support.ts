@@ -698,7 +698,11 @@ export async function getSummaryDeletedAt(summaryId: string) {
     throw new Error(`Could not verify deleted summary ${summaryId}: ${error.message}`);
   }
 
-  return data?.deleted_at ?? null;
+  if (!data) {
+    return "__deleted__";
+  }
+
+  return data.deleted_at ?? null;
 }
 
 export async function getSubscription(subscriptionId: string) {

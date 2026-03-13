@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
@@ -13,7 +13,7 @@ function getAdminClient() {
   return createAdminClient(adminUrl, adminKey);
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,12 +29,18 @@ export async function DELETE() {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
-  const { data, error } = await admin
+  const payload = (await request.json().catch(() => null)) as { ids?: string[] } | null;
+  const ids = Array.from(new Set((payload?.ids ?? []).filter((value): value is string => typeof value === "string" && value.length > 0)));
+  let query = admin
     .from("summaries")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .select("id");
+    .delete()
+    .eq("user_id", user.id);
+
+  if (ids.length > 0) {
+    query = query.in("id", ids);
+  }
+
+  const { data, error } = await query.select("id");
 
   if (error) {
     console.error("[DELETE_ALL] Supabase error:", error);

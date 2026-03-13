@@ -214,26 +214,35 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
       {showUsageCard && (
         <div className="border-t border-[var(--sidebar-border)] px-4 py-4">
-          <div className="surface-panel-muted px-4 py-4">
-            <div className="mb-3 flex items-center justify-between gap-3 text-xs">
-              <span className="font-semibold text-[var(--foreground)]">
+          <div className="surface-panel-muted space-y-3 px-4 py-4">
+            <div className="flex flex-col gap-1 text-xs sm:flex-row sm:items-start sm:justify-between">
+              <span className="min-w-0 text-sm font-semibold leading-snug text-[var(--foreground)]">
                 {pick(COPY.freePlan, locale)}
               </span>
               {tierKey === "trial" && (
-                <span className="text-[var(--muted-foreground)]">
+                <span
+                  className={cn(
+                    "max-w-full text-xs leading-relaxed text-[var(--muted-foreground)] break-words",
+                    isArabic && "sm:text-right"
+                  )}
+                >
                   {pick(COPY.trialActive, locale)}
                 </span>
               )}
             </div>
-            <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[var(--muted-foreground)]">
-              <span>{pick(COPY[usageProgress.label], locale)}</span>
-              <span data-testid="sidebar-usage-label">{usageDisplay}</span>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-xs text-[var(--muted-foreground)]">
+                <span className="min-w-0 break-words">{pick(COPY[usageProgress.label], locale)}</span>
+                <span data-testid="sidebar-usage-label" className="shrink-0 text-[var(--text-strong)]">
+                  {usageDisplay}
+                </span>
+              </div>
+              <Progress value={usageProgress.value} max={usageProgress.max} className="h-1.5" />
             </div>
-            <Progress value={usageProgress.value} max={usageProgress.max} className="mb-3 h-1.5" />
             <Link
               href="/billing"
               onClick={onNavigate}
-              className="inline-flex h-9 w-full items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] px-4 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
+              className="inline-flex min-h-10 w-full items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-center text-sm font-semibold leading-snug text-white shadow-[var(--shadow-sm)] whitespace-normal hover:bg-[var(--primary-hover)]"
             >
               {upgradeLabel}
             </Link>

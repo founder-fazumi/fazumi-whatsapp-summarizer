@@ -40,6 +40,54 @@
 
 ---
 
+## Story - Arabic UX, footer cleanup, and history/calendar controls (2026-03-13) [DONE]
+
+> Rule: keep this slice limited to the reported public/dashboard UX regressions. Prefer shared locale, layout, and data-flow fixes over one-off page hacks, and do not touch unrelated auth/billing/runtime behavior.
+
+#### AHF1 - Audit the reported routes/components and map each issue to the real shared source [Codex]
+**Why:** The request spans public pages, shared shells, dashboard widgets, and persisted history actions; we need the exact sources before editing.
+**Files:** `app/about/page.tsx`, `app/status/page.tsx`, `components/landing/Footer.tsx`, `components/layout/Sidebar.tsx`, `components/history/HistoryList.tsx`, `components/widgets/CalendarWidget.tsx`, `app/(dashboard)/todo/page.tsx`, related locale/helpers
+**Acceptance:**
+- [x] The root cause/source is identified for each of issues 1-9.
+- [x] Unrelated dirty worktree files are left untouched.
+
+#### AHF2 - Fix shared Arabic RTL/localization and footer/status/public copy issues [Codex]
+**Why:** `/about`, `/status`, footer links, and `/todo` should use the same locale/direction system cleanly without duplicated hacks.
+**Files:** `app/about/page.tsx`, `app/status/page.tsx`, `components/landing/Footer.tsx`, shared locale/i18n helpers as needed
+**Acceptance:**
+- [x] `/about` renders correctly in Arabic RTL and still renders English LTR correctly.
+- [x] The public `/status` health-check block is removed from UI markup.
+- [x] The requested footer links are removed without dead spacing.
+- [x] `/todo` and the dashboard action-list label use the correct Arabic locale-aware strings.
+
+#### AHF3 - Fix shared typography/card layout issues without breaking responsive behavior [Codex]
+**Why:** The requested size increase and dashboard overflow issue should be solved at the appropriate shared token/component level.
+**Files:** shared typography token/component source, `components/layout/Sidebar.tsx`, any touched shared card/layout styles
+**Acceptance:**
+- [x] The affected public-site body copy uses the approved larger size in the correct scope.
+- [x] Heading hierarchy remains coherent after the size change.
+- [x] The dashboard plan/usage card no longer bleeds text outside the card in EN or AR.
+
+#### AHF4 - Add persisted history multi-delete with confirmation and calendar day details [Codex]
+**Why:** The current history delete affordance is too limited, and the calendar already has date markers that should expose the underlying date-specific items.
+**Files:** `components/history/HistoryList.tsx`, `app/api/summaries/[summaryId]/route.ts`, related summaries API/helpers, `components/widgets/CalendarWidget.tsx`, related dashboard insights/data hooks
+**Acceptance:**
+- [x] Users can select one or multiple history items to delete.
+- [x] Deletion requires explicit confirmation and removes records from persisted backend state.
+- [x] The history UI refreshes cleanly after delete.
+- [x] Clicking a marked calendar date shows the related items below the calendar.
+
+#### AHF5 - Verify, document, and keep the release gate clean [Codex]
+**Why:** Shared UX changes are only safe once the repo checks, smoke evidence, and project logs are updated.
+**Files:** `tasks/todo.md`, `docs/decisions.md`, `tasks/lessons.md`, `scripts/ralph/progress.txt`, affected tests if needed
+**Acceptance:**
+- [x] `pnpm lint` passes.
+- [x] `pnpm typecheck` passes.
+- [x] Relevant tests/build/smoke verification for the touched flows are run and recorded.
+- [x] Decisions/lessons/Ralph progress capture any new shared rule introduced by this slice.
+
+---
+
 ## Story - Support contact layout and public accordion polish (2026-03-13) [DONE]
 
 > Spec file: `specs/support-layout-accordion-polish-2026-03-13.md`

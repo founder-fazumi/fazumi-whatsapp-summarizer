@@ -73,9 +73,9 @@ export function FamilyCoordinationCard() {
   const hasContent = todoItems.length > 0 || calendarItems.length > 0;
 
   return (
-    <Card className="bg-[var(--surface-elevated)]">
-      <CardHeader>
-        <div className="flex items-center gap-3">
+    <Card dir={isRtl ? "rtl" : "ltr"} lang={locale} className={cn("bg-[var(--surface-elevated)]", isRtl && "font-arabic")}>
+      <CardHeader className={cn(isRtl && "text-right")}>
+        <div className={cn("flex items-center gap-3", isRtl && "flex-row-reverse")}>
           <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--primary-soft)] text-[var(--primary)]">
             <Users className="h-5 w-5" />
           </div>
@@ -95,7 +95,7 @@ export function FamilyCoordinationCard() {
                 </p>
                 <ul className="mt-3 space-y-2 text-sm text-[var(--foreground)]">
                   {todoItems.slice(0, 4).map((item) => (
-                    <li key={item.id} className="flex items-start gap-2">
+                    <li key={item.id} className={cn("flex items-start gap-2", isRtl && "flex-row-reverse text-right")}>
                       <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
                       <span>{item.label}</span>
                     </li>
@@ -109,7 +109,7 @@ export function FamilyCoordinationCard() {
                 </p>
                 <ul className="mt-3 space-y-2 text-sm text-[var(--foreground)]">
                   {calendarItems.slice(0, 4).map((item) => (
-                    <li key={item.id} className="flex items-start gap-2">
+                    <li key={item.id} className={cn("flex items-start gap-2", isRtl && "flex-row-reverse text-right")}>
                       <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
                       <span>
                         {item.isoDate
@@ -125,7 +125,7 @@ export function FamilyCoordinationCard() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className={cn("flex flex-wrap gap-3", isRtl && "justify-end")}>
               <Button type="button" onClick={() => void handleCopy()}>
                 <Copy className="h-4 w-4" />
                 {copied ? copy.copied : copy.copy}

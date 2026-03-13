@@ -533,3 +533,11 @@
 **Why:** Payment-review copy was spread across many public surfaces and some machine-readable metadata, so updating only one policy page was not enough to make the commercial story coherent.
 **Rule:** Any billing-policy change must be verified with one repo-wide scan across `app`, `components`, `lib`, `public`, and the internal source-of-truth docs (`docs/decisions.md`, runbooks, README) for refund windows, refund qualifiers, provider names, founder seat caps, staging language, and old production-domain defaults before release. Public copy stays provider-neutral until checkout is fully live, and the public refund rule must stay a simple 14-day initial-purchase minimum.
 **Quick test:** Run `rg -n "14-day|7-day money-back|final sale|no refund|Lemon Squeezy|coming soon|provider approval pending|350|fazumi\\.app" README.md docs app components lib public` and confirm the only remaining provider-specific hits are internal implementation code paths or verified social/profile links.
+
+---
+
+## L061 — History actions labeled "delete" must remove persisted summaries, not only hide them
+**Mistake:** The history UI exposed destructive delete wording, but the summaries API was still only soft-deleting records with `deleted_at`, which made the user-facing behavior less final than the product copy implied and complicated the new batch-delete flow.
+**Why:** The original delete path had been implemented as a safer archive-style backend action, but the UI, smoke expectations, and user request all treated it as a real removal flow rather than an internal archival state.
+**Rule:** If a parent-facing FAZUMI control is labeled "delete" for history/summaries, the backend path behind it must remove the persisted record or the product copy must be renamed consistently to "archive". Batch deletion should reuse the same confirmed destructive contract instead of introducing a second semantic path.
+**Quick test:** Delete a summary from `/history`, refresh the page, and confirm the row is gone and the underlying `summaries` query for that `id` returns no record for that user.
