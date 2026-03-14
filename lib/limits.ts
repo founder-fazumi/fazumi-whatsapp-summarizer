@@ -29,6 +29,10 @@ export type EntitlementSubscription = {
   ls_update_payment_method_url?: string | null;
   ls_subscription_id?: string | null;
   ls_order_id?: string | null;
+  // Paddle fields — optional, absent for LS-only rows
+  paddle_subscription_id?: string | null;
+  paddle_transaction_id?: string | null;
+  paddle_management_url?: string | null;
 };
 
 export type ResolvedEntitlement = {
@@ -110,7 +114,9 @@ function pickRelevantPaidSubscription(
   }
 
   const recurringPaidSubscriptions = paidSubscriptions.filter(
-    (subscription) => typeof subscription.ls_subscription_id === "string" && subscription.ls_subscription_id.length > 0
+    (subscription) =>
+      (typeof subscription.ls_subscription_id === "string" && subscription.ls_subscription_id.length > 0) ||
+      (typeof subscription.paddle_subscription_id === "string" && subscription.paddle_subscription_id.length > 0)
   );
   const candidates = recurringPaidSubscriptions.length > 0
     ? recurringPaidSubscriptions
@@ -144,13 +150,17 @@ export function resolveEntitlement(params: {
       billingPlan,
       subscriptionStatus: subscription.status ?? null,
       currentPeriodEnd: subscription.current_period_end ?? null,
-      customerPortalUrl: subscription.ls_customer_portal_url ?? null,
-      updatePaymentMethodUrl: subscription.ls_update_payment_method_url ?? null,
-      subscriptionId: subscription.ls_subscription_id ?? null,
-      orderId: subscription.ls_order_id ?? null,
+      customerPortalUrl: subscription.ls_customer_portal_url ?? subscription.paddle_management_url ?? null,
+      updatePaymentMethodUrl: subscription.ls_update_payment_method_url ?? subscription.paddle_management_url ?? null,
+      subscriptionId: subscription.ls_subscription_id ?? subscription.paddle_subscription_id ?? null,
+      orderId: subscription.ls_order_id ?? subscription.paddle_transaction_id ?? null,
     } as const;
 
-    if (subscription.status === "active") {
+    // active    = normal paid state
+    // past_due  = payment retry window; Paddle retries automatically before
+    //             moving to canceled — preserve access during that window.
+    //             This also correctly grants LS past_due users a grace period.
+    if (subscription.status === "active" || subscription.status === "past_due") {
       return {
         tierKey: billingPlan,
         effectivePlan: billingPlan,
