@@ -100,7 +100,11 @@ export function HistoryList({
   useEffect(() => {
     setSelectedIds([]);
     setPendingDeleteIds(null);
-  }, [groupFilter]);
+    // Reset pagination to page 1 when group filter changes
+    if (pathname) {
+      router.push(buildHistoryHref(pathname, query, 1));
+    }
+  }, [groupFilter, pathname, query, router]);
 
   async function handleDelete(ids: string[]) {
     const uniqueIds = Array.from(new Set(ids));
