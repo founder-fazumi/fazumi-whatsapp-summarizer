@@ -29,17 +29,33 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
-  const payload = (await request.json().catch(() => null)) as { ids?: string[] } | null;
-  const ids = Array.from(new Set((payload?.ids ?? []).filter((value): value is string => typeof value === "string" && value.length > 0)));
-  let query = admin
+  let payload: { ids?: unknown };
+  try {
+    payload = (await request.json()) as { ids?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (!payload || !Array.isArray(payload.ids)) {
+    return NextResponse.json({ error: "ids must be an array" }, { status: 400 });
+  }
+
+  const ids = Array.from(
+    new Set(
+      payload.ids.filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+
+  if (ids.length === 0) {
+    return NextResponse.json({ error: "ids array must not be empty" }, { status: 400 });
+  }
+
+  const query = admin
     .from("summaries")
     .update({ deleted_at: new Date().toISOString() })
     .eq("user_id", user.id)
-    .is("deleted_at", null);
-
-  if (ids.length > 0) {
-    query = query.in("id", ids);
-  }
+    .is("deleted_at", null)
+    .in("id", ids);
 
   const { data, error } = await query.select("id");
 
