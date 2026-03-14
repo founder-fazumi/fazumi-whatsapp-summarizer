@@ -20,7 +20,7 @@ type DemoState = "idle" | "typing" | "loading" | "preview" | "error";
 
 const HEADLINE_INTERVAL_MS = 3_000;
 const HEADLINE_SWAP_DELAY_MS = 200;
-const DEMO_MAX_CHARS = 500;
+const DEMO_MAX_CHARS = 2500;
 
 const HEADLINES = [
   {
@@ -83,8 +83,8 @@ const COPY = {
     ar: "الصق محادثة مجموعتك المدرسية هنا — واتساب أو تيليجرام أو فيسبوك…",
   },
   demoHint: {
-    en: "Demo limit: 500 characters",
-    ar: "حد التجربة: 500 حرف",
+    en: "Demo limit: 2,500 characters",
+    ar: "حد التجربة: 2500 حرف",
   },
   demoUseSample: {
     en: "Use sample chat",

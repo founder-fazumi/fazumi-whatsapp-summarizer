@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 // In-process rate limit: 1 demo per IP per 2 minutes (resets on cold start)
 const ipLastRequest = new Map<string, number>();
 const RATE_LIMIT_MS = 2 * 60 * 1000;
-const MAX_DEMO_CHARS = 500;
+const MAX_DEMO_CHARS = 2500;
 
 export async function POST(req: NextRequest) {
   const ip =
