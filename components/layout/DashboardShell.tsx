@@ -23,17 +23,17 @@ export function DashboardShell({
   const mobileDockSpacingClass = "pb-[calc(env(safe-area-inset-bottom)+7rem)] xl:pb-0";
 
   return (
-    <div className={cn("flex flex-1 bg-[var(--background)] text-[var(--foreground)]", className)}>
+    <div className={cn("min-h-screen bg-[var(--background)] text-[var(--foreground)]", className)}>
       <TopBar />
 
-      <div className="flex flex-1 xl:h-[calc(100dvh-3.5rem)] xl:overflow-hidden">
+      <div className="flex min-h-[calc(100vh-3.5rem)] xl:h-[calc(100dvh-3.5rem)] xl:overflow-hidden">
         <div className="hidden border-r border-[var(--sidebar-border)] xl:flex xl:h-full xl:w-[264px] xl:shrink-0 xl:flex-col xl:overflow-hidden">
           <Sidebar className="h-full" />
         </div>
 
         <main
           data-testid="dashboard-shell-main"
-          className={cn("scrollbar-hidden flex-1 overflow-y-auto", mobileDockSpacingClass)}
+          className={cn("scrollbar-hidden flex-1 overflow-y-auto xl:h-full", mobileDockSpacingClass)}
         >
           <div
             className={cn(
