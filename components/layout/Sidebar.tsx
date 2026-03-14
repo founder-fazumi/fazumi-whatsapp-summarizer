@@ -182,7 +182,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         className
       )}
     >
-      <nav className="flex-1 overflow-y-auto px-4 py-5">
+      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-4 py-5">
         <ul className="space-y-1.5">
           {navItems.map(({ href, labelKey, icon: Icon, primary, iconClassName }) => {
             const active = isActive(href);

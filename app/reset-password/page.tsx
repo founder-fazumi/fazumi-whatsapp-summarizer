@@ -333,6 +333,7 @@ export default function ResetPasswordPage() {
                             ? "إظهار كلمة المرور"
                             : "Show password"
                       }
+                      aria-pressed={showPassword}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -372,6 +373,7 @@ export default function ResetPasswordPage() {
                             ? "إظهار كلمة المرور"
                             : "Show password"
                       }
+                      aria-pressed={showConfirmPassword}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>

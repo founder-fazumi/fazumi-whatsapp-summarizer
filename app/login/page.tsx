@@ -417,6 +417,7 @@ export default function LoginPage() {
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                         onClick={() => setShowPass((s) => !s)}
                         aria-label={showPass ? (locale === "ar" ? "إخفاء كلمة المرور" : "Hide password") : (locale === "ar" ? "إظهار كلمة المرور" : "Show password")}
+                        aria-pressed={showPass}
                       >
                         {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -527,6 +528,7 @@ export default function LoginPage() {
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                         onClick={() => setShowPass((s) => !s)}
                         aria-label={showPass ? (locale === "ar" ? "إخفاء كلمة المرور" : "Hide password") : (locale === "ar" ? "إظهار كلمة المرور" : "Show password")}
+                        aria-pressed={showPass}
                       >
                         {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
