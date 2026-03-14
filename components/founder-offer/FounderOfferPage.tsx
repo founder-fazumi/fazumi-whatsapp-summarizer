@@ -90,7 +90,7 @@ function FounderPrimaryCta({
 }) {
   return (
     <CheckoutButton
-      variantId={FOUNDER_OFFER_CHECKOUT_VARIANT}
+      priceId={FOUNDER_OFFER_CHECKOUT_VARIANT}
       className={cn(
         buttonVariants({ size: "lg" }),
         "min-h-12 w-full rounded-full px-6 text-sm sm:w-auto sm:text-base",

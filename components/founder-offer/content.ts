@@ -1,11 +1,11 @@
-import { lsVariantIds } from "@/lib/config/public";
+import { paddlePriceIds } from "@/lib/config/public";
 import type { LocalizedCopy } from "@/lib/i18n";
 
 export const FOUNDER_OFFER_ROUTE = "/founder-supporter";
 export const FOUNDER_SUPPORT_ROUTE = "/founder-support";
 export const FOUNDER_OFFER_PRICE = 149;
 export const FOUNDER_OFFER_LIMIT = 200;
-export const FOUNDER_OFFER_CHECKOUT_VARIANT = lsVariantIds.founder ?? "";
+export const FOUNDER_OFFER_CHECKOUT_VARIANT = paddlePriceIds.founder ?? "";
 export const FOUNDER_HOW_IT_WORKS_ID = "how-it-works";
 export const FOUNDER_PLAN_SECTION_ID = "founder-plan";
 

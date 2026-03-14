@@ -10,7 +10,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { paymentProviderApprovalNote, paymentsComingSoon } from "@/lib/payments-ui";
-import { lsVariantIds, lsVariantsConfigured } from "@/lib/config/public";
+import { paddlePriceIds, paddleConfigured } from "@/lib/config/public";
 
 type Billing = "monthly" | "yearly";
 
@@ -374,12 +374,12 @@ export function Pricing({
                   </Link>
                 ) : (
                   <CheckoutButton
-                    variantId={
+                    priceId={
                       plan.id === "founder"
-                        ? lsVariantIds.founder ?? ""
+                        ? paddlePriceIds.founder ?? ""
                         : billing === "yearly"
-                          ? lsVariantIds.annual ?? ""
-                          : lsVariantIds.monthly ?? ""
+                          ? paddlePriceIds.annual ?? ""
+                          : paddlePriceIds.monthly ?? ""
                     }
                     isLoggedIn={isLoggedIn}
                     className={cn(
@@ -422,7 +422,7 @@ export function Pricing({
         <p className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
           {pick(COPY.billingExplain, locale)}
         </p>
-        {(paymentsComingSoon || !lsVariantsConfigured) ? (
+        {(paymentsComingSoon || !paddleConfigured) ? (
           <p
             className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]"
             role="status"

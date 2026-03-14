@@ -3,28 +3,25 @@
 import { useState } from "react";
 import { useLang } from "@/lib/context/LangContext";
 import { BILLING_CONTACT_EMAIL } from "@/lib/config/legal";
-import { lsVariantsConfigured } from "@/lib/config/public";
-import {
-  isValidCheckoutVariantId,
-  normalizeVariantId,
-} from "@/lib/lemonsqueezy-config";
+import { paddleConfigured } from "@/lib/config/public";
+import { normalizePriceId, isValidPaddlePriceId } from "@/lib/paddle-config";
 import { paymentsComingSoon } from "@/lib/payments-ui";
 
 interface Props {
-  variantId: string;
+  priceId: string;
   children: React.ReactNode;
   className?: string;
   isLoggedIn?: boolean;
 }
 
-export function CheckoutButton({ variantId, children, className }: Props) {
+export function CheckoutButton({ priceId, children, className }: Props) {
   const { locale } = useLang();
   const [loading, setLoading] = useState(false); // stays true after click (navigating away)
-  const normalizedVariantId = normalizeVariantId(variantId);
+  const normalizedPriceId = normalizePriceId(priceId);
   const checkoutState = !paymentsComingSoon &&
-    lsVariantsConfigured &&
-    normalizedVariantId &&
-    isValidCheckoutVariantId(normalizedVariantId)
+    paddleConfigured &&
+    normalizedPriceId &&
+    isValidPaddlePriceId(normalizedPriceId)
     ? "ready"
     : "contact_billing";
 
@@ -48,7 +45,7 @@ export function CheckoutButton({ variantId, children, className }: Props) {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variant: normalizedVariantId }),
+        body: JSON.stringify({ price: normalizedPriceId }),
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
