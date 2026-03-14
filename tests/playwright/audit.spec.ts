@@ -85,7 +85,12 @@ const EXPECTED_DIR_BY_LOCALE = {
   ar: "rtl",
 } as const;
 const SPACING_SCALE_PX = [4, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96];
-const TYPOGRAPHY_SCALE_PX = [12, 14, 16, 17, 18, 20, 24, 32, 40, 48, 56, 64, 72];
+// Scale derived from CSS token system (globals.css --text-* vars, base 16px):
+// 13=text-xs(0.8125rem), 15=text-sm(0.9375rem), 17=text-base(1.0625rem),
+// 19=text-lg(1.1875rem), 22=text-xl/public-body(1.375rem),
+// 28=text-2xl/public-section(1.75rem), 34=text-3xl(2.125rem), 44=text-4xl(2.75rem),
+// 56=text-5xl, 64=page-title-max, 72=text-6xl. Legacy/admin values kept for shadcn/admin surfaces.
+const TYPOGRAPHY_SCALE_PX = [12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 28, 32, 34, 40, 44, 48, 56, 64, 72];
 
 type Locale = "en" | "ar";
 type Audience = "public" | "authenticated" | "admin";
