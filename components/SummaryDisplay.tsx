@@ -72,15 +72,6 @@ const EXPORT_HEADINGS: Record<OutputLang, Record<SectionKey, string>> = {
   },
 };
 
-const EXPORT_HEADING_EMOJIS: Record<SectionKey, string> = {
-  tldr: "📝",
-  important_dates: "📅",
-  action_items: "✅",
-  people_classes: "👥",
-  links: "🔗",
-  questions: "❓",
-};
-
 const DIR_RLM = "\u200F";
 const DIR_LRM = "\u200E";
 const DIR_RTL_ISOLATE = "\u2067";
@@ -276,18 +267,13 @@ function buildSummaryExportText(
   outputLang: OutputLang,
   emptyLabel: string,
   options?: {
-    includeHeadingEmojis?: boolean;
     applyDirectionMarks?: boolean;
   }
 ): string {
-  const includeHeadingEmojis = options?.includeHeadingEmojis ?? false;
   const applyDirectionMarks = options?.applyDirectionMarks ?? false;
   const normalized = normalizeExportDigits(
     SECTION_ORDER.map((sectionKey) => {
       const baseHeading = EXPORT_HEADINGS[outputLang][sectionKey];
-      const heading = includeHeadingEmojis
-        ? `${EXPORT_HEADING_EMOJIS[sectionKey]} ${baseHeading}`
-        : baseHeading;
       const value = sectionKey === "links" ? getMergedLinkItems(summary) : summary[sectionKey];
       const lines =
         sectionKey === "tldr"
@@ -308,9 +294,9 @@ function buildSummaryExportText(
               : [];
 
       const sectionLines = lines.length > 0 ? lines : [emptyLabel];
-      const separator = "-".repeat(Math.max(5, baseHeading.length + (includeHeadingEmojis ? 3 : 0)));
+      const separator = "-".repeat(Math.max(5, baseHeading.length));
 
-      return [heading, separator, ...sectionLines, ""].join("\n");
+      return [baseHeading, separator, ...sectionLines, ""].join("\n");
     }).join("\n").trim()
   );
 
