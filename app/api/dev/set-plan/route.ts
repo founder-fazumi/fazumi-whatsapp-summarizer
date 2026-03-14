@@ -74,7 +74,7 @@ async function findUserByEmail(
 }
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === "production" && process.env.PLAYWRIGHT_TEST !== "1") {
+  if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
   }
 
