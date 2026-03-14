@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createPaddleCheckoutSession } from "@/lib/paddle";
 import {
-  getPaddlePriceConfig,
   getAllPaddlePriceConfigs,
   getPaddleConfigSummary,
   normalizePriceId,
-  isValidPaddlePriceId,
 } from "@/lib/paddle-config";
 
 export async function POST(req: NextRequest) {
