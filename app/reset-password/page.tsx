@@ -101,18 +101,19 @@ export default function ResetPasswordPage() {
         return;
       }
 
+      // Authoritative check: valid recovery session exists
+      // Do NOT depend on hash presence after hydration
       const isRecoverySession =
-        session?.user &&
-        (window.location.hash.includes("type=recovery") ||
-          session.user.recovery_sent_at != null);
+        session?.user && session.user.recovery_sent_at != null;
+      
       if (isRecoverySession) {
         clearRecoveryHash();
         setRecoveryState("ready");
         return;
       }
 
+      // Retry only if hash still present (user may have refreshed mid-flow)
       const hasRecoveryHash =
-        window.location.hash.includes("type=recovery") ||
         window.location.hash.includes("access_token=");
 
       if (hasRecoveryHash && attempt < 5) {
@@ -139,6 +140,7 @@ export default function ResetPasswordPage() {
         return;
       }
 
+      // Recovery session established via auth event
       if (
         session?.user &&
         (event === "PASSWORD_RECOVERY" ||
@@ -146,8 +148,11 @@ export default function ResetPasswordPage() {
           event === "TOKEN_REFRESHED" ||
           event === "INITIAL_SESSION")
       ) {
-        clearRecoveryHash();
-        setRecoveryState("ready");
+        // Only mark ready if this is actually a recovery session
+        if (session.user.recovery_sent_at != null) {
+          clearRecoveryHash();
+          setRecoveryState("ready");
+        }
       }
     });
 
