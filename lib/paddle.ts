@@ -59,3 +59,73 @@ export function verifyPaddleWebhookSignature(
     }
   });
 }
+
+// ── Checkout Session ─────────────────────────────────────────────────────────
+
+/**
+ * Creates a Paddle hosted checkout session and returns the checkout URL.
+ *
+ * Paddle's hosted checkout requires creating a session via their API.
+ * The session URL is then used to redirect the customer to complete payment.
+ *
+ * @param priceId - Paddle price ID (e.g., pri_01abc...)
+ * @param email - Customer email (prefills checkout form)
+ * @param userId - Our user ID (stored in custom_data for webhook matching)
+ * @param appUrl - App base URL for success/cancel redirects
+ * @returns Checkout URL or null if API call fails
+ */
+interface CreateCheckoutSessionParams {
+  priceId: string;
+  email: string;
+  userId: string;
+  appUrl?: string;
+}
+
+export async function createPaddleCheckoutSession({
+  priceId,
+  email,
+  userId,
+  appUrl,
+}: CreateCheckoutSessionParams): Promise<string | null> {
+  const apiKey = process.env.PADDLE_API_KEY;
+  if (!apiKey) return null;
+
+  const environment = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
+    ? "production"
+    : "sandbox";
+
+  const baseUrl = environment === "production"
+    ? "https://api.paddle.com"
+    : "https://sandbox-api.paddle.com";
+
+  const appUrlOrDefault = appUrl ?? "https://fazumi.com";
+
+  try {
+    const res = await fetch(`${baseUrl}/checkouts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Paddle-Version": "1",
+      },
+      body: JSON.stringify({
+        items: [{ price_id: priceId, quantity: 1 }],
+        customer_email: email,
+        custom_data: { user_id: userId },
+        success_url: `${appUrlOrDefault}/dashboard?upgraded=1`,
+        cancel_url: `${appUrlOrDefault}/pricing`,
+      }),
+    });
+
+    if (!res.ok) {
+      console.error("[paddle-checkout]", res.status, await res.text().catch(() => "unknown"));
+      return null;
+    }
+
+    const json = (await res.json()) as { data?: { hosted_checkout_url?: string } };
+    return json.data?.hosted_checkout_url ?? null;
+  } catch (err) {
+    console.error("[paddle-checkout]", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}

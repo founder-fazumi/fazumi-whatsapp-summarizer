@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { buildCheckoutUrl } from "@/lib/lemonsqueezy";
+import { createPaddleCheckoutSession } from "@/lib/paddle";
 import {
-  findCheckoutVariantConfig,
-  getCheckoutConfigSummary,
-  normalizeVariantId,
-} from "@/lib/lemonsqueezy-config";
+  getPaddlePriceConfig,
+  getAllPaddlePriceConfigs,
+  getPaddleConfigSummary,
+  normalizePriceId,
+  isValidPaddlePriceId,
+} from "@/lib/paddle-config";
 
 export async function POST(req: NextRequest) {
   if (process.env.PAYMENTS_ENABLED !== "1") {
@@ -22,18 +24,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { variant?: string };
+  let body: { price?: string };
   try {
-    body = (await req.json()) as { variant?: string };
+    body = (await req.json()) as { price?: string };
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const requestedVariantId = normalizeVariantId(body.variant);
-  const configSummary = getCheckoutConfigSummary();
-  const selectedVariant = findCheckoutVariantConfig(requestedVariantId);
+  const requestedPriceId = normalizePriceId(body.price);
+  const configSummary = getPaddleConfigSummary();
+  const selectedPrice = getPaddlePriceConfigFromId(requestedPriceId);
 
-  if (!requestedVariantId) {
+  if (!requestedPriceId) {
     return NextResponse.json(
       {
         error: "Checkout is not configured yet.",
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!selectedVariant) {
+  if (!selectedPrice) {
     if (configSummary.ready.length === 0) {
       return NextResponse.json(
         {
@@ -61,19 +63,43 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Invalid checkout variant.", code: "INVALID_VARIANT" },
+      { error: "Invalid checkout price.", code: "INVALID_PRICE" },
       { status: 400 }
     );
   }
 
-  const checkoutUrl = buildCheckoutUrl({
-    variantId: selectedVariant.variantId,
+  const checkoutUrl = await createPaddleCheckoutSession({
+    priceId: selectedPrice.priceId,
     email: user.email,
     userId: user.id,
     appUrl: process.env.NEXT_PUBLIC_APP_URL,
   });
 
+  if (!checkoutUrl) {
+    return NextResponse.json(
+      { error: "Failed to create checkout session.", code: "CHECKOUT_CREATE_FAILED" },
+      { status: 500 }
+    );
+  }
+
   // Return the URL as JSON so the client can navigate without opaque-redirect issues.
   // (fetch with redirect:"manual" makes 307 responses opaque — Location header inaccessible)
   return NextResponse.json({ url: checkoutUrl });
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+/**
+ * Find a valid Paddle price config by price ID.
+ * Mirrors the LS findCheckoutVariantConfig pattern for Paddle.
+ */
+function getPaddlePriceConfigFromId(priceId?: string | null) {
+  const normalized = normalizePriceId(priceId);
+  if (!normalized) return null;
+
+  return (
+    getAllPaddlePriceConfigs().find(
+      (config) => config.state === "ready" && config.priceId === normalized
+    ) ?? null
+  );
 }
