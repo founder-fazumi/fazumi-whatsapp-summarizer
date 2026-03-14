@@ -42,28 +42,27 @@ export function CheckoutButton({ variantId, children, className }: Props) {
       `mailto:${BILLING_CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
-  function handleClick() {
+  async function handleClick() {
     setLoading(true);
-    fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ variant: normalizedVariantId }),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const json = (await res.json().catch(() => ({}))) as { error?: string };
-          console.error("[checkout]", json.error ?? res.status);
-          setLoading(false);
-          return;
-        }
-        const { url } = (await res.json()) as { url: string };
-        if (url) {
-          window.location.href = url;
-        }
-      })
-      .catch(() => {
-        setLoading(false);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variant: normalizedVariantId }),
       });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        console.error("[checkout]", json.error ?? res.status);
+        setLoading(false);
+        return;
+      }
+      const { url } = (await res.json()) as { url: string };
+      if (url) {
+        window.location.href = url;
+      }
+    } catch {
+      setLoading(false);
+    }
   }
 
   if (checkoutState !== "ready") {

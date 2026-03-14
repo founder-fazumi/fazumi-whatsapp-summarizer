@@ -103,6 +103,25 @@ Supabase MCP is configured **read-only** in `.claude/settings.json`:
 
 ---
 
+## Hosted auth settings: leaked password protection
+
+This warning is controlled by hosted Supabase Auth. It is not fixed by a SQL migration in this repo, and `supabase db push` will not change the `auth_leaked_password_protection` warning.
+
+To resolve the warning for a hosted project:
+
+1. Open the Supabase Dashboard for the target project.
+2. Go to `Authentication` -> `Providers` -> `Email` (`/dashboard/project/<project-ref>/auth/providers?provider=Email`).
+3. In the password security section, enable leaked password protection. Supabase Auth checks passwords against the HaveIBeenPwned / Pwned Passwords API.
+4. Save the change.
+
+Operational notes:
+- Leaked password protection is available on the Pro plan and above.
+- This setting is per Supabase project. Enable it separately for production and for any preview/staging project that uses a different project ref.
+- This repo does not currently automate that project setting through SQL, checked-in CLI config, or application code.
+- Existing users can still sign in with their current password. The strengthened password rules apply to new passwords and password changes.
+
+---
+
 ## Supabase MCP query examples (read-only)
 
 ```sql
