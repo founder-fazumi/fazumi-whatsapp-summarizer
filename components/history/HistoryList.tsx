@@ -114,14 +114,6 @@ export function HistoryList({
     setIsDeleting(true);
     setActionError(null);
 
-    const previousSummaries = localSummaries;
-    const previousTotal = clientTotalCount;
-    const nextCount = Math.max(0, previousTotal - deletedOnPageCount);
-
-    setLocalSummaries((current) => current.filter((summary) => !uniqueIds.includes(summary.id)));
-    setSelectedIds((current) => current.filter((summaryId) => !uniqueIds.includes(summaryId)));
-    setClientTotalCount(nextCount);
-
     try {
       const response = await fetch("/api/summaries", {
         method: "DELETE",
@@ -136,6 +128,11 @@ export function HistoryList({
         throw new Error(payload?.error ?? "Could not delete summaries.");
       }
 
+      const nextCount = Math.max(0, clientTotalCount - deletedOnPageCount);
+      setLocalSummaries((current) => current.filter((summary) => !uniqueIds.includes(summary.id)));
+      setSelectedIds((current) => current.filter((summaryId) => !uniqueIds.includes(summaryId)));
+      setClientTotalCount(nextCount);
+
       const lastPage = Math.max(1, Math.ceil(nextCount / pageSize));
       if (nextCount > 0 && currentPage > lastPage && pathname) {
         router.push(buildHistoryHref(pathname, query, lastPage));
@@ -146,8 +143,6 @@ export function HistoryList({
         router.refresh();
       }
     } catch {
-      setLocalSummaries(previousSummaries);
-      setClientTotalCount(previousTotal);
       setActionError(
         locale === "ar"
           ? uniqueIds.length === 1
@@ -253,8 +248,9 @@ export function HistoryList({
                 type="checkbox"
                 checked={allDisplayedSelected}
                 onChange={toggleAllDisplayed}
+                disabled={isDeleting}
                 data-testid="history-select-all"
-                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)]"
+                className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)] disabled:opacity-50"
               />
               <span>{locale === "ar" ? "تحديد كل الظاهر" : "Select visible"}</span>
             </label>
@@ -264,6 +260,7 @@ export function HistoryList({
                 variant="ghost"
                 size="sm"
                 onClick={() => openDeleteDialog(selectedIds)}
+                disabled={isDeleting}
                 data-testid="history-delete-selected"
                 className="justify-start text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)] md:justify-center"
               >
@@ -413,9 +410,10 @@ export function HistoryList({
                       type="checkbox"
                       checked={selectedIdSet.has(summary.id)}
                       onChange={() => toggleSelection(summary.id)}
+                      disabled={isDeleting}
                       data-testid="history-select-row"
                       aria-label={locale === "ar" ? "تحديد هذا الملخص" : "Select this summary"}
-                      className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)]"
+                      className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)] disabled:opacity-50"
                     />
                   </label>
                   <Link
@@ -497,6 +495,7 @@ export function HistoryList({
                     variant="ghost"
                     size="sm"
                     onClick={() => openDeleteDialog([summary.id])}
+                    disabled={isDeleting}
                     data-testid="history-delete-btn"
                     className="text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
                   >
