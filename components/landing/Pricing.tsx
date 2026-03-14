@@ -439,17 +439,18 @@ export function Pricing({
             </a>
             .
           </p>
-        ) : null}
-        <p className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
-          {pick(COPY.billingHelp, locale)}:{" "}
-          <a
-            href={`mailto:${BILLING_CONTACT_EMAIL}`}
-            className="font-medium text-[var(--primary)] hover:underline"
-            dir="ltr"
-          >
-            {BILLING_CONTACT_EMAIL}
-          </a>
-        </p>
+        ) : (
+          <p className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
+            {pick(COPY.billingHelp, locale)}:{" "}
+            <a
+              href={`mailto:${BILLING_CONTACT_EMAIL}`}
+              className="font-medium text-[var(--primary)] hover:underline"
+              dir="ltr"
+            >
+              {BILLING_CONTACT_EMAIL}
+            </a>
+          </p>
+        )}
       </div>
     </section>
   );
