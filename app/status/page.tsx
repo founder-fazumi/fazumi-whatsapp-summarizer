@@ -103,7 +103,7 @@ export default function StatusPage() {
         className="space-y-4"
       >
         <Card className="border bg-[var(--surface-muted)]">
-          <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <CardContent className={cn("flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between", isArabic && "sm:flex-row-reverse")}>
             <div className={cn(isArabic && "text-right")}>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                 <LocalizedText en={COPY.current.label.en} ar={COPY.current.label.ar} />
