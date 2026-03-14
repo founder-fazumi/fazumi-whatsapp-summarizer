@@ -551,8 +551,7 @@ test("history delete smoke: deleting a summary removes it immediately and after 
 
   await page.goto("/history");
   const row = page.getByTestId("history-row").first();
-  await row.hover();
-  await row.getByRole("button", { name: /Delete|حذف/ }).click();
+  await row.getByTestId("history-delete-btn").click();
   await page.getByTestId("history-delete-confirm").click();
   await expect(page.getByTestId("history-row")).toHaveCount(0);
 

@@ -497,6 +497,7 @@ export function HistoryList({
                     variant="ghost"
                     size="sm"
                     onClick={() => openDeleteDialog([summary.id])}
+                    data-testid="history-delete-btn"
                     className="text-[var(--destructive)] hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive)]"
                   >
                     <Trash2 className="h-4 w-4" />
