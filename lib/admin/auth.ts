@@ -46,20 +46,27 @@ export function getAdminCredentials(): AdminCredentials | null {
   return { username, password };
 }
 
-function getAdminCookieSecret() {
-  const credentials = getAdminCredentials();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+function getAdminSigningKey(): string | null {
+  const key = process.env.ADMIN_SIGNING_KEY;
 
-  return credentials
-    ? `fazumi-admin:${credentials.username}:${credentials.password}:${serviceRoleKey}`
-    : `fazumi-admin-disabled:${serviceRoleKey}:no-credentials-configured-${serviceRoleKey.slice(-8)}`;
+  if (!key || key.trim().length === 0) {
+    return null;
+  }
+
+  return key.trim();
 }
 
 function getSigningKey() {
   if (!signingKeyPromise) {
+    const signingKey = getAdminSigningKey();
+
+    if (!signingKey) {
+      throw new Error("ADMIN_SIGNING_KEY is not configured.");
+    }
+
     signingKeyPromise = crypto.subtle.importKey(
       "raw",
-      encoder.encode(getAdminCookieSecret()),
+      encoder.encode(signingKey),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign"]
@@ -204,7 +211,8 @@ export function isAdminDashboardEnabled() {
   return Boolean(
     getAdminDashboardUrl() &&
       process.env.SUPABASE_SERVICE_ROLE_KEY &&
-      getAdminCredentials()
+      getAdminCredentials() &&
+      getAdminSigningKey()
   );
 }
 
