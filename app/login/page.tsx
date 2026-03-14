@@ -11,7 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLang } from "@/lib/context/LangContext";
 import { t } from "@/lib/i18n";
+import { getWeakPasswordMessage } from "@/lib/supabase/password-security";
 import { cn } from "@/lib/utils";
+import { sanitizeRedirectPath, isValidAppRelativePath } from "@/lib/auth/safe-redirect";
 
 type Tab = "login" | "signup";
 const IS_DEV_EMAIL_SIGNUP = process.env.NODE_ENV !== "production";
@@ -43,7 +45,7 @@ export default function LoginPage() {
       setTab(requestedTab);
     }
 
-    setRedirectPath(nextParam && nextParam.startsWith("/") ? nextParam : "/dashboard");
+    setRedirectPath(sanitizeRedirectPath(nextParam, "/dashboard"));
     setAuthErrorCode(params.get("error"));
     setResetStatus(params.get("reset"));
   }, []);
@@ -89,7 +91,7 @@ export default function LoginPage() {
 
   function buildCallbackUrl(nextPath = redirectPath) {
     const callbackUrl = new URL("/auth/callback", window.location.origin);
-    if (nextPath.startsWith("/")) {
+    if (isValidAppRelativePath(nextPath)) {
       callbackUrl.searchParams.set("next", nextPath);
     }
     return callbackUrl.toString();
@@ -139,7 +141,7 @@ export default function LoginPage() {
     const trimmedEmail = email.trim();
     const { error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
     if (error) {
-      setError(error.message);
+      setError(getWeakPasswordMessage(locale, error) ?? error.message);
     } else {
       router.push(redirectPath);
     }
@@ -171,11 +173,25 @@ export default function LoginPage() {
         });
 
         const data = (await response.json().catch(() => null)) as
-          | { ok?: boolean; error?: string }
+          | {
+              ok?: boolean;
+              error?: string;
+              errorCode?: string;
+              weakPasswordReasons?: string[] | null;
+            }
           | null;
 
         if (!response.ok || !data?.ok) {
-          setError(data?.error ?? (locale === "ar" ? "تعذر إنشاء الحساب." : "Could not create account."));
+          const weakPasswordMessage =
+            data?.errorCode === "weak_password"
+              ? getWeakPasswordMessage(locale, data.weakPasswordReasons)
+              : null;
+
+          setError(
+            weakPasswordMessage ??
+              data?.error ??
+              (locale === "ar" ? "تعذر إنشاء الحساب." : "Could not create account.")
+          );
           return;
         }
 
@@ -185,7 +201,7 @@ export default function LoginPage() {
         });
 
         if (signInError) {
-          setError(signInError.message);
+          setError(getWeakPasswordMessage(locale, signInError) ?? signInError.message);
           return;
         }
 
@@ -203,7 +219,7 @@ export default function LoginPage() {
       });
 
       if (error) {
-        setError(error.message);
+        setError(getWeakPasswordMessage(locale, error) ?? error.message);
       } else {
         setSuccess(
           locale === "ar"
@@ -213,11 +229,12 @@ export default function LoginPage() {
       }
     } catch (signupError) {
       setError(
-        signupError instanceof Error
-          ? signupError.message
-          : locale === "ar"
-            ? "حدث خطأ غير متوقع."
-            : "An unexpected error occurred."
+        getWeakPasswordMessage(locale, signupError) ??
+          (signupError instanceof Error
+            ? signupError.message
+            : locale === "ar"
+              ? "حدث خطأ غير متوقع."
+              : "An unexpected error occurred.")
       );
     } finally {
       setAuthLoading(false);
