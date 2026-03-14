@@ -6,15 +6,6 @@ import { Footer } from "@/components/landing/Footer";
 const FOOTERLESS_ROUTE_PREFIXES = [
   "/admin",
   "/admin_dashboard",
-  "/dashboard",
-  "/summarize",
-  "/history",
-  "/billing",
-  "/settings",
-  "/calendar",
-  "/profile",
-  "/todo",
-  "/founder",
 ] as const;
 
 function isFooterlessRoute(pathname: string | null) {
