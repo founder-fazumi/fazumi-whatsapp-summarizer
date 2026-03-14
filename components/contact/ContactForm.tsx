@@ -17,9 +17,9 @@ type FeedbackType = "feature" | "bug" | "praise" | "complaint";
 const RATINGS = [
   { value: "love", emoji: "😍", label: { en: "Loved it", ar: "أحببته" } },
   { value: "good", emoji: "🙂", label: { en: "Pretty good", ar: "جيد" } },
-  { value: "okay", emoji: "😐", label: { en: "Needs work", ar: "يحتاج تحسين" } },
+  { value: "neutral", emoji: "😐", label: { en: "Needs work", ar: "يحتاج تحسين" } },
   { value: "bad", emoji: "😕", label: { en: "Frustrating", ar: "محبط" } },
-  { value: "rough", emoji: "😤", label: { en: "Very rough", ar: "صعب جداً" } },
+  { value: "terrible", emoji: "😤", label: { en: "Very rough", ar: "صعب جداً" } },
 ] as const;
 
 const SUPPORT_EMAIL = LEGAL_CONTACT_EMAIL;
@@ -65,6 +65,30 @@ const COPY = {
   submitError: {
     en: "We could not send your message right now. Please try again.",
     ar: "تعذر إرسال رسالتك الآن. حاول مرة أخرى.",
+  },
+  directHelpTitle: {
+    en: "Direct help",
+    ar: "المساعدة المباشرة",
+  },
+  directHelpBody: {
+    en: "Use the form if you want Fazumi to reply by email about the product, your account, billing, or refunds.",
+    ar: "استخدم النموذج إذا كنت تريد أن يرد عليك فازومي عبر البريد الإلكتروني بخصوص المنتج أو الحساب أو الفوترة أو الاسترداد.",
+  },
+  directHelpAlt: {
+    en: "You can also write directly to the support or billing addresses below.",
+    ar: "يمكنك أيضًا الكتابة مباشرة إلى عناوين الدعم أو الفوترة أدناه.",
+  },
+  bestMessagesTitle: {
+    en: "Best messages are specific",
+    ar: "أفضل الرسائل تكون محددة",
+  },
+  bestMessagesBody1: {
+    en: "Include the page you were on, the language you used, and the last step before the issue.",
+    ar: "اذكر الصفحة التي كنت فيها، وخيار اللغة، وآخر خطوة قمت بها قبل ظهور المشكلة.",
+  },
+  bestMessagesBody2: {
+    en: "For feedback, tell us what felt helpful, slow, or unclear.",
+    ar: "وبالنسبة للملاحظات، أخبرنا بما كان مفيدًا أو بطيئًا أو غير واضح.",
   },
 } as const;
 
@@ -402,11 +426,11 @@ export function ContactForm() {
       <div className={cn("space-y-4", isArabic && "text-right")}>
         <Card>
           <CardHeader className={cn(isArabic && "text-right")}>
-            <CardTitle>{locale === "ar" ? "المساعدة المباشرة" : "Direct help"}</CardTitle>
+            <CardTitle>{pick(COPY.directHelpTitle, locale)}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-[var(--muted-foreground)]">
-            <p>{locale === "ar" ? "استخدم النموذج إذا كنت تريد أن يرد عليك فازومي عبر البريد الإلكتروني بخصوص المنتج أو الحساب أو الفوترة أو الاسترداد." : "Use the form if you want Fazumi to reply by email about the product, your account, billing, or refunds."}</p>
-            <p>{locale === "ar" ? "يمكنك أيضًا الكتابة مباشرة إلى عناوين الدعم أو الفوترة أدناه." : "You can also write directly to the support or billing addresses below."}</p>
+            <p>{pick(COPY.directHelpBody, locale)}</p>
+            <p>{pick(COPY.directHelpAlt, locale)}</p>
             <div className={cn("flex flex-col gap-2 pt-1", isArabic && "items-end")}>
               <a
                 href={`mailto:${SUPPORT_EMAIL}`}
@@ -428,11 +452,11 @@ export function ContactForm() {
 
         <Card>
           <CardHeader className={cn(isArabic && "text-right")}>
-            <CardTitle>{locale === "ar" ? "أفضل الرسائل تكون محددة" : "Best messages are specific"}</CardTitle>
+            <CardTitle>{pick(COPY.bestMessagesTitle, locale)}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-[var(--muted-foreground)]">
-            <p>{locale === "ar" ? "اذكر الصفحة التي كنت فيها، وخيار اللغة، وآخر خطوة قمت بها قبل ظهور المشكلة." : "Include the page you were on, the language you used, and the last step before the issue."}</p>
-            <p>{locale === "ar" ? "وبالنسبة للملاحظات، أخبرنا بما كان مفيدًا أو بطيئًا أو غير واضح." : "For feedback, tell us what felt helpful, slow, or unclear."}</p>
+            <p>{pick(COPY.bestMessagesBody1, locale)}</p>
+            <p>{pick(COPY.bestMessagesBody2, locale)}</p>
           </CardContent>
         </Card>
       </div>
