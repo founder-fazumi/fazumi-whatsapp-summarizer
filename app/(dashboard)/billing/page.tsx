@@ -4,6 +4,7 @@ import { LocalizedText } from "@/components/i18n/LocalizedText";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { CreditCard, Check, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getCustomerPortalUrl } from "@/lib/lemonsqueezy";
 import {
@@ -12,29 +13,30 @@ import {
   type PlanKey,
 } from "@/lib/limits";
 import { formatDate, formatNumber, formatPrice } from "@/lib/format";
+import type { Locale } from "@/lib/i18n";
 
-const PLAN_LABELS: Record<PlanKey, { name: { en: string; ar: string }; price: { en: string; ar: string }; color: string }> = {
+const PLAN_LABELS: (locale: Locale) => Record<PlanKey, { name: { en: string; ar: string }; price: { en: string; ar: string }; color: string }> = (locale) => ({
   free: {
     name: { en: "Free", ar: "مجاني" },
-    price: { en: formatPrice(0), ar: formatPrice(0) },
+    price: { en: formatPrice(0, locale), ar: formatPrice(0, locale) },
     color: "text-[var(--muted-foreground)]",
   },
   monthly: {
     name: { en: "Pro Monthly", ar: "برو الشهري" },
-    price: { en: `${formatPrice(9.99, 2)}/mo`, ar: `${formatPrice(9.99, 2)}/شهريًا` },
+    price: { en: `${formatPrice(9.99, locale, 2)}/mo`, ar: `${formatPrice(9.99, locale, 2)}/شهريًا` },
     color: "text-[var(--primary)]",
   },
   annual: {
     name: { en: "Pro Annual", ar: "برو السنوي" },
-    price: { en: `${formatPrice(99.99, 2)}/yr`, ar: `${formatPrice(99.99, 2)}/سنويًا` },
+    price: { en: `${formatPrice(99.99, locale, 2)}/yr`, ar: `${formatPrice(99.99, locale, 2)}/سنويًا` },
     color: "text-[var(--primary)]",
   },
   founder: {
     name: { en: "Founder", ar: "باقة المؤسسين" },
-    price: { en: formatPrice(149), ar: formatPrice(149) },
+    price: { en: formatPrice(149, locale), ar: formatPrice(149, locale) },
     color: "text-[var(--accent-fox-deep)]",
   },
-};
+});
 
 const PLAN_FEATURES: Record<PlanKey, { en: string; ar: string }[]> = {
   free: [
@@ -71,6 +73,9 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
 };
 
 export default async function BillingPage() {
+  const cookieStore = await cookies();
+  const locale: Locale = cookieStore.get("fazumi_lang")?.value === "en" ? "en" : "ar";
+
   let isLoggedIn = false;
   let billingPlan: PlanKey = "free";
   let hasPaidAccess = false;
@@ -133,7 +138,7 @@ export default async function BillingPage() {
     // Supabase not configured
   }
 
-  const planInfo = PLAN_LABELS[billingPlan] ?? PLAN_LABELS.free;
+  const planInfo = PLAN_LABELS(locale)[billingPlan] ?? PLAN_LABELS(locale).free;
   const features = PLAN_FEATURES[billingPlan] ?? PLAN_FEATURES.free;
   const isFounderPlan = billingPlan === "founder";
   const isTrialActive = !hasPaidAccess && !!trialExpiresAt && new Date(trialExpiresAt) > new Date();
