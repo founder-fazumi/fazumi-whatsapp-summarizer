@@ -333,8 +333,8 @@ export const founderOfferContent = {
     },
     trustNotes: [
       {
-        en: "Secure checkout",
-        ar: "دفع آمن",
+        en: "No credit card now",
+        ar: "لا بطاقة الآن",
       },
       {
         en: "No recurring payment",
@@ -445,8 +445,8 @@ export const founderOfferContent = {
         ar: "عرض مؤسس واضح وشفاف",
       },
       {
-        en: "Secure checkout",
-        ar: "دفع آمن",
+        en: "No credit card now",
+        ar: "لا بطاقة الآن",
       },
       {
         en: "Straightforward support",
