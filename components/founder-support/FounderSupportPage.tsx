@@ -448,7 +448,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
                   </p>
                 </div>
 
-                <FounderPhoto src="/images/founder-support/founder-support-photo-1.png" className="min-h-[22rem]" />
+                <FounderPhoto src="/images/founder-support/founder-support-photo-1.png" className="aspect-square" />
               </div>
             </div>
           </div>
@@ -470,7 +470,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
               </div>
             </div>
 
-            <FounderPhoto src="/images/founder-support/founder-support-photo-2.png" className="min-h-[20rem]" />
+            <FounderPhoto src="/images/founder-support/founder-support-photo-2.png" className="aspect-[3/2]" />
           </div>
         </section>
 
@@ -573,7 +573,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
               </div>
             </div>
 
-            <FounderPhoto src="/images/founder-support/founder-support-photo-4.png" className="min-h-[20rem]" />
+            <FounderPhoto src="/images/founder-support/founder-support-photo-4.png" className="aspect-[2/3]" />
           </div>
         </section>
 
