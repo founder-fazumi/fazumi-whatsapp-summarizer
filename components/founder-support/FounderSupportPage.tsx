@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -470,6 +471,19 @@ function PhotoPlaceholder({
 }
 
 
+function FounderPhoto({ src, className }: { src: string; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] shadow-[var(--shadow-card)]",
+        className
+      )}
+    >
+      <Image src={src} alt="" fill className="object-cover" sizes="(max-width: 1024px) 100vw, 40vw" />
+    </div>
+  );
+}
+
 export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPageProps) {
   const { locale } = useLang();
   const isArabic = locale === "ar";
@@ -537,7 +551,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
                   </p>
                 </div>
 
-                <PhotoPlaceholder placeholder={PAGE_CONTENT.placeholders.hero} className="min-h-[22rem]" />
+                <FounderPhoto src="/images/founder-support-photo-1.png" className="aspect-square" />
               </div>
             </div>
           </div>
@@ -559,7 +573,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
               </div>
             </div>
 
-            <PhotoPlaceholder placeholder={PAGE_CONTENT.placeholders.intro} className="min-h-[20rem]" />
+            <FounderPhoto src="/images/founder-support-photo-2.png" className="aspect-[3/2]" />
           </div>
         </section>
 
@@ -664,7 +678,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
               </div>
             </div>
 
-            <PhotoPlaceholder placeholder={PAGE_CONTENT.placeholders.note} className="min-h-[20rem]" />
+            <FounderPhoto src="/images/founder-support-photo-4.png" className="aspect-[2/3]" />
           </div>
         </section>
 
