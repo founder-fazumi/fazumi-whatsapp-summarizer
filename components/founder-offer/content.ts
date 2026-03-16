@@ -47,8 +47,8 @@ export const founderOfferContent = {
         ar: "دفعة واحدة",
       },
       {
-        en: "Built for GCC parents",
-        ar: "مصمم لآباء الخليج",
+        en: "Built for busy school families",
+        ar: "مصمم لعائلات المدارس المشغولة",
       },
     ],
     microcopy: [
@@ -61,8 +61,8 @@ export const founderOfferContent = {
         ar: "محدود بـ 200 مقعد",
       },
       {
-        en: "Built for busy families in the GCC",
-        ar: "مصمم للعائلات المشغولة في الخليج",
+        en: "Built for bilingual school communication",
+        ar: "مصمم للتواصل المدرسي ثنائي اللغة",
       },
       {
         en: "Founder-only perks included",
@@ -214,7 +214,7 @@ export const founderOfferContent = {
       ar: "رسالة مدرسية نموذجية",
     },
     rawMessage:
-      "Dear parents, please be informed that students in Grade 5 must submit the science project by Thursday. Also, the trip payment of 75 QAR should be paid no later than Tuesday. Students must wear sports uniform on Wednesday for rehearsal. Kindly sign and return the attached consent form. Reminder that the Arabic test has been moved to Monday.",
+      "Dear parents, please be informed that students in Grade 5 must submit the science project by Thursday. Also, the trip payment of $75 should be paid no later than Tuesday. Students must wear sports uniform on Wednesday for rehearsal. Kindly sign and return the attached consent form. Reminder that the Arabic test has been moved to Monday.",
     resultLabel: {
       en: "FAZUMI result",
       ar: "نتيجة FAZUMI",
@@ -225,8 +225,8 @@ export const founderOfferContent = {
     },
     tasks: [
       {
-        en: "Pay 75 QAR trip fee by Tuesday",
-        ar: "ادفع رسوم الرحلة 75 QAR قبل الثلاثاء",
+        en: "Pay $75 trip fee by Tuesday",
+        ar: "ادفع رسوم الرحلة $75 قبل الثلاثاء",
       },
       {
         en: "Submit science project by Thursday",
@@ -396,8 +396,8 @@ export const founderOfferContent = {
   },
   gcc: {
     title: {
-      en: "Built with the reality of GCC family life in mind",
-      ar: "مبني على واقع الحياة العائلية في الخليج",
+      en: "Built around the realities of busy family life",
+      ar: "مصمم ليناسب واقع الحياة العائلية المزدحمة",
     },
     points: [
       {
@@ -549,8 +549,8 @@ export const founderOfferContent = {
         ar: "هل سيعمل FAZUMI في بلد واحد فقط؟",
       },
       answer: {
-        en: "No. FAZUMI is being built for busy families across the GCC, not for one city or one school system only.",
-        ar: "لا. يتم بناء FAZUMI للعائلات المشغولة في مختلف دول الخليج، وليس لمدينة واحدة أو نظام مدرسي واحد فقط.",
+        en: "No. FAZUMI is being built for busy families who rely on school messaging groups, wherever they are.",
+        ar: "لا. FAZUMI مصمم للأسر المشغولة التي تعتمد على مجموعات المدرسة ورسائلها، أينما كانت.",
       },
     },
     {

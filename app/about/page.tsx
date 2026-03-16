@@ -6,7 +6,6 @@ import {
   Globe2,
   HeartHandshake,
   Lock,
-  MapPinned,
   Sparkles,
 } from "lucide-react";
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
@@ -25,11 +24,7 @@ const aboutOrgSchema = {
   name: "Fazumi",
   url: APP_URL,
   description:
-    "Parents based in Doha, Qatar, who built Fazumi after missing a school deadline buried in a WhatsApp group.",
-  foundingLocation: {
-    "@type": "Place",
-    name: "Doha, Qatar",
-  },
+    "Parents who built Fazumi after missing a school deadline buried in a WhatsApp group.",
   knowsAbout: [
     "School communication",
     "WhatsApp summarization",
@@ -44,7 +39,7 @@ const aboutWebPageSchema = {
   name: "About Fazumi",
   url: `${APP_URL}/about`,
   description:
-    "Fazumi was built by parents in Doha to turn noisy school WhatsApp chats into structured summaries.",
+    "Fazumi helps busy parents turn noisy school WhatsApp chats into structured summaries.",
   datePublished: "2026-02-27",
   dateModified: "2026-03-07",
   author: aboutOrgSchema,
@@ -65,7 +60,7 @@ const COPY = {
     en: "Fazumi helps busy parents turn noisy school chats into clear next steps, dates, and follow-ups without endless scrolling.",
     ar: "يساعد فازومي الآباء والأمهات المشغولين على تحويل محادثات المدرسة المزدحمة إلى خطوات واضحة ومواعيد ومتابعات دون تمرير لا ينتهي.",
   },
-  originBadge: { en: "Built in Doha for the GCC", ar: "صُمم في الدوحة من أجل الخليج" },
+  originBadge: { en: "Built for busy school families", ar: "مصمم للعائلات المشغولة بمتابعة شؤون المدرسة" },
   bilingualBadge: { en: "Arabic + English by default", ar: "العربية والإنجليزية افتراضيًا" },
   highlights: [
     {
@@ -92,8 +87,8 @@ const COPY = {
   ],
   storyTitle: { en: "Why Fazumi exists", ar: "لماذا وُجد فازومي" },
   storyBody: {
-    en: "As parents in Doha, we once missed our daughter's science-fair deadline because the reminder was buried inside 200+ WhatsApp messages. The information was there, but the signal was lost in the noise. Fazumi started as the tool we wanted that night: paste the chat, surface the dates, identify the actions, and share the summary with the whole family before anything slips again.",
-    ar: "كأولياء أمور في الدوحة، فاتنا ذات مرة موعد معرض العلوم لابنتنا لأن التذكير كان مدفونًا داخل أكثر من 200 رسالة واتساب. كانت المعلومة موجودة، لكن الإشارة ضاعت وسط الضجيج. بدأ فازومي كالأداة التي تمنينا وجودها في تلك الليلة: الصق المحادثة، أظهر المواعيد، حدد الإجراءات، وشارك الملخص مع العائلة كلها قبل أن يفوت شيء مرة أخرى.",
+    en: "As parents, we once missed our daughter's science-fair deadline because the reminder was buried inside 200+ WhatsApp messages. The information was there, but the signal was lost in the noise. Fazumi started as the tool we wanted that night: paste the chat, surface the dates, identify the actions, and share the summary with the whole family before anything slips again.",
+    ar: "كأولياء أمور، سبق أن فاتنا موعد معرض العلوم لابنتنا لأن التذكير كان مدفونًا داخل أكثر من 200 رسالة واتساب. كانت المعلومة موجودة، لكن الإشارة ضاعت وسط الضجيج. بدأ فازومي كالأداة التي تمنينا وجودها في تلك الليلة: الصق المحادثة، أظهر المواعيد، حدد الإجراءات، وشارك الملخص مع العائلة كلها قبل أن يفوت شيء مرة أخرى.",
   },
   founderTitle: { en: "How we think about the product", ar: "كيف نفكر في المنتج" },
   founderBody: {
@@ -128,10 +123,10 @@ const COPY = {
       icon: Lock,
     },
     {
-      title: { en: "Built for GCC parents", ar: "مصمم لأولياء الأمور في الخليج" },
+      title: { en: "Bilingual by design", ar: "ثنائي اللغة منذ البداية" },
       body: {
-        en: "Arabic and English support, regional school rhythms, and family-sharing habits are product assumptions, not afterthoughts.",
-        ar: "دعم العربية والإنجليزية، وإيقاع المدارس في المنطقة، وعادات مشاركة العائلة هي افتراضات أساسية في المنتج وليست إضافات لاحقة.",
+        en: "Arabic and English support, family coordination habits, and bilingual clarity are product assumptions, not afterthoughts.",
+        ar: "صُمم فازومي بالعربية والإنجليزية منذ البداية — ليس كإضافة لاحقة، بل كجزء أساسي من المنتج.",
       },
       icon: Globe2,
     },
@@ -238,7 +233,7 @@ export default function AboutPage() {
             <CardHeader className={cn(isArabic && "text-right")}>
               <div className={cn("flex items-center gap-3", isArabic && "flex-row-reverse")}>
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
-                  <MapPinned className="h-5 w-5" />
+                  <Sparkles className="h-5 w-5" />
                 </div>
                 <CardTitle className="public-section-title">{pick(COPY.founderTitle, locale)}</CardTitle>
               </div>
