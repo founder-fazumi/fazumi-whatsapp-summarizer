@@ -68,12 +68,12 @@ const COPY = {
     ar: "مساعدة الفوترة",
   },
   proCtaPending: {
-    en: "Request Pro access",
-    ar: "اطلب الوصول إلى برو",
+    en: "Email to reserve →",
+    ar: "راسلنا للحجز",
   },
   founderCtaPending: {
-    en: "Ask about founder access",
-    ar: "استفسر عن باقة المؤسسين",
+    en: "Email to reserve →",
+    ar: "راسلنا للحجز",
   },
 } satisfies Record<string, LocalizedCopy<string>>;
 
@@ -373,27 +373,37 @@ export function Pricing({
                     {pick(plan.ctaText, locale)}
                   </Link>
                 ) : (
-                  <CheckoutButton
-                    variantId={
-                      plan.id === "founder"
-                        ? lsVariantIds.founder ?? ""
-                        : billing === "yearly"
-                          ? lsVariantIds.annual ?? ""
-                          : lsVariantIds.monthly ?? ""
-                    }
-                    isLoggedIn={isLoggedIn}
-                    className={cn(
-                      "mb-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl px-5 text-[var(--text-sm)] font-medium transition-colors",
-                      plan.featured
-                        ? "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
-                        : plan.id === "founder"
-                          ? "bg-[var(--accent-fox)] text-white shadow-[var(--shadow-sm)] hover:opacity-90"
-                          : "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]",
-                      "disabled:cursor-not-allowed disabled:opacity-70"
+                  <>
+                    <CheckoutButton
+                      variantId={
+                        plan.id === "founder"
+                          ? lsVariantIds.founder ?? ""
+                          : billing === "yearly"
+                            ? lsVariantIds.annual ?? ""
+                            : lsVariantIds.monthly ?? ""
+                      }
+                      isLoggedIn={isLoggedIn}
+                      className={cn(
+                        paymentsComingSoon ? "mb-2" : "mb-5",
+                        "inline-flex min-h-11 w-full items-center justify-center rounded-xl px-5 text-[var(--text-sm)] font-medium transition-colors",
+                        plan.featured
+                          ? "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
+                          : plan.id === "founder"
+                            ? "bg-[var(--accent-fox)] text-white shadow-[var(--shadow-sm)] hover:opacity-90"
+                            : "bg-[var(--primary)] text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]",
+                        "disabled:cursor-not-allowed disabled:opacity-70"
+                      )}
+                    >
+                      {pick(ctaText, locale)}
+                    </CheckoutButton>
+                    {paymentsComingSoon && (
+                      <p className="mb-5 text-center text-[var(--text-xs)] text-[var(--muted-foreground)]">
+                        {locale === "ar"
+                          ? "ستفتح المدفوعات قريبًا — النقر يفتح بريدك الإلكتروني"
+                          : "Payments launching soon — clicking opens your email"}
+                      </p>
                     )}
-                  >
-                    {pick(ctaText, locale)}
-                  </CheckoutButton>
+                  </>
                 )}
 
                 <ul className="flex-1 space-y-2.5">

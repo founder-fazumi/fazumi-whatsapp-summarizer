@@ -22,6 +22,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { formatNumber, formatPrice } from "@/lib/format";
 import { pick } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { paymentsComingSoon } from "@/lib/payments-ui";
 import {
   FOUNDER_HOW_IT_WORKS_ID,
   FOUNDER_OFFER_CHECKOUT_VARIANT,
@@ -429,7 +430,14 @@ export function FounderOfferPage({ isLoggedIn = false }: FounderOfferPageProps) 
                       </p>
                     </div>
 
-                    <div className="mt-6">
+                    {paymentsComingSoon && (
+                      <p className="mt-5 text-center text-[var(--text-xs)] text-[var(--muted-foreground)]">
+                        {locale === "ar"
+                          ? "يتم فتح المدفوعات قريبًا. النقر أدناه يفتح بريدك الإلكتروني لحجز مقعدك."
+                          : "Payments are launching soon. Clicking below opens your email to reserve your spot."}
+                      </p>
+                    )}
+                    <div className="mt-3">
                       <FounderPrimaryCta
                         label={pick(content.plan.cta, locale)}
                         className="w-full justify-center"

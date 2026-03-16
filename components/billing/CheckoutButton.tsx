@@ -28,20 +28,6 @@ export function CheckoutButton({ variantId, children, className }: Props) {
     ? "ready"
     : "contact_billing";
 
-  function handleContactBilling() {
-    setLoading(true);
-    const subject =
-      locale === "ar"
-        ? "استفسار عن خطة مدفوعة في فازومي"
-        : "Fazumi paid plan request";
-    const body =
-      locale === "ar"
-        ? "مرحبًا، أريد المساعدة بخصوص خطة مدفوعة في فازومي."
-        : "Hello, I would like help with a paid Fazumi plan.";
-    window.location.href =
-      `mailto:${BILLING_CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }
-
   async function handleClick() {
     setLoading(true);
     try {
@@ -66,15 +52,19 @@ export function CheckoutButton({ variantId, children, className }: Props) {
   }
 
   if (checkoutState !== "ready") {
+    const subject =
+      locale === "ar"
+        ? "استفسار عن خطة مدفوعة في فازومي"
+        : "Fazumi paid plan request";
+    const body =
+      locale === "ar"
+        ? "مرحبًا، أريد المساعدة بخصوص خطة مدفوعة في فازومي."
+        : "Hello, I would like help with a paid Fazumi plan.";
+    const mailtoHref = `mailto:${BILLING_CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     return (
-      <button
-        type="button"
-        onClick={handleContactBilling}
-        disabled={loading}
-        className={className}
-      >
-        {loading ? (locale === "ar" ? "جارٍ الفتح…" : "Opening…") : children}
-      </button>
+      <a href={mailtoHref} className={className}>
+        {children}
+      </a>
     );
   }
 

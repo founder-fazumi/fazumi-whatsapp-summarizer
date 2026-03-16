@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -465,6 +466,19 @@ function PhotoPlaceholder({
           <span>{locale === "ar" ? "استبدل هذا بصورة حقيقية لاحقًا" : "Replace with a real photo later"}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FounderPhoto({ src, className }: { src: string; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] shadow-[var(--shadow-card)]",
+        className
+      )}
+    >
+      <Image src={src} alt="" fill className="object-cover" sizes="(max-width: 1024px) 100vw, 40vw" />
     </div>
   );
 }

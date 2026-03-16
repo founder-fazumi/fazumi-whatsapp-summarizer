@@ -30,8 +30,8 @@ export const founderOfferContent = {
       ar: "يساعد FAZUMI الآباء المشغولين على تحويل رسائل المدرسة الطويلة والمبعثرة إلى ملخص بسيط، ومهام، ومواعيد، ومدفوعات خلال ثوانٍ. هذا العرض الاختياري للمؤسسين محدود بـ 200 من الداعمين الأوائل الذين يريدون وصولًا مبكرًا، ومزايا مميزة، وفرصة للمساعدة في تشكيل FAZUMI من البداية.",
     },
     primaryCta: {
-      en: "Become a Founder Supporter — $149",
-      ar: "كن Founder Supporter — $149",
+      en: "Reserve via email — $149",
+      ar: "احجز عبر الإيميل — $149",
     },
     secondaryCta: {
       en: "See how FAZUMI works",
@@ -260,8 +260,8 @@ export const founderOfferContent = {
       },
     ],
     cta: {
-      en: "Get Founder Access for $149",
-      ar: "احصل على Founder Access مقابل $149",
+      en: "Reserve via email →",
+      ar: "احجز عبر الإيميل",
     },
   },
   plan: {
@@ -328,8 +328,8 @@ export const founderOfferContent = {
       ar: "لن يتوفر أكثر من 200 مقعدًا لـ Founder Supporter على الإطلاق.",
     },
     cta: {
-      en: "Claim My Founder Spot",
-      ar: "احجز مقعدي كمؤسس داعم",
+      en: "Reserve via email →",
+      ar: "احجز عبر الإيميل",
     },
     trustNotes: [
       {
@@ -622,8 +622,8 @@ export const founderOfferContent = {
       },
     ],
     cta: {
-      en: "Claim My Founder Spot — $149",
-      ar: "احجز مقعدي كمؤسس داعم — $149",
+      en: "Reserve via email — $149",
+      ar: "احجز عبر الإيميل — $149",
     },
     supportText: {
       en: "Limited to 200 Founder Supporters",
