@@ -39,10 +39,10 @@ export const metadata: Metadata = {
     "WhatsApp group summarizer",
     "school chat AI",
     "parent school communication",
-    "GCC school app",
+    "bilingual school app",
     "ملخص مجموعة واتساب",
     "تلخيص محادثات المدرسة",
-    "تطبيق مدرسة الخليج",
+    "تطبيق مدرسة ثنائي اللغة",
   ],
   applicationName: "Fazumi",
   metadataBase: new URL(
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     siteName: "Fazumi",
     type: "website",
     locale: "en_US",
-    alternateLocale: "ar_AE",
+    alternateLocale: "ar_AR",
     images: [
       {
         url: "/og-image.png",
