@@ -66,6 +66,10 @@ const COPY = {
     en: "Try it free — no card needed",
     ar: "جرّبه مجانًا — بدون بطاقة",
   },
+  founderSupportCta: {
+    en: "Founder Support",
+    ar: "Founder Support",
+  },
   trustLine: {
     en: "Raw chats never stored · Arabic & English output · Works with WhatsApp, Telegram & Facebook",
     ar: "المحادثات لا تُحفظ أبدًا · إخراج عربي وإنجليزي · يعمل مع واتساب وتيليجرام وفيسبوك",
@@ -329,13 +333,19 @@ export function Hero() {
               </p>
             </div>
 
-            <div className="mt-8 flex items-center justify-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/login?tab=signup"
                 className="inline-flex h-12 items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--primary)] px-8 text-[var(--text-sm)] font-semibold text-white shadow-[var(--shadow-md)] transition-colors hover:bg-[var(--primary-hover)]"
               >
                 {pick(COPY.cta, locale)}
                 <ArrowRight className={cn("h-4 w-4", isRtl && "rotate-180")} />
+              </Link>
+              <Link
+                href="/founder-support"
+                className="inline-flex h-12 items-center rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-6 text-[var(--text-sm)] font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              >
+                {pick(COPY.founderSupportCta, locale)}
               </Link>
             </div>
 
