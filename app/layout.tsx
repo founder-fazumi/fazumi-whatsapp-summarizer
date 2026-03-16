@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     siteName: "Fazumi",
     type: "website",
     locale: "en_US",
-    alternateLocale: "ar_AR",
+    alternateLocale: "ar",
     images: [
       {
         url: "/og-image.png",
