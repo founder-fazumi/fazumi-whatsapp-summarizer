@@ -62,8 +62,8 @@ const FOOTER_GROUPS = [
 
 const COPY = {
   brand: {
-    en: "School chat summaries for busy parents across Qatar, UAE, Saudi Arabia, and the wider GCC.",
-    ar: "ملخصات محادثات المدرسة لأولياء الأمور المشغولين في قطر والإمارات والسعودية وبقية الخليج.",
+    en: "School chat summaries for busy parents. Bilingual clarity, calmer family coordination.",
+    ar: "ملخصات محادثات المدرسة لأولياء الأمور المشغولين. وضوح ثنائي اللغة، وتنسيق عائلي أهدأ.",
   },
   social: {
     en: "Follow Fazumi",
@@ -74,8 +74,8 @@ const COPY = {
     ar: "جميع الحقوق محفوظة.",
   },
   support: {
-    en: "Built by parents in Qatar. Focused on privacy, bilingual clarity, and calmer family coordination.",
-    ar: "بناه أولياء أمور في قطر ويركز على الخصوصية والوضوح ثنائي اللغة وتنسيق العائلة بهدوء.",
+    en: "Built by parents. Focused on privacy, bilingual clarity, and calmer family coordination.",
+    ar: "بناه أولياء أمور. يركز على الخصوصية والوضوح ثنائي اللغة وتنسيق العائلة بهدوء.",
   },
   supportEmail: { en: "Support", ar: "الدعم" },
   billingEmail: { en: "Billing", ar: "الفوترة" },

@@ -94,8 +94,8 @@ const COPY = {
   eyebrow: { en: "FAQ", ar: "الأسئلة الشائعة" },
   title: { en: "Answers before you commit", ar: "إجابات قبل أن تشترك" },
   subtitle: {
-    en: "The questions GCC parents ask most often before starting a trial.",
-    ar: "الأسئلة التي يطرحها أولياء الأمور في الخليج غالبًا قبل بدء التجربة.",
+    en: "The questions parents ask most often before starting a trial.",
+    ar: "الأسئلة التي يطرحها أولياء الأمور غالبًا قبل بدء التجربة.",
   },
   more: { en: "View the full FAQ page", ar: "عرض صفحة الأسئلة الشائعة كاملة" },
 } satisfies Record<string, LocalizedCopy<string>>;

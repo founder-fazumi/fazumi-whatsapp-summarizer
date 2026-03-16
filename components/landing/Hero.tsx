@@ -43,8 +43,8 @@ const SUBTITLES = [
     ar: "الصق محادثة مجموعتك المدرسية واحصل على الإجراءات العاجلة والمواعيد والرسوم والنماذج والمستلزمات مفصولة ومرتبة — لا مدفونة في 300 رسالة.",
   },
   {
-    en: "Built for GCC families. Arabic-first output, real school fee wording in SAR, AED, and QAR, and one-click calendar or to-do for every extracted date.",
-    ar: "مصمّم لعائلات الخليج. إخراج عربي أولًا، رسوم مدرسية بالريال والدرهم والريال القطري، وإضافة بنقرة للتقويم أو المهام لكل موعد مستخرج.",
+    en: "Bilingual by default. Arabic-first output, real school fee wording, and one-click calendar or to-do for every extracted date.",
+    ar: "ثنائي اللغة افتراضيًا. إخراج عربي أولًا، رسوم مدرسية واضحة، وإضافة بنقرة للتقويم أو المهام لكل موعد مستخرج.",
   },
   {
     en: "Manual import first. Autopilot-lite second: morning digest, urgent alerts, reminders, and one-click calendar or to-do actions.",
