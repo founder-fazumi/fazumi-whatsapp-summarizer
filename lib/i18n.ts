@@ -86,7 +86,7 @@ const labels: Record<string, LabelEntry> = {
   "settings.theme":         { en: "Appearance",                        ar: "المظهر",                          es: "Apariencia",                     "pt-BR": "Aparência",               id: "Tampilan" },
   "settings.theme.desc":    { en: "Choose your preferred color scheme.", ar: "اختر نظام الألوان المفضل لديك.", es: "Elige tu esquema de colores.",    "pt-BR": "Escolha seu esquema de cores.", id: "Pilih skema warna Anda." },
   "settings.lang":          { en: "Language",                           ar: "اللغة",                           es: "Idioma",                          "pt-BR": "Idioma",                  id: "Bahasa" },
-  "settings.lang.desc":     { en: "Switch the app between English and Arabic (RTL).", ar: "بدّل التطبيق بين العربية والإنجليزية.", es: "Cambia el idioma de la aplicación.", "pt-BR": "Mude o idioma do aplicativo.", id: "Ganti bahasa aplikasi." },
+  "settings.lang.desc":     { en: "Choose your preferred language for the app.", ar: "اختر لغة التطبيق المفضلة لديك.", es: "Cambia el idioma de la aplicación.", "pt-BR": "Mude o idioma do aplicativo.", id: "Ganti bahasa aplikasi." },
   "settings.light":         { en: "Light",                              ar: "فاتح",                            es: "Claro",                           "pt-BR": "Claro",                   id: "Terang" },
   "settings.dark":          { en: "Dark",                               ar: "داكن",                            es: "Oscuro",                          "pt-BR": "Escuro",                  id: "Gelap" },
   "settings.english":       { en: "English",                            ar: "الإنجليزية",                      es: "English",                         "pt-BR": "English",                 id: "English" },
@@ -101,10 +101,11 @@ const labels: Record<string, LabelEntry> = {
   "legal.refunds":     { en: "Refund Policy",         ar: "سياسة الاسترداد",     es: "Política de reembolso", "pt-BR": "Política de reembolso", id: "Kebijakan Pengembalian Dana" },
 };
 
-export function t(key: string, locale: Locale = "en"): string {
+/** Accept either the narrow dashboard Locale or the full SiteLocale. */
+export function t(key: string, locale: Locale | SiteLocale = "en"): string {
   const entry = labels[key];
   if (!entry) return key;
-  return entry[locale] ?? entry["en"] ?? key;
+  return (entry as Partial<Record<string, string>>)[locale] ?? entry["en"] ?? key;
 }
 
 export function pick<T>(copy: LocalizedCopy<T>, locale: SiteLocale): T {

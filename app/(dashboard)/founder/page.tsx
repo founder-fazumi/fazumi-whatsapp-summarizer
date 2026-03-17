@@ -51,7 +51,8 @@ const STORY_CARDS: Array<{
 
 export default async function FounderPage() {
   const cookieStore = await cookies();
-  const locale = cookieStore.get("fazumi_lang")?.value === "en" ? "en" : "ar";
+  // Narrow to en|ar for this page's bilingual COPY — non-Arabic locales fall back to English.
+  const locale = cookieStore.get("fazumi_lang")?.value === "ar" ? "ar" : "en";
 
   const supabase = await createClient();
   const {

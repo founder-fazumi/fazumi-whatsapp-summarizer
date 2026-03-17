@@ -1,12 +1,33 @@
 import type { Metadata, Viewport } from "next";
 import { Cairo, Inter } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { RouteAwareFooter } from "@/components/layout/RouteAwareFooter";
 import type { SiteLocale } from "@/lib/i18n";
 import { LANG_STORAGE_KEY } from "@/lib/preferences";
+
+// ── Locale auto-detection ────────────────────────────────────────────────────
+// Priority: 1) saved cookie  2) Vercel geo header  3) "ar" fallback
+const ARABIC_COUNTRIES = new Set([
+  "SA","AE","QA","KW","BH","OM","YE","IQ","JO","SY","LB","EG",
+  "LY","TN","DZ","MA","PS","SD","SO","MR","DJ","KM",
+]);
+const ES_COUNTRIES = new Set([
+  "ES","MX","AR","CO","PE","CL","VE","EC","GT","CU","BO","DO",
+  "HN","PY","SV","NI","CR","PA","UY","GQ",
+]);
+const PTBR_COUNTRIES = new Set(["BR"]);
+const ID_COUNTRIES   = new Set(["ID"]);
+
+function detectLocaleFromCountry(cc: string): SiteLocale {
+  if (ARABIC_COUNTRIES.has(cc)) return "ar";
+  if (ES_COUNTRIES.has(cc))     return "es";
+  if (PTBR_COUNTRIES.has(cc))   return "pt-BR";
+  if (ID_COUNTRIES.has(cc))     return "id";
+  return "en";
+}
 
 const inter = Inter({
   variable: "--font-inter",
@@ -126,9 +147,17 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const VALID_LOCALES: SiteLocale[] = ["en", "ar", "es", "pt-BR", "id"];
   const cookieLocale = cookieStore.get(LANG_STORAGE_KEY)?.value;
-  const initialLocale: SiteLocale = (VALID_LOCALES as string[]).includes(cookieLocale ?? "")
-    ? (cookieLocale as SiteLocale)
-    : "ar";
+
+  let initialLocale: SiteLocale;
+  if ((VALID_LOCALES as string[]).includes(cookieLocale ?? "")) {
+    // 1. Explicit saved preference — always honoured
+    initialLocale = cookieLocale as SiteLocale;
+  } else {
+    // 2. Vercel geo header — best-effort auto-detect on first visit
+    const requestHeaders = await headers();
+    const countryCode = (requestHeaders.get("x-vercel-ip-country") ?? "").toUpperCase();
+    initialLocale = countryCode ? detectLocaleFromCountry(countryCode) : "ar";
+  }
   const disableServiceWorkerBootstrap =
     process.env.NODE_ENV !== "production" || process.env.PLAYWRIGHT_TEST === "1";
 

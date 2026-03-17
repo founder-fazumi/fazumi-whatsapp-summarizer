@@ -11,6 +11,12 @@ import { formatNumber, formatPrice } from "@/lib/format";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { paymentProviderApprovalNote, paymentsComingSoon } from "@/lib/payments-ui";
 import { lsVariantIds, lsVariantsConfigured } from "@/lib/config/public";
+import {
+  type PricingRegion,
+  PRICING_REGION_CONFIGS,
+  getPricingRegion,
+  readCountryCodeFromCookie,
+} from "@/lib/pricing/regions";
 
 type Billing = "monthly" | "yearly";
 
@@ -82,6 +88,9 @@ function getSeatsRemainingCopy(count: string): LocalizedCopy<string> {
   return {
     en: `${count} seats remaining`,
     ar: `${count} مقعدًا متبقيًا`,
+    es: `${count} plazas restantes`,
+    "pt-BR": `${count} vagas restantes`,
+    id: `${count} tempat tersisa`,
   };
 }
 
@@ -89,6 +98,9 @@ function getBilledAnnuallyCopy(amount: string): LocalizedCopy<string> {
   return {
     en: `${amount} billed annually`,
     ar: `${amount} تُدفع سنويًا`,
+    es: `${amount} facturado anualmente`,
+    "pt-BR": `${amount} cobrado anualmente`,
+    id: `${amount} ditagih tahunan`,
   };
 }
 
@@ -109,7 +121,7 @@ const PLANS: Plan[] = [
     features: [
       { en: "7-day free trial", ar: "تجربة مجانية لمدة 7 أيام", es: "Prueba gratuita de 7 días", "pt-BR": "Teste grátis de 7 dias", id: "Uji coba gratis 7 hari" },
       { en: "3 summaries after trial", ar: "3 ملخصات بعد التجربة", es: "3 resúmenes después de la prueba", "pt-BR": "3 resumos após o teste", id: "3 ringkasan setelah uji coba" },
-      { en: "Arabic and English output", ar: "مخرجات بالعربية والإنجليزية", es: "Salida en árabe e inglés", "pt-BR": "Saída em árabe e inglês", id: "Output bahasa Arab dan Inggris" },
+      { en: "Multi-language summary output", ar: "مخرجات الملخص متعددة اللغات", es: "Resumen en múltiples idiomas", "pt-BR": "Resumo em múltiplos idiomas", id: "Output ringkasan multi-bahasa" },
       { en: "Saved history", ar: "سجل محفوظ", es: "Historial guardado", "pt-BR": "Histórico salvo", id: "Riwayat tersimpan" },
     ],
   },
@@ -178,6 +190,7 @@ export function Pricing({
   const { locale, siteLocale } = useLang();
   const [billing, setBilling] = useState<Billing>(() => (currentPlan === "monthly" ? "monthly" : "yearly"));
   const [founderSeatsLeft, setFounderSeatsLeft] = useState<number>(200);
+  const [pricingRegion, setPricingRegion] = useState<PricingRegion>("global");
 
   useEffect(() => {
     fetch("/api/public/founder-seats")
@@ -188,6 +201,11 @@ export function Pricing({
         }
       })
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const cc = readCountryCodeFromCookie();
+    setPricingRegion(getPricingRegion(cc));
   }, []);
   const HeadingTag = headingTag;
   const currentPlanId =
@@ -226,6 +244,19 @@ export function Pricing({
           <p className="mt-3 text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)]">
             {pick(COPY.subtitle, siteLocale)}
           </p>
+          {(() => {
+            const regionCfg = PRICING_REGION_CONFIGS[pricingRegion];
+            if (!regionCfg.regionSubtitle) return null;
+            const subtitle =
+              regionCfg.regionSubtitle[siteLocale] ??
+              regionCfg.regionSubtitle["en"];
+            if (!subtitle) return null;
+            return (
+              <p className="mt-2 text-[var(--text-sm)] text-[var(--primary)] font-medium">
+                {subtitle}
+              </p>
+            );
+          })()}
 
           <div className="mt-6 inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-xs)]">
             {(["monthly", "yearly"] as Billing[]).map((value) => (
@@ -358,6 +389,11 @@ export function Pricing({
                           {pick(getBilledAnnuallyCopy(formatPrice(plan.annualPrice, 2)), siteLocale)}
                         </p>
                       )}
+                      {PRICING_REGION_CONFIGS[pricingRegion].priceEquivalentNote && billing !== "yearly" && (
+                        <p className="mt-0.5 text-[var(--text-xs)] text-[var(--muted-foreground)]">
+                          {PRICING_REGION_CONFIGS[pricingRegion].priceEquivalentNote}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -434,7 +470,20 @@ export function Pricing({
           })}
         </div>
 
-        <p className="mt-6 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
+        <p className="mt-6 text-center text-[var(--text-xs)] text-[var(--muted-foreground)]">
+          {PRICING_REGION_CONFIGS[pricingRegion].currencyLabel === "USD"
+            ? (siteLocale === "ar"
+                ? "جميع الأسعار بالدولار الأمريكي · الفوترة تتم عبر Paddle"
+                : siteLocale === "es"
+                  ? "Todos los precios en USD · Facturación a través de Paddle"
+                  : siteLocale === "pt-BR"
+                    ? "Todos os preços em USD · Cobrança via Paddle"
+                    : siteLocale === "id"
+                      ? "Semua harga dalam USD · Penagihan melalui Paddle"
+                      : "All prices in USD · Billing via Paddle")
+            : null}
+        </p>
+        <p className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">
           {pick(COPY.refundNote, siteLocale)}
         </p>
         <p className="mt-2 text-center text-[var(--text-sm)] text-[var(--muted-foreground)]">

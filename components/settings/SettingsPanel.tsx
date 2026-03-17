@@ -115,11 +115,11 @@ const COPY = {
   dark: { en: "Dark", ar: "داكن", es: "Oscuro", "pt-BR": "Escuro", id: "Gelap" },
   languageTitle: { en: "Language", ar: "اللغة", es: "Idioma", "pt-BR": "Idioma", id: "Bahasa" },
   languageBody: {
-    en: "Arabic-first onboarding is live. This also sets your default summary output language.",
-    ar: "التهيئة العربية أولًا أصبحت متاحة. ويحدد هذا أيضًا لغة مخرجات الملخص الافتراضية.",
-    es: "La configuración árabe primero ya está disponible. Esto también establece el idioma de salida predeterminado del resumen.",
-    "pt-BR": "A integração árabe em primeiro lugar está disponível. Isso também define o idioma padrão de saída do resumo.",
-    id: "Orientasi pertama dalam bahasa Arab kini tersedia. Ini juga menetapkan bahasa keluaran ringkasan secara default.",
+    en: "Choose your preferred language. This also sets the default output language for your summaries.",
+    ar: "اختر لغتك المفضلة. يحدد هذا أيضًا لغة مخرجات الملخص الافتراضية.",
+    es: "Elige tu idioma preferido. Esto también establece el idioma de salida predeterminado para tus resúmenes.",
+    "pt-BR": "Escolha seu idioma preferido. Isso também define o idioma padrão de saída dos seus resumos.",
+    id: "Pilih bahasa pilihan Anda. Ini juga menetapkan bahasa keluaran default untuk ringkasan Anda.",
   },
   memoryTitle: { en: "Family memory", ar: "ذاكرة العائلة", es: "Memoria familiar", "pt-BR": "Memória familiar", id: "Memori keluarga" },
   memoryBody: {
