@@ -9,12 +9,13 @@ import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { AnalyticsProvider } from "@/components/providers/AnalyticsProvider";
 import { AnalyticsIdentity } from "@/components/providers/AnalyticsIdentity";
-import type { Locale } from "@/lib/i18n";
+import type { SiteLocale } from "@/lib/i18n";
 
 interface AppProvidersProps {
   children: React.ReactNode;
-  initialLocale?: Locale;
+  initialLocale?: SiteLocale;
 }
+
 
 export function AppProviders({ children, initialLocale = "en" }: AppProvidersProps) {
   return (

@@ -16,8 +16,8 @@ const COPY = {
   eyebrow: { en: "Status", ar: "الحالة" },
   title: { en: "Service Status", ar: "حالة الخدمة" },
   description: {
-    en: "A live overview of the core services that keep Fazumi running.",
-    ar: "نظرة على الخدمات الأساسية التي تُبقي فازومي يعمل.",
+    en: "A current snapshot of the core services that keep Fazumi running.",
+    ar: "صورة راهنة عن الخدمات الأساسية التي يعمل بها فازومي.",
   },
   current: {
     label: { en: "Service overview", ar: "نظرة عامة على الخدمات" },
@@ -62,10 +62,10 @@ const COPY = {
     },
     {
       title: { en: "Billing & checkout", ar: "الفوترة والدفع" },
-      status: { en: "Operational", ar: "يعمل" },
+      status: { en: "Staged rollout", ar: "إطلاق تدريجي" },
       note: {
-        en: "Plan upgrades and billing management are available.",
-        ar: "ترقية الخطط وإدارة الفوترة متاحان.",
+        en: "Paid plans are opening gradually. See the pricing page for current access options.",
+        ar: "يتم فتح الخطط المدفوعة تدريجيًا. راجع صفحة الأسعار للاطلاع على خيارات الوصول الحالية.",
       },
       icon: CreditCard,
     },
@@ -80,8 +80,8 @@ const COPY = {
   support: {
     title: { en: "Need help?", ar: "هل تحتاج إلى مساعدة؟" },
     body: {
-      en: "If you run into a problem, our support team is here to help:",
-      ar: "إذا واجهت مشكلة، فريق الدعم هنا للمساعدة:",
+      en: "If you run into a problem, contact us and we'll help:",
+      ar: "إذا واجهت مشكلة، راسلنا وسنساعدك:",
     },
     email: LEGAL_CONTACT_EMAIL,
   },

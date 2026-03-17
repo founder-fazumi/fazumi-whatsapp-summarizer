@@ -17,10 +17,10 @@ interface NavProps {
 }
 
 const COPY = {
-  howItWorks: { en: "How it works", ar: "كيف يعمل" },
-  pricing: { en: "Pricing", ar: "الأسعار" },
-  dashboard: { en: "Go to app", ar: "الذهاب إلى التطبيق" },
-  toggle: { en: "Toggle language", ar: "تبديل اللغة" },
+  howItWorks: { en: "How it works", ar: "كيف يعمل", es: "Cómo funciona", "pt-BR": "Como funciona", id: "Cara kerja" },
+  pricing: { en: "Pricing", ar: "الأسعار", es: "Precios", "pt-BR": "Preços", id: "Harga" },
+  dashboard: { en: "Go to app", ar: "الذهاب إلى التطبيق", es: "Ir a la app", "pt-BR": "Ir para o app", id: "Buka aplikasi" },
+  toggle: { en: "Toggle language", ar: "تبديل اللغة", es: "Cambiar idioma", "pt-BR": "Alternar idioma", id: "Ganti bahasa" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 function hasSupabaseAuthCookie() {
@@ -40,7 +40,7 @@ function hasSupabaseAuthCookie() {
 }
 
 export function Nav({ isLoggedIn }: NavProps) {
-  const { locale, setLocale } = useLang();
+  const { locale, siteLocale, setLocale } = useLang();
   const { theme, toggleTheme } = useTheme();
   const mounted = useMounted();
   const [loggedIn, setLoggedIn] = useState(Boolean(isLoggedIn));
@@ -88,15 +88,15 @@ export function Nav({ isLoggedIn }: NavProps) {
   const languageToggleButton = mounted ? (
     <button
       type="button"
-      onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+      onClick={() => setLocale(siteLocale === "ar" ? "en" : "ar")}
       className={languageToggleClass}
-      aria-label={pick(COPY.toggle, locale)}
+      aria-label={pick(COPY.toggle, siteLocale)}
     >
       <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
       <span className="hidden sm:inline text-sm">
-        <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
+        <span className={siteLocale !== "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
         <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
-        <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
+        <span className={siteLocale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
       </span>
     </button>
   ) : (
@@ -125,7 +125,7 @@ export function Nav({ isLoggedIn }: NavProps) {
   return (
     <nav
       dir={locale === "ar" ? "rtl" : "ltr"}
-      lang={locale}
+      lang={siteLocale}
       className={cn(
         "sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--glass-surface)] backdrop-blur-xl",
         locale === "ar" && "font-arabic"
@@ -143,13 +143,13 @@ export function Nav({ isLoggedIn }: NavProps) {
               href="/#how-it-works"
               className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             >
-              {pick(COPY.howItWorks, locale)}
+              {pick(COPY.howItWorks, siteLocale)}
             </Link>
             <Link
               href="/#pricing"
               className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             >
-              {pick(COPY.pricing, locale)}
+              {pick(COPY.pricing, siteLocale)}
             </Link>
           </div>
 
@@ -159,10 +159,10 @@ export function Nav({ isLoggedIn }: NavProps) {
           {loggedIn ? (
             <>
               <GoToAppButton className="hidden items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:inline-flex">
-                {pick(COPY.dashboard, locale)} {dashboardArrow}
+                {pick(COPY.dashboard, siteLocale)} {dashboardArrow}
               </GoToAppButton>
               <GoToAppButton className="inline-flex min-h-11 items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:hidden">
-                {pick(COPY.dashboard, locale)} {dashboardArrow}
+                {pick(COPY.dashboard, siteLocale)} {dashboardArrow}
               </GoToAppButton>
             </>
           ) : (

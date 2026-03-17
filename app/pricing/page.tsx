@@ -24,7 +24,6 @@ const pricingSchema = {
       price: "9.99",
       priceCurrency: "USD",
       priceValidUntil: "2027-01-01",
-      availability: "https://schema.org/InStock",
       url: `${APP_URL}/pricing`,
     },
     {
@@ -33,7 +32,6 @@ const pricingSchema = {
       price: "99.99",
       priceCurrency: "USD",
       priceValidUntil: "2027-01-01",
-      availability: "https://schema.org/InStock",
       url: `${APP_URL}/pricing`,
     },
     {

@@ -34,28 +34,28 @@ const SOCIAL_LINKS = [
 const FOOTER_GROUPS = [
   {
     id: "fazumi",
-    title: { en: "Fazumi", ar: "فازومي" },
+    title: { en: "Fazumi", ar: "فازومي", es: "Fazumi", "pt-BR": "Fazumi", id: "Fazumi" },
     links: [
-      { label: { en: "About", ar: "من نحن" }, href: "/about" },
-      { label: { en: "Pricing", ar: "الأسعار" }, href: "/pricing" },
+      { label: { en: "About", ar: "من نحن", es: "Acerca de", "pt-BR": "Sobre", id: "Tentang" }, href: "/about" },
+      { label: { en: "Pricing", ar: "الأسعار", es: "Precios", "pt-BR": "Preços", id: "Harga" }, href: "/pricing" },
     ],
   },
   {
     id: "help",
-    title: { en: "Help", ar: "المساعدة" },
+    title: { en: "Help", ar: "المساعدة", es: "Ayuda", "pt-BR": "Ajuda", id: "Bantuan" },
     links: [
-      { label: { en: "Support", ar: "الدعم" }, href: "/contact" },
-      { label: { en: "Help centre", ar: "مركز المساعدة" }, href: "/help" },
+      { label: { en: "Support", ar: "الدعم", es: "Soporte", "pt-BR": "Suporte", id: "Dukungan" }, href: "/contact" },
+      { label: { en: "Help centre", ar: "مركز المساعدة", es: "Centro de ayuda", "pt-BR": "Central de ajuda", id: "Pusat bantuan" }, href: "/help" },
     ],
   },
   {
     id: "legal",
-    title: { en: "Legal", ar: "قانوني" },
+    title: { en: "Legal", ar: "قانوني", es: "Legal", "pt-BR": "Jurídico", id: "Hukum" },
     links: [
-      { label: { en: "Terms", ar: "الشروط" }, href: "/terms" },
-      { label: { en: "Privacy", ar: "الخصوصية" }, href: "/privacy" },
-      { label: { en: "Cookies", ar: "ملفات الارتباط" }, href: "/cookie-policy" },
-      { label: { en: "Refunds", ar: "الاسترداد" }, href: "/refunds" },
+      { label: { en: "Terms", ar: "الشروط", es: "Términos", "pt-BR": "Termos", id: "Ketentuan" }, href: "/terms" },
+      { label: { en: "Privacy", ar: "الخصوصية", es: "Privacidad", "pt-BR": "Privacidade", id: "Privasi" }, href: "/privacy" },
+      { label: { en: "Cookies", ar: "ملفات الارتباط", es: "Cookies", "pt-BR": "Cookies", id: "Cookie" }, href: "/cookie-policy" },
+      { label: { en: "Refunds", ar: "الاسترداد", es: "Reembolsos", "pt-BR": "Reembolsos", id: "Pengembalian dana" }, href: "/refunds" },
     ],
   },
 ] as const;
@@ -64,32 +64,44 @@ const COPY = {
   brand: {
     en: "School chat summaries for busy parents. Bilingual clarity, calmer family coordination.",
     ar: "ملخصات محادثات المدرسة لأولياء الأمور المشغولين. وضوح ثنائي اللغة، وتنسيق عائلي أهدأ.",
+    es: "Resúmenes de chats escolares para padres ocupados. Claridad bilingüe, coordinación familiar más tranquila.",
+    "pt-BR": "Resumos de chats escolares para pais ocupados. Clareza bilíngue, coordenação familiar mais tranquila.",
+    id: "Ringkasan obrolan sekolah untuk orang tua yang sibuk. Kejelasan bilingual, koordinasi keluarga yang lebih tenang.",
   },
   social: {
     en: "Follow Fazumi",
     ar: "تابع فازومي",
+    es: "Seguir a Fazumi",
+    "pt-BR": "Seguir o Fazumi",
+    id: "Ikuti Fazumi",
   },
   rights: {
     en: "All rights reserved.",
     ar: "جميع الحقوق محفوظة.",
+    es: "Todos los derechos reservados.",
+    "pt-BR": "Todos os direitos reservados.",
+    id: "Hak cipta dilindungi.",
   },
   support: {
     en: "Built by parents. Focused on privacy, bilingual clarity, and calmer family coordination.",
     ar: "بناه أولياء أمور. يركز على الخصوصية والوضوح ثنائي اللغة وتنسيق العائلة بهدوء.",
+    es: "Desarrollado por padres. Enfocado en privacidad, claridad bilingüe y coordinación familiar tranquila.",
+    "pt-BR": "Desenvolvido por pais. Focado em privacidade, clareza bilíngue e coordenação familiar tranquila.",
+    id: "Dibuat oleh orang tua. Berfokus pada privasi, kejelasan bilingual, dan koordinasi keluarga yang tenang.",
   },
-  supportEmail: { en: "Support", ar: "الدعم" },
-  billingEmail: { en: "Billing", ar: "الفوترة" },
+  supportEmail: { en: "Support", ar: "الدعم", es: "Soporte", "pt-BR": "Suporte", id: "Dukungan" },
+  billingEmail: { en: "Billing", ar: "الفوترة", es: "Facturación", "pt-BR": "Faturamento", id: "Penagihan" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 export function Footer() {
-  const { locale } = useLang();
+  const { locale, siteLocale } = useLang();
   const year = String(new Date().getFullYear());
   const [openSection, setOpenSection] = useState<string | null>(FOOTER_GROUPS[0].id);
 
   return (
     <footer
       dir={locale === "ar" ? "rtl" : "ltr"}
-      lang={locale}
+      lang={siteLocale}
       className={cn("border-t border-[var(--border)] bg-[var(--page-layer)] py-12", locale === "ar" && "font-arabic")}
     >
       <div className="page-shell">
@@ -100,14 +112,14 @@ export function Footer() {
               <span className="text-lg font-bold text-[var(--foreground)]">Fazumi</span>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-[var(--muted-foreground)]">
-              {pick(COPY.brand, locale)}
+              {pick(COPY.brand, siteLocale)}
             </p>
             <p className="mt-3 text-sm leading-relaxed text-[var(--muted-foreground)]">
-              {pick(COPY.support, locale)}
+              {pick(COPY.support, siteLocale)}
             </p>
             <div className="mt-4 flex flex-col gap-2 text-sm text-[var(--muted-foreground)]">
               <p>
-                {pick(COPY.supportEmail, locale)}:{" "}
+                {pick(COPY.supportEmail, siteLocale)}:{" "}
                 <a
                   href={`mailto:${LEGAL_CONTACT_EMAIL}`}
                   className="font-medium text-[var(--primary)] hover:underline"
@@ -118,7 +130,7 @@ export function Footer() {
                 </a>
               </p>
               <p>
-                {pick(COPY.billingEmail, locale)}:{" "}
+                {pick(COPY.billingEmail, siteLocale)}:{" "}
                 <a
                   href={`mailto:${BILLING_CONTACT_EMAIL}`}
                   className="font-medium text-[var(--primary)] hover:underline"
@@ -132,7 +144,7 @@ export function Footer() {
 
             <div className="mt-6">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">
-                {pick(COPY.social, locale)}
+                {pick(COPY.social, siteLocale)}
               </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 {SOCIAL_LINKS.map(({ href, icon: Icon, label }) => (
@@ -155,7 +167,7 @@ export function Footer() {
             {FOOTER_GROUPS.map((group) => (
               <div key={group.id}>
                 <h3 className="text-sm font-semibold text-[var(--foreground)]">
-                  {pick(group.title, locale)}
+                  {pick(group.title, siteLocale)}
                 </h3>
                 <ul className="mt-4 space-y-3">
                   {group.links.map((item) => (
@@ -164,7 +176,7 @@ export function Footer() {
                         href={item.href}
                         className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
                       >
-                        {pick(item.label, locale)}
+                        {pick(item.label, siteLocale)}
                       </Link>
                     </li>
                   ))}
@@ -189,7 +201,7 @@ export function Footer() {
                     aria-expanded={isOpen}
                   >
                     <span className="text-sm font-semibold text-[var(--foreground)]">
-                      {pick(group.title, locale)}
+                      {pick(group.title, siteLocale)}
                     </span>
                     <ChevronDown
                       className={cn(
@@ -206,7 +218,7 @@ export function Footer() {
                             href={item.href}
                             className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
                           >
-                            {pick(item.label, locale)}
+                            {pick(item.label, siteLocale)}
                           </Link>
                         </li>
                       ))}
@@ -220,7 +232,7 @@ export function Footer() {
 
         <div className="mt-10 border-t border-[var(--border)] pt-6">
           <p className="text-sm text-[var(--muted-foreground)]">
-            © {year} Fazumi. {pick(COPY.rights, locale)}
+            © {year} Fazumi. {pick(COPY.rights, siteLocale)}
           </p>
         </div>
       </div>

@@ -5,7 +5,7 @@ import Script from "next/script";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { RouteAwareFooter } from "@/components/layout/RouteAwareFooter";
-import type { Locale } from "@/lib/i18n";
+import type { SiteLocale } from "@/lib/i18n";
 import { LANG_STORAGE_KEY } from "@/lib/preferences";
 
 const inter = Inter({
@@ -53,6 +53,9 @@ export const metadata: Metadata = {
     languages: {
       en: "/",
       ar: "/",
+      es: "/",
+      "pt-BR": "/",
+      id: "/",
       "x-default": "/",
     },
   },
@@ -70,7 +73,7 @@ export const metadata: Metadata = {
     siteName: "Fazumi",
     type: "website",
     locale: "en_US",
-    alternateLocale: "ar",
+    alternateLocale: ["ar", "es", "pt_BR", "id"],
     images: [
       {
         url: "/og-image.png",
@@ -121,8 +124,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
-  const initialLocale: Locale =
-    cookieStore.get(LANG_STORAGE_KEY)?.value === "en" ? "en" : "ar";
+  const VALID_LOCALES: SiteLocale[] = ["en", "ar", "es", "pt-BR", "id"];
+  const cookieLocale = cookieStore.get(LANG_STORAGE_KEY)?.value;
+  const initialLocale: SiteLocale = (VALID_LOCALES as string[]).includes(cookieLocale ?? "")
+    ? (cookieLocale as SiteLocale)
+    : "ar";
   const disableServiceWorkerBootstrap =
     process.env.NODE_ENV !== "production" || process.env.PLAYWRIGHT_TEST === "1";
 

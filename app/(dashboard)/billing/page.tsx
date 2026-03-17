@@ -74,7 +74,8 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
 
 export default async function BillingPage() {
   const cookieStore = await cookies();
-  const locale: Locale = cookieStore.get("fazumi_lang")?.value === "en" ? "en" : "ar";
+  const cookieLocale = cookieStore.get("fazumi_lang")?.value ?? "ar";
+  const locale: Locale = cookieLocale === "ar" ? "ar" : "en";
 
   let isLoggedIn = false;
   let billingPlan: PlanKey = "free";

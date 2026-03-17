@@ -97,34 +97,48 @@ function getOpenAI() {
   return openAiClient;
 }
 
-function detectInputLanguage(text: string): "en" | "ar" {
+type ZipOutputLang = Exclude<LangPref, "auto">;
+
+const ZIP_LANG_INSTRUCTIONS: Record<ZipOutputLang, string> = {
+  en: "IMPORTANT: Reply in English only, regardless of the chat language.",
+  ar: "IMPORTANT: Reply in Standard Arabic (فصحى) only, regardless of the chat language.",
+  es: "IMPORTANT: Reply in Spanish only, regardless of the chat language.",
+  "pt-BR": "IMPORTANT: Reply in Brazilian Portuguese only, regardless of the chat language.",
+  id: "IMPORTANT: Reply in Bahasa Indonesia only, regardless of the chat language.",
+  hi: "IMPORTANT: Reply in Hindi only, regardless of the chat language.",
+  ur: "IMPORTANT: Reply in Urdu only, regardless of the chat language.",
+};
+
+function detectInputLanguage(text: string): ZipOutputLang {
   const arabicChars = text.match(/[\u0600-\u06FF]/g)?.length ?? 0;
   const latinChars = text.match(/[A-Za-z]/g)?.length ?? 0;
+  const devanagariChars = text.match(/[\u0900-\u097F]/g)?.length ?? 0;
+  const totalAlpha = arabicChars + latinChars + devanagariChars;
 
-  if (arabicChars === 0) {
-    return "en";
-  }
+  if (totalAlpha === 0) return "en";
 
-  if (latinChars === 0) {
+  if (devanagariChars / totalAlpha >= 0.3) return "hi";
+
+  if (arabicChars / totalAlpha >= 0.3) {
+    // ں (U+06BA, Noon Ghunna) and ے (U+06D2, Barri Ye) are Urdu-exclusive
+    const urduExclusive = text.match(/[\u06BA\u06D2]/g)?.length ?? 0;
+    if (arabicChars > 0 && urduExclusive / arabicChars >= 0.02) return "ur";
     return "ar";
   }
 
   return arabicChars >= latinChars ? "ar" : "en";
 }
 
-function resolveOutputLanguage(text: string, langPref: LangPref) {
+function resolveOutputLanguage(text: string, langPref: LangPref): ZipOutputLang {
   return langPref === "auto" ? detectInputLanguage(text) : langPref;
 }
 
 function buildUserPrompt(
   text: string,
-  outputLang: "en" | "ar",
+  outputLang: ZipOutputLang,
   context?: SummaryPromptContext
 ) {
-  const langInstruction =
-    outputLang === "en"
-      ? "IMPORTANT: Reply in English only, even if the source messages include Arabic."
-      : "IMPORTANT: Reply in Standard Arabic (فصحى) only, even if the source messages include English.";
+  const langInstruction = ZIP_LANG_INSTRUCTIONS[outputLang];
   const familyContext = context?.familyContext ? buildFamilyContextPrompt(context.familyContext) : null;
   const metaLines = [
     context?.groupTitle ? `Saved group name: ${context.groupTitle}` : null,
@@ -227,7 +241,7 @@ function buildUsage(
   };
 }
 
-function parseModelPayload(raw: string, outputLang: "en" | "ar") {
+function parseModelPayload(raw: string, outputLang: ZipOutputLang) {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -278,7 +292,7 @@ function tryReadPlaywrightOverride(encoded: string | null) {
 
 function buildOverridePayload(
   override: NonNullable<ReturnType<typeof tryReadPlaywrightOverride>>,
-  outputLang: "en" | "ar",
+  outputLang: ZipOutputLang,
   inputText: string
 ) {
   const summarySource = override.summary ?? {};

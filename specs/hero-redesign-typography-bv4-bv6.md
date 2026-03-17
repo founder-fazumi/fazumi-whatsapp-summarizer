@@ -9,7 +9,7 @@
 Upgrade the landing page for higher conversion with larger Apple-style typography, an interactive hero demo, screenshot placeholders in How It Works, and follow-up Brand Voice Kit v1 work for FAQ, About, and Summarize.
 
 ## Audience
-- Busy GCC parents, ages 35-55
+- Busy school parents internationally, ages 30-55
 - Bilingual Arabic and English readers
 - Mobile-first usage with higher readability needs
 
@@ -72,7 +72,7 @@ const HEADLINES = [
 const SUBTITLES = [
   { en: "Paste WhatsApp chat. Get a clear summary in seconds.", ar: "الصق محادثة واتساب. احصل على ملخص واضح خلال ثوانٍ." },
   { en: "Deadlines, payments, supplies, and exams in one card.", ar: "المواعيد والرسوم والمستلزمات والاختبارات في بطاقة واحدة." },
-  { en: "Built for GCC parents. Arabic and English by default.", ar: "مصمم لأولياء الأمور في الخليج. العربية والإنجليزية افتراضيًا." },
+  { en: "Works for any school. Arabic and English by default.", ar: "يعمل مع أي مدرسة. العربية والإنجليزية افتراضيًا." },
 ] as const;
 ```
 

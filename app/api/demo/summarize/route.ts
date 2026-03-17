@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { summarizeChat } from "@/lib/ai/summarize";
+import { summarizeChat, type LangPref } from "@/lib/ai/summarize";
 
 export const runtime = "nodejs";
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { text?: unknown; lang_pref?: unknown };
+  let body: { text?: unknown; lang_pref?: unknown; ui_locale?: unknown };
   try {
     body = (await req.json()) as { text?: unknown; lang_pref?: unknown };
   } catch {
@@ -45,11 +45,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const validLangPrefs = new Set(["auto", "en", "ar"]);
-  const langPref =
-    typeof body.lang_pref === "string" && validLangPrefs.has(body.lang_pref)
-      ? (body.lang_pref as "auto" | "en" | "ar")
-      : "auto";
+  // Output-language priority: explicit lang > ui_locale > auto > English fallback
+  const validExplicitLangs = new Set(["en", "ar", "es", "pt-BR", "id", "hi", "ur"]);
+  const validUiLocales = new Set(["en", "ar", "es", "pt-BR", "id"]);
+  let langPref: LangPref;
+  if (typeof body.lang_pref === "string" && validExplicitLangs.has(body.lang_pref)) {
+    langPref = body.lang_pref as LangPref;
+  } else if (typeof body.ui_locale === "string" && validUiLocales.has(body.ui_locale)) {
+    langPref = body.ui_locale as LangPref;
+  } else if (body.lang_pref === "auto") {
+    langPref = "auto";
+  } else {
+    langPref = "en";
+  }
 
   // Record the request time before the AI call so slow responses still count
   ipLastRequest.set(ip, now);

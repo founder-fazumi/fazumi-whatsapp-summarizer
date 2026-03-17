@@ -8,7 +8,7 @@ import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
 import type { FamilyContext } from "@/lib/family-context";
 import { buildFamilyContextPrompt } from "@/lib/family-context";
 
-export type LangPref = "auto" | "en" | "ar";
+export type LangPref = "auto" | "en" | "ar" | "es" | "pt-BR" | "id" | "hi" | "ur";
 
 export interface ImportantDate {
   label: string;
@@ -57,7 +57,7 @@ export interface SummaryUsage {
   estimatedCostUsd: number;
 }
 
-type ResolvedLang = Exclude<LangPref, "auto">;
+type ResolvedLang = Exclude<LangPref, "auto"> | "detect";
 
 export interface SummaryPromptContext {
   sourcePlatform?: ImportSourcePlatform | null;
@@ -107,7 +107,9 @@ RULES:
 - contacts: only explicitly stated phone numbers, emails, or contact handles — never invent.
 - chat_type values: "routine_update" = regular school news; "urgent_notice" = requires immediate action; "event_announcement" = specific upcoming event; "noisy_general_chat" = mostly off-topic chatter with little actionable content.
 - Be concise. Bullet points, not paragraphs, for list fields.
-- Follow the output language requested in the user message. If no output language is requested, reply in the SAME language as the chat.
+- Follow the output language requested in the user message. Supported output languages include English, Arabic (Standard Arabic / فصحى), Spanish, Brazilian Portuguese, Bahasa Indonesia, Hindi, and Urdu. If no output language is requested, reply in the SAME language as the chat.
+- For mixed-language chats (e.g. Arabic + English, Hindi + English), produce the entire summary in the single requested output language.
+- Preserve proper nouns (teacher names, school names, class names, subject names) in their original form. Do not translate them.
 - If saved family context is provided, use it only to disambiguate names, classes, recurring links, and expected currency. Never invent facts that are not supported by the chat.
 - Never include raw message text in your output.
 - If the chat is too short or unclear to summarize, set tldr to a brief note explaining that, and return empty arrays and safe defaults for all other fields.
@@ -129,20 +131,49 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
+// Per-language output instructions injected into the user message.
+// "detect" means no explicit instruction — the system prompt default applies
+// (reply in the same language as the chat).
+const LANG_INSTRUCTIONS: Record<Exclude<ResolvedLang, "detect">, string> = {
+  en:      "Reply in English only, regardless of the chat language.",
+  ar:      "Reply in Standard Arabic (فصحى) only, regardless of the chat language.",
+  es:      "Reply in Spanish only, regardless of the chat language.",
+  "pt-BR": "Reply in Brazilian Portuguese only, regardless of the chat language.",
+  id:      "Reply in Bahasa Indonesia only, regardless of the chat language.",
+  hi:      "Reply in Hindi only, regardless of the chat language.",
+  ur:      "Reply in Urdu only, regardless of the chat language.",
+};
+
 function detectInputLanguage(text: string): ResolvedLang {
   const arabicChars = text.match(/[\u0600-\u06FF]/g)?.length ?? 0;
+  const devanagariChars = text.match(/[\u0900-\u097F]/g)?.length ?? 0;
   const latinChars = text.match(/[A-Za-z]/g)?.length ?? 0;
-  const totalAlpha = arabicChars + latinChars;
+  const totalAlpha = arabicChars + latinChars + devanagariChars;
 
-  if (totalAlpha === 0) return "en";
+  if (totalAlpha === 0) return "detect";
 
-  // Arabic wins if >= 30% of alphabetic chars are Arabic.
-  // Old threshold of 50% incorrectly flipped on mixed EN/AR Gulf school chats.
-  return arabicChars / totalAlpha >= 0.3 ? "ar" : "en";
+  // Arabic-script block wins if >= 30% of alphabetic chars are in U+0600–U+06FF.
+  if (arabicChars / totalAlpha >= 0.3) {
+    // Distinguish Urdu from Arabic within the shared Arabic script block.
+    // ں (U+06BA, Noon Ghunna) and ے (U+06D2, Barri Ye) are Urdu-exclusive:
+    // they appear in virtually every Urdu sentence but are absent from standard
+    // Arabic. A 2 % threshold is conservative — typical Urdu text runs 8–15 %.
+    const urduExclusive = text.match(/[\u06BA\u06D2]/g)?.length ?? 0;
+    if (arabicChars > 0 && urduExclusive / arabicChars >= 0.02) return "ur";
+    return "ar";
+  }
+
+  // Devanagari detection for Hindi-dominant chats.
+  if (devanagariChars / totalAlpha >= 0.3) return "hi";
+
+  // For Latin-script languages (ES, PT-BR, ID, EN) we let the model detect
+  // and reply in the same language as the chat per the system prompt default.
+  return "detect";
 }
 
 function resolveOutputLanguage(text: string, langPref: LangPref): ResolvedLang {
-  return langPref === "auto" ? detectInputLanguage(text) : langPref;
+  if (langPref === "auto") return detectInputLanguage(text);
+  return langPref;
 }
 
 function buildUserMessage(
@@ -150,10 +181,8 @@ function buildUserMessage(
   outputLang: ResolvedLang,
   context?: SummaryPromptContext
 ): string {
-  const langInstruction =
-    outputLang === "en"
-      ? "\n\nIMPORTANT: Reply in English only, regardless of the chat language."
-      : "\n\nIMPORTANT: Reply in Standard Arabic (فصحى) only, regardless of the chat language.";
+  const instruction = outputLang !== "detect" ? LANG_INSTRUCTIONS[outputLang] : null;
+  const langInstruction = instruction ? `\n\nIMPORTANT: ${instruction}` : "";
   const familyContext = context?.familyContext ? buildFamilyContextPrompt(context.familyContext) : null;
   const metaLines = [
     context?.sourcePlatform ? `Source platform: ${context.sourcePlatform}` : null,
@@ -324,7 +353,7 @@ export async function summarizeChat(
     questions: toStringArray(parsed.questions),
     chat_type: parseChatType(parsed.chat_type),
     chat_context: parseChatContext(parsed.chat_context),
-    lang_detected: outputLang,
+    lang_detected: outputLang === "detect" ? "auto" : outputLang,
     char_count: text.length,
   };
 
