@@ -12,15 +12,15 @@ type OutputLang = "en" | "ar";
 
 const COPY = {
   noUrgentItems: {
-    en: "No urgent items found. You're all caught up.",
-    ar: "لا توجد بنود عاجلة. أنت على اطلاع بكل شيء.",
+    en: "No urgent items detected in this chat.",
+    ar: "لا توجد بنود عاجلة في هذا الملخص.",
   },
   nothingUrgentMissed: {
-    en: "Nothing urgent missed",
-    ar: "لم يفتك شيء عاجل",
+    en: "Nothing else flagged as urgent",
+    ar: "لم يُرصد شيء عاجل آخر",
   },
   nothingElseUrgentDetected: {
-    en: "Nothing else urgent detected",
+    en: "No other urgent items detected",
     ar: "لم نرصد شيئًا عاجلًا آخر",
   },
   noActionItemsRequired: {

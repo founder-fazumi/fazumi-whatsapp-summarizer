@@ -63,8 +63,8 @@ const PAGE_CONTENT = {
       ar: "إلى أين يذهب دعمك",
     },
     subheadline: {
-      en: "If you become a Founder Supporter, you're helping me build FAZUMI with better tools, stronger systems, and more room to do the work properly — with care, not shortcuts.",
-      ar: "إذا أصبحت Founder Supporter، فأنت تساعدني على بناء FAZUMI بأدوات أفضل، وأنظمة أقوى، ومساحة أكبر للقيام بالعمل كما يجب — بعناية، لا بالاختصارات.",
+      en: "If you become a Founder Supporter, you're helping improve FAZUMI's summary quality, reliability, and the overall parent experience — built properly, not rushed.",
+      ar: "إذا أصبحت Founder Supporter، فأنت تساعد في تحسين جودة ملخصات FAZUMI وموثوقيتها وتجربة الوالدين بشكل عام — بناء صحيح، لا على عجل.",
     },
     body: listCopy(
       [
@@ -118,12 +118,12 @@ const PAGE_CONTENT = {
       },
       body: {
         en: [
-          "Some of your support goes into the machines, setup, and working environment I use to build FAZUMI day to day.",
-          "Better tools help me work faster, test more reliably, and build with fewer compromises. They also support the internal systems I use for development, admin work, and ongoing improvements behind the scenes.",
+          "A portion of Founder Support goes into the development infrastructure that keeps FAZUMI reliable and improving.",
+          "This includes the testing, automation, and build systems that help catch bugs early, ship improvements faster, and keep the summarization quality high over time.",
         ],
         ar: [
-          "يذهب جزء من دعمك إلى الأجهزة، والتجهيزات، وبيئة العمل التي أستخدمها لبناء FAZUMI يومًا بعد يوم.",
-          "الأدوات الأفضل تساعدني على العمل أسرع، والاختبار بثبات أكبر، والبناء مع تنازلات أقل. كما تدعم الأنظمة الداخلية التي أستخدمها للتطوير، والعمل الإداري، والتحسينات المستمرة خلف الكواليس.",
+          "يذهب جزء من Founder Support إلى البنية التحتية للتطوير التي تجعل FAZUMI موثوقًا ومتطورًا باستمرار.",
+          "يشمل ذلك الاختبارات والأتمتة وأنظمة البناء التي تساعد على اكتشاف الأخطاء مبكرًا وإصدار التحسينات بسرعة أكبر والحفاظ على جودة التلخيص عالية مع مرور الوقت.",
         ],
       },
     },

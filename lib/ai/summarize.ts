@@ -97,8 +97,10 @@ Analyze the provided chat text and return a JSON object with EXACTLY these field
 
 RULES:
 - Use absolute dates in labels (e.g. "Monday Feb 24" not "tomorrow" or "next week").
-- date field must be ISO format YYYY-MM-DD. If year is ambiguous, use the current year.
-- urgent: true only if the event or deadline is within the next 48 hours of the most recent message date.
+- date field must be ISO format YYYY-MM-DD. Only include a year if it is explicitly stated in the chat text or the chat messages make the year unambiguous. If the year is uncertain, use the current year only if the month and day are plausible for this year. Do NOT assume a past year unless the original text explicitly states it.
+- If a weekday name (e.g. "Monday") and a specific calendar date (e.g. "March 5") are both given for the same event but do not match, add " — verify date in original message" to the label and set date to null.
+- If a date or deadline cannot be determined with reasonable confidence from the chat text, add " — check original message" to the label and return null for the date field. Never invent a specific date.
+- urgent: true only if the event or deadline is within the next 48 hours of the most recent message date, and the date is clearly determinable. If the date is uncertain, set urgent to false.
 - urgent_action_items must be a strict subset of action_items with identical wording.
 - The output will feed these buckets: Due today, Upcoming dates, Payments/forms, Supplies, Questions, and Urgent items. Write with those buckets in mind.
 - Explicitly call out payments, forms, permission slips, supplies to bring, portal uploads, school-fee reminders, and approval requests when they matter.
@@ -277,6 +279,126 @@ export function parseChatContext(val: unknown): ChatContext {
   return { message_count_estimate: null, date_range: null };
 }
 
+// ---------------------------------------------------------------------------
+// Deterministic post-AI date safety layer
+// ---------------------------------------------------------------------------
+
+// [regex, JS day index (0=Sun … 6=Sat)]
+// Arabic patterns use /u flag and match with or without "يوم " prefix and
+// with or without the definite article "ال", covering common LLM output
+// variations. Label text is NFC-normalized before matching (see below).
+const WEEKDAY_PATTERNS: Array<[RegExp, number]> = [
+  [/\bSunday\b/i, 0],
+  [/\bMonday\b/i, 1],
+  [/\bTuesday\b/i, 2],
+  [/\bWednesday\b/i, 3],
+  [/\bThursday\b/i, 4],
+  [/\bFriday\b/i, 5],
+  [/\bSaturday\b/i, 6],
+  // Arabic weekdays — optional "يوم " prefix, optional "ال" article
+  [/(?:يوم\s+)?(?:ال)?أحد/u, 0],
+  [/(?:يوم\s+)?(?:ال)?اثنين/u, 1],
+  [/(?:يوم\s+)?(?:ال)?ثلاثاء/u, 2],
+  [/(?:يوم\s+)?(?:ال)?أربعاء/u, 3],
+  [/(?:يوم\s+)?(?:ال)?خميس/u, 4],
+  [/(?:يوم\s+)?(?:ال)?جمعة/u, 5],
+  [/(?:يوم\s+)?(?:ال)?سبت/u, 6],
+];
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Detects labels already carrying a verification/check note (EN or AR)
+const ALREADY_MARKED_RE = /—\s*(verify|check|تحقق|راجع)/i;
+
+/**
+ * Deterministic post-AI safety layer for date output.
+ * Runs after toImportantDateArray() to catch problems that prompt rules alone
+ * cannot guarantee:
+ *
+ *  1. Invalid ISO format          → date nulled
+ *  2. Date > 365 days in the past → likely wrong-year inference → date nulled + marker
+ *  3. Weekday/calendar mismatch   → date nulled + verify marker
+ *  4. urgent=true with null/past date → forced to false
+ *
+ * @param dates          Output from toImportantDateArray()
+ * @param referenceDate  Injected for testing; defaults to today
+ */
+export function sanitizeImportantDates(
+  dates: ImportantDate[],
+  referenceDate?: Date,
+): ImportantDate[] {
+  const today = new Date(referenceDate ?? Date.now());
+  today.setHours(0, 0, 0, 0);
+  const MS_PER_DAY = 86_400_000;
+
+  return dates.map((item) => {
+    let { label, date, urgent } = item;
+    const { time, location } = item;
+
+    if (date !== null) {
+      // 1. Validate ISO YYYY-MM-DD format
+      if (!ISO_DATE_RE.test(date)) {
+        date = null;
+      } else {
+        const parsed = new Date(date + "T00:00:00");
+        if (isNaN(parsed.getTime())) {
+          date = null;
+        } else {
+          const daysDiff = (parsed.getTime() - today.getTime()) / MS_PER_DAY;
+
+          // 2. More than 365 days in the past → almost certainly a wrong year
+          if (daysDiff < -365) {
+            date = null;
+            if (!ALREADY_MARKED_RE.test(label)) {
+              label = label + " — check original message";
+            }
+          } else {
+            // 3. Weekday/date cross-validation
+            // NFC-normalize before matching to handle different Arabic Unicode
+            // compositions that LLMs may produce (e.g. hamza variants).
+            const actualWeekday = parsed.getDay();
+            const normalizedLabel = label.normalize("NFC");
+            for (const [pattern, expectedDay] of WEEKDAY_PATTERNS) {
+              if (pattern.test(normalizedLabel)) {
+                if (actualWeekday !== expectedDay) {
+                  date = null;
+                  if (!ALREADY_MARKED_RE.test(label)) {
+                    label = label + " — verify date in original message";
+                  }
+                }
+                break; // only check first weekday found
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 4. urgent must be false when date is null or already in the past
+    if (date === null) {
+      urgent = false;
+    } else {
+      const parsedForUrgency = new Date(date + "T00:00:00");
+      if ((parsedForUrgency.getTime() - today.getTime()) / MS_PER_DAY < 0) {
+        urgent = false;
+      }
+    }
+
+    return { label, date, time, location, urgent };
+  });
+}
+
+/**
+ * Enforces the contract that urgent_action_items must be a strict subset of
+ * action_items. Removes any entry not present verbatim in action_items.
+ */
+function sanitizeUrgentActionItems(
+  urgentItems: string[],
+  actionItems: string[],
+): string[] {
+  const actionSet = new Set(actionItems);
+  return urgentItems.filter((item) => actionSet.has(item));
+}
+
 export function applySummaryPromptContext(
   summary: SummaryResult,
   context?: SummaryPromptContext
@@ -342,11 +464,15 @@ export async function summarizeChat(
     throw new Error("AI returned invalid JSON");
   }
 
+  const rawActionItems = toStringArray(parsed.action_items);
   const summary: SummaryResult = {
     tldr: String(parsed.tldr ?? ""),
-    important_dates: toImportantDateArray(parsed.important_dates),
-    action_items: toStringArray(parsed.action_items),
-    urgent_action_items: toStringArray(parsed.urgent_action_items),
+    important_dates: sanitizeImportantDates(toImportantDateArray(parsed.important_dates)),
+    action_items: rawActionItems,
+    urgent_action_items: sanitizeUrgentActionItems(
+      toStringArray(parsed.urgent_action_items),
+      rawActionItems,
+    ),
     people_classes: toStringArray(parsed.people_classes),
     contacts: toStringArray(parsed.contacts),
     links: toStringArray(parsed.links),

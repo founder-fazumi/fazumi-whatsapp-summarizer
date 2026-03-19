@@ -8,7 +8,7 @@ import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const SEEN_KEY = "fazumi_pmf_survey_seen";
-const MIN_SUMMARY_COUNT = 3;
+const MIN_SUMMARY_COUNT = 8; // delay until user has seen real value — do not interrupt first sessions
 
 type PmfResponseValue =
   | "very_disappointed"

@@ -315,7 +315,9 @@ export default function LoginPage() {
               {locale === "ar" ? "مرحبًا" : "Welcome"}
             </h1>
             <CardDescription className="text-sm">
-              {locale === "ar" ? "سجّل الدخول أو أنشئ حسابًا مجانيًا للبدء" : "Log in or create a free account to get started"}
+              {locale === "ar"
+                ? "جرّب مجانًا لمدة 7 أيام · 3 ملخصات يوميًا · لا حاجة لبطاقة"
+                : "7-day free trial · 3 summaries a day · No card required"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 px-4 pb-4 sm:space-y-4 sm:px-[var(--card-padding)] sm:pb-[var(--card-padding)]">
@@ -549,6 +551,11 @@ export default function LoginPage() {
                   </Button>
                   <p className="text-center text-xs text-[var(--muted-foreground)]">
                     {locale === "ar" ? "تجربة مجانية لمدة 7 أيام · لا حاجة إلى بطاقة" : "7-day free trial · No credit card required"}
+                  </p>
+                  <p className="text-center text-xs text-[var(--muted-foreground)]">
+                    {locale === "ar"
+                      ? "نص المحادثة يُعالَج لإنشاء الملخص ولا يُحفظ في سجلك."
+                      : "Chat text is processed to create your summary and not stored in your history."}
                   </p>
                 </form>
               </TabsContent>

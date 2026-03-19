@@ -22,10 +22,10 @@ const COPY = {
   current: {
     label: { en: "Service overview", ar: "نظرة عامة على الخدمات" },
     title: { en: "Core services", ar: "الخدمات الأساسية" },
-    badge: { en: "All systems operational", ar: "جميع الخدمات تعمل بشكل طبيعي" },
+    badge: { en: "Core services available", ar: "الخدمات الأساسية متاحة" },
     body: {
-      en: "Fazumi's main features are available. The services below show the current state of each core part of the product.",
-      ar: "الميزات الرئيسية في فازومي متاحة. تعرض الخدمات أدناه الحالة الراهنة لكل جزء أساسي من المنتج.",
+      en: "Fazumi's main features are available. AI summaries are in early release — dates and deadlines may occasionally need manual verification.",
+      ar: "الميزات الرئيسية في فازومي متاحة. الملخصات بالذكاء الاصطناعي في مرحلة الإصدار المبكر — قد تحتاج بعض التواريخ والمواعيد إلى تحقق يدوي أحيانًا.",
     },
     date: {
       en: `Last checked: ${SNAPSHOT_DATE}`,
@@ -44,10 +44,10 @@ const COPY = {
     },
     {
       title: { en: "Summarization", ar: "التلخيص" },
-      status: { en: "Operational", ar: "يعمل" },
+      status: { en: "Early release", ar: "إصدار مبكر" },
       note: {
-        en: "Paste-and-summarize requests are processed normally.",
-        ar: "طلبات اللصق والتلخيص تُعالج بشكل طبيعي.",
+        en: "Summaries are generated and processed normally. AI date extraction is in early release — verify critical dates against the original message.",
+        ar: "يتم إنشاء الملخصات ومعالجتها بشكل طبيعي. استخراج التواريخ بالذكاء الاصطناعي في إصدار مبكر — تحقق من التواريخ المهمة مقابل الرسالة الأصلية.",
       },
       icon: Activity,
     },
@@ -71,10 +71,10 @@ const COPY = {
     },
   ],
   history: {
-    title: { en: "Known issues", ar: "المشكلات المعروفة" },
+    title: { en: "Known limitations", ar: "القيود المعروفة" },
     body: {
-      en: "No known issues at this time.",
-      ar: "لا توجد مشكلات معروفة حالياً.",
+      en: "AI date extraction is in early release. Dates without an explicit year, or messages where a weekday and a calendar date appear to conflict, may need manual verification against the original message.",
+      ar: "استخراج التواريخ بالذكاء الاصطناعي في مرحلة الإصدار المبكر. قد تحتاج التواريخ التي لا تتضمن سنة صريحة، أو الرسائل التي يبدو فيها تعارض بين يوم الأسبوع والتاريخ، إلى تحقق يدوي من الرسالة الأصلية.",
     },
   },
   support: {

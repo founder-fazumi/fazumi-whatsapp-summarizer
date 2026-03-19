@@ -163,7 +163,7 @@ export default async function BillingPage() {
                   <LocalizedText en="Billing" ar="الفوترة" />
                 </h1>
                 <CardDescription>
-                  <LocalizedText en="Manage your subscription and billing" ar="أدر اشتراكك وفوترتك" />
+                  <LocalizedText en="Your plan and access details" ar="تفاصيل خطتك والوصول" />
                 </CardDescription>
               </div>
             </div>
@@ -305,8 +305,8 @@ export default async function BillingPage() {
 
             <p className="text-xs text-[var(--muted-foreground)]">
               <LocalizedText
-                en="Invoice history is available in the billing portal linked above when available."
-                ar="سجل الفواتير متاح في بوابة الفوترة المرتبطة أعلاه عند توفرها."
+                en="Invoice history is available through the billing portal link above, if you have an active paid subscription."
+                ar="سجل الفواتير متاح عبر رابط بوابة الفوترة أعلاه، إذا كان لديك اشتراك مدفوع نشط."
               />
             </p>
           </CardContent>
