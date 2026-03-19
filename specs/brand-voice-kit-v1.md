@@ -5,11 +5,11 @@
 ---
 
 ## Goal
-Apply a consistent brand voice across FAZUMI user-facing copy to support conversion, retention, and trust for busy GCC parents.
+Apply a consistent brand voice across FAZUMI user-facing copy to support conversion, retention, and trust for busy school parents internationally.
 
 ## Audience
 - Bilingual Arabic and English parents with K-6 children
-- MENA and GCC context
+- International, multilingual context
 - High sensitivity to accuracy, privacy, and price clarity
 
 ## Voice

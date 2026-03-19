@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Globe, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useLang } from "@/lib/context/LangContext";
 import { useTheme } from "@/lib/context/ThemeContext";
 import { useMounted } from "@/lib/hooks/useMounted";
 import { GoToAppButton } from "@/components/landing/GoToAppButton";
 import { pick, t, type LocalizedCopy } from "@/lib/i18n";
 import { BrandLogo } from "@/components/shared/BrandLogo";
+import { LanguageDropdown } from "@/components/shared/LanguageDropdown";
 import { isSupabaseAuthCookieName } from "@/lib/supabase/auth-cookies";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +18,9 @@ interface NavProps {
 }
 
 const COPY = {
-  howItWorks: { en: "How it works", ar: "كيف يعمل" },
-  pricing: { en: "Pricing", ar: "الأسعار" },
-  dashboard: { en: "Go to app", ar: "الذهاب إلى التطبيق" },
-  toggle: { en: "Toggle language", ar: "تبديل اللغة" },
+  howItWorks: { en: "How it works", ar: "كيف يعمل", es: "Cómo funciona", "pt-BR": "Como funciona", id: "Cara kerja" },
+  pricing: { en: "Pricing", ar: "الأسعار", es: "Precios", "pt-BR": "Preços", id: "Harga" },
+  dashboard: { en: "Go to app", ar: "الذهاب إلى التطبيق", es: "Ir a la app", "pt-BR": "Ir para o app", id: "Buka aplikasi" },
 } satisfies Record<string, LocalizedCopy<string>>;
 
 function hasSupabaseAuthCookie() {
@@ -40,7 +40,7 @@ function hasSupabaseAuthCookie() {
 }
 
 export function Nav({ isLoggedIn }: NavProps) {
-  const { locale, setLocale } = useLang();
+  const { locale, siteLocale } = useLang();
   const { theme, toggleTheme } = useTheme();
   const mounted = useMounted();
   const [loggedIn, setLoggedIn] = useState(Boolean(isLoggedIn));
@@ -61,9 +61,6 @@ export function Nav({ isLoggedIn }: NavProps) {
 
   const themeToggleClass =
     "inline-flex rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] p-2 text-[var(--muted-foreground)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
-  const languageToggleClass =
-    "inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-muted)]";
-
   const themeToggleButton = mounted ? (
     <button
       type="button"
@@ -85,36 +82,6 @@ export function Nav({ isLoggedIn }: NavProps) {
     </button>
   );
 
-  const languageToggleButton = mounted ? (
-    <button
-      type="button"
-      onClick={() => setLocale(locale === "en" ? "ar" : "en")}
-      className={languageToggleClass}
-      aria-label={pick(COPY.toggle, locale)}
-    >
-      <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      <span className="hidden sm:inline text-sm">
-        <span className={locale === "en" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>EN</span>
-        <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
-        <span className={locale === "ar" ? "font-bold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}>عربي</span>
-      </span>
-    </button>
-  ) : (
-    <button
-      type="button"
-      disabled
-      suppressHydrationWarning
-      className={languageToggleClass}
-      aria-label="Language toggle"
-    >
-      <Globe className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      <span className="hidden sm:inline text-sm">
-        <span className="font-bold text-[var(--foreground)]">EN</span>
-        <span className="mx-0.5 text-[var(--muted-foreground)]">/</span>
-        <span className="text-[var(--muted-foreground)]">عربي</span>
-      </span>
-    </button>
-  );
 
   const dashboardArrow = (
     <span className={cn("ml-1 transition-transform", locale === "ar" && "inline-block rotate-180")}>
@@ -125,7 +92,7 @@ export function Nav({ isLoggedIn }: NavProps) {
   return (
     <nav
       dir={locale === "ar" ? "rtl" : "ltr"}
-      lang={locale}
+      lang={siteLocale}
       className={cn(
         "sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--glass-surface)] backdrop-blur-xl",
         locale === "ar" && "font-arabic"
@@ -143,26 +110,26 @@ export function Nav({ isLoggedIn }: NavProps) {
               href="/#how-it-works"
               className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             >
-              {pick(COPY.howItWorks, locale)}
+              {pick(COPY.howItWorks, siteLocale)}
             </Link>
             <Link
               href="/#pricing"
               className="text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             >
-              {pick(COPY.pricing, locale)}
+              {pick(COPY.pricing, siteLocale)}
             </Link>
           </div>
 
           {themeToggleButton}
-          {languageToggleButton}
+          <LanguageDropdown variant="nav" />
 
           {loggedIn ? (
             <>
               <GoToAppButton className="hidden items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:inline-flex">
-                {pick(COPY.dashboard, locale)} {dashboardArrow}
+                {pick(COPY.dashboard, siteLocale)} {dashboardArrow}
               </GoToAppButton>
               <GoToAppButton className="inline-flex min-h-11 items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:hidden">
-                {pick(COPY.dashboard, locale)} {dashboardArrow}
+                {pick(COPY.dashboard, siteLocale)} {dashboardArrow}
               </GoToAppButton>
             </>
           ) : (
@@ -172,20 +139,20 @@ export function Nav({ isLoggedIn }: NavProps) {
                   href="/login"
                   className="text-sm font-medium text-[var(--foreground)] transition-colors hover:text-[var(--primary)]"
                 >
-                  {t("auth.login", locale)}
+                  {t("auth.login", siteLocale)}
                 </Link>
                 <Link
                   href="/login?tab=signup"
                   className="inline-flex items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
                 >
-                  {t("auth.signup", locale)}
+                  {t("auth.signup", siteLocale)}
                 </Link>
               </div>
               <Link
                 href="/login?tab=signup"
                 className="inline-flex min-h-11 items-center gap-1 rounded-[var(--radius)] bg-[var(--primary)] px-3.5 py-2 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)] sm:hidden"
               >
-                {t("auth.signup", locale)}
+                {t("auth.signup", siteLocale)}
               </Link>
             </>
           )}

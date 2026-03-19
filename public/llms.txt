@@ -1,6 +1,6 @@
 # Fazumi
-> School WhatsApp, Telegram, and Facebook chat summarizer for parents — GCC and Middle East.
-> Arabic: ملخّص محادثات مدرسة الواتساب والتيليجرام للآباء في الخليج العربي.
+> School WhatsApp, Telegram, and Facebook chat summarizer for busy parents.
+> Arabic: ملخّص محادثات مدرسة الواتساب والتيليجرام للآباء المشغولين.
 
 Fazumi turns WhatsApp, Telegram, and Facebook school group chats into structured
 summaries. It extracts dates, action items, fees, forms, links, and follow-up
@@ -16,8 +16,8 @@ is saved to the user's personal history.
 - Works for Arabic, English, and mixed-language school groups
 
 ## Who it is for
-- Parents in Qatar, UAE, Saudi Arabia, Kuwait, Bahrain, and Oman
-- Expat and local families in GCC school communities
+- Busy parents who rely on school messaging groups
+- Families in bilingual school communities
 - Parents overwhelmed by high-volume school WhatsApp, Telegram, and Facebook groups
 
 ## Plans

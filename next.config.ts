@@ -24,6 +24,11 @@ const nextConfig: NextConfig = {
 
     return config;
   },
+  async redirects() {
+    return [
+      { source: "/signup", destination: "/login?tab=signup", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

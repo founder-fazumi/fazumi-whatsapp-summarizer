@@ -26,6 +26,8 @@ const eslintConfig = defineConfig([
     "test-results/**",
     // Archived WA bot — CommonJS, linted separately
     "services/**",
+    // Standalone CommonJS node scripts — not part of the Next.js ESM scope
+    "lib/auth/*.test.js",
   ]),
 ]);
 

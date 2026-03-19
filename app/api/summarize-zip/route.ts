@@ -70,25 +70,30 @@ interface SelectedMessage extends CandidateMessage {
   modelLine: string;
 }
 
+const PUSH_TITLES: Record<string, { urgent: string; ready: string }> = {
+  ar:      { urgent: "تنبيه مدرسي عاجل",          ready: "ملخص فازومي جاهز" },
+  ur:      { urgent: "اسکول کی فوری اطلاع",        ready: "خلاصہ تیار ہے" },
+  hi:      { urgent: "अत्यावश्यक स्कूल सूचना",     ready: "सारांश तैयार है" },
+  es:      { urgent: "Aviso escolar urgente",       ready: "Resumen listo" },
+  "pt-BR": { urgent: "Aviso escolar urgente",       ready: "Resumo pronto" },
+  id:      { urgent: "Pemberitahuan sekolah mendesak", ready: "Ringkasan siap" },
+  en:      { urgent: "Urgent school update",        ready: "Summary ready" },
+};
+
 function buildSummaryReadyPayload(summary: SummaryResult, savedId: string) {
   const urgentItem =
     summary.urgent_action_items[0] ??
     summary.important_dates.find((item) => item.urgent)?.label ??
     summary.tldr;
-  const isArabic = summary.lang_detected === "ar";
   const isUrgent =
     summary.chat_type === "urgent_notice" ||
     summary.urgent_action_items.length > 0 ||
     summary.important_dates.some((item) => item.urgent);
 
+  const titles = PUSH_TITLES[summary.lang_detected] ?? PUSH_TITLES.en;
+
   return {
-    title: isUrgent
-      ? isArabic
-        ? "تنبيه مدرسي عاجل"
-        : "Urgent school update"
-      : isArabic
-        ? "ملخص فازومي جاهز"
-        : "Summary ready",
+    title: isUrgent ? titles.urgent : titles.ready,
     body: makeSummaryTitle(isUrgent ? urgentItem : summary.tldr),
     url: `/history/${savedId}`,
     id: `summary-ready-${savedId}`,
@@ -543,10 +548,20 @@ export async function POST(req: NextRequest) {
       getFormString(formData, "group_name") ||
       getFormString(formData, "group_key");
     const langInput = getFormString(formData, "lang_pref");
-    const langPref: LangPref =
-      langInput === "en" || langInput === "ar" || langInput === "auto"
-        ? langInput
-        : "auto";
+    const uiLocaleInput = getFormString(formData, "ui_locale");
+    // Output-language priority: explicit lang > ui_locale > auto > English fallback
+    const validExplicitLangs = new Set(["en", "ar", "es", "pt-BR", "id", "hi", "ur"]);
+    const validUiLocales = new Set(["en", "ar", "es", "pt-BR", "id"]);
+    let langPref: LangPref;
+    if (validExplicitLangs.has(langInput ?? "")) {
+      langPref = langInput as LangPref;
+    } else if (validUiLocales.has(uiLocaleInput ?? "")) {
+      langPref = uiLocaleInput as LangPref;
+    } else if (langInput === "auto") {
+      langPref = "auto";
+    } else {
+      langPref = "en";
+    }
     const file = ensureZipFile(formData.get("file"));
 
     if (!file) {

@@ -44,7 +44,8 @@ import {
   UserCircle,
 } from "lucide-react";
 
-type Locale = "en" | "ar";
+import type { SiteLocale } from "@/lib/i18n";
+type Locale = SiteLocale;
 type ProfilePatch = {
   theme_pref?: string;
   lang_pref?: string;
@@ -66,13 +67,13 @@ const AVATAR_ACCEPT = "image/gif,image/jpeg,image/png,image/webp";
 const MAX_AVATAR_FILE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_AVATAR_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
 
-const GROUP_TYPE_OPTIONS: Array<{ value: FamilyGroupType; en: string; ar: string }> = [
-  { value: "class", en: "Class chat", ar: "مجموعة الصف" },
-  { value: "grade", en: "Grade chat", ar: "مجموعة المرحلة" },
-  { value: "school", en: "School chat", ar: "مجموعة المدرسة" },
-  { value: "activity", en: "Activity chat", ar: "مجموعة النشاط" },
-  { value: "transport", en: "Transport chat", ar: "مجموعة النقل" },
-  { value: "other", en: "Other", ar: "أخرى" },
+const GROUP_TYPE_OPTIONS: Array<{ value: FamilyGroupType; en: string; ar: string; es: string; "pt-BR": string; id: string }> = [
+  { value: "class", en: "Class chat", ar: "مجموعة الصف", es: "Chat de clase", "pt-BR": "Chat da turma", id: "Obrolan kelas" },
+  { value: "grade", en: "Grade chat", ar: "مجموعة المرحلة", es: "Chat de grado", "pt-BR": "Chat do ano", id: "Obrolan angkatan" },
+  { value: "school", en: "School chat", ar: "مجموعة المدرسة", es: "Chat escolar", "pt-BR": "Chat da escola", id: "Obrolan sekolah" },
+  { value: "activity", en: "Activity chat", ar: "مجموعة النشاط", es: "Chat de actividad", "pt-BR": "Chat de atividade", id: "Obrolan aktivitas" },
+  { value: "transport", en: "Transport chat", ar: "مجموعة النقل", es: "Chat de transporte", "pt-BR": "Chat de transporte", id: "Obrolan transportasi" },
+  { value: "other", en: "Other", ar: "أخرى", es: "Otro", "pt-BR": "Outro", id: "Lainnya" },
 ];
 
 const CURRENCY_OPTIONS: SupportedCurrency[] = [
@@ -100,177 +101,265 @@ const TIMEZONE_OPTIONS: Array<{ value: string; label: string }> = [
 ];
 
 const COPY = {
-  title: { en: "Settings", ar: "الإعدادات" },
+  title: { en: "Settings", ar: "الإعدادات", es: "Configuración", "pt-BR": "Configurações", id: "Pengaturan" },
   description: {
     en: "Adjust language, family memory, privacy, retention, and support from one place.",
     ar: "اضبط اللغة وذاكرة العائلة والخصوصية ومدة الاحتفاظ والدعم من مكان واحد.",
+    es: "Ajusta el idioma, la memoria familiar, la privacidad, la retención y el soporte desde un solo lugar.",
+    "pt-BR": "Ajuste idioma, memória familiar, privacidade, retenção e suporte em um só lugar.",
+    id: "Atur bahasa, memori keluarga, privasi, retensi, dan dukungan dari satu tempat.",
   },
-  themeTitle: { en: "Appearance", ar: "المظهر" },
-  themeBody: { en: "Switch between light and dark.", ar: "بدّل بين الوضع الفاتح والداكن." },
-  light: { en: "Light", ar: "فاتح" },
-  dark: { en: "Dark", ar: "داكن" },
-  languageTitle: { en: "Language", ar: "اللغة" },
+  themeTitle: { en: "Appearance", ar: "المظهر", es: "Apariencia", "pt-BR": "Aparência", id: "Tampilan" },
+  themeBody: { en: "Switch between light and dark.", ar: "بدّل بين الوضع الفاتح والداكن.", es: "Cambia entre modo claro y oscuro.", "pt-BR": "Alterne entre claro e escuro.", id: "Ganti antara terang dan gelap." },
+  light: { en: "Light", ar: "فاتح", es: "Claro", "pt-BR": "Claro", id: "Terang" },
+  dark: { en: "Dark", ar: "داكن", es: "Oscuro", "pt-BR": "Escuro", id: "Gelap" },
+  languageTitle: { en: "Language", ar: "اللغة", es: "Idioma", "pt-BR": "Idioma", id: "Bahasa" },
   languageBody: {
-    en: "Arabic-first onboarding is live. This also sets your default summary output language.",
-    ar: "التهيئة العربية أولًا أصبحت متاحة. ويحدد هذا أيضًا لغة مخرجات الملخص الافتراضية.",
+    en: "Choose your preferred language. This also sets the default output language for your summaries.",
+    ar: "اختر لغتك المفضلة. يحدد هذا أيضًا لغة مخرجات الملخص الافتراضية.",
+    es: "Elige tu idioma preferido. Esto también establece el idioma de salida predeterminado para tus resúmenes.",
+    "pt-BR": "Escolha seu idioma preferido. Isso também define o idioma padrão de saída dos seus resumos.",
+    id: "Pilih bahasa pilihan Anda. Ini juga menetapkan bahasa keluaran default untuk ringkasan Anda.",
   },
-  memoryTitle: { en: "Family memory", ar: "ذاكرة العائلة" },
+  memoryTitle: { en: "Family memory", ar: "ذاكرة العائلة", es: "Memoria familiar", "pt-BR": "Memória familiar", id: "Memori keluarga" },
   memoryBody: {
     en: "Save school, child, class, teacher names, group type, recurring links, and currency so repeat imports get better on the second and third use.",
     ar: "احفظ المدرسة والطفل والصف وأسماء المعلمين ونوع المجموعة والروابط المتكررة والعملة حتى تتحسن الاستيرادات المتكررة في الاستخدام الثاني والثالث.",
+    es: "Guarda el nombre del colegio, del hijo/a, del aula, de los profesores, el tipo de grupo, los enlaces recurrentes y la moneda para que las importaciones repetidas mejoren.",
+    "pt-BR": "Salve nome da escola, filho(a), turma, professores, tipo de grupo, links recorrentes e moeda para que as importações repetidas melhorem.",
+    id: "Simpan nama sekolah, anak, kelas, guru, jenis grup, tautan berulang, dan mata uang agar impor berulang semakin baik.",
   },
-  school: { en: "School name", ar: "اسم المدرسة" },
-  child: { en: "Child name", ar: "اسم الطفل" },
-  className: { en: "Class or grade", ar: "الصف أو المرحلة" },
-  groupType: { en: "Group type", ar: "نوع المجموعة" },
-  teachers: { en: "Teacher names", ar: "أسماء المعلمين" },
+  school: { en: "School name", ar: "اسم المدرسة", es: "Nombre del colegio", "pt-BR": "Nome da escola", id: "Nama sekolah" },
+  child: { en: "Child name", ar: "اسم الطفل", es: "Nombre del hijo/a", "pt-BR": "Nome do filho(a)", id: "Nama anak" },
+  className: { en: "Class or grade", ar: "الصف أو المرحلة", es: "Clase o grado", "pt-BR": "Turma ou série", id: "Kelas atau tingkat" },
+  groupType: { en: "Group type", ar: "نوع المجموعة", es: "Tipo de grupo", "pt-BR": "Tipo de grupo", id: "Jenis grup" },
+  teachers: { en: "Teacher names", ar: "أسماء المعلمين", es: "Nombres de los profesores", "pt-BR": "Nomes dos professores", id: "Nama guru" },
   teachersHint: {
     en: "One per line or separated by commas.",
     ar: "اسم واحد في كل سطر أو افصل بينها بفواصل.",
+    es: "Un nombre por línea o separados por comas.",
+    "pt-BR": "Um por linha ou separados por vírgulas.",
+    id: "Satu per baris atau dipisahkan dengan koma.",
   },
-  groupNames: { en: "School group names", ar: "أسماء مجموعات المدرسة" },
+  groupNames: { en: "School group names", ar: "أسماء مجموعات المدرسة", es: "Nombres de grupos escolares", "pt-BR": "Nomes dos grupos escolares", id: "Nama grup sekolah" },
   groupNamesHint: {
     en: "One group name per line, e.g. Grade 3B WhatsApp",
     ar: "اسم مجموعة واحد في كل سطر، مثال: واتساب الصف الثالث ب",
+    es: "Un nombre de grupo por línea, p. ej. WhatsApp 3.° B",
+    "pt-BR": "Um nome de grupo por linha, ex.: WhatsApp 3.º B",
+    id: "Satu nama grup per baris, mis. WhatsApp Kelas 3B",
   },
-  links: { en: "Recurring links", ar: "الروابط المتكررة" },
+  links: { en: "Recurring links", ar: "الروابط المتكررة", es: "Enlaces recurrentes", "pt-BR": "Links recorrentes", id: "Tautan berulang" },
   linksHint: {
     en: "Portal, fee, form, or classroom links you reuse often.",
     ar: "روابط البوابة أو الرسوم أو النماذج أو الصف التي تستخدمها كثيرًا.",
+    es: "Portal, cuotas, formularios o enlaces de aula que usas con frecuencia.",
+    "pt-BR": "Links de portal, taxas, formulários ou sala de aula que você usa com frequência.",
+    id: "Tautan portal, biaya, formulir, atau kelas yang sering Anda gunakan.",
   },
-  currency: { en: "Preferred currency", ar: "العملة المفضلة" },
-  saveMemory: { en: "Save family memory", ar: "احفظ ذاكرة العائلة" },
+  currency: { en: "Preferred currency", ar: "العملة المفضلة", es: "Moneda preferida", "pt-BR": "Moeda preferida", id: "Mata uang pilihan" },
+  saveMemory: { en: "Save family memory", ar: "احفظ ذاكرة العائلة", es: "Guardar memoria familiar", "pt-BR": "Salvar memória familiar", id: "Simpan memori keluarga" },
   memorySavedConfirmation: {
     en: "Saved — your future summaries will reflect this context.",
     ar: "تم الحفظ — ستعكس ملخصاتك المستقبلية هذا السياق.",
+    es: "Guardado — tus futuros resúmenes reflejarán este contexto.",
+    "pt-BR": "Salvo — seus próximos resumos refletirão este contexto.",
+    id: "Tersimpan — ringkasan Anda berikutnya akan mencerminkan konteks ini.",
   },
-  trustTitle: { en: "Trust and retention", ar: "الثقة ومدة الاحتفاظ" },
+  trustTitle: { en: "Trust and retention", ar: "الثقة ومدة الاحتفاظ", es: "Confianza y retención", "pt-BR": "Confiança e retenção", id: "Kepercayaan dan retensi" },
   trustBody: {
     en: "Make storage rules obvious and let families control how long summaries stay in the account.",
     ar: "اجعل قواعد التخزين واضحة واسمح للعائلات بالتحكم في مدة بقاء الملخصات داخل الحساب.",
+    es: "Haz que las reglas de almacenamiento sean claras y permite que las familias controlen cuánto tiempo permanecen los resúmenes en la cuenta.",
+    "pt-BR": "Torne as regras de armazenamento claras e permita que as famílias controlem por quanto tempo os resumos ficam na conta.",
+    id: "Buat aturan penyimpanan jelas dan biarkan keluarga mengontrol berapa lama ringkasan tersimpan di akun.",
   },
-  stored: { en: "Stored", ar: "يتم حفظه" },
+  stored: { en: "Stored", ar: "يتم حفظه", es: "Almacenado", "pt-BR": "Armazenado", id: "Tersimpan" },
   storedBody: {
     en: "Saved summaries, action items, dates, saved group names, family memory, PMF responses, and your retention rule.",
     ar: "الملخصات المحفوظة وعناصر الإجراءات والتواريخ وأسماء المجموعات المحفوظة وذاكرة العائلة وردود PMF وقاعدة الاحتفاظ.",
+    es: "Resúmenes guardados, elementos de acción, fechas, nombres de grupos guardados, memoria familiar, respuestas PMF y tu regla de retención.",
+    "pt-BR": "Resumos salvos, itens de ação, datas, nomes de grupos salvos, memória familiar, respostas PMF e sua regra de retenção.",
+    id: "Ringkasan tersimpan, item tindakan, tanggal, nama grup tersimpan, memori keluarga, respons PMF, dan aturan retensi Anda.",
   },
-  notStored: { en: "Not stored", ar: "لا يتم حفظه" },
+  notStored: { en: "Not stored", ar: "لا يتم حفظه", es: "No almacenado", "pt-BR": "Não armazenado", id: "Tidak tersimpan" },
   notStoredBody: {
     en: "Raw pasted chat text after summarization. Notification permission stays at the browser or device level.",
     ar: "نص المحادثة الخام بعد التلخيص. ويظل إذن الإشعارات على مستوى المتصفح أو الجهاز.",
+    es: "Texto del chat pegado sin procesar después del resumen. El permiso de notificación permanece en el nivel del navegador o dispositivo.",
+    "pt-BR": "Texto do chat colado sem processamento após o resumo. A permissão de notificação fica no nível do navegador ou dispositivo.",
+    id: "Teks obrolan mentah setelah peringkasan. Izin notifikasi tetap di level browser atau perangkat.",
   },
-  retention: { en: "Summary retention", ar: "مدة الاحتفاظ بالملخصات" },
+  retention: { en: "Summary retention", ar: "مدة الاحتفاظ بالملخصات", es: "Retención de resúmenes", "pt-BR": "Retenção de resumos", id: "Retensi ringkasan" },
   retentionHint: {
     en: "Saving this setting deletes older summaries outside the selected window.",
     ar: "حفظ هذا الإعداد يحذف الملخصات الأقدم خارج المدة المحددة.",
+    es: "Guardar esta configuración elimina los resúmenes más antiguos fuera de la ventana seleccionada.",
+    "pt-BR": "Salvar esta configuração exclui os resumos mais antigos fora do período selecionado.",
+    id: "Menyimpan pengaturan ini akan menghapus ringkasan yang lebih lama di luar periode yang dipilih.",
   },
-  notificationsTitle: { en: "Notifications", ar: "الإشعارات" },
+  notificationsTitle: { en: "Notifications", ar: "الإشعارات", es: "Notificaciones", "pt-BR": "Notificações", id: "Notifikasi" },
   notificationsBody: {
     en: "Control the 7 AM school notifications, including daily digests, a quiet Sunday weekly recap, and one gentle reminder after a long gap.",
     ar: "تحكم في إشعارات المدرسة عند الساعة 7 صباحًا، وتشمل الملخص اليومي وملخص الأحد الأسبوعي الهادئ وتذكيرًا لطيفًا واحدًا بعد انقطاع طويل.",
+    es: "Controla las notificaciones escolares de las 7 a. m., incluidos los resúmenes diarios, un resumen semanal tranquilo del domingo y un recordatorio suave tras una larga pausa.",
+    "pt-BR": "Controle as notificações escolares das 7h, incluindo resumos diários, um resumo semanal tranquilo no domingo e um lembrete gentil após uma longa pausa.",
+    id: "Kontrol notifikasi sekolah pukul 07.00, termasuk ringkasan harian, rekap mingguan yang tenang di hari Minggu, dan satu pengingat lembut setelah jeda panjang.",
   },
-  morningDigest: { en: "School notifications", ar: "إشعارات المدرسة" },
+  morningDigest: { en: "School notifications", ar: "إشعارات المدرسة", es: "Notificaciones escolares", "pt-BR": "Notificações escolares", id: "Notifikasi sekolah" },
   morningDigestHint: {
     en: "Includes the daily digest, the Sunday weekly recap, and at most one quiet reminder after a long inactive gap.",
     ar: "تشمل الملخص اليومي وملخص الأحد الأسبوعي، وتذكيرًا هادئًا واحدًا كحد أقصى بعد فترة انقطاع طويلة.",
+    es: "Incluye el resumen diario, el resumen semanal del domingo y como máximo un recordatorio tranquilo tras una larga pausa.",
+    "pt-BR": "Inclui o resumo diário, o recap semanal de domingo e no máximo um lembrete tranquilo após um longo período inativo.",
+    id: "Mencakup ringkasan harian, rekap mingguan hari Minggu, dan paling banyak satu pengingat tenang setelah jeda inaktif yang lama.",
   },
-  timezone: { en: "Your timezone", ar: "منطقتك الزمنية" },
+  timezone: { en: "Your timezone", ar: "منطقتك الزمنية", es: "Tu zona horaria", "pt-BR": "Seu fuso horário", id: "Zona waktu Anda" },
   timezoneHint: {
     en: "Used to send your daily digest and Sunday weekly recap at 7 AM local time.",
     ar: "تُستخدم لإرسال الملخص اليومي وملخص الأحد الأسبوعي عند الساعة 7 صباحًا بتوقيتك المحلي.",
+    es: "Se usa para enviar tu resumen diario y el resumen semanal del domingo a las 7 a. m. hora local.",
+    "pt-BR": "Usado para enviar seu resumo diário e recap semanal de domingo às 7h no horário local.",
+    id: "Digunakan untuk mengirim ringkasan harian dan rekap mingguan hari Minggu Anda pada pukul 07.00 waktu setempat.",
   },
   browserTimezoneOption: {
     en: "(Your browser timezone)",
     ar: "(منطقة متصفحك الزمنية)",
+    es: "(Tu zona horaria del navegador)",
+    "pt-BR": "(Seu fuso horário do navegador)",
+    id: "(Zona waktu browser Anda)",
   },
-  saveTimezone: { en: "Save timezone", ar: "احفظ المنطقة الزمنية" },
+  saveTimezone: { en: "Save timezone", ar: "احفظ المنطقة الزمنية", es: "Guardar zona horaria", "pt-BR": "Salvar fuso horário", id: "Simpan zona waktu" },
   pushChecking: {
     en: "Checking browser notification status...",
     ar: "جارٍ التحقق من حالة إشعارات المتصفح...",
+    es: "Verificando el estado de las notificaciones del navegador...",
+    "pt-BR": "Verificando status das notificações do navegador...",
+    id: "Memeriksa status notifikasi browser...",
   },
-  pushEnabled: { en: "Digest notifications enabled.", ar: "تم تفعيل إشعارات الملخص." },
-  pushDisabled: { en: "Digest notifications turned off.", ar: "تم إيقاف إشعارات الملخص." },
+  pushEnabled: { en: "Digest notifications enabled.", ar: "تم تفعيل إشعارات الملخص.", es: "Notificaciones de resumen activadas.", "pt-BR": "Notificações de resumo ativadas.", id: "Notifikasi ringkasan diaktifkan." },
+  pushDisabled: { en: "Digest notifications turned off.", ar: "تم إيقاف إشعارات الملخص.", es: "Notificaciones de resumen desactivadas.", "pt-BR": "Notificações de resumo desativadas.", id: "Notifikasi ringkasan dinonaktifkan." },
   pushError: {
     en: "Could not update digest notifications. Please try again.",
     ar: "تعذر تحديث إشعارات الملخص. حاول مرة أخرى.",
+    es: "No se pudieron actualizar las notificaciones de resumen. Inténtalo de nuevo.",
+    "pt-BR": "Não foi possível atualizar as notificações de resumo. Tente novamente.",
+    id: "Tidak dapat memperbarui notifikasi ringkasan. Coba lagi.",
   },
   pushPermissionDenied: {
     en: "Browser notification permission was not granted.",
     ar: "لم يتم منح إذن إشعارات المتصفح.",
+    es: "No se concedió el permiso de notificaciones del navegador.",
+    "pt-BR": "Permissão de notificação do navegador não concedida.",
+    id: "Izin notifikasi browser tidak diberikan.",
   },
-  keep: { en: "Keep until I delete", ar: "الاحتفاظ حتى أحذفها" },
-  saveRetention: { en: "Save retention rule", ar: "احفظ قاعدة الاحتفاظ" },
-  privacyTitle: { en: "Privacy controls", ar: "عناصر التحكم بالخصوصية" },
+  keep: { en: "Keep until I delete", ar: "الاحتفاظ حتى أحذفها", es: "Conservar hasta que yo lo elimine", "pt-BR": "Manter até eu excluir", id: "Simpan sampai saya hapus" },
+  saveRetention: { en: "Save retention rule", ar: "احفظ قاعدة الاحتفاظ", es: "Guardar regla de retención", "pt-BR": "Salvar regra de retenção", id: "Simpan aturan retensi" },
+  privacyTitle: { en: "Privacy controls", ar: "عناصر التحكم بالخصوصية", es: "Controles de privacidad", "pt-BR": "Controles de privacidade", id: "Kontrol privasi" },
   privacyBody: {
     en: "Choose whether Fazumi may use analytics, session replay, and marketing tracking.",
     ar: "اختر ما إذا كان يمكن لـ Fazumi استخدام التحليلات وتسجيل الجلسات وتتبع التسويق.",
+    es: "Elige si Fazumi puede usar análisis, reproducción de sesión y seguimiento de marketing.",
+    "pt-BR": "Escolha se o Fazumi pode usar análises, replay de sessão e rastreamento de marketing.",
+    id: "Pilih apakah Fazumi boleh menggunakan analitik, pemutaran ulang sesi, dan pelacakan pemasaran.",
   },
-  analytics: { en: "Analytics", ar: "التحليلات" },
-  analyticsBody: { en: "Page views and product usage trends.", ar: "مشاهدات الصفحات واتجاهات استخدام المنتج." },
-  replay: { en: "Session replay", ar: "تسجيل الجلسات" },
-  replayBody: { en: "Interaction playback for debugging UX issues.", ar: "إعادة تشغيل التفاعل لتحليل مشكلات تجربة الاستخدام." },
-  marketing: { en: "Marketing", ar: "التسويق" },
-  marketingBody: { en: "Campaign measurement and future promotional messaging.", ar: "قياس الحملات والرسائل الترويجية المستقبلية." },
-  necessary: { en: "Necessary storage", ar: "التخزين الضروري" },
-  necessaryBody: { en: "Required for sign-in, preferences, and app security.", ar: "مطلوب لتسجيل الدخول والتفضيلات وأمان التطبيق." },
-  savePrivacy: { en: "Save privacy choices", ar: "حفظ خيارات الخصوصية" },
-  withdraw: { en: "Withdraw all optional consent", ar: "سحب جميع الموافقات الاختيارية" },
-  accountTitle: { en: "Account deletion", ar: "حذف الحساب" },
+  analytics: { en: "Analytics", ar: "التحليلات", es: "Análisis", "pt-BR": "Análises", id: "Analitik" },
+  analyticsBody: { en: "Page views and product usage trends.", ar: "مشاهدات الصفحات واتجاهات استخدام المنتج.", es: "Vistas de página y tendencias de uso del producto.", "pt-BR": "Visualizações de página e tendências de uso do produto.", id: "Tampilan halaman dan tren penggunaan produk." },
+  replay: { en: "Session replay", ar: "تسجيل الجلسات", es: "Reproducción de sesión", "pt-BR": "Replay de sessão", id: "Pemutaran ulang sesi" },
+  replayBody: { en: "Interaction playback for debugging UX issues.", ar: "إعادة تشغيل التفاعل لتحليل مشكلات تجربة الاستخدام.", es: "Reproducción de interacciones para depurar problemas de UX.", "pt-BR": "Reprodução de interações para depurar problemas de UX.", id: "Pemutaran ulang interaksi untuk men-debug masalah UX." },
+  marketing: { en: "Marketing", ar: "التسويق", es: "Marketing", "pt-BR": "Marketing", id: "Pemasaran" },
+  marketingBody: { en: "Campaign measurement and future promotional messaging.", ar: "قياس الحملات والرسائل الترويجية المستقبلية.", es: "Medición de campañas y futuros mensajes promocionales.", "pt-BR": "Medição de campanhas e mensagens promocionais futuras.", id: "Pengukuran kampanye dan pesan promosi di masa mendatang." },
+  necessary: { en: "Necessary storage", ar: "التخزين الضروري", es: "Almacenamiento necesario", "pt-BR": "Armazenamento necessário", id: "Penyimpanan yang diperlukan" },
+  necessaryBody: { en: "Required for sign-in, preferences, and app security.", ar: "مطلوب لتسجيل الدخول والتفضيلات وأمان التطبيق.", es: "Necesario para iniciar sesión, preferencias y seguridad de la aplicación.", "pt-BR": "Necessário para login, preferências e segurança do aplicativo.", id: "Diperlukan untuk masuk, preferensi, dan keamanan aplikasi." },
+  savePrivacy: { en: "Save privacy choices", ar: "حفظ خيارات الخصوصية", es: "Guardar preferencias de privacidad", "pt-BR": "Salvar preferências de privacidade", id: "Simpan pilihan privasi" },
+  withdraw: { en: "Withdraw all optional consent", ar: "سحب جميع الموافقات الاختيارية", es: "Retirar todos los consentimientos opcionales", "pt-BR": "Retirar todos os consentimentos opcionais", id: "Cabut semua persetujuan opsional" },
+  accountTitle: { en: "Account deletion", ar: "حذف الحساب", es: "Eliminación de cuenta", "pt-BR": "Exclusão de conta", id: "Penghapusan akun" },
   accountBody: {
     en: "One-click deletion now lives in Profile. Deleting the account removes saved summaries, todos, groups, PMF answers, and preferences tied to your Fazumi account. Raw chat text is not stored in the first place.",
     ar: "أصبح حذف الحساب بنقرة واحدة موجودًا الآن في الملف الشخصي. حذف الحساب يزيل الملخصات والمهام والمجموعات وإجابات PMF والتفضيلات المرتبطة بحسابك في Fazumi. أما نص المحادثة الخام فلا يتم حفظه من الأساس.",
+    es: "La eliminación con un clic ahora está en el Perfil. Eliminar la cuenta borra los resúmenes guardados, tareas, grupos, respuestas PMF y preferencias vinculadas a tu cuenta de Fazumi. El texto del chat sin procesar no se almacena.",
+    "pt-BR": "A exclusão com um clique agora fica no Perfil. Excluir a conta remove resumos salvos, tarefas, grupos, respostas PMF e preferências vinculadas à sua conta Fazumi. O texto bruto do chat não é armazenado.",
+    id: "Penghapusan satu klik kini ada di Profil. Menghapus akun akan menghilangkan ringkasan tersimpan, tugas, grup, jawaban PMF, dan preferensi yang terkait dengan akun Fazumi Anda. Teks obrolan mentah tidak disimpan sejak awal.",
   },
-  openProfile: { en: "Open profile and delete account", ar: "افتح الملف الشخصي واحذف الحساب" },
-  supportTitle: { en: "Support", ar: "الدعم" },
+  openProfile: { en: "Open profile and delete account", ar: "افتح الملف الشخصي واحذف الحساب", es: "Abrir perfil y eliminar cuenta", "pt-BR": "Abrir perfil e excluir conta", id: "Buka profil dan hapus akun" },
+  supportTitle: { en: "Support", ar: "الدعم", es: "Soporte", "pt-BR": "Suporte", id: "Dukungan" },
   supportBody: {
     en: "Help, FAQs, and contact live here so the main navigation stays focused.",
     ar: "أصبحت المساعدة والأسئلة الشائعة ووسائل التواصل هنا حتى تبقى القائمة الرئيسية مركزة.",
+    es: "La ayuda, las preguntas frecuentes y el contacto están aquí para que la navegación principal permanezca enfocada.",
+    "pt-BR": "Ajuda, FAQs e contato ficam aqui para que a navegação principal permaneça focada.",
+    id: "Bantuan, FAQ, dan kontak ada di sini agar navigasi utama tetap terfokus.",
   },
-  help: { en: "Open Help", ar: "افتح المساعدة" },
-  contact: { en: "Contact support", ar: "تواصل مع الدعم" },
-  saving: { en: "Saving...", ar: "جارٍ الحفظ..." },
-  saved: { en: "Saved.", ar: "تم الحفظ." },
-  saveError: { en: "Could not save. Please try again.", ar: "تعذر الحفظ. حاول مرة أخرى." },
-  loading: { en: "Loading saved settings...", ar: "جارٍ تحميل الإعدادات المحفوظة..." },
-  notSet: { en: "Not set", ar: "غير محدد" },
-  lastSaved: { en: "Last saved", ar: "آخر حفظ" },
-  noConsent: { en: "No stored consent yet. Optional tracking is off by default.", ar: "لا توجد موافقة محفوظة بعد. التتبع الاختياري متوقف افتراضيًا." },
-  euNotice: { en: "EU privacy banner is active for your region.", ar: "يظهر شريط الخصوصية الأوروبي في منطقتك." },
-  otherNotice: { en: "You can change analytics choices here at any time.", ar: "يمكنك تغيير خيارات التحليلات هنا في أي وقت." },
-  retentionUpdated: { en: "Retention updated.", ar: "تم تحديث مدة الاحتفاظ." },
-  retentionDeleted: { en: "Older summaries deleted", ar: "تم حذف الملخصات الأقدم" },
-  profileTitle: { en: "Profile", ar: "الملف الشخصي" },
-  profileBody: { en: "Update your display name and profile photo.", ar: "حدّث اسمك المعروض وصورة ملفك الشخصي." },
-  profilePhoto: { en: "Profile photo", ar: "صورة الملف الشخصي" },
+  help: { en: "Open Help", ar: "افتح المساعدة", es: "Abrir ayuda", "pt-BR": "Abrir ajuda", id: "Buka bantuan" },
+  contact: { en: "Contact support", ar: "تواصل مع الدعم", es: "Contactar soporte", "pt-BR": "Contatar suporte", id: "Hubungi dukungan" },
+  saving: { en: "Saving...", ar: "جارٍ الحفظ...", es: "Guardando...", "pt-BR": "Salvando...", id: "Menyimpan..." },
+  saved: { en: "Saved.", ar: "تم الحفظ.", es: "Guardado.", "pt-BR": "Salvo.", id: "Tersimpan." },
+  saveError: { en: "Could not save. Please try again.", ar: "تعذر الحفظ. حاول مرة أخرى.", es: "No se pudo guardar. Inténtalo de nuevo.", "pt-BR": "Não foi possível salvar. Tente novamente.", id: "Tidak dapat menyimpan. Coba lagi." },
+  loading: { en: "Loading saved settings...", ar: "جارٍ تحميل الإعدادات المحفوظة...", es: "Cargando configuración guardada...", "pt-BR": "Carregando configurações salvas...", id: "Memuat pengaturan tersimpan..." },
+  notSet: { en: "Not set", ar: "غير محدد", es: "No establecido", "pt-BR": "Não definido", id: "Belum diatur" },
+  lastSaved: { en: "Last saved", ar: "آخر حفظ", es: "Último guardado", "pt-BR": "Último salvo", id: "Terakhir disimpan" },
+  noConsent: { en: "No stored consent yet. Optional tracking is off by default.", ar: "لا توجد موافقة محفوظة بعد. التتبع الاختياري متوقف افتراضيًا.", es: "Sin consentimiento almacenado aún. El seguimiento opcional está desactivado por defecto.", "pt-BR": "Sem consentimento armazenado ainda. O rastreamento opcional está desativado por padrão.", id: "Belum ada persetujuan tersimpan. Pelacakan opsional dinonaktifkan secara default." },
+  euNotice: { en: "EU privacy banner is active for your region.", ar: "يظهر شريط الخصوصية الأوروبي في منطقتك.", es: "El banner de privacidad de la UE está activo para tu región.", "pt-BR": "O banner de privacidade da UE está ativo para sua região.", id: "Banner privasi EU aktif untuk wilayah Anda." },
+  otherNotice: { en: "You can change analytics choices here at any time.", ar: "يمكنك تغيير خيارات التحليلات هنا في أي وقت.", es: "Puedes cambiar tus preferencias de análisis aquí en cualquier momento.", "pt-BR": "Você pode alterar suas preferências de análise aqui a qualquer momento.", id: "Anda dapat mengubah pilihan analitik Anda di sini kapan saja." },
+  retentionUpdated: { en: "Retention updated.", ar: "تم تحديث مدة الاحتفاظ.", es: "Retención actualizada.", "pt-BR": "Retenção atualizada.", id: "Retensi diperbarui." },
+  retentionDeleted: { en: "Older summaries deleted", ar: "تم حذف الملخصات الأقدم", es: "Resúmenes más antiguos eliminados", "pt-BR": "Resumos mais antigos excluídos", id: "Ringkasan lama dihapus" },
+  profileTitle: { en: "Profile", ar: "الملف الشخصي", es: "Perfil", "pt-BR": "Perfil", id: "Profil" },
+  profileBody: { en: "Update your display name and profile photo.", ar: "حدّث اسمك المعروض وصورة ملفك الشخصي.", es: "Actualiza tu nombre de pantalla y foto de perfil.", "pt-BR": "Atualize seu nome de exibição e foto de perfil.", id: "Perbarui nama tampilan dan foto profil Anda." },
+  profilePhoto: { en: "Profile photo", ar: "صورة الملف الشخصي", es: "Foto de perfil", "pt-BR": "Foto de perfil", id: "Foto profil" },
   profilePhotoHint: {
     en: "Click the current photo to upload a JPG, PNG, WEBP, or GIF up to 2 MB.",
     ar: "انقر على الصورة الحالية لرفع JPG أو PNG أو WEBP أو GIF بحجم يصل إلى 2 ميجابايت.",
+    es: "Haz clic en la foto actual para subir un JPG, PNG, WEBP o GIF de hasta 2 MB.",
+    "pt-BR": "Clique na foto atual para fazer upload de um JPG, PNG, WEBP ou GIF de até 2 MB.",
+    id: "Klik foto saat ini untuk mengunggah JPG, PNG, WEBP, atau GIF hingga 2 MB.",
   },
-  displayName: { en: "Display name", ar: "الاسم المعروض" },
-  avatarUploading: { en: "Uploading photo...", ar: "جارٍ رفع الصورة..." },
+  displayName: { en: "Display name", ar: "الاسم المعروض", es: "Nombre de pantalla", "pt-BR": "Nome de exibição", id: "Nama tampilan" },
+  avatarUploading: { en: "Uploading photo...", ar: "جارٍ رفع الصورة...", es: "Subiendo foto...", "pt-BR": "Enviando foto...", id: "Mengunggah foto..." },
   avatarUploadError: {
     en: "Could not upload the photo. Please try again.",
     ar: "تعذر رفع الصورة. حاول مرة أخرى.",
+    es: "No se pudo subir la foto. Inténtalo de nuevo.",
+    "pt-BR": "Não foi possível fazer upload da foto. Tente novamente.",
+    id: "Tidak dapat mengunggah foto. Coba lagi.",
   },
   avatarUploadInvalidType: {
     en: "Use a JPG, PNG, WEBP, or GIF image.",
     ar: "استخدم صورة من نوع JPG أو PNG أو WEBP أو GIF.",
+    es: "Usa una imagen JPG, PNG, WEBP o GIF.",
+    "pt-BR": "Use uma imagem JPG, PNG, WEBP ou GIF.",
+    id: "Gunakan gambar JPG, PNG, WEBP, atau GIF.",
   },
   avatarUploadTooLarge: {
     en: "Use an image smaller than 2 MB.",
     ar: "استخدم صورة أصغر من 2 ميجابايت.",
+    es: "Usa una imagen de menos de 2 MB.",
+    "pt-BR": "Use uma imagem menor que 2 MB.",
+    id: "Gunakan gambar yang lebih kecil dari 2 MB.",
   },
   avatarRemoveError: {
     en: "Could not remove the photo. Please try again.",
     ar: "تعذر إزالة الصورة. حاول مرة أخرى.",
+    es: "No se pudo eliminar la foto. Inténtalo de nuevo.",
+    "pt-BR": "Não foi possível remover a foto. Tente novamente.",
+    id: "Tidak dapat menghapus foto. Coba lagi.",
   },
-  removePhoto: { en: "Remove photo", ar: "إزالة الصورة" },
-  saveProfile: { en: "Save profile", ar: "حفظ الملف الشخصي" },
+  removePhoto: { en: "Remove photo", ar: "إزالة الصورة", es: "Eliminar foto", "pt-BR": "Remover foto", id: "Hapus foto" },
+  saveProfile: { en: "Save profile", ar: "حفظ الملف الشخصي", es: "Guardar perfil", "pt-BR": "Salvar perfil", id: "Simpan profil" },
 } as const;
 
 function pick(locale: Locale, value: { en: string; ar: string }) {
-  return locale === "ar" ? value.ar : value.en;
+  if (locale === "ar") return value.ar;
+  const extended = value as Record<string, string>;
+  return extended[locale] ?? value.en;
 }
+
+const LANG_LABELS: Record<Locale, string> = {
+  en:      "English",
+  ar:      "العربية",
+  es:      "Español",
+  "pt-BR": "Português",
+  id:      "Bahasa Indonesia",
+};
 
 function splitDraft(value: string) {
   return value
@@ -460,7 +549,7 @@ function ConsentToggle({
 }
 
 export function SettingsPanel() {
-  const { locale, setLocale } = useLang();
+  const { locale, siteLocale, setLocale } = useLang();
   const { theme, toggleTheme } = useTheme();
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const {
@@ -727,7 +816,7 @@ export function SettingsPanel() {
   }
 
   async function handleLang(next: Locale) {
-    if (locale === next) {
+    if (siteLocale === next) {
       return;
     }
 
@@ -824,13 +913,13 @@ export function SettingsPanel() {
   const timeZoneOptions = buildTimezoneOptions(locale, browserTimeZone, timeZone);
   const pushFeedbackMessage =
     pushFeedback === "enabled"
-      ? pick(locale, COPY.pushEnabled)
+      ? pick(siteLocale,COPY.pushEnabled)
       : pushFeedback === "disabled"
-        ? pick(locale, COPY.pushDisabled)
+        ? pick(siteLocale,COPY.pushDisabled)
         : pushFeedback === "permissionDenied"
-          ? pick(locale, COPY.pushPermissionDenied)
+          ? pick(siteLocale,COPY.pushPermissionDenied)
           : pushFeedback === "error"
-            ? pick(locale, COPY.pushError)
+            ? pick(siteLocale,COPY.pushError)
             : null;
 
   async function handleSaveProfile() {
@@ -1026,10 +1115,10 @@ export function SettingsPanel() {
     <div dir={isRtl ? "rtl" : "ltr"} lang={locale} className={cn("space-y-4", isRtl && "font-arabic")}>
       <div className="space-y-2">
         <h1 className="text-[var(--text-2xl)] font-semibold text-[var(--text-strong)] sm:text-[var(--text-3xl)]">
-          {pick(locale, COPY.title)}
+          {pick(siteLocale,COPY.title)}
         </h1>
         <p className="max-w-3xl text-[var(--text-base)] leading-relaxed text-[var(--muted-foreground)]">
-          {pick(locale, COPY.description)}
+          {pick(siteLocale,COPY.description)}
         </p>
       </div>
 
@@ -1040,8 +1129,8 @@ export function SettingsPanel() {
               <UserCircle className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>{pick(locale, COPY.profileTitle)}</CardTitle>
-              <CardDescription>{pick(locale, COPY.profileBody)}</CardDescription>
+              <CardTitle>{pick(siteLocale,COPY.profileTitle)}</CardTitle>
+              <CardDescription>{pick(siteLocale,COPY.profileBody)}</CardDescription>
               {billingPlan === "founder" && (
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                   <Star className="h-3.5 w-3.5 shrink-0" />
@@ -1060,7 +1149,7 @@ export function SettingsPanel() {
               type="button"
               onClick={() => avatarInputRef.current?.click()}
               disabled={profileStatus === "saving"}
-              aria-label={pick(locale, COPY.profilePhoto)}
+              aria-label={pick(siteLocale,COPY.profilePhoto)}
               className="group relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:cursor-not-allowed disabled:opacity-70"
             >
               <Avatar
@@ -1090,8 +1179,8 @@ export function SettingsPanel() {
               onChange={(event) => void handleAvatarSelection(event)}
             />
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.profilePhoto)}</p>
-              <p className="text-xs leading-5 text-[var(--muted-foreground)]">{pick(locale, COPY.profilePhotoHint)}</p>
+              <p className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.profilePhoto)}</p>
+              <p className="text-xs leading-5 text-[var(--muted-foreground)]">{pick(siteLocale,COPY.profilePhotoHint)}</p>
               {hasAvatar && (
                 <Button
                   type="button"
@@ -1101,27 +1190,27 @@ export function SettingsPanel() {
                   disabled={profileStatus === "saving"}
                   className="mt-2"
                 >
-                  {pick(locale, COPY.removePhoto)}
+                  {pick(siteLocale,COPY.removePhoto)}
                 </Button>
               )}
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.displayName)}</label>
+            <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.displayName)}</label>
             <Input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder={pick(locale, COPY.notSet)}
+              placeholder={pick(siteLocale,COPY.notSet)}
               maxLength={100}
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={() => void handleSaveProfile()} disabled={!profileChanged || profileStatus === "saving"}>
-              {profileStatus === "saving" ? pick(locale, COPY.saving) : pick(locale, COPY.saveProfile)}
+              {profileStatus === "saving" ? pick(siteLocale,COPY.saving) : pick(siteLocale,COPY.saveProfile)}
             </Button>
-            {profileStatus === "saved" && <span className="text-sm text-[var(--success)]">{pick(locale, COPY.saved)}</span>}
+            {profileStatus === "saved" && <span className="text-sm text-[var(--success)]">{pick(siteLocale,COPY.saved)}</span>}
             {profileStatus === "error" && (
-              <span className="text-sm text-[var(--destructive)]">{pick(locale, COPY[profileErrorKey])}</span>
+              <span className="text-sm text-[var(--destructive)]">{pick(siteLocale,COPY[profileErrorKey])}</span>
             )}
           </div>
         </CardContent>
@@ -1129,8 +1218,8 @@ export function SettingsPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{pick(locale, COPY.themeTitle)}</CardTitle>
-          <CardDescription>{pick(locale, COPY.themeBody)}</CardDescription>
+          <CardTitle>{pick(siteLocale,COPY.themeTitle)}</CardTitle>
+          <CardDescription>{pick(siteLocale,COPY.themeBody)}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
@@ -1144,7 +1233,7 @@ export function SettingsPanel() {
               }`}
             >
               <Sun className="h-4 w-4" />
-              {pick(locale, COPY.light)}
+              {pick(siteLocale,COPY.light)}
             </button>
             <button
               type="button"
@@ -1156,13 +1245,13 @@ export function SettingsPanel() {
               }`}
             >
               <Moon className="h-4 w-4" />
-              {pick(locale, COPY.dark)}
+              {pick(siteLocale,COPY.dark)}
             </button>
           </div>
           {savedKey === "theme" && (
             <p className="mt-3 flex items-center gap-1 text-xs font-medium text-[var(--primary)]">
               <Check className="h-3.5 w-3.5" />
-              {pick(locale, COPY.saved)}
+              {pick(siteLocale,COPY.saved)}
             </p>
           )}
         </CardContent>
@@ -1170,32 +1259,32 @@ export function SettingsPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{pick(locale, COPY.languageTitle)}</CardTitle>
-          <CardDescription>{pick(locale, COPY.languageBody)}</CardDescription>
+          <CardTitle>{pick(siteLocale,COPY.languageTitle)}</CardTitle>
+          <CardDescription>{pick(siteLocale,COPY.languageBody)}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-3">
-            {(["en", "ar"] as const).map((value) => (
+          <div className="flex flex-wrap gap-3">
+            {(["en", "ar", "es", "pt-BR", "id"] as const).map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => void handleLang(value)}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-xl border-2 py-3 text-sm font-medium transition-colors",
-                  locale === value
+                  "flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors",
+                  siteLocale === value
                     ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
                     : "border-[var(--border)] text-[var(--muted-foreground)] hover:border-[var(--primary)]/50"
                 )}
               >
                 <Globe className="h-4 w-4" />
-                {value === "en" ? "English" : "العربية"}
+                {LANG_LABELS[value]}
               </button>
             ))}
           </div>
           {savedKey === "lang" && (
             <p className="mt-3 flex items-center gap-1 text-xs font-medium text-[var(--primary)]">
               <Check className="h-3.5 w-3.5" />
-              {pick(locale, COPY.saved)}
+              {pick(siteLocale,COPY.saved)}
             </p>
           )}
         </CardContent>
@@ -1208,43 +1297,43 @@ export function SettingsPanel() {
               <Brain className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>{pick(locale, COPY.memoryTitle)}</CardTitle>
-              <CardDescription>{pick(locale, COPY.memoryBody)}</CardDescription>
+              <CardTitle>{pick(siteLocale,COPY.memoryTitle)}</CardTitle>
+              <CardDescription>{pick(siteLocale,COPY.memoryBody)}</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {profileLoading ? (
-            <p className="text-sm text-[var(--muted-foreground)]">{pick(locale, COPY.loading)}</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{pick(siteLocale,COPY.loading)}</p>
           ) : (
             <>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.school)}</label>
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.school)}</label>
                   <Input
                     value={familyContext.school_name ?? ""}
                     onChange={(event) => setFamilyContext((current) => ({ ...current, school_name: event.target.value }))}
-                    placeholder={pick(locale, COPY.notSet)}
+                    placeholder={pick(siteLocale,COPY.notSet)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.child)}</label>
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.child)}</label>
                   <Input
                     value={familyContext.child_name ?? ""}
                     onChange={(event) => setFamilyContext((current) => ({ ...current, child_name: event.target.value }))}
-                    placeholder={pick(locale, COPY.notSet)}
+                    placeholder={pick(siteLocale,COPY.notSet)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.className)}</label>
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.className)}</label>
                   <Input
                     value={familyContext.class_name ?? ""}
                     onChange={(event) => setFamilyContext((current) => ({ ...current, class_name: event.target.value }))}
-                    placeholder={pick(locale, COPY.notSet)}
+                    placeholder={pick(siteLocale,COPY.notSet)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.groupType)}</label>
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.groupType)}</label>
                   <select
                     value={familyContext.group_type ?? ""}
                     onChange={(event) =>
@@ -1255,10 +1344,10 @@ export function SettingsPanel() {
                     }
                     className={selectClassName}
                   >
-                    <option value="">{pick(locale, COPY.notSet)}</option>
+                    <option value="">{pick(siteLocale,COPY.notSet)}</option>
                     {GROUP_TYPE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
-                        {locale === "ar" ? option.ar : option.en}
+                        {pick(siteLocale, option)}
                       </option>
                     ))}
                   </select>
@@ -1267,29 +1356,29 @@ export function SettingsPanel() {
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.teachers)}</label>
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.teachers)}</label>
                   <Textarea value={teachersDraft} onChange={(event) => setTeachersDraft(event.target.value)} rows={4} />
-                  <p className="text-xs text-[var(--muted-foreground)]">{pick(locale, COPY.teachersHint)}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">{pick(siteLocale,COPY.teachersHint)}</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.groupNames)}</label>
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.groupNames)}</label>
                   <Textarea
                     value={groupNamesDraft}
                     onChange={(event) => setGroupNamesDraft(event.target.value)}
                     rows={4}
                     dir={isRtl ? "rtl" : "ltr"}
                   />
-                  <p className="text-xs text-[var(--muted-foreground)]">{pick(locale, COPY.groupNamesHint)}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">{pick(siteLocale,COPY.groupNamesHint)}</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.links)}</label>
+                  <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.links)}</label>
                   <Textarea value={linksDraft} onChange={(event) => setLinksDraft(event.target.value)} rows={4} />
-                  <p className="text-xs text-[var(--muted-foreground)]">{pick(locale, COPY.linksHint)}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">{pick(siteLocale,COPY.linksHint)}</p>
                 </div>
               </div>
 
               <div className="space-y-2 md:max-w-sm">
-                <label className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.currency)}</label>
+                <label className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.currency)}</label>
                 <select
                   value={familyContext.preferred_currency ?? ""}
                   onChange={(event) =>
@@ -1300,7 +1389,7 @@ export function SettingsPanel() {
                   }
                   className={selectClassName}
                 >
-                  <option value="">{pick(locale, COPY.notSet)}</option>
+                  <option value="">{pick(siteLocale,COPY.notSet)}</option>
                   {CURRENCY_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {option}
@@ -1311,7 +1400,7 @@ export function SettingsPanel() {
 
               <div className="flex flex-wrap items-center gap-3">
                 <Button type="button" onClick={() => void handleSaveMemory()} disabled={!memoryChanged || memoryStatus === "saving"}>
-                  {memoryStatus === "saving" ? pick(locale, COPY.saving) : pick(locale, COPY.saveMemory)}
+                  {memoryStatus === "saving" ? pick(siteLocale,COPY.saving) : pick(siteLocale,COPY.saveMemory)}
                 </Button>
                 {renderMemorySavedConfirmation && (
                   <p
@@ -1326,10 +1415,10 @@ export function SettingsPanel() {
                       showMemorySavedConfirmation ? "opacity-100" : "opacity-0"
                     )}
                   >
-                    {pick(locale, COPY.memorySavedConfirmation)}
+                    {pick(siteLocale,COPY.memorySavedConfirmation)}
                   </p>
                 )}
-                {memoryStatus === "error" && <span className="text-sm text-[var(--destructive)]">{pick(locale, COPY.saveError)}</span>}
+                {memoryStatus === "error" && <span className="text-sm text-[var(--destructive)]">{pick(siteLocale,COPY.saveError)}</span>}
               </div>
             </>
           )}
@@ -1343,22 +1432,22 @@ export function SettingsPanel() {
               <Clock3 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>{pick(locale, COPY.trustTitle)}</CardTitle>
-              <CardDescription>{pick(locale, COPY.trustBody)}</CardDescription>
+              <CardTitle>{pick(siteLocale,COPY.trustTitle)}</CardTitle>
+              <CardDescription>{pick(siteLocale,COPY.trustBody)}</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4">
-            <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.stored)}</p>
-            <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{pick(locale, COPY.storedBody)}</p>
-            <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.notStored)}</p>
-            <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{pick(locale, COPY.notStoredBody)}</p>
+            <p className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.stored)}</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{pick(siteLocale,COPY.storedBody)}</p>
+            <p className="mt-4 text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.notStored)}</p>
+            <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{pick(siteLocale,COPY.notStoredBody)}</p>
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.retention)}</p>
-            <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">{pick(locale, COPY.retentionHint)}</p>
+            <p className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.retention)}</p>
+            <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">{pick(siteLocale,COPY.retentionHint)}</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -1381,15 +1470,15 @@ export function SettingsPanel() {
 
           <div className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={() => void handleSaveRetention()} disabled={!retentionChanged || retentionStatus === "saving"}>
-              {retentionStatus === "saving" ? pick(locale, COPY.saving) : pick(locale, COPY.saveRetention)}
+              {retentionStatus === "saving" ? pick(siteLocale,COPY.saving) : pick(siteLocale,COPY.saveRetention)}
             </Button>
             {retentionStatus === "saved" && (
               <span className="text-sm text-[var(--success)]">
-                {pick(locale, COPY.retentionUpdated)}
-                {typeof retentionDeletedCount === "number" ? ` ${pick(locale, COPY.retentionDeleted)}: ${retentionDeletedCount}.` : ""}
+                {pick(siteLocale,COPY.retentionUpdated)}
+                {typeof retentionDeletedCount === "number" ? ` ${pick(siteLocale,COPY.retentionDeleted)}: ${retentionDeletedCount}.` : ""}
               </span>
             )}
-            {retentionStatus === "error" && <span className="text-sm text-[var(--destructive)]">{pick(locale, COPY.saveError)}</span>}
+            {retentionStatus === "error" && <span className="text-sm text-[var(--destructive)]">{pick(siteLocale,COPY.saveError)}</span>}
           </div>
         </CardContent>
       </Card>
@@ -1402,8 +1491,8 @@ export function SettingsPanel() {
                 <BellRing className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>{pick(locale, COPY.notificationsTitle)}</CardTitle>
-                <CardDescription>{pick(locale, COPY.notificationsBody)}</CardDescription>
+                <CardTitle>{pick(siteLocale,COPY.notificationsTitle)}</CardTitle>
+                <CardDescription>{pick(siteLocale,COPY.notificationsBody)}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -1411,12 +1500,12 @@ export function SettingsPanel() {
             <label className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-4">
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">{pick(locale, COPY.morningDigest)}</p>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{pick(siteLocale,COPY.morningDigest)}</p>
                   <p
                     id="settings-morning-digest-hint"
                     className="text-xs leading-5 text-[var(--muted-foreground)]"
                   >
-                    {pick(locale, COPY.morningDigestHint)}
+                    {pick(siteLocale,COPY.morningDigestHint)}
                   </p>
                 </div>
                 {(pushBusy || pushFeedbackMessage) && (
@@ -1432,7 +1521,7 @@ export function SettingsPanel() {
                     )}
                   >
                     {pushBusy && !pushFeedbackMessage
-                      ? pick(locale, COPY.pushChecking)
+                      ? pick(siteLocale,COPY.pushChecking)
                       : pushFeedbackMessage}
                   </p>
                 )}
@@ -1468,10 +1557,10 @@ export function SettingsPanel() {
                   htmlFor="settings-timezone"
                   className="text-sm font-semibold text-[var(--foreground)]"
                 >
-                  {pick(locale, COPY.timezone)}
+                  {pick(siteLocale,COPY.timezone)}
                 </label>
                 <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                  {pick(locale, COPY.timezoneHint)}
+                  {pick(siteLocale,COPY.timezoneHint)}
                 </p>
               </div>
               <select
@@ -1484,7 +1573,7 @@ export function SettingsPanel() {
                 dir={isRtl ? "rtl" : "ltr"}
                 className={selectClassName}
               >
-                {!timeZone && <option value="">{pick(locale, COPY.notSet)}</option>}
+                {!timeZone && <option value="">{pick(siteLocale,COPY.notSet)}</option>}
                 {timeZoneOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -1498,15 +1587,15 @@ export function SettingsPanel() {
                   disabled={!timeZoneChanged || timeZoneStatus === "saving"}
                 >
                   {timeZoneStatus === "saving"
-                    ? pick(locale, COPY.saving)
-                    : pick(locale, COPY.saveTimezone)}
+                    ? pick(siteLocale,COPY.saving)
+                    : pick(siteLocale,COPY.saveTimezone)}
                 </Button>
                 {timeZoneStatus === "saved" && (
-                  <span className="text-sm text-[var(--success)]">{pick(locale, COPY.saved)}</span>
+                  <span className="text-sm text-[var(--success)]">{pick(siteLocale,COPY.saved)}</span>
                 )}
                 {timeZoneStatus === "error" && (
                   <span className="text-sm text-[var(--destructive)]">
-                    {pick(locale, COPY.saveError)}
+                    {pick(siteLocale,COPY.saveError)}
                   </span>
                 )}
               </div>
@@ -1519,8 +1608,8 @@ export function SettingsPanel() {
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle>{pick(locale, COPY.privacyTitle)}</CardTitle>
-              <CardDescription>{pick(locale, COPY.privacyBody)}</CardDescription>
+              <CardTitle>{pick(siteLocale,COPY.privacyTitle)}</CardTitle>
+              <CardDescription>{pick(siteLocale,COPY.privacyBody)}</CardDescription>
             </div>
             <span className="inline-flex items-center gap-1 rounded-full bg-[var(--primary-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -1530,45 +1619,45 @@ export function SettingsPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
-            <p>{isEuUser ? pick(locale, COPY.euNotice) : pick(locale, COPY.otherNotice)}</p>
+            <p>{isEuUser ? pick(siteLocale,COPY.euNotice) : pick(siteLocale,COPY.otherNotice)}</p>
             <p className="mt-1 text-xs">
               {hasConsentDecision && consentTimestamp
-                ? `${pick(locale, COPY.lastSaved)}: ${formatConsentTimestamp(consentTimestamp)}`
-                : pick(locale, COPY.noConsent)}
+                ? `${pick(siteLocale,COPY.lastSaved)}: ${formatConsentTimestamp(consentTimestamp)}`
+                : pick(siteLocale,COPY.noConsent)}
             </p>
           </div>
 
           <div className="space-y-3">
             <ConsentToggle
               checked={consentDraft.analytics}
-              label={pick(locale, COPY.analytics)}
-              description={pick(locale, COPY.analyticsBody)}
+              label={pick(siteLocale,COPY.analytics)}
+              description={pick(siteLocale,COPY.analyticsBody)}
               onCheckedChange={(checked) => setConsentDraft((current) => ({ ...current, analytics: checked }))}
             />
             <ConsentToggle
               checked={consentDraft.sessionReplay}
-              label={pick(locale, COPY.replay)}
-              description={pick(locale, COPY.replayBody)}
+              label={pick(siteLocale,COPY.replay)}
+              description={pick(siteLocale,COPY.replayBody)}
               onCheckedChange={(checked) => setConsentDraft((current) => ({ ...current, sessionReplay: checked }))}
             />
             <ConsentToggle
               checked={consentDraft.marketing}
-              label={pick(locale, COPY.marketing)}
-              description={pick(locale, COPY.marketingBody)}
+              label={pick(siteLocale,COPY.marketing)}
+              description={pick(siteLocale,COPY.marketingBody)}
               onCheckedChange={(checked) => setConsentDraft((current) => ({ ...current, marketing: checked }))}
             />
             <ConsentToggle
               checked
               disabled
-              label={pick(locale, COPY.necessary)}
-              description={pick(locale, COPY.necessaryBody)}
+              label={pick(siteLocale,COPY.necessary)}
+              description={pick(siteLocale,COPY.necessaryBody)}
               onCheckedChange={() => undefined}
             />
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button type="button" onClick={() => void savePreferences(consentDraft, "settings_update")} disabled={isSaving || !consentChanged}>
-              {pick(locale, COPY.savePrivacy)}
+              {pick(siteLocale,COPY.savePrivacy)}
             </Button>
             <Button
               type="button"
@@ -1576,7 +1665,7 @@ export function SettingsPanel() {
               onClick={() => void withdrawConsent()}
               disabled={isSaving || JSON.stringify(consent) === JSON.stringify(getDefaultConsent())}
             >
-              {pick(locale, COPY.withdraw)}
+              {pick(siteLocale,COPY.withdraw)}
             </Button>
           </div>
         </CardContent>
@@ -1589,14 +1678,14 @@ export function SettingsPanel() {
               <Trash2 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>{pick(locale, COPY.accountTitle)}</CardTitle>
-              <CardDescription>{pick(locale, COPY.accountBody)}</CardDescription>
+              <CardTitle>{pick(siteLocale,COPY.accountTitle)}</CardTitle>
+              <CardDescription>{pick(siteLocale,COPY.accountBody)}</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <Link href="/profile" className={buttonVariants({ variant: "default" })}>
-            {pick(locale, COPY.openProfile)}
+            {pick(siteLocale,COPY.openProfile)}
           </Link>
         </CardContent>
       </Card>
@@ -1608,8 +1697,8 @@ export function SettingsPanel() {
               <LifeBuoy className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>{pick(locale, COPY.supportTitle)}</CardTitle>
-              <CardDescription>{pick(locale, COPY.supportBody)}</CardDescription>
+              <CardTitle>{pick(siteLocale,COPY.supportTitle)}</CardTitle>
+              <CardDescription>{pick(siteLocale,COPY.supportBody)}</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -1618,13 +1707,13 @@ export function SettingsPanel() {
             href="/help"
             className="inline-flex h-10 items-center justify-center rounded-[var(--radius)] bg-[var(--primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:bg-[var(--primary-hover)]"
           >
-            {pick(locale, COPY.help)}
+            {pick(siteLocale,COPY.help)}
           </Link>
           <Link
             href="/contact"
             className="inline-flex h-10 items-center justify-center rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] px-5 text-sm font-semibold text-[var(--foreground)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-muted)]"
           >
-            {pick(locale, COPY.contact)}
+            {pick(siteLocale,COPY.contact)}
           </Link>
         </CardContent>
       </Card>

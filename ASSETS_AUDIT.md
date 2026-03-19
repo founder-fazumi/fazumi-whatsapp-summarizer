@@ -159,7 +159,7 @@ Create a [ASSET TYPE] for Fazumi, a WhatsApp summarization tool for parents.
 [Describe what should appear in the asset]
 
 **Brand Context:**
-- Target audience: GCC parents (Qatar, UAE, Saudi, Kuwait, Bahrain, Oman)
+- Target audience: School parents internationally (bilingual Arabic and English)
 - Brand personality: Trustworthy, helpful, family-oriented
 - Existing mascot: Fox character (provide reference if available)
 ```
@@ -256,11 +256,11 @@ public/
 Copy and paste this for each asset:
 
 ```
-You are creating brand assets for Fazumi, a WhatsApp summarization tool for busy parents in the GCC region.
+You are creating brand assets for Fazumi, a WhatsApp summarization tool for busy school parents.
 
 **Brand Identity:**
 - Product: Turns messy WhatsApp school chats into structured summaries
-- Audience: Parents in Qatar, UAE, Saudi Arabia, Kuwait, Bahrain, Oman
+- Audience: School parents internationally, bilingual Arabic and English
 - Personality: Trustworthy, helpful, family-oriented, modern
 - Primary Color: #247052 (deep forest green)
 - Background Color: #f5f2ec (warm cream)

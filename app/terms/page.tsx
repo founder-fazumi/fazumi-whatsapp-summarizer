@@ -13,7 +13,7 @@ import { useLang } from "@/lib/context/LangContext";
 import { pick, type LocalizedCopy } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-const LAST_UPDATED = "2026-03-13";
+const LAST_UPDATED = "2026-03-16";
 
 interface TermsSection {
   title: LocalizedCopy<string>;
@@ -44,8 +44,8 @@ const COPY = {
         ar: "1. من نحن وقبول هذه الشروط",
       },
       body: {
-        en: "Fazumi is an independently operated web app from Qatar for parents and guardians. It turns busy parent group chats into structured summary cards so families can catch important dates, tasks, and school updates faster. These Terms apply whenever you create an account, start a trial, buy a plan, or otherwise use Fazumi.",
-        ar: "Fazumi هو تطبيق ويب يُدار بشكل مستقل من قطر للآباء والأمهات وأولياء الأمور. يحول محادثات مجموعات أولياء الأمور المزدحمة إلى بطاقات ملخص منظمة حتى تتمكن العائلات من التقاط التواريخ المهمة والمهام والتحديثات المدرسية بسرعة أكبر. تنطبق هذه الشروط عند إنشاء حساب أو بدء فترة تجريبية أو شراء خطة أو استخدام Fazumi بأي شكل.",
+        en: "Fazumi is an independently operated web app for parents and guardians. It turns busy school-parent group chats into structured summary cards so families can catch important dates, tasks, and school updates faster. These Terms apply whenever you create an account, start a trial, buy a plan, or otherwise use Fazumi.",
+        ar: "Fazumi هو تطبيق ويب يُدار بشكل مستقل للآباء والأمهات وأولياء الأمور. يحول محادثات مجموعات أولياء الأمور المزدحمة إلى بطاقات ملخص منظمة حتى تتمكن العائلات من التقاط التواريخ المهمة والمهام والتحديثات المدرسية بسرعة أكبر. تنطبق هذه الشروط عند إنشاء حساب أو بدء فترة تجريبية أو شراء خطة أو استخدام Fazumi بأي شكل.",
       },
       items: {
         en: [
@@ -64,7 +64,7 @@ const COPY = {
         ar: "2. الأهلية ومسؤولية الحساب",
       },
       body: {
-        en: "Fazumi is intended for adults who are legally able to enter into a binding agreement and who are authorized to access the chats they submit.",
+        en: "Fazumi is intended for adults who are legally able to enter into a binding agreement and who are authorised to access the chats they submit.",
         ar: "Fazumi مخصص للبالغين القادرين قانونيًا على إبرام اتفاق ملزم والمصرح لهم بالوصول إلى المحادثات التي يرسلونها.",
       },
       items: {
@@ -83,8 +83,8 @@ const COPY = {
     {
       title: { en: "3. Description of the service", ar: "3. وصف الخدمة" },
       body: {
-        en: "Fazumi uses OpenAI to generate summaries and Supabase to run authentication, saved history, and core account data. Product features may change over time as we improve the service.",
-        ar: "يستخدم Fazumi واجهة OpenAI لإنشاء الملخصات وSupabase لتشغيل المصادقة وسجل الملخصات وبيانات الحساب الأساسية. وقد تتغير ميزات المنتج بمرور الوقت مع تطوير الخدمة.",
+        en: "Fazumi uses AI to generate summaries and Supabase to run authentication, saved history, and core account data. Product features may change over time as we improve the service.",
+        ar: "يستخدم Fazumi الذكاء الاصطناعي لإنشاء الملخصات وSupabase لتشغيل المصادقة وسجل الملخصات وبيانات الحساب الأساسية. وقد تتغير ميزات المنتج بمرور الوقت مع تطوير الخدمة.",
       },
       items: {
         en: [
@@ -108,7 +108,7 @@ const COPY = {
       items: {
         en: [
           "You represent that you have the right to submit the content and to ask Fazumi to process it.",
-          "You give Fazumi a limited, non-exclusive license to host, transmit, and process that content only to provide, secure, and support the service.",
+          "You give Fazumi a limited, non-exclusive licence to host, transmit, and process that content only to provide, secure, and support the service.",
           "Raw chat text is processed during the summarization request and is not stored in your account history or the summaries table.",
           "We store only the generated summary card, extracted structured fields, and limited operational metadata needed to run the service.",
         ],
@@ -129,9 +129,9 @@ const COPY = {
       items: {
         en: [
           "Do not use the service for illegal content, threats, harassment, hate, exploitation, or other abusive conduct.",
-          "Do not submit malware, attempt to gain unauthorized access, scrape the service, reverse engineer it, or interfere with its normal operation.",
+          "Do not submit malware, attempt to gain unauthorised access, scrape the service, reverse engineer it, or interfere with its normal operation.",
           "Do not try to bypass usage limits, billing controls, security measures, or account restrictions.",
-          "Do not use Fazumi to process chats you are not authorized to access.",
+          "Do not use Fazumi to process chats you are not authorised to access.",
         ],
         ar: [
           "لا تستخدم الخدمة للمحتوى غير القانوني أو التهديد أو المضايقة أو الكراهية أو الاستغلال أو أي سلوك مسيء آخر.",
@@ -152,11 +152,11 @@ const COPY = {
       },
       items: {
         en: [
-          "Always verify time-sensitive school details, including deadlines, fees, transport changes, attendance rules, and policy notices, against the original chat, school portal, teacher, or school office.",
+          "Always verify time-sensitive school details — including deadlines, fees, transport changes, attendance rules, and policy notices — against the original chat, school portal, teacher, or school office.",
           "Do not rely on Fazumi alone for urgent, legal, medical, safety-critical, or financial decisions.",
         ],
         ar: [
-          "تحقق دائمًا من التفاصيل المدرسية الحساسة زمنيًا، بما في ذلك المواعيد النهائية والرسوم وتغييرات النقل وقواعد الحضور والإشعارات التنظيمية، بالرجوع إلى المحادثة الأصلية أو بوابة المدرسة أو المعلم أو إدارة المدرسة.",
+          "تحقق دائمًا من التفاصيل المدرسية الحساسة زمنيًا — بما في ذلك المواعيد النهائية والرسوم وتغييرات النقل وقواعد الحضور والإشعارات التنظيمية — بالرجوع إلى المحادثة الأصلية أو بوابة المدرسة أو المعلم أو إدارة المدرسة.",
           "ولا تعتمد على Fazumi وحده في القرارات العاجلة أو القانونية أو الطبية أو الحساسة للسلامة أو المالية.",
         ],
       },
@@ -172,7 +172,7 @@ const COPY = {
       },
       items: {
         en: [
-          "Monthly and annual plans renew automatically until canceled before the next billing date.",
+          "Monthly and annual plans renew automatically until cancelled before the next billing date.",
           "Founder access is a one-time purchase and does not renew.",
           "You can manage or cancel a subscription through the billing portal linked in your account or checkout emails.",
           "We do not store full payment card numbers.",
@@ -242,12 +242,12 @@ const COPY = {
         en: [
           "If your account is terminated, your right to use the service stops immediately.",
           "You can request account deletion by emailing us from your registered address.",
-          "Sections that should reasonably survive termination, including billing, liability, indemnity, and dispute terms, will continue to apply.",
+          "Sections that should reasonably survive termination — including billing, liability, indemnity, and dispute terms — will continue to apply.",
         ],
         ar: [
           "إذا تم إنهاء حسابك، ينتهي حقك في استخدام الخدمة فورًا.",
           "يمكنك طلب حذف الحساب عبر مراسلتنا من بريدك الإلكتروني المسجل.",
-          "تستمر الأحكام التي يُفترض منطقيًا أن تبقى بعد الإنهاء، بما في ذلك الفوترة والمسؤولية والتعويض وتسوية النزاعات.",
+          "تستمر الأحكام التي يُفترض منطقيًا أن تبقى بعد الإنهاء — بما في ذلك الفوترة والمسؤولية والتعويض وتسوية النزاعات.",
         ],
       },
       emails: [LEGAL_CONTACT_EMAIL],
@@ -258,19 +258,19 @@ const COPY = {
         ar: "11. إخلاءات المسؤولية وحدود المسؤولية",
       },
       body: {
-        en: 'To the maximum extent permitted by law, Fazumi is provided "as is" and "as available". We do not guarantee uninterrupted service, error-free output, or that the service will always meet every need.',
-        ar: 'إلى أقصى حد يسمح به القانون، يتم تقديم Fazumi "كما هو" و"بحسب التوفر". ولا نضمن خدمة غير منقطعة أو مخرجات خالية من الأخطاء أو أن تلبي الخدمة كل احتياج على الدوام.',
+        en: 'To the maximum extent permitted by applicable law, Fazumi is provided "as is" and "as available". We do not guarantee uninterrupted service, error-free output, or that the service will always meet every need.',
+        ar: 'إلى أقصى حد يسمح به القانون المعمول به، يتم تقديم Fazumi "كما هو" و"بحسب التوفر". ولا نضمن خدمة غير منقطعة أو مخرجات خالية من الأخطاء أو أن تلبي الخدمة كل احتياج على الدوام.',
       },
       items: {
         en: [
-          "To the maximum extent permitted by law, we are not liable for indirect, incidental, special, consequential, or punitive damages, or for loss of profits, data, goodwill, or business opportunity.",
+          "To the maximum extent permitted by applicable law, we are not liable for indirect, incidental, special, consequential, or punitive damages, or for loss of profits, data, goodwill, or business opportunity.",
           "Our total liability for any claim related to Fazumi will not exceed the greater of the amount you paid us in the 12 months before the claim arose or USD 100.",
-          "Nothing in these Terms excludes liability that cannot legally be excluded.",
+          "Nothing in these Terms excludes or limits liability that cannot legally be excluded or limited.",
         ],
         ar: [
-          "إلى أقصى حد يسمح به القانون، لا نتحمل المسؤولية عن الأضرار غير المباشرة أو العرضية أو الخاصة أو التبعية أو العقابية، ولا عن خسارة الأرباح أو البيانات أو السمعة أو الفرص التجارية.",
+          "إلى أقصى حد يسمح به القانون المعمول به، لا نتحمل المسؤولية عن الأضرار غير المباشرة أو العرضية أو الخاصة أو التبعية أو العقابية، ولا عن خسارة الأرباح أو البيانات أو السمعة أو الفرص التجارية.",
           "لن تتجاوز مسؤوليتنا الإجمالية عن أي مطالبة متعلقة بـ Fazumi المبلغ الأكبر من: ما دفعته لنا خلال الاثني عشر شهرًا السابقة لنشوء المطالبة أو 100 دولار أمريكي.",
-          "ولا يستبعد أي جزء من هذه الشروط المسؤولية التي لا يجوز استبعادها قانونًا.",
+          "ولا يستبعد أي جزء من هذه الشروط أو يحدّ المسؤولية التي لا يجوز استبعادها أو تحديدها قانونًا.",
         ],
       },
     },
@@ -286,10 +286,12 @@ const COPY = {
       body: LEGAL_GOVERNING_LAW,
       items: {
         en: [
-          "If mandatory consumer protection law gives you additional non-waivable rights, those rights still apply.",
+          "We will always try to resolve any concern through direct communication before formal proceedings.",
+          "Mandatory consumer protection rights in your country of residence are not affected by these Terms.",
         ],
         ar: [
-          "إذا منحك قانون حماية المستهلك الإلزامي حقوقًا إضافية غير قابلة للتنازل، فإن تلك الحقوق تبقى سارية.",
+          "سنسعى دائمًا إلى حل أي مخاوف عبر التواصل المباشر قبل اللجوء إلى الإجراءات الرسمية.",
+          "حقوق حماية المستهلك الإلزامية في بلد إقامتك لا تتأثر بهذه الشروط.",
         ],
       },
     },

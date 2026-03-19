@@ -21,13 +21,13 @@ export function PublicPageShell({
   children,
   className,
 }: PublicPageShellProps) {
-  const { locale } = useLang();
-  const isArabic = locale === "ar";
+  const { siteLocale } = useLang();
+  const isArabic = siteLocale === "ar";
 
   return (
     <div
       dir={isArabic ? "rtl" : "ltr"}
-      lang={locale}
+      lang={siteLocale}
       className={cn("flex flex-1 flex-col bg-[var(--background)]", isArabic && "font-arabic")}
     >
       <Nav />
@@ -35,18 +35,18 @@ export function PublicPageShell({
         <div className={cn("hero-backdrop surface-panel-elevated relative mb-8 overflow-hidden px-[var(--card-padding-lg)] py-[var(--card-padding-lg)]", isArabic && "text-right", className)}>
           {eyebrow && (
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">
-              {pick(eyebrow, locale)}
+              {pick(eyebrow, siteLocale)}
             </p>
           )}
           <h1
             className="public-page-title max-w-3xl font-bold tracking-tight text-[var(--text-strong)]"
           >
-            {pick(title, locale)}
+            {pick(title, siteLocale)}
           </h1>
           <p
             className="public-body-copy mt-3 max-w-2xl text-[var(--muted-foreground)]"
           >
-            {pick(description, locale)}
+            {pick(description, siteLocale)}
           </p>
         </div>
         {children}

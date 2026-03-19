@@ -1,19 +1,16 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowLeft,
   ArrowUpRight,
   Bot,
-  BriefcaseBusiness,
-  HandHeart,
-  ImageIcon,
   LaptopMinimal,
   Rocket,
   Settings2,
   Sparkles,
-  Wrench,
 } from "lucide-react";
 import { Nav } from "@/components/landing/Nav";
 import {
@@ -36,12 +33,6 @@ interface SectionHeadingProps {
   title: LocalizedCopy<string>;
   body?: LocalizedCopy<string>;
   centered?: boolean;
-}
-
-interface PhotoPlaceholderData {
-  label: LocalizedCopy<string>;
-  note: LocalizedCopy<string>;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
 interface FundingArea {
@@ -72,8 +63,8 @@ const PAGE_CONTENT = {
       ar: "إلى أين يذهب دعمك",
     },
     subheadline: {
-      en: "If you become a Founder Supporter, you're helping me build FAZUMI with better tools, stronger systems, and more room to do the work properly — with care, not shortcuts.",
-      ar: "إذا أصبحت Founder Supporter، فأنت تساعدني على بناء FAZUMI بأدوات أفضل، وأنظمة أقوى، ومساحة أكبر للقيام بالعمل كما يجب — بعناية، لا بالاختصارات.",
+      en: "If you become a Founder Supporter, you're helping improve FAZUMI's summary quality, reliability, and the overall parent experience — built properly, not rushed.",
+      ar: "إذا أصبحت Founder Supporter، فأنت تساعد في تحسين جودة ملخصات FAZUMI وموثوقيتها وتجربة الوالدين بشكل عام — بناء صحيح، لا على عجل.",
     },
     body: listCopy(
       [
@@ -127,12 +118,12 @@ const PAGE_CONTENT = {
       },
       body: {
         en: [
-          "Some of your support goes into the machines, setup, and working environment I use to build FAZUMI day to day.",
-          "Better tools help me work faster, test more reliably, and build with fewer compromises. They also support the internal systems I use for development, admin work, and ongoing improvements behind the scenes.",
+          "A portion of Founder Support goes into the development infrastructure that keeps FAZUMI reliable and improving.",
+          "This includes the testing, automation, and build systems that help catch bugs early, ship improvements faster, and keep the summarization quality high over time.",
         ],
         ar: [
-          "يذهب جزء من دعمك إلى الأجهزة، والتجهيزات، وبيئة العمل التي أستخدمها لبناء FAZUMI يومًا بعد يوم.",
-          "الأدوات الأفضل تساعدني على العمل أسرع، والاختبار بثبات أكبر، والبناء مع تنازلات أقل. كما تدعم الأنظمة الداخلية التي أستخدمها للتطوير، والعمل الإداري، والتحسينات المستمرة خلف الكواليس.",
+          "يذهب جزء من Founder Support إلى البنية التحتية للتطوير التي تجعل FAZUMI موثوقًا ومتطورًا باستمرار.",
+          "يشمل ذلك الاختبارات والأتمتة وأنظمة البناء التي تساعد على اكتشاف الأخطاء مبكرًا وإصدار التحسينات بسرعة أكبر والحفاظ على جودة التلخيص عالية مع مرور الوقت.",
         ],
       },
     },
@@ -328,52 +319,6 @@ const PAGE_CONTENT = {
       ar: "لا يوجد أي ضغط — هذه الصفحة موجودة فقط من باب الشفافية.",
     },
   },
-  placeholders: {
-    hero: {
-      label: {
-        en: "Founder portrait",
-        ar: "صورة المؤسس",
-      },
-      note: {
-        en: "A warm founder portrait with soft light and a calm expression.",
-        ar: "صورة هادئة للمؤسس بإضاءة ناعمة وتعبير مريح.",
-      },
-      icon: HandHeart,
-    },
-    intro: {
-      label: {
-        en: "Calm workspace photo",
-        ar: "صورة مساحة عمل هادئة",
-      },
-      note: {
-        en: "Desk, notebook, coffee, and a quiet phone-on-table moment.",
-        ar: "مكتب، ومفكرة، وقهوة، ولحظة هادئة مع الهاتف على الطاولة.",
-      },
-      icon: BriefcaseBusiness,
-    },
-    practical: {
-      label: {
-        en: "Tools / build setup photo",
-        ar: "صورة الأدوات وتجهيزات البناء",
-      },
-      note: {
-        en: "Laptop, testing setup, and the kind of tools behind a careful product build.",
-        ar: "لابتوب، وتجهيز للاختبار، ونوع الأدوات التي تقف خلف بناء منتج بعناية.",
-      },
-      icon: Wrench,
-    },
-    note: {
-      label: {
-        en: "Founder note portrait",
-        ar: "صورة ملاحظة المؤسس",
-      },
-      note: {
-        en: "A quieter, more personal portrait for the closing note.",
-        ar: "صورة أكثر هدوءًا وشخصية لملاحظة الختام.",
-      },
-      icon: Sparkles,
-    },
-  } satisfies Record<string, PhotoPlaceholderData>,
 } as const;
 
 function SectionHeading({ eyebrow, title, body, centered = false }: SectionHeadingProps) {
@@ -423,48 +368,15 @@ function ActionLink({
   );
 }
 
-function PhotoPlaceholder({
-  placeholder,
-  className,
-}: {
-  placeholder: PhotoPlaceholderData;
-  className?: string;
-}) {
-  const { locale } = useLang();
-  const Icon = placeholder.icon;
-
+function FounderPhoto({ src, className }: { src: string; className?: string }) {
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(236,244,238,0.94))] p-5 shadow-[var(--shadow-card)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]",
+        "relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border)] shadow-[var(--shadow-card)]",
         className
       )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(36,112,82,0.12),transparent_38%),radial-gradient(circle_at_bottom_left,rgba(229,161,92,0.12),transparent_32%)]" />
-      <div className="relative flex h-full min-h-[18rem] flex-col justify-between gap-6">
-        <span className="inline-flex w-fit items-center rounded-full border border-[var(--border)] bg-[var(--glass-surface)] px-3 py-1 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-          {locale === "ar" ? "عنصر صورة مؤقت" : "Photo placeholder"}
-        </span>
-
-        <div className="space-y-4">
-          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--primary)] shadow-[var(--shadow-xs)]">
-            <Icon className="h-6 w-6" />
-          </span>
-          <div className="space-y-2">
-            <p className="text-[var(--text-lg)] font-semibold text-[var(--text-strong)]">
-              {pick(placeholder.label, locale)}
-            </p>
-            <p className="max-w-sm text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
-              {pick(placeholder.note, locale)}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-[var(--text-xs)] text-[var(--muted-foreground)]">
-          <ImageIcon className="h-4 w-4" />
-          <span>{locale === "ar" ? "استبدل هذا بصورة حقيقية لاحقًا" : "Replace with a real photo later"}</span>
-        </div>
-      </div>
+      <Image src={src} alt="" fill className="object-cover" sizes="(max-width: 1024px) 100vw, 40vw" />
     </div>
   );
 }
@@ -536,7 +448,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
                   </p>
                 </div>
 
-                <PhotoPlaceholder placeholder={PAGE_CONTENT.placeholders.hero} className="min-h-[22rem]" />
+                <FounderPhoto src="/images/founder-support-photo-1.png" className="aspect-square" />
               </div>
             </div>
           </div>
@@ -558,7 +470,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
               </div>
             </div>
 
-            <PhotoPlaceholder placeholder={PAGE_CONTENT.placeholders.intro} className="min-h-[20rem]" />
+            <FounderPhoto src="/images/founder-support-photo-2.png" className="aspect-[3/2]" />
           </div>
         </section>
 
@@ -609,34 +521,30 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
         </section>
 
         <section className="page-section">
-          <div className="page-shell grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(18rem,0.92fr)] lg:items-start">
-            <div className="space-y-8">
-              <SectionHeading title={PAGE_CONTENT.practicalExamples.title} />
+          <div className="page-shell space-y-8">
+            <SectionHeading title={PAGE_CONTENT.practicalExamples.title} />
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {pick(PAGE_CONTENT.practicalExamples.items, locale).map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-5 py-5 shadow-[var(--shadow-xs)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-sm)]"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
-                        <Sparkles className="h-4 w-4" />
-                      </span>
-                      <p className="text-[var(--text-sm)] leading-relaxed text-[var(--foreground)]">
-                        {item}
-                      </p>
-                    </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {pick(PAGE_CONTENT.practicalExamples.items, locale).map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[var(--radius-xl)] border border-[var(--border)] bg-[var(--surface)] px-5 py-5 shadow-[var(--shadow-xs)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-sm)]"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
+                      <Sparkles className="h-4 w-4" />
+                    </span>
+                    <p className="text-[var(--text-sm)] leading-relaxed text-[var(--foreground)]">
+                      {item}
+                    </p>
                   </div>
-                ))}
-              </div>
-
-              <p className="max-w-3xl text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
-                {pick(PAGE_CONTENT.practicalExamples.note, locale)}
-              </p>
+                </div>
+              ))}
             </div>
 
-            <PhotoPlaceholder placeholder={PAGE_CONTENT.placeholders.practical} className="min-h-[22rem] lg:sticky lg:top-24" />
+            <p className="max-w-3xl text-[var(--text-sm)] leading-relaxed text-[var(--muted-foreground)]">
+              {pick(PAGE_CONTENT.practicalExamples.note, locale)}
+            </p>
           </div>
         </section>
 
@@ -663,7 +571,7 @@ export function FounderSupportPage({ isLoggedIn = false }: FounderSupportPagePro
               </div>
             </div>
 
-            <PhotoPlaceholder placeholder={PAGE_CONTENT.placeholders.note} className="min-h-[20rem]" />
+            <FounderPhoto src="/images/founder-support-photo-4.png" className="aspect-[2/3]" />
           </div>
         </section>
 

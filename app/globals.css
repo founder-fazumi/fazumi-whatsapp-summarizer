@@ -604,7 +604,7 @@ html[lang="ar"] body {
   unicode-bidi: plaintext;
 }
 
-[lang="en"] {
+html:not([lang="ar"]) {
   font-family: var(--font-sans);
 }
 
@@ -684,12 +684,16 @@ html[lang="ar"] .text-6xl {
   font-size: var(--text-6xl);
 }
 
-html[lang="en"] [data-localized-text="ar"],
+/* For non-Arabic locales (en, es, pt-BR, id…) hide the Arabic span;
+   for Arabic hide the English span. */
+html:not([lang="ar"]) [data-localized-text="ar"] {
+  display: none !important;
+}
 html[lang="ar"] [data-localized-text="en"] {
   display: none !important;
 }
 
-html[lang="en"] [data-localized-text="en"],
+html:not([lang="ar"]) [data-localized-text="en"],
 html[lang="ar"] [data-localized-text="ar"] {
   display: inline;
 }

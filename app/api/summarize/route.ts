@@ -34,25 +34,30 @@ function hasSupabaseAuthCookie(req: NextRequest) {
   return req.cookies.getAll().some(({ name }) => isSupabaseAuthCookieName(name));
 }
 
+const PUSH_TITLES: Record<string, { urgent: string; ready: string }> = {
+  ar:      { urgent: "تنبيه مدرسي عاجل",          ready: "ملخص فازومي جاهز" },
+  ur:      { urgent: "اسکول کی فوری اطلاع",        ready: "خلاصہ تیار ہے" },
+  hi:      { urgent: "अत्यावश्यक स्कूल सूचना",     ready: "सारांश तैयार है" },
+  es:      { urgent: "Aviso escolar urgente",       ready: "Resumen listo" },
+  "pt-BR": { urgent: "Aviso escolar urgente",       ready: "Resumo pronto" },
+  id:      { urgent: "Pemberitahuan sekolah mendesak", ready: "Ringkasan siap" },
+  en:      { urgent: "Urgent school update",        ready: "Summary ready" },
+};
+
 function buildSummaryReadyPayload(summary: SummaryResult, savedId: string) {
   const urgentItem =
     summary.urgent_action_items[0] ??
     summary.important_dates.find((item) => item.urgent)?.label ??
     summary.tldr;
-  const isArabic = summary.lang_detected === "ar";
   const isUrgent =
     summary.chat_type === "urgent_notice" ||
     summary.urgent_action_items.length > 0 ||
     summary.important_dates.some((item) => item.urgent);
 
+  const titles = PUSH_TITLES[summary.lang_detected] ?? PUSH_TITLES.en;
+
   return {
-    title: isUrgent
-      ? isArabic
-        ? "تنبيه مدرسي عاجل"
-        : "Urgent school update"
-      : isArabic
-        ? "ملخص فازومي جاهز"
-        : "Summary ready",
+    title: isUrgent ? titles.urgent : titles.ready,
     body: makeTitle(isUrgent ? urgentItem : summary.tldr),
     url: `/history/${savedId}`,
     id: `summary-ready-${savedId}`,
@@ -341,6 +346,7 @@ export async function POST(req: NextRequest) {
   let body: {
     text?: string;
     lang_pref?: string;
+    ui_locale?: string;
     source_platform?: string;
     group_name?: string;
   };
@@ -385,10 +391,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const validLangPrefs = ["auto", "en", "ar"];
-  const langPref: LangPref = validLangPrefs.includes(body.lang_pref ?? "")
-    ? (body.lang_pref as LangPref)
-    : "auto";
+  // Output-language priority:
+  // 1. Explicit user-selected summary language (specific locale, not "auto")
+  // 2. Website UI locale forwarded from the client
+  // 3. Explicit "auto" (input-language detection) — only honoured when no ui_locale
+  // 4. English fallback
+  const validExplicitLangs = new Set(["en", "ar", "es", "pt-BR", "id", "hi", "ur"]);
+  const validUiLocales = new Set(["en", "ar", "es", "pt-BR", "id"]);
+  let langPref: LangPref;
+  if (validExplicitLangs.has(body.lang_pref ?? "")) {
+    langPref = body.lang_pref as LangPref;
+  } else if (validUiLocales.has(body.ui_locale ?? "")) {
+    langPref = body.ui_locale as LangPref;
+  } else if (body.lang_pref === "auto") {
+    langPref = "auto";
+  } else {
+    langPref = "en";
+  }
   const sourcePlatform: ImportSourcePlatform | null =
     body.source_platform === "whatsapp" ||
     body.source_platform === "telegram" ||

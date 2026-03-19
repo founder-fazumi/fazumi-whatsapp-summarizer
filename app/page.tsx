@@ -22,14 +22,6 @@ const organizationSchema = {
     "https://www.instagram.com/fazumi.app",
     "https://x.com/FazumiApp",
   ],
-  areaServed: [
-    { "@type": "Country", name: "Qatar" },
-    { "@type": "Country", name: "United Arab Emirates" },
-    { "@type": "Country", name: "Saudi Arabia" },
-    { "@type": "Country", name: "Kuwait" },
-    { "@type": "Country", name: "Bahrain" },
-    { "@type": "Country", name: "Oman" },
-  ],
 };
 
 const faqSchema = {

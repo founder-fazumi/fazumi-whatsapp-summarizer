@@ -1,9 +1,13 @@
 import type { Locale } from "@/lib/i18n";
+import type { LangPref } from "@/lib/ai/summarize";
 import type { ImportSourcePlatform } from "@/lib/chat-import/source-detect";
 
-export type SampleLangPref = "auto" | "en" | "ar";
+// Kept for any external callers that reference this type by name.
+export type SampleLangPref = LangPref;
 
-const SAMPLE_CHATS: Record<ImportSourcePlatform, Record<Exclude<SampleLangPref, "auto">, string>> = {
+type SampleKey = "en" | "ar";
+
+const SAMPLE_CHATS: Record<ImportSourcePlatform, Record<SampleKey, string>> = {
   whatsapp: {
     en: `[17/03/2026, 18:40] Grade 4 Teacher: Good evening parents. Reminder that the Math quiz is on Monday 17 March at 8:00 AM and covers units 4, 5, and 6.
 [17/03/2026, 18:42] Parent: Will there be word problems on the quiz?
@@ -54,7 +58,7 @@ Messenger link for the permission form: https://school.example/form`,
   },
 };
 
-const FALLBACK_SAMPLE_CHATS: Record<Exclude<SampleLangPref, "auto">, string> = {
+const FALLBACK_SAMPLE_CHATS: Record<SampleKey, string> = {
   en: `Teacher: Good evening everyone. Reminder that the Math quiz is on Monday 17 March at 8:00 AM and covers units 4, 5, and 6.
 Parent: Will there be word problems on the quiz?
 Teacher: Yes, around 30% of the quiz will be word problems, so please review pages 78-82 tonight.
@@ -82,6 +86,8 @@ export function getSampleChat(
   locale: Locale,
   sourcePlatform: ImportSourcePlatform = "whatsapp"
 ): string {
-  const resolved = langPref === "auto" ? locale : langPref;
+  // Normalize to a key that has sample data: "ar" stays "ar", everything else → "en".
+  const resolved: SampleKey =
+    (langPref === "auto" ? locale : langPref) === "ar" ? "ar" : "en";
   return SAMPLE_CHATS[sourcePlatform]?.[resolved] ?? FALLBACK_SAMPLE_CHATS[resolved];
 }

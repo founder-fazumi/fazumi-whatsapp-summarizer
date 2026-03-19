@@ -1,42 +1,51 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import type { Locale } from "@/lib/i18n";
+import type { Locale, SiteLocale } from "@/lib/i18n";
 import { LANG_STORAGE_KEY } from "@/lib/preferences";
 
 interface LangContextValue {
+  /** Narrowed to "en" | "ar" — used by all existing dashboard components unchanged. */
   locale: Locale;
-  setLocale: (l: Locale) => void;
+  /** Full website locale including es, pt-BR, id. Use in landing pages and the language switcher. */
+  siteLocale: SiteLocale;
+  setLocale: (l: SiteLocale) => void;
 }
 
 const LangContext = createContext<LangContextValue>({
   locale: "ar",
+  siteLocale: "ar",
   setLocale: () => {},
 });
 
-function readStoredLocale(): Locale | null {
+const VALID_SITE_LOCALES: readonly SiteLocale[] = ["en", "ar", "es", "pt-BR", "id"];
+
+function readStoredLocale(): SiteLocale | null {
   if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem(LANG_STORAGE_KEY);
-    if (!stored) {
-      return null;
+    if (stored && (VALID_SITE_LOCALES as readonly string[]).includes(stored)) {
+      return stored as SiteLocale;
     }
-
-    return stored === "ar" ? "ar" : "en";
+    return null;
   } catch {
     return null;
   }
 }
 
-function applyLocale(locale: Locale) {
-  if (typeof document === "undefined") return;
-  document.documentElement.lang = locale;
-  document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+function toLocale(sl: SiteLocale): Locale {
+  return sl === "ar" ? "ar" : "en";
 }
 
-function writeLocaleCookie(locale: Locale) {
+function applyLocale(sl: SiteLocale) {
   if (typeof document === "undefined") return;
-  document.cookie = `${LANG_STORAGE_KEY}=${locale}; path=/; max-age=31536000; samesite=lax`;
+  document.documentElement.lang = sl;
+  document.documentElement.dir = sl === "ar" ? "rtl" : "ltr";
+}
+
+function writeLocaleCookie(sl: SiteLocale) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${LANG_STORAGE_KEY}=${sl}; path=/; max-age=31536000; samesite=lax`;
 }
 
 export function LangProvider({
@@ -44,9 +53,9 @@ export function LangProvider({
   initialLocale = "ar",
 }: {
   children: React.ReactNode;
-  initialLocale?: Locale;
+  initialLocale?: SiteLocale;
 }) {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+  const [siteLocale, setSiteLocale] = useState<SiteLocale>(initialLocale);
 
   useEffect(() => {
     const storedLocale = readStoredLocale();
@@ -54,13 +63,16 @@ export function LangProvider({
 
     if (storedLocale && storedLocale !== initialLocale) {
       frameId = window.requestAnimationFrame(() => {
-        setLocaleState(storedLocale);
+        setSiteLocale(storedLocale);
       });
     }
 
     function handleStorage(event: StorageEvent) {
       if (event.key !== LANG_STORAGE_KEY) return;
-      setLocaleState(event.newValue === "ar" ? "ar" : "en");
+      const next = event.newValue;
+      if (next && (VALID_SITE_LOCALES as readonly string[]).includes(next)) {
+        setSiteLocale(next as SiteLocale);
+      }
     }
 
     window.addEventListener("storage", handleStorage);
@@ -74,21 +86,21 @@ export function LangProvider({
   }, [initialLocale]);
 
   useEffect(() => {
-    applyLocale(locale);
-    writeLocaleCookie(locale);
-  }, [locale]);
+    applyLocale(siteLocale);
+    writeLocaleCookie(siteLocale);
+  }, [siteLocale]);
 
-  function setLocale(next: Locale) {
+  function setLocale(next: SiteLocale) {
     try {
       localStorage.setItem(LANG_STORAGE_KEY, next);
     } catch {
       // Ignore storage failures and keep the in-memory preference.
     }
-    setLocaleState(next);
+    setSiteLocale(next);
   }
 
   return (
-    <LangContext.Provider value={{ locale, setLocale }}>
+    <LangContext.Provider value={{ locale: toLocale(siteLocale), siteLocale, setLocale }}>
       {children}
     </LangContext.Provider>
   );

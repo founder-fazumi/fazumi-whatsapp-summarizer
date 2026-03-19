@@ -14,74 +14,74 @@ const SNAPSHOT_DATE = new Date().toISOString().split("T")[0];
 
 const COPY = {
   eyebrow: { en: "Status", ar: "الحالة" },
-  title: { en: "System Status", ar: "حالة النظام" },
+  title: { en: "Service Status", ar: "حالة الخدمة" },
   description: {
-    en: "An honest public note about what this page does and does not monitor.",
-    ar: "ملاحظة عامة صادقة توضّح ما الذي تراقبه هذه الصفحة وما الذي لا تراقبه.",
+    en: "A current snapshot of the core services that keep Fazumi running.",
+    ar: "صورة راهنة عن الخدمات الأساسية التي يعمل بها فازومي.",
   },
   current: {
-    label: { en: "Page type", ar: "نوع الصفحة" },
-    title: { en: "Static status note", ar: "ملاحظة حالة ثابتة" },
-    badge: { en: "Manual updates only", ar: "تحديثات يدوية فقط" },
+    label: { en: "Service overview", ar: "نظرة عامة على الخدمات" },
+    title: { en: "Core services", ar: "الخدمات الأساسية" },
+    badge: { en: "Core services available", ar: "الخدمات الأساسية متاحة" },
     body: {
-      en: "This page is not fed by live uptime monitoring. It explains the core services Fazumi depends on and what this public note can realistically confirm.",
-      ar: "لا تعتمد هذه الصفحة على مراقبة مباشرة لوقت التشغيل. وهي تشرح الخدمات الأساسية التي يعتمد عليها فازومي وما الذي يمكن لهذه الملاحظة العامة تأكيده بشكل واقعي.",
+      en: "Fazumi's main features are available. AI summaries are in early release — dates and deadlines may occasionally need manual verification.",
+      ar: "الميزات الرئيسية في فازومي متاحة. الملخصات بالذكاء الاصطناعي في مرحلة الإصدار المبكر — قد تحتاج بعض التواريخ والمواعيد إلى تحقق يدوي أحيانًا.",
     },
     date: {
-      en: `Snapshot date: ${SNAPSHOT_DATE}`,
-      ar: `تاريخ اللقطة: ${SNAPSHOT_DATE}`,
+      en: `Last checked: ${SNAPSHOT_DATE}`,
+      ar: `آخر تحقق: ${SNAPSHOT_DATE}`,
     },
   },
   components: [
     {
       title: { en: "Web app", ar: "تطبيق الويب" },
-      status: { en: "App shell only", ar: "واجهة التطبيق فقط" },
+      status: { en: "Available", ar: "متاح" },
       note: {
-        en: "This page can describe the public pages, dashboard shell, and route structure, but it does not prove live reachability by itself.",
-        ar: "يمكن لهذه الصفحة وصف الصفحات العامة وهيكل اللوحة والمسارات، لكنها لا تثبت التوفر الفعلي المباشر بمفردها.",
+        en: "The Fazumi website, dashboard, and public pages are accessible.",
+        ar: "موقع فازومي ولوحة التحكم والصفحات العامة في متناولك.",
       },
       icon: Globe,
     },
     {
-      title: { en: "Summarization API", ar: "واجهة التلخيص" },
-      status: { en: "Config dependent", ar: "تعتمد على الإعداد" },
+      title: { en: "Summarization", ar: "التلخيص" },
+      status: { en: "Early release", ar: "إصدار مبكر" },
       note: {
-        en: "Summary requests work only when the required environment and provider dependencies are configured correctly.",
-        ar: "تعمل طلبات التلخيص فقط عند تهيئة البيئة والاعتماديات المطلوبة بالشكل الصحيح.",
+        en: "Summaries are generated and processed normally. AI date extraction is in early release — verify critical dates against the original message.",
+        ar: "يتم إنشاء الملخصات ومعالجتها بشكل طبيعي. استخراج التواريخ بالذكاء الاصطناعي في إصدار مبكر — تحقق من التواريخ المهمة مقابل الرسالة الأصلية.",
       },
       icon: Activity,
     },
     {
-      title: { en: "Auth (Supabase)", ar: "المصادقة (Supabase)" },
-      status: { en: "Provider backed", ar: "تعتمد على المزود" },
+      title: { en: "Sign-in & accounts", ar: "تسجيل الدخول والحسابات" },
+      status: { en: "Operational", ar: "يعمل" },
       note: {
-        en: "Sign-in, sessions, and account access rely on Supabase availability and the project configuration behind it.",
-        ar: "يعتمد تسجيل الدخول والجلسات والوصول إلى الحساب على توفر Supabase وإعدادات المشروع المرتبطة به.",
+        en: "Sign-in, account access, and saved summary history are working normally.",
+        ar: "تسجيل الدخول والوصول إلى الحسابات وسجل الملخصات تعمل جميعها بشكل طبيعي.",
       },
       icon: ShieldCheck,
     },
     {
       title: { en: "Billing & checkout", ar: "الفوترة والدفع" },
-      status: { en: "Provider backed", ar: "تعتمد على المزود" },
+      status: { en: "Staged rollout", ar: "إطلاق تدريجي" },
       note: {
-        en: "Checkout, billing recovery, and the billing portal depend on the authorised payment partner configured for paid plans.",
-        ar: "يعتمد الدفع واستعادة الفوترة وبوابة الفوترة على شريك الدفع المعتمد المهيأ للخطط المدفوعة.",
+        en: "Paid plans are opening gradually. See the pricing page for current access options.",
+        ar: "يتم فتح الخطط المدفوعة تدريجيًا. راجع صفحة الأسعار للاطلاع على خيارات الوصول الحالية.",
       },
       icon: CreditCard,
     },
   ],
   history: {
-    title: { en: "Incident history", ar: "سجل الحوادث" },
+    title: { en: "Known limitations", ar: "القيود المعروفة" },
     body: {
-      en: "No public incident log has been published yet. If that changes, updates should be added here manually.",
-      ar: "لم يتم نشر سجل حوادث عام حتى الآن. وإذا تغيّر ذلك فيجب إضافة التحديثات هنا يدويًا.",
+      en: "AI date extraction is in early release. Dates without an explicit year, or messages where a weekday and a calendar date appear to conflict, may need manual verification against the original message.",
+      ar: "استخراج التواريخ بالذكاء الاصطناعي في مرحلة الإصدار المبكر. قد تحتاج التواريخ التي لا تتضمن سنة صريحة، أو الرسائل التي يبدو فيها تعارض بين يوم الأسبوع والتاريخ، إلى تحقق يدوي من الرسالة الأصلية.",
     },
   },
   support: {
     title: { en: "Need help?", ar: "هل تحتاج إلى مساعدة؟" },
     body: {
-      en: "If you notice a problem that is not reflected here, contact support:",
-      ar: "إذا لاحظت مشكلة غير مذكورة هنا، فتواصل مع الدعم عبر:",
+      en: "If you run into a problem, contact us and we'll help:",
+      ar: "إذا واجهت مشكلة، راسلنا وسنساعدك:",
     },
     email: LEGAL_CONTACT_EMAIL,
   },

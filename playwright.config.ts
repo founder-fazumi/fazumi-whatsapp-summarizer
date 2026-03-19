@@ -15,10 +15,10 @@ export default defineConfig({
   testDir: ".",
   testMatch: ["e2e/**/*.spec.ts", "tests/playwright/**/*.spec.ts"],
   timeout: 240_000,
-  fullyParallel: false,
+  fullyParallel: process.env.CI ? true : false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: process.env.CI ? undefined : 1,
   reporter: process.env.CI ? [["html", { open: "never" }], ["line"]] : "line",
   use: {
     baseURL,

@@ -30,8 +30,8 @@ export const founderOfferContent = {
       ar: "يساعد FAZUMI الآباء المشغولين على تحويل رسائل المدرسة الطويلة والمبعثرة إلى ملخص بسيط، ومهام، ومواعيد، ومدفوعات خلال ثوانٍ. هذا العرض الاختياري للمؤسسين محدود بـ 200 من الداعمين الأوائل الذين يريدون وصولًا مبكرًا، ومزايا مميزة، وفرصة للمساعدة في تشكيل FAZUMI من البداية.",
     },
     primaryCta: {
-      en: "Become a Founder Supporter — $149",
-      ar: "كن Founder Supporter — $149",
+      en: "Reserve via email — $149",
+      ar: "احجز عبر الإيميل — $149",
     },
     secondaryCta: {
       en: "See how FAZUMI works",
@@ -47,8 +47,8 @@ export const founderOfferContent = {
         ar: "دفعة واحدة",
       },
       {
-        en: "Built for GCC parents",
-        ar: "مصمم لآباء الخليج",
+        en: "Built for busy school families",
+        ar: "مصمم لعائلات المدارس المشغولة",
       },
     ],
     microcopy: [
@@ -61,8 +61,8 @@ export const founderOfferContent = {
         ar: "محدود بـ 200 مقعد",
       },
       {
-        en: "Built for busy families in the GCC",
-        ar: "مصمم للعائلات المشغولة في الخليج",
+        en: "Built for bilingual school communication",
+        ar: "مصمم للتواصل المدرسي ثنائي اللغة",
       },
       {
         en: "Founder-only perks included",
@@ -214,7 +214,7 @@ export const founderOfferContent = {
       ar: "رسالة مدرسية نموذجية",
     },
     rawMessage:
-      "Dear parents, please be informed that students in Grade 5 must submit the science project by Thursday. Also, the trip payment of 75 QAR should be paid no later than Tuesday. Students must wear sports uniform on Wednesday for rehearsal. Kindly sign and return the attached consent form. Reminder that the Arabic test has been moved to Monday.",
+      "Dear parents, please be informed that students in Grade 5 must submit the science project by Thursday. Also, the trip payment of $75 should be paid no later than Tuesday. Students must wear sports uniform on Wednesday for rehearsal. Kindly sign and return the attached consent form. Reminder that the Arabic test has been moved to Monday.",
     resultLabel: {
       en: "FAZUMI result",
       ar: "نتيجة FAZUMI",
@@ -225,8 +225,8 @@ export const founderOfferContent = {
     },
     tasks: [
       {
-        en: "Pay 75 QAR trip fee by Tuesday",
-        ar: "ادفع رسوم الرحلة 75 QAR قبل الثلاثاء",
+        en: "Pay $75 trip fee by Tuesday",
+        ar: "ادفع رسوم الرحلة $75 قبل الثلاثاء",
       },
       {
         en: "Submit science project by Thursday",
@@ -260,8 +260,8 @@ export const founderOfferContent = {
       },
     ],
     cta: {
-      en: "Get Founder Access for $149",
-      ar: "احصل على Founder Access مقابل $149",
+      en: "Reserve via email →",
+      ar: "احجز عبر الإيميل",
     },
   },
   plan: {
@@ -328,13 +328,13 @@ export const founderOfferContent = {
       ar: "لن يتوفر أكثر من 200 مقعدًا لـ Founder Supporter على الإطلاق.",
     },
     cta: {
-      en: "Claim My Founder Spot",
-      ar: "احجز مقعدي كمؤسس داعم",
+      en: "Reserve via email →",
+      ar: "احجز عبر الإيميل",
     },
     trustNotes: [
       {
-        en: "Secure checkout",
-        ar: "دفع آمن",
+        en: "No credit card now",
+        ar: "لا بطاقة الآن",
       },
       {
         en: "No recurring payment",
@@ -396,8 +396,8 @@ export const founderOfferContent = {
   },
   gcc: {
     title: {
-      en: "Built with the reality of GCC family life in mind",
-      ar: "مبني على واقع الحياة العائلية في الخليج",
+      en: "Built around the realities of busy family life",
+      ar: "مصمم ليناسب واقع الحياة العائلية المزدحمة",
     },
     points: [
       {
@@ -445,8 +445,8 @@ export const founderOfferContent = {
         ar: "عرض مؤسس واضح وشفاف",
       },
       {
-        en: "Secure checkout",
-        ar: "دفع آمن",
+        en: "No credit card now",
+        ar: "لا بطاقة الآن",
       },
       {
         en: "Straightforward support",
@@ -549,8 +549,8 @@ export const founderOfferContent = {
         ar: "هل سيعمل FAZUMI في بلد واحد فقط؟",
       },
       answer: {
-        en: "No. FAZUMI is being built for busy families across the GCC, not for one city or one school system only.",
-        ar: "لا. يتم بناء FAZUMI للعائلات المشغولة في مختلف دول الخليج، وليس لمدينة واحدة أو نظام مدرسي واحد فقط.",
+        en: "No. FAZUMI is being built for busy families who rely on school messaging groups, wherever they are.",
+        ar: "لا. FAZUMI مصمم للأسر المشغولة التي تعتمد على مجموعات المدرسة ورسائلها، أينما كانت.",
       },
     },
     {
@@ -622,8 +622,8 @@ export const founderOfferContent = {
       },
     ],
     cta: {
-      en: "Claim My Founder Spot — $149",
-      ar: "احجز مقعدي كمؤسس داعم — $149",
+      en: "Reserve via email — $149",
+      ar: "احجز عبر الإيميل — $149",
     },
     supportText: {
       en: "Limited to 200 Founder Supporters",

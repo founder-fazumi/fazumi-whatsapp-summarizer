@@ -10,8 +10,7 @@
   "background_color": "#f5f2ec",
   "theme_color": "#247052",
   "orientation": "portrait",
-  "lang": "ar",
-  "dir": "rtl",
+  "lang": "en",
   "categories": ["productivity", "education", "utilities"],
   "icons": [
     {
@@ -37,12 +36,20 @@
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
-      "url": "/dashboard"
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "New Summary",
+      "short_name": "Summarize",
+      "url": "/summarize",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "History",
       "short_name": "History",
-      "url": "/history"
+      "url": "/history",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
