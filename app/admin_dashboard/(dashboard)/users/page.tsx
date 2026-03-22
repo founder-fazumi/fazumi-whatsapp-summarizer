@@ -7,7 +7,7 @@ import { requireAdminPageSession } from "@/lib/admin/auth";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardUsersPage() {
-  await requireAdminPageSession("/admin_dashboard/users");
+  await requireAdminPageSession("/admin-dashboard/users");
 
   const data = await getAdminUsersData();
 
@@ -15,7 +15,7 @@ export default async function AdminDashboardUsersPage() {
     <AdminShell
       breadcrumb={
         <AdminBreadcrumb
-          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "Users" }]}
+          items={[{ label: "Admin", href: "/admin-dashboard" }, { label: "Users" }]}
           dir="ltr"
         />
       }

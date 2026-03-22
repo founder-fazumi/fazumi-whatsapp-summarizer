@@ -103,7 +103,7 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
       label: "New inbox items",
       value: formatNumber((m.overviewKpis.supportNew ?? 0) + (m.overviewKpis.feedbackNew ?? 0)),
       subtext: `Support: ${m.overviewKpis.supportNew ?? 0} · Feedback: ${m.overviewKpis.feedbackNew ?? 0}`,
-      href: "/admin_dashboard/inbox",
+      href: "/admin-dashboard/inbox",
     },
     {
       icon: Star,
@@ -122,7 +122,7 @@ export function AdminOverviewContent({ initialMetrics }: { initialMetrics: Admin
       label: "AI spend (7d)",
       value: `$${formatNumber(m.aiUsage.spendLast7Days, { maximumFractionDigits: 2 })}`,
       subtext: `$/summary: $${formatNumber(m.aiUsage.costPerSummary, { maximumFractionDigits: 4 })}`,
-      href: "/admin_dashboard/ai-usage",
+      href: "/admin-dashboard/ai-usage",
     },
   ];
 

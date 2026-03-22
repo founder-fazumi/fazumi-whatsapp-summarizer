@@ -12,12 +12,12 @@ import {
 test.describe.configure({ mode: "serial" });
 
 async function loginAsAdmin(page: Page, credentials: { username: string; password: string }) {
-  await page.goto("/admin/login");
-  await expect(page.getByRole("heading", { name: "Welcome Back, Sir." })).toBeVisible();
+  await page.goto("/admin-dashboard/login");
+  await expect(page.getByText("Welcome back, Sir. Please sign in.")).toBeVisible();
   await page.locator("#admin-username").fill(credentials.username);
   await page.locator("#admin-password").fill(credentials.password);
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/admin_dashboard$/);
+  await expect(page).toHaveURL(/\/admin-dashboard$/);
 }
 
 test("admin routes require explicit configured credentials before the dashboard is reachable", async ({
@@ -28,17 +28,17 @@ test("admin routes require explicit configured credentials before the dashboard 
   const env = await getDevEnv(request);
 
   if (!adminCredentials || !env.env.supabaseUrl || !env.env.serviceRole) {
-    await page.goto("/admin_dashboard");
+    await page.goto("/admin-dashboard");
     await expect(
       page.getByRole("heading", { name: /Page not found|الصفحة غير موجودة/i })
     ).toBeVisible();
-    await expect(page).not.toHaveURL(/\/admin\/login/);
+    await expect(page).not.toHaveURL(/\/admin-dashboard\/login/);
     return;
   }
 
-  await page.goto("/admin_dashboard");
-  await expect(page).toHaveURL(/\/admin\/login\?next=%2Fadmin_dashboard$/);
-  await expect(page.getByRole("heading", { name: "Welcome Back, Sir." })).toBeVisible();
+  await page.goto("/admin-dashboard");
+  await expect(page).toHaveURL(/\/admin-dashboard\/login\?next=%2Fadmin-dashboard$/);
+  await expect(page.getByText("Welcome back, Sir. Please sign in.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Continue with Apple" })).toHaveCount(0);
   await expect(page.getByText("Log in or create a free account to get started")).toHaveCount(0);
@@ -48,7 +48,7 @@ test("admin routes require explicit configured credentials before the dashboard 
   await page.locator("#admin-password").fill(adminCredentials.password);
   await page.getByRole("button", { name: "Log in" }).click();
 
-  await expect(page).toHaveURL(/\/admin_dashboard$/);
+  await expect(page).toHaveURL(/\/admin-dashboard$/);
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 
@@ -64,12 +64,12 @@ test("wrong admin credentials do not create an admin session", async ({ page, re
     return;
   }
 
-  await page.goto("/admin/login");
+  await page.goto("/admin-dashboard/login");
   await page.locator("#admin-username").fill(adminCredentials.username);
   await page.locator("#admin-password").fill(`${adminCredentials.password}-wrong`);
   await page.getByRole("button", { name: "Log in" }).click();
 
-  await expect(page).toHaveURL(/\/admin\/login$/);
+  await expect(page).toHaveURL(/\/admin-dashboard\/login$/);
   await expect(page.locator('p[role="alert"]')).toContainText("Invalid credentials.");
 });
 
@@ -86,7 +86,7 @@ test("admin inbox tabs render after admin login", async ({ page, request }) => {
   }
 
   await loginAsAdmin(page, adminCredentials);
-  await page.goto("/admin_dashboard/inbox");
+  await page.goto("/admin-dashboard/inbox");
 
   await expect(page.getByRole("heading", { name: "Admin inbox" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Feedback/i })).toBeVisible();
@@ -122,7 +122,7 @@ test("support request from contact page appears in the admin inbox", async ({ pa
   await expect.poll(async () => (await getLatestSupportRequest(email))?.subject ?? null).toBe(subject);
 
   await loginAsAdmin(page, adminCredentials);
-  await page.goto("/admin_dashboard/inbox?tab=support");
+  await page.goto("/admin-dashboard/inbox?tab=support");
   await page.locator("#admin-inbox-search").fill(subject);
   await expect(page.getByText(subject)).toBeVisible();
 });
@@ -139,13 +139,13 @@ test("regular user auth does not grant access to admin routes or admin APIs", as
 
   const accounts = await ensureTestAccounts(request);
   await loginWithEmail(page, accounts.free);
-  await page.goto("/admin_dashboard");
+  await page.goto("/admin-dashboard");
 
   const adminCredentials = getConfiguredAdminCredentials();
   if (adminCredentials) {
-    await expect(page).toHaveURL(/\/admin\/login\?next=%2Fadmin_dashboard$/);
+    await expect(page).toHaveURL(/\/admin-dashboard\/login\?next=%2Fadmin-dashboard$/);
   } else {
-    await expect(page).not.toHaveURL(/\/admin\/login/);
+    await expect(page).not.toHaveURL(/\/admin-dashboard\/login/);
   }
 
   const cookieHeader = await getAuthCookieHeader(accounts.free);
@@ -163,4 +163,3 @@ test("regular user auth does not grant access to admin routes or admin APIs", as
     await api.dispose();
   }
 });
-

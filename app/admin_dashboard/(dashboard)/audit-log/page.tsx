@@ -6,14 +6,14 @@ import { AdminAuditLogContent } from "@/components/admin/AdminAuditLogContent";
 export const dynamic = "force-dynamic";
 
 export default async function AdminAuditLogPage() {
-  await requireAdminPageSession("/admin_dashboard/audit-log");
+  await requireAdminPageSession("/admin-dashboard/audit-log");
 
   return (
     <AdminShell
       breadcrumb={
         <AdminBreadcrumb
           items={[
-            { label: "Admin", href: "/admin_dashboard" },
+            { label: "Admin", href: "/admin-dashboard" },
             { label: "Audit Log" },
           ]}
         />

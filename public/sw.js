@@ -133,6 +133,7 @@ self.addEventListener("fetch", (event) => {
     '/calendar',
     '/todo',
     '/admin_dashboard',
+    '/admin-dashboard',
   ];
 
   const shouldExclude = excludedPaths.some(path => url.pathname.startsWith(path));

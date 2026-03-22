@@ -1708,7 +1708,7 @@ export async function getAdminOverviewMetrics(): Promise<AdminOverviewMetrics> {
         dailySummaryAveragePreviousWeek,
         { maximumFractionDigits: 1 }
       )} average in the previous week.`,
-      href: "/admin_dashboard/ai-usage",
+      href: "/admin-dashboard/ai-usage",
       ctaLabel: "Review AI usage",
     });
   }
@@ -1719,7 +1719,7 @@ export async function getAdminOverviewMetrics(): Promise<AdminOverviewMetrics> {
       severity: failedWebhookRowsLast7Days.length >= 3 ? "critical" : "warning",
       title: "Webhook delivery failures",
       body: `${formatNumber(failedWebhookRowsLast7Days.length)} failed or rejected Lemon Squeezy deliveries in the last 7 days.`,
-      href: "/admin_dashboard/inbox?tab=support",
+      href: "/admin-dashboard/inbox?tab=support",
       ctaLabel: "Check operations",
     });
   }

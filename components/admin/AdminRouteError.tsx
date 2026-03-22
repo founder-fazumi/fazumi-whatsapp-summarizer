@@ -75,7 +75,7 @@ export function AdminRouteError({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => window.location.assign("/admin_dashboard")}
+                onClick={() => window.location.assign("/admin-dashboard")}
               >
                 {COPY.back[currentLocale]}
               </Button>

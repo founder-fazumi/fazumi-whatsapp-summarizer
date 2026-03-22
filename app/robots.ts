@@ -7,6 +7,7 @@ export default function robots(): MetadataRoute.Robots {
     "/login",
     "/admin",
     "/admin_dashboard",
+    "/admin-dashboard",
     "/api",
     "/auth/",
     "/sentry-example-page",

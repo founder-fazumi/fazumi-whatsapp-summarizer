@@ -24,9 +24,49 @@ const nextConfig: NextConfig = {
 
     return config;
   },
+  async rewrites() {
+    // Map the clean canonical /admin-dashboard/* URLs to the underlying page
+    // files in /admin_dashboard/* and /admin/login without changing the browser URL.
+    return [
+      {
+        source: "/admin-dashboard/login",
+        destination: "/admin/login",
+      },
+      {
+        source: "/admin-dashboard",
+        destination: "/admin_dashboard",
+      },
+      {
+        source: "/admin-dashboard/:path*",
+        destination: "/admin_dashboard/:path*",
+      },
+    ];
+  },
   async redirects() {
     return [
       { source: "/signup", destination: "/login?tab=signup", permanent: false },
+      // Legacy admin paths — redirect to the canonical /admin-dashboard/* URLs.
+      { source: "/admin", destination: "/admin-dashboard", permanent: true },
+      {
+        source: "/admin/login",
+        destination: "/admin-dashboard/login",
+        permanent: true,
+      },
+      {
+        source: "/admin_dashboard/login",
+        destination: "/admin-dashboard/login",
+        permanent: true,
+      },
+      {
+        source: "/admin_dashboard",
+        destination: "/admin-dashboard",
+        permanent: true,
+      },
+      {
+        source: "/admin_dashboard/:path*",
+        destination: "/admin-dashboard/:path*",
+        permanent: true,
+      },
     ];
   },
   async headers() {

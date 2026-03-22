@@ -2,6 +2,9 @@ import { AdminThemeSwitcher } from "@/components/admin/AdminThemeSwitcher";
 import { AdminLoginScreen } from "@/components/admin/AdminLoginScreen";
 import { redirectAuthenticatedAdmin } from "@/lib/admin/auth";
 
+// This file is the underlying login page rendered at /admin/login.
+// The canonical browser URL is /admin-dashboard/login — served via a
+// Next.js rewrite in next.config.ts (/admin-dashboard/login → /admin/login).
 export const dynamic = "force-dynamic";
 
 export default async function AdminLoginPage({

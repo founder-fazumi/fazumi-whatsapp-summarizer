@@ -2,9 +2,11 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 
-export const ADMIN_LOGIN_PATH = "/admin/login";
-export const LEGACY_ADMIN_LOGIN_PATH = "/admin_dashboard/login";
-export const ADMIN_HOME_PATH = "/admin_dashboard";
+// Canonical admin paths — the browser-visible URLs.
+// The underlying page files live at /admin_dashboard/* and /admin/login,
+// served transparently via Next.js rewrites in next.config.ts.
+export const ADMIN_LOGIN_PATH = "/admin-dashboard/login";
+export const ADMIN_HOME_PATH = "/admin-dashboard";
 export const ADMIN_COOKIE_NAME = "fazumi_admin";
 export const ADMIN_LOGIN_API_PATH = "/api/admin/login";
 export const ADMIN_LOGOUT_API_PATH = "/api/admin/logout";
@@ -145,7 +147,12 @@ function isAdminDashboardPath(pathname: string) {
 }
 
 export function isAdminLoginPath(pathname: string) {
-  return pathname === ADMIN_LOGIN_PATH || pathname === LEGACY_ADMIN_LOGIN_PATH;
+  // Accept both the canonical URL and the underlying rewrite target.
+  return (
+    pathname === ADMIN_LOGIN_PATH ||
+    pathname === "/admin/login" ||
+    pathname === "/admin_dashboard/login"
+  );
 }
 
 export function isAdminRoutePath(pathname: string) {
@@ -153,7 +160,9 @@ export function isAdminRoutePath(pathname: string) {
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
     pathname === ADMIN_HOME_PATH ||
-    pathname.startsWith(`${ADMIN_HOME_PATH}/`)
+    pathname.startsWith(`${ADMIN_HOME_PATH}/`) ||
+    pathname === "/admin_dashboard" ||
+    pathname.startsWith("/admin_dashboard/")
   );
 }
 

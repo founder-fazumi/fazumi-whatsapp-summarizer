@@ -45,7 +45,7 @@ export function AdminLoginForm({ nextPath }: AdminLoginFormProps) {
         return;
       }
 
-      window.location.assign(payload?.redirectTo ?? nextPath ?? "/admin_dashboard");
+      window.location.assign(payload?.redirectTo ?? nextPath ?? "/admin-dashboard");
     } catch {
       setError("Could not sign in.");
     } finally {

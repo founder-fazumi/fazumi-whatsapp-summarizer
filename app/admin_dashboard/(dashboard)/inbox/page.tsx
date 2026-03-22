@@ -7,14 +7,14 @@ import { getAdminInboxData } from "@/lib/admin/queries";
 export const dynamic = "force-dynamic";
 
 export default async function AdminInboxPage() {
-  await requireAdminPageSession("/admin_dashboard/inbox");
+  await requireAdminPageSession("/admin-dashboard/inbox");
   const data = await getAdminInboxData();
 
   return (
     <AdminShell
       breadcrumb={
         <AdminBreadcrumb
-          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "Inbox" }]}
+          items={[{ label: "Admin", href: "/admin-dashboard" }, { label: "Inbox" }]}
           dir="ltr"
         />
       }

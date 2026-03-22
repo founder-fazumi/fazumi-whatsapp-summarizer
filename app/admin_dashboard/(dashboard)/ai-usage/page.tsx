@@ -7,14 +7,14 @@ import { getAdminAiUsageData } from "@/lib/admin/queries";
 export const dynamic = "force-dynamic";
 
 export default async function AdminAiUsagePage() {
-  await requireAdminPageSession("/admin_dashboard/ai-usage");
+  await requireAdminPageSession("/admin-dashboard/ai-usage");
   const data = await getAdminAiUsageData();
 
   return (
     <AdminShell
       breadcrumb={
         <AdminBreadcrumb
-          items={[{ label: "Admin", href: "/admin_dashboard" }, { label: "AI Usage" }]}
+          items={[{ label: "Admin", href: "/admin-dashboard" }, { label: "AI Usage" }]}
           dir="ltr"
         />
       }

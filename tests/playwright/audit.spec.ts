@@ -68,7 +68,7 @@ const PRIORITY_PUBLIC_ROUTES = [
   "/refunds",
   "/terms",
   "/status",
-  "/admin_dashboard/login",
+  "/admin-dashboard/login",
 ] as const;
 const PRIORITY_AUTHENTICATED_ROUTES = [
   "/dashboard",
@@ -79,7 +79,7 @@ const PRIORITY_AUTHENTICATED_ROUTES = [
   "/profile",
   "/settings",
 ] as const;
-const PRIORITY_ADMIN_ROUTES = ["/admin_dashboard", "/admin_dashboard/inbox", "/admin_dashboard/ai-usage"] as const;
+const PRIORITY_ADMIN_ROUTES = ["/admin-dashboard", "/admin-dashboard/inbox", "/admin-dashboard/ai-usage"] as const;
 const EXPECTED_DIR_BY_LOCALE = {
   en: "ltr",
   ar: "rtl",
@@ -522,7 +522,7 @@ function shouldRunFeatureFlow(
     return locale === "en" || viewport === "mobile";
   }
 
-  if (audience === "public" && route === "/admin_dashboard/login") {
+  if (audience === "public" && route === "/admin-dashboard/login") {
     return locale === "en" && viewport === "desktop";
   }
 
@@ -1166,7 +1166,7 @@ async function exerciseFeatureFlow(
     results.push(await runLandingDemoFlow(page, locale, viewport.name));
   }
 
-  if (audience === "public" && route === "/admin_dashboard/login") {
+  if (audience === "public" && route === "/admin-dashboard/login") {
     results.push(await runAdminLoginFlow(page, viewport.name));
   }
 

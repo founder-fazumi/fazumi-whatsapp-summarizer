@@ -26,32 +26,32 @@ type AdminNavItem = {
 
 const ADMIN_NAV_ITEMS = [
   {
-    href: "/admin_dashboard",
+    href: "/admin-dashboard",
     label: { en: "Overview", ar: "نظرة عامة" },
     icon: LayoutDashboard,
   },
   {
-    href: "/admin_dashboard/inbox",
+    href: "/admin-dashboard/inbox",
     label: { en: "Inbox", ar: "صندوق الوارد" },
     icon: Inbox,
   },
   {
-    href: "/admin_dashboard/users",
+    href: "/admin-dashboard/users",
     label: { en: "Users", ar: "المستخدمون" },
     icon: Users,
   },
   {
-    href: "/admin_dashboard/ai-usage",
+    href: "/admin-dashboard/ai-usage",
     label: { en: "AI Usage", ar: "استخدام AI" },
     icon: Bot,
   },
   {
-    href: "/admin_dashboard/income",
+    href: "/admin-dashboard/income",
     label: { en: "Revenue", ar: "الإيرادات" },
     icon: DollarSign,
   },
   {
-    href: "/admin_dashboard/audit-log",
+    href: "/admin-dashboard/audit-log",
     label: { en: "Audit Log", ar: "سجل المراجعة" },
     icon: ClipboardList,
   },
@@ -89,7 +89,7 @@ export function AdminNav({ mobile = false }: AdminNavProps) {
     >
       {ADMIN_NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const isActive =
-          href === "/admin_dashboard"
+          href === "/admin-dashboard"
             ? pathname === href
             : pathname?.startsWith(href) ?? false;
 
