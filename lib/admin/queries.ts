@@ -2165,15 +2165,18 @@ export async function getAdminUsersData(
 
     const latestSummaryByUserId = new Map<string, string>();
     // We need all summaries for activity — but for search results, build activity from summary counts
-    // Get the most recent summary per user for the page
-    const admin = createAdminClient();
+    // Get the most recent summary per user for the page.
+    // Limit to pageUserIds.length * 10 rows: enough to capture at least one per user
+    // without an unbounded scan. Rows are ordered DESC so the first hit per user_id wins.
+    const adminForSummaries = createAdminClient();
     if (pageUserIds.length > 0) {
-      const { data: recentSummaries } = await admin
+      const { data: recentSummaries } = await adminForSummaries
         .from("summaries")
         .select("user_id, created_at")
         .in("user_id", pageUserIds)
         .is("deleted_at", null)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(pageUserIds.length * 10);
 
       for (const row of recentSummaries ?? []) {
         const r = row as { user_id: string; created_at: string };
@@ -2308,7 +2311,7 @@ export async function getAdminUserDetail(userId: string): Promise<import("./type
   const admin = createAdminClient();
   const since30Days = subtractUtcDays(startOfUtcDay(), 29);
 
-  const [profileResult, authUserResult, subscriptionsResult, totalSummariesResult, recentSummariesResult, auditLogResult] = await Promise.all([
+  const [profileResult, authUserResult, subscriptionsResult, totalSummariesResult, recentSummariesResult, auditLogResult, lastSummaryResult] = await Promise.all([
     admin
       .from("profiles")
       .select("id, full_name, plan, trial_expires_at, created_at, lifetime_free_used, lang_pref")
@@ -2337,6 +2340,14 @@ export async function getAdminUserDetail(userId: string): Promise<import("./type
       .contains("target_ids", [userId])
       .order("created_at", { ascending: false })
       .limit(20),
+    admin
+      .from("summaries")
+      .select("created_at")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (profileResult.error || !profileResult.data) {
@@ -2400,7 +2411,7 @@ export async function getAdminUserDetail(userId: string): Promise<import("./type
     lifetimeFreeUsed: profile.lifetime_free_used ?? 0,
     summariesTotal: totalSummariesResult.count ?? 0,
     summariesLast30Days: recentSummariesResult.count ?? 0,
-    activityAt: null, // will be set via most-recent summary lookup if needed
+    activityAt: (lastSummaryResult.data as { created_at: string } | null)?.created_at ?? null,
     joinedAt: profile.created_at,
     bannedUntil: authUser?.banned_until ?? null,
     country: resolveCountry(authPhone, pushSub?.timezone),

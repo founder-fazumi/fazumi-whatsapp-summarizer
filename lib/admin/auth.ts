@@ -39,21 +39,40 @@ export function getAdminCredentials(): AdminCredentials | null {
   const username = process.env.ADMIN_USERNAME?.trim() ?? "";
   const password = process.env.ADMIN_PASSWORD ?? "";
 
-  if (!username || !password) {
-    return null;
+  if (username && password) {
+    return { username, password };
   }
 
-  return { username, password };
+  // Dev-only convenience: read DEV_ADMIN_* vars when running outside production.
+  // This branch is unreachable in production because Next.js always sets
+  // NODE_ENV="production" during `next build` / `next start`.
+  // Set DEV_ADMIN_USERNAME + DEV_ADMIN_PASSWORD in .env.local to enable.
+  if (process.env.NODE_ENV !== "production") {
+    const devUsername = process.env.DEV_ADMIN_USERNAME?.trim() ?? "";
+    const devPassword = process.env.DEV_ADMIN_PASSWORD ?? "";
+
+    if (devUsername && devPassword) {
+      return { username: devUsername, password: devPassword };
+    }
+  }
+
+  return null;
 }
 
 function getAdminSigningKey(): string | null {
-  const key = process.env.ADMIN_SIGNING_KEY;
+  const key = process.env.ADMIN_SIGNING_KEY?.trim() ?? "";
 
-  if (!key || key.trim().length === 0) {
-    return null;
+  if (key.length > 0) {
+    return key;
   }
 
-  return key.trim();
+  // Dev-only fallback — never active when NODE_ENV="production".
+  if (process.env.NODE_ENV !== "production") {
+    const devKey = process.env.DEV_ADMIN_SIGNING_KEY?.trim() ?? "";
+    if (devKey.length > 0) return devKey;
+  }
+
+  return null;
 }
 
 function getSigningKey() {
