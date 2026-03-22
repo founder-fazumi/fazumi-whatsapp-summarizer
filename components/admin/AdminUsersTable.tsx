@@ -1,10 +1,11 @@
 "use client";
 
-import { startTransition, useDeferredValue, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownWideNarrow,
   Ban,
   Download,
+  Eye,
   MoreHorizontal,
   RefreshCcw,
   RotateCcw,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import type { AdminPlanType, AdminUserRecord, AdminUsersData } from "@/lib/admin/types";
 import { AdminAvatarStack } from "@/components/admin/AdminAvatarStack";
+import { AdminUserDetailDrawer } from "@/components/admin/AdminUserDetailDrawer";
 import { formatDate, formatNumber } from "@/lib/format";
 import { useLang } from "@/lib/context/LangContext";
 import { ChurnRiskBadge } from "@/components/admin/ChurnRiskBadge";
@@ -31,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 type SortKey = "joined" | "activity" | "subscription";
 type SortDirection = "asc" | "desc";
@@ -48,8 +51,23 @@ const PLAN_ORDER: Record<AdminPlanType, number> = {
   free: 4,
 };
 
-async function fetchUsers(page = 1, pageSize = USERS_PER_PAGE) {
-  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+const SUB_STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  active: { label: "Active", className: "border-green-500/20 bg-green-500/10 text-green-700" },
+  cancelled: { label: "Cancelled", className: "border-amber-500/20 bg-amber-500/10 text-amber-700" },
+  past_due: { label: "Past due", className: "border-red-500/20 bg-red-500/10 text-red-700" },
+  expired: { label: "Expired", className: "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted-foreground)]" },
+};
+
+async function fetchUsers(page = 1, pageSize = USERS_PER_PAGE, search = "") {
+  const params = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+  });
+
+  if (search) {
+    params.set("q", search);
+  }
+
   const response = await fetch(`/api/admin/users?${params.toString()}`, {
     cache: "no-store",
   });
@@ -68,7 +86,7 @@ async function fetchUsers(page = 1, pageSize = USERS_PER_PAGE) {
 
 function formatDateTime(value: string | null) {
   if (!value) {
-    return "-";
+    return "—";
   }
 
   return formatDate(value, "en", {
@@ -80,12 +98,29 @@ function formatDateTime(value: string | null) {
   });
 }
 
+function formatDateOnly(value: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  return formatDate(value, "en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function isBanned(user: AdminUserRecord) {
   return Boolean(user.bannedUntil && new Date(user.bannedUntil).getTime() > Date.now());
 }
 
+function isTrialActive(user: AdminUserRecord) {
+  return Boolean(
+    user.trialExpiresAt && new Date(user.trialExpiresAt).getTime() > Date.now()
+  );
+}
+
 function escapeCsvCell(value: string) {
-  // Prevent CSV formula injection by prefixing trigger characters with a tab
   const safe = /^[=+\-@]/.test(value) ? `\t${value}` : value;
   return `"${safe.replace(/"/g, '""')}"`;
 }
@@ -192,20 +227,21 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
   const [pendingBanUserIds, setPendingBanUserIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(USERS_PER_PAGE);
-  const deferredSearch = useDeferredValue(search.trim().toLowerCase());
-  const localUsers = data.users;
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     try {
       const storedPageSize = Number(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
 
       if (storedPageSize === 25 || storedPageSize === 50 || storedPageSize === 100) {
-        void loadPage(1, storedPageSize);
+        void loadPage(1, storedPageSize, "");
       }
     } catch {
       // Ignore storage read failures.
     }
-  }, []); // Run once on mount only — loadPage intentionally omitted from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     try {
@@ -215,12 +251,12 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     }
   }, [pageSize]);
 
-  async function loadPage(page: number, size: number) {
+  const loadPage = useCallback(async (page: number, size: number, q: string) => {
     setRefreshing(true);
     setError(null);
 
     try {
-      const next = await fetchUsers(page, size);
+      const next = await fetchUsers(page, size, q);
       setData(next);
       setCurrentPage(next.page);
       setPageSize(next.pageSize);
@@ -233,51 +269,51 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
     } finally {
       setRefreshing(false);
     }
-  }
+  }, []);
 
   function handleRefresh() {
     startTransition(() => {
-      void loadPage(currentPage, pageSize);
+      void loadPage(currentPage, pageSize, search);
     });
   }
 
-  const filteredUsers = localUsers
-    .filter((user) => {
-      if (!deferredSearch) {
-        return true;
-      }
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setSelectedUserIds(new Set());
 
-      const haystack = [
-        user.displayName,
-        user.email ?? "",
-        user.phone ?? "",
-        user.id,
-        user.subscriptionType,
-        user.country,
-      ]
-        .join(" ")
-        .toLowerCase();
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current);
+    }
 
-      return haystack.includes(deferredSearch);
-    })
-    .sort((left, right) => {
-      const direction = sortDirection === "asc" ? 1 : -1;
+    // Debounce server-side search by 400ms
+    searchTimeout.current = setTimeout(() => {
+      startTransition(() => {
+        void loadPage(1, pageSize, value.trim());
+      });
+    }, 400);
+  }
 
-      if (sortKey === "subscription") {
-        return (PLAN_ORDER[left.subscriptionType] - PLAN_ORDER[right.subscriptionType]) * direction;
-      }
+  const localUsers = data.users;
 
-      const leftValue =
-        sortKey === "joined"
-          ? new Date(left.joinedAt ?? 0).getTime()
-          : new Date(left.activityAt ?? 0).getTime();
-      const rightValue =
-        sortKey === "joined"
-          ? new Date(right.joinedAt ?? 0).getTime()
-          : new Date(right.activityAt ?? 0).getTime();
+  const sortedUsers = [...localUsers].sort((left, right) => {
+    const direction = sortDirection === "asc" ? 1 : -1;
 
-      return (leftValue - rightValue) * direction;
-    });
+    if (sortKey === "subscription") {
+      return (PLAN_ORDER[left.subscriptionType] - PLAN_ORDER[right.subscriptionType]) * direction;
+    }
+
+    const leftValue =
+      sortKey === "joined"
+        ? new Date(left.joinedAt ?? 0).getTime()
+        : new Date(left.activityAt ?? 0).getTime();
+    const rightValue =
+      sortKey === "joined"
+        ? new Date(right.joinedAt ?? 0).getTime()
+        : new Date(right.activityAt ?? 0).getTime();
+
+    return (leftValue - rightValue) * direction;
+  });
+
   const recentUsers = [...localUsers]
     .sort((left, right) => (right.activityAt ?? "").localeCompare(left.activityAt ?? ""))
     .slice(0, 5)
@@ -287,23 +323,17 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       email: user.email ?? "",
     }));
 
-  // Server drives totalPages and total count; client-side filter/sort applies within the page.
   const totalPages = data.pages;
-  const paginatedUsers = filteredUsers;
-  const selectedCount = filteredUsers.filter((user) => selectedUserIds.has(user.id)).length;
+  const selectedCount = sortedUsers.filter((user) => selectedUserIds.has(user.id)).length;
   const allVisibleSelected =
-    paginatedUsers.length > 0 &&
-    paginatedUsers.every((user) => selectedUserIds.has(user.id));
+    sortedUsers.length > 0 &&
+    sortedUsers.every((user) => selectedUserIds.has(user.id));
 
   function setPage(page: number) {
     const next = Math.min(Math.max(page, 1), totalPages);
     startTransition(() => {
-      void loadPage(next, pageSize);
+      void loadPage(next, pageSize, search);
     });
-  }
-
-  function handleSearchChange(value: string) {
-    setSearch(value);
   }
 
   function handleSortKeyChange(value: SortKey) {
@@ -316,7 +346,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
 
   function handlePageSizeChange(size: number) {
     startTransition(() => {
-      void loadPage(1, size);
+      void loadPage(1, size, search);
     });
   }
 
@@ -339,9 +369,9 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       const next = new Set(current);
 
       if (allVisibleSelected) {
-        paginatedUsers.forEach((user) => next.delete(user.id));
+        sortedUsers.forEach((user) => next.delete(user.id));
       } else {
-        paginatedUsers.forEach((user) => next.add(user.id));
+        sortedUsers.forEach((user) => next.add(user.id));
       }
 
       return next;
@@ -355,7 +385,6 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       return;
     }
 
-    // Ban is destructive — show confirm dialog instead of acting immediately
     if (action === "ban" && !ids) {
       setPendingBanUserIds(userIds);
       return;
@@ -382,7 +411,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
         throw new Error(payload.error ?? "Bulk action failed.");
       }
 
-      await loadPage(currentPage, pageSize);
+      await loadPage(currentPage, pageSize, search);
       setSelectedUserIds(new Set());
       setSuccess(
         action === "ban"
@@ -430,28 +459,24 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       const payload = (await response.json()) as {
         ok?: boolean;
         error?: string;
+        warning?: string;
       };
 
       if (!response.ok || !payload.ok) {
         throw new Error(payload.error ?? "Could not change plan.");
       }
 
-      setData((current) => ({
-        ...current,
-        users: current.users.map((user) =>
-          user.id === userId
-            ? {
-                ...user,
-                subscriptionType: plan,
-              }
-            : user
-        ),
-      }));
-      setSuccess(
-        locale === "ar"
-          ? "تم تحديث خطة المستخدم."
-          : `Updated user plan to ${plan}.`
-      );
+      if (payload.warning) {
+        setSuccess(`Plan changed. Note: ${payload.warning}`);
+      } else {
+        setSuccess(
+          locale === "ar"
+            ? "تم تحديث خطة المستخدم."
+            : `Updated user plan to ${plan}.`
+        );
+      }
+
+      await loadPage(currentPage, pageSize, search);
     } catch (actionError) {
       setError(
         actionError instanceof Error
@@ -481,22 +506,12 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
         throw new Error(payload.error ?? "Could not extend trial.");
       }
 
-      setData((current) => ({
-        ...current,
-        users: current.users.map((user) =>
-          user.id === userId && (user.subscriptionType === "free" || user.subscriptionType === "trial")
-            ? {
-                ...user,
-                subscriptionType: "trial",
-              }
-            : user
-        ),
-      }));
       setSuccess(
         locale === "ar"
           ? "تم تمديد التجربة لمدة 7 أيام."
           : "Extended trial by 7 days."
       );
+      await loadPage(currentPage, pageSize, search);
     } catch (actionError) {
       setError(
         actionError instanceof Error
@@ -518,7 +533,10 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       "Name",
       "Email",
       "Phone",
-      "Subscription",
+      "Plan",
+      "Sub Status",
+      "Trial Expires",
+      "Summaries (30d)",
       "Country",
       "Banned Until",
       "Last Activity",
@@ -533,6 +551,9 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
           user.email ?? "",
           user.phone ?? "",
           user.subscriptionType,
+          user.subscriptionStatus ?? "",
+          user.trialExpiresAt ?? "",
+          String(user.summariesLast30Days),
           user.country,
           user.bannedUntil ?? "",
           user.activityAt ?? "",
@@ -557,13 +578,13 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
   const rangeLabel =
     data.total === 0
       ? "Showing 0 of 0 users"
-      : `Showing ${formatNumber(rangeStart)}-${formatNumber(rangeEnd)} of ${formatNumber(data.total)} users`;
+      : `Showing ${formatNumber(rangeStart)}–${formatNumber(rangeEnd)} of ${formatNumber(data.total)} users`;
 
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Users"
-        description="50 rows per page by default, with persistent pagination controls at the top and bottom of the roster."
+        description="Search across all users. Results are paginated server-side."
         actions={
           <Button type="button" variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -604,9 +625,22 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
                 aria-label="Search users"
                 value={search}
                 onChange={(event) => handleSearchChange(event.target.value)}
-                placeholder="Search by name, email, phone, user ID, or country"
+                placeholder="Search by name, email, phone, or user ID"
                 className="pl-10"
               />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    void loadPage(1, pageSize, "");
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -634,7 +668,8 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
         <div className="space-y-1 text-sm text-[var(--muted-foreground)]">
           <div>{rangeLabel}</div>
           <div>
-            Total dataset {formatNumber(data.total)} / Selected {formatNumber(selectedCount)}
+            Selected {formatNumber(selectedCount)}
+            {search ? <span className="ml-2 text-[var(--primary)]">· Search: &quot;{search}&quot;</span> : null}
           </div>
         </div>
 
@@ -660,7 +695,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
           currentPage={currentPage}
           totalPages={totalPages}
           pageSize={pageSize}
-          hasRows={filteredUsers.length > 0}
+          hasRows={sortedUsers.length > 0}
           onPageChange={setPage}
           onPageSizeChange={handlePageSizeChange}
         />
@@ -675,7 +710,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
               onChange={toggleVisibleSelection}
               className="h-4 w-4 accent-[var(--primary)]"
             />
-            <span>Select page users ({paginatedUsers.filter((user) => selectedUserIds.has(user.id)).length})</span>
+            <span>Select page ({sortedUsers.filter((user) => selectedUserIds.has(user.id)).length} selected)</span>
           </label>
         </div>
         <CardContent className="overflow-x-auto p-0">
@@ -685,23 +720,30 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
                 <th className="px-4 py-3 font-medium text-start">Select</th>
                 <th className="px-4 py-3 font-medium text-start">User</th>
                 <th className="px-4 py-3 font-medium text-start">Plan</th>
-                <th className="px-4 py-3 font-medium text-start">Status</th>
+                <th className="px-4 py-3 font-medium text-start">Sub status</th>
+                <th className="px-4 py-3 font-medium text-start">Trial expires</th>
+                <th className="px-4 py-3 font-medium text-start">Summaries (30d)</th>
+                <th className="px-4 py-3 font-medium text-start">Churn risk</th>
                 <th className="px-4 py-3 font-medium text-start">Country</th>
-                <th className="px-4 py-3 font-medium text-start">Activity</th>
+                <th className="px-4 py-3 font-medium text-start">Last activity</th>
                 <th className="px-4 py-3 font-medium text-start">Joined</th>
                 <th className="px-4 py-3 font-medium text-start">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedUsers.length === 0 ? (
+              {sortedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-[var(--muted-foreground)]">
-                    No users match the current filters.
+                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-[var(--muted-foreground)]">
+                    {search ? `No users match "${search}".` : "No users found."}
                   </td>
                 </tr>
               ) : (
-                paginatedUsers.map((user) => {
+                sortedUsers.map((user) => {
                   const userIsBanned = isBanned(user);
+                  const trialActive = isTrialActive(user);
+                  const subStatusConfig = user.subscriptionStatus
+                    ? SUB_STATUS_BADGE[user.subscriptionStatus]
+                    : null;
 
                   return (
                     <tr key={user.id} className="border-t border-[var(--border)] align-top hover:bg-[var(--surface-muted)]">
@@ -724,7 +766,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
                         </div>
                         {userIsBanned ? (
                           <div className="mt-1 text-xs text-[var(--destructive)]">
-                            {locale === "ar" ? "محظور حتى" : "Banned until"} {formatDateTime(user.bannedUntil)}
+                            Banned until {formatDateTime(user.bannedUntil)}
                           </div>
                         ) : null}
                       </td>
@@ -734,27 +776,56 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
                         </span>
                       </td>
                       <td className="px-4 py-4">
+                        {subStatusConfig ? (
+                          <Badge variant="outline" className={subStatusConfig.className}>
+                            {subStatusConfig.label}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-xs text-[var(--muted-foreground)]">
+                        {user.trialExpiresAt ? (
+                          <span className={trialActive ? "text-green-700" : "text-[var(--muted-foreground)]"}>
+                            {formatDateOnly(user.trialExpiresAt)}
+                            {trialActive ? " ✓" : " (ended)"}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-center text-sm text-[var(--muted-foreground)]">
+                        {user.summariesLast30Days > 0 ? (
+                          <span className="font-medium text-[var(--text-strong)]">{user.summariesLast30Days}</span>
+                        ) : (
+                          "0"
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
                         <ChurnRiskBadge lastActiveAt={user.activityAt ?? null} locale={locale} />
                       </td>
-                      <td className="px-4 py-4 text-[var(--muted-foreground)]">{user.country}</td>
-                      <td className="px-4 py-4 text-[var(--muted-foreground)]">{formatDateTime(user.activityAt)}</td>
-                      <td className="px-4 py-4 text-[var(--muted-foreground)]">{formatDateTime(user.joinedAt)}</td>
+                      <td className="px-4 py-4 text-xs text-[var(--muted-foreground)]">{user.country}</td>
+                      <td className="px-4 py-4 text-xs text-[var(--muted-foreground)]">{formatDateTime(user.activityAt)}</td>
+                      <td className="px-4 py-4 text-xs text-[var(--muted-foreground)]">{formatDateTime(user.joinedAt)}</td>
                       <td className="px-4 py-4">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button type="button" variant="ghost" size="sm" className="h-8 w-8 px-0">
                               <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">
-                                {locale === "ar" ? "إجراءات المستخدم" : "User actions"}
-                              </span>
+                              <span className="sr-only">User actions</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>{locale === "ar" ? "الإجراءات" : "Actions"}</DropdownMenuLabel>
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setDetailUserId(user.id)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View details
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuSub>
                               <DropdownMenuSubTrigger>
-                                {locale === "ar" ? "تغيير الخطة" : "Change plan"}
+                                Change plan
                               </DropdownMenuSubTrigger>
                               <DropdownMenuSubContent>
                                 {PLAN_OPTIONS.map((plan) => (
@@ -763,23 +834,24 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
                                     onClick={() => void handlePlanChange(user.id, plan)}
                                   >
                                     {plan}
+                                    {plan === user.subscriptionType ? " ✓" : ""}
                                   </DropdownMenuItem>
                                 ))}
                               </DropdownMenuSubContent>
                             </DropdownMenuSub>
                             <DropdownMenuItem onClick={() => void handleTrialExtend(user.id)}>
-                              {locale === "ar" ? "مد التجربة (+7 أيام)" : "Extend trial (+7d)"}
+                              Extend trial (+7d)
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
                               onClick={() => void handleBan([user.id])}
                             >
-                              {locale === "ar" ? "حظر المستخدم" : "Ban user"}
+                              Ban user for 1 year
                             </DropdownMenuItem>
                             {userIsBanned ? (
                               <DropdownMenuItem onClick={() => void handleResetBan([user.id])}>
-                                {locale === "ar" ? "رفع الحظر" : "Reset ban"}
+                                Remove ban
                               </DropdownMenuItem>
                             ) : null}
                           </DropdownMenuContent>
@@ -800,7 +872,7 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
           currentPage={currentPage}
           totalPages={totalPages}
           pageSize={pageSize}
-          hasRows={filteredUsers.length > 0}
+          hasRows={sortedUsers.length > 0}
           onPageChange={setPage}
           onPageSizeChange={handlePageSizeChange}
         />
@@ -810,30 +882,42 @@ export function AdminUsersTable({ initialData }: AdminUsersTableProps) {
       <Dialog
         open={pendingBanUserIds.length > 0}
         onOpenChange={(open) => { if (!open) setPendingBanUserIds([]); }}
-        title={locale === "ar"
-          ? `حظر ${pendingBanUserIds.length} مستخدم لمدة سنة؟`
-          : `Ban ${pendingBanUserIds.length} user${pendingBanUserIds.length !== 1 ? "s" : ""} for 1 year?`}
+        title={`Ban ${pendingBanUserIds.length} user${pendingBanUserIds.length !== 1 ? "s" : ""} for 1 year?`}
       >
         <p className="text-sm text-[var(--muted-foreground)] leading-6">
-          {locale === "ar"
-            ? "لن يتمكن هؤلاء المستخدمون من تسجيل الدخول حتى تقوم بإعادة ضبط الحظر. هذا الإجراء لا يمكن التراجع عنه من لوحة الإدارة."
-            : "These users will be unable to log in until you reset the ban. This action cannot be undone from the admin panel."}
+          These users will be unable to log in for 1 year. You can remove the ban at any time from this admin panel using the &quot;Remove ban&quot; action.
         </p>
         <div className="mt-5 flex justify-end gap-3">
           <Button variant="outline" onClick={() => setPendingBanUserIds([])}>
-            {locale === "ar" ? "إلغاء" : "Cancel"}
+            Cancel
           </Button>
           <Button
             variant="destructive"
             disabled={submittingAction === "ban"}
             onClick={() => void confirmBan()}
           >
-            {submittingAction === "ban"
-              ? (locale === "ar" ? "جارٍ الحظر…" : "Banning…")
-              : (locale === "ar" ? "تأكيد الحظر" : "Confirm ban")}
+            {submittingAction === "ban" ? "Banning…" : "Confirm ban"}
           </Button>
         </div>
       </Dialog>
+
+      {/* User detail drawer */}
+      {detailUserId ? (
+        <AdminUserDetailDrawer
+          userId={detailUserId}
+          onClose={() => setDetailUserId(null)}
+          onPlanChange={async (userId, plan) => {
+            await handlePlanChange(userId, plan);
+          }}
+          onTrialExtend={async (userId) => {
+            await handleTrialExtend(userId);
+          }}
+          onBan={(userId) => handleBan([userId])}
+          onResetBan={async (userId) => {
+            await handleResetBan([userId]);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -2031,16 +2031,215 @@ async function fetchProfilesPage(page: number, pageSize: number): Promise<{ prof
   };
 }
 
-export async function getAdminUsersData(page = 1, pageSize = 50): Promise<AdminUsersData> {
+async function fetchSubscriptionsForUsers(userIds: string[]): Promise<SubscriptionRow[]> {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("subscriptions")
+    .select("user_id, plan_type, status, current_period_end, created_at, updated_at, ls_subscription_id, ls_order_id")
+    .in("user_id", userIds)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Could not read subscriptions: ${error.message}`);
+  }
+
+  return (data ?? []) as SubscriptionRow[];
+}
+
+async function fetchSummaryCountsForUsers(
+  userIds: string[],
+  since: Date
+): Promise<Map<string, number>> {
+  const countMap = new Map<string, number>();
+
+  if (userIds.length === 0) {
+    return countMap;
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("summaries")
+    .select("user_id")
+    .in("user_id", userIds)
+    .gte("created_at", since.toISOString())
+    .is("deleted_at", null);
+
+  if (error) {
+    // Non-fatal — return empty counts rather than throwing
+    return countMap;
+  }
+
+  for (const row of data ?? []) {
+    const uid = (row as { user_id: string }).user_id;
+    countMap.set(uid, (countMap.get(uid) ?? 0) + 1);
+  }
+
+  return countMap;
+}
+
+function resolveSubscriptionStatus(
+  userSubs: SubscriptionRow[]
+): "active" | "cancelled" | "past_due" | "expired" | null {
+  if (userSubs.length === 0) {
+    return null;
+  }
+
+  // Prefer the most recently updated paid subscription
+  const paidSubs = userSubs.filter((s) => isPaidPlanType(s.plan_type));
+
+  if (paidSubs.length === 0) {
+    return null;
+  }
+
+  // Return the status of the most recently updated subscription
+  const latest = paidSubs[0]; // already sorted by updated_at DESC
+  const status = latest.status;
+
+  if (status === "active" || status === "cancelled" || status === "past_due" || status === "expired") {
+    return status;
+  }
+
+  return null;
+}
+
+function matchesUserSearch(
+  profile: ProfileRow,
+  authUser: AuthUserRow | undefined,
+  query: string
+): boolean {
+  const q = query.toLowerCase();
+  const fields = [
+    profile.id,
+    profile.full_name ?? "",
+    authUser?.email ?? "",
+    authUser?.phone ?? "",
+    authUser?.fullName ?? "",
+  ];
+
+  return fields.some((f) => f.toLowerCase().includes(q));
+}
+
+export async function getAdminUsersData(
+  page = 1,
+  pageSize = 50,
+  search?: string
+): Promise<AdminUsersData> {
   const safePage = Math.max(1, page);
   const safePageSize = Math.min(100, Math.max(10, pageSize));
+  const trimmedSearch = search?.trim() ?? "";
+  const since30Days = subtractUtcDays(startOfUtcDay(), 29);
 
+  if (trimmedSearch) {
+    // Search mode: load all profiles + all auth users, filter in memory, then paginate
+    const [allProfiles, authUsers, pushSubscriptions] = await Promise.all([
+      fetchProfiles(),
+      fetchAuthUsers(),
+      fetchPushSubscriptions(),
+    ]);
+
+    const authUsersById = createAuthUserMap(authUsers);
+    const pushSubscriptionByUserId = new Map<string, PushSubscriptionRow>();
+
+    for (const row of pushSubscriptions) {
+      if (!pushSubscriptionByUserId.has(row.user_id)) {
+        pushSubscriptionByUserId.set(row.user_id, row);
+      }
+    }
+
+    const matched = allProfiles.filter((p) =>
+      matchesUserSearch(p, authUsersById.get(p.id), trimmedSearch)
+    );
+
+    const total = matched.length;
+    const pageProfiles = matched.slice((safePage - 1) * safePageSize, safePage * safePageSize);
+    const pageUserIds = pageProfiles.map((p) => p.id);
+
+    const [pageSubs, summaryCountMap] = await Promise.all([
+      fetchSubscriptionsForUsers(pageUserIds),
+      fetchSummaryCountsForUsers(pageUserIds, since30Days),
+    ]);
+
+    const latestSummaryByUserId = new Map<string, string>();
+    // We need all summaries for activity — but for search results, build activity from summary counts
+    // Get the most recent summary per user for the page
+    const admin = createAdminClient();
+    if (pageUserIds.length > 0) {
+      const { data: recentSummaries } = await admin
+        .from("summaries")
+        .select("user_id, created_at")
+        .in("user_id", pageUserIds)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
+
+      for (const row of recentSummaries ?? []) {
+        const r = row as { user_id: string; created_at: string };
+        if (!latestSummaryByUserId.has(r.user_id)) {
+          latestSummaryByUserId.set(r.user_id, r.created_at);
+        }
+      }
+    }
+
+    const subsByUserId = new Map<string, SubscriptionRow[]>();
+    for (const sub of pageSubs) {
+      const list = subsByUserId.get(sub.user_id) ?? [];
+      list.push(sub);
+      subsByUserId.set(sub.user_id, list);
+    }
+
+    const users: AdminUserRecord[] = pageProfiles.map((profile) => {
+      const authUser = authUsersById.get(profile.id);
+      const pushSub = pushSubscriptionByUserId.get(profile.id);
+      const displayName =
+        profile.full_name?.trim() ||
+        authUser?.fullName?.trim() ||
+        authUser?.email ||
+        authUser?.phone ||
+        "—";
+
+      return {
+        id: profile.id,
+        displayName,
+        email: authUser?.email ?? null,
+        phone: authUser?.phone ?? null,
+        subscriptionType: resolvePlanType(profile.plan, profile.trial_expires_at),
+        subscriptionStatus: resolveSubscriptionStatus(subsByUserId.get(profile.id) ?? []),
+        trialExpiresAt: profile.trial_expires_at ?? null,
+        summariesLast30Days: summaryCountMap.get(profile.id) ?? 0,
+        activityAt: latestSummaryByUserId.get(profile.id) ?? null,
+        joinedAt: profile.created_at ?? null,
+        bannedUntil: authUser?.bannedUntil ?? null,
+        country: resolveCountry(authUser?.phone, pushSub?.timezone),
+      };
+    });
+
+    return {
+      generatedAt: new Date().toISOString(),
+      total,
+      page: safePage,
+      pageSize: safePageSize,
+      pages: Math.max(1, Math.ceil(total / safePageSize)),
+      users,
+    };
+  }
+
+  // Normal paginated mode
   const [{ profiles, total }, summaries, authUsers, pushSubscriptions] = await Promise.all([
     fetchProfilesPage(safePage, safePageSize),
     fetchSummaries(),
     fetchAuthUsers(),
     fetchPushSubscriptions(),
   ]);
+
+  const pageUserIds = profiles.map((p) => p.id);
+  const [pageSubs, summaryCountMap] = await Promise.all([
+    fetchSubscriptionsForUsers(pageUserIds),
+    fetchSummaryCountsForUsers(pageUserIds, since30Days),
+  ]);
+
   const latestSummaryByUserId = new Map<string, string>();
   const pushSubscriptionByUserId = new Map<string, PushSubscriptionRow>();
 
@@ -2054,6 +2253,13 @@ export async function getAdminUsersData(page = 1, pageSize = 50): Promise<AdminU
     if (!pushSubscriptionByUserId.has(row.user_id)) {
       pushSubscriptionByUserId.set(row.user_id, row);
     }
+  }
+
+  const subsByUserId = new Map<string, SubscriptionRow[]>();
+  for (const sub of pageSubs) {
+    const list = subsByUserId.get(sub.user_id) ?? [];
+    list.push(sub);
+    subsByUserId.set(sub.user_id, list);
   }
 
   const authUsersById = createAuthUserMap(authUsers);
@@ -2073,6 +2279,9 @@ export async function getAdminUsersData(page = 1, pageSize = 50): Promise<AdminU
       email: authUser?.email ?? null,
       phone: authUser?.phone ?? null,
       subscriptionType: resolvePlanType(profile.plan, profile.trial_expires_at),
+      subscriptionStatus: resolveSubscriptionStatus(subsByUserId.get(profile.id) ?? []),
+      trialExpiresAt: profile.trial_expires_at ?? null,
+      summariesLast30Days: summaryCountMap.get(profile.id) ?? 0,
       activityAt: latestSummaryByUserId.get(profile.id) ?? null,
       joinedAt: profile.created_at ?? null,
       bannedUntil: authUser?.bannedUntil ?? null,
@@ -2087,6 +2296,133 @@ export async function getAdminUsersData(page = 1, pageSize = 50): Promise<AdminU
     pageSize: safePageSize,
     pages: Math.max(1, Math.ceil(total / safePageSize)),
     users,
+  };
+}
+
+interface DetailProfileRow extends ProfileRow {
+  lifetime_free_used: number | null;
+  lang_pref: string | null;
+}
+
+export async function getAdminUserDetail(userId: string): Promise<import("./types").AdminUserDetail | null> {
+  const admin = createAdminClient();
+  const since30Days = subtractUtcDays(startOfUtcDay(), 29);
+
+  const [profileResult, authUserResult, subscriptionsResult, totalSummariesResult, recentSummariesResult, auditLogResult] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id, full_name, plan, trial_expires_at, created_at, lifetime_free_used, lang_pref")
+      .eq("id", userId)
+      .single(),
+    admin.auth.admin.getUserById(userId),
+    admin
+      .from("subscriptions")
+      .select("id, user_id, plan_type, status, current_period_end, ls_subscription_id, ls_order_id, created_at, updated_at")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false }),
+    admin
+      .from("summaries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .is("deleted_at", null),
+    admin
+      .from("summaries")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .gte("created_at", since30Days.toISOString()),
+    admin
+      .from("admin_audit_log")
+      .select("id, admin_username, action, details, ip, created_at")
+      .contains("target_ids", [userId])
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  if (profileResult.error || !profileResult.data) {
+    return null;
+  }
+
+  const profile = profileResult.data as DetailProfileRow;
+  const authUser = authUserResult.data?.user;
+  const subs = (subscriptionsResult.data ?? []) as Array<{
+    id: string;
+    plan_type: string | null;
+    status: string | null;
+    current_period_end: string | null;
+    ls_subscription_id: string | null;
+    ls_order_id: string | null;
+    created_at: string;
+    updated_at: string | null;
+  }>;
+  const auditRows = (auditLogResult.data ?? []) as Array<{
+    id: string;
+    admin_username: string;
+    action: string;
+    details: Record<string, unknown>;
+    ip: string | null;
+    created_at: string;
+  }>;
+
+  const displayName =
+    profile.full_name?.trim() ||
+    (typeof authUser?.user_metadata?.full_name === "string" ? authUser.user_metadata.full_name.trim() : null) ||
+    authUser?.email ||
+    authUser?.phone ||
+    "—";
+
+  const paidSubs = subs.filter((s) => isPaidPlanType(s.plan_type));
+  const latestPaidSub = paidSubs[0];
+
+  let subStatus: "active" | "cancelled" | "past_due" | "expired" | null = null;
+
+  if (latestPaidSub?.status === "active" || latestPaidSub?.status === "cancelled" || latestPaidSub?.status === "past_due" || latestPaidSub?.status === "expired") {
+    subStatus = latestPaidSub.status;
+  }
+
+  const authPhone = authUser?.phone ?? null;
+  const { data: pushSubData } = await admin
+    .from("push_subscriptions")
+    .select("timezone")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+  const pushSub = pushSubData as { timezone: string | null } | null;
+
+  return {
+    id: profile.id,
+    displayName,
+    email: authUser?.email ?? null,
+    phone: authPhone,
+    subscriptionType: resolvePlanType(profile.plan, profile.trial_expires_at),
+    subscriptionStatus: subStatus,
+    trialExpiresAt: profile.trial_expires_at ?? null,
+    lifetimeFreeUsed: profile.lifetime_free_used ?? 0,
+    summariesTotal: totalSummariesResult.count ?? 0,
+    summariesLast30Days: recentSummariesResult.count ?? 0,
+    activityAt: null, // will be set via most-recent summary lookup if needed
+    joinedAt: profile.created_at,
+    bannedUntil: authUser?.banned_until ?? null,
+    country: resolveCountry(authPhone, pushSub?.timezone),
+    langPref: profile.lang_pref ?? null,
+    subscriptions: subs.map((s) => ({
+      id: s.id,
+      planType: s.plan_type ?? "unknown",
+      status: s.status ?? "unknown",
+      currentPeriodEnd: s.current_period_end ?? null,
+      lsSubscriptionId: s.ls_subscription_id ?? null,
+      lsOrderId: s.ls_order_id ?? null,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at ?? null,
+    })),
+    recentAuditLog: auditRows.map((r) => ({
+      id: r.id,
+      adminUsername: r.admin_username,
+      action: r.action,
+      details: r.details ?? {},
+      ip: r.ip ?? null,
+      createdAt: r.created_at,
+    })),
   };
 }
 

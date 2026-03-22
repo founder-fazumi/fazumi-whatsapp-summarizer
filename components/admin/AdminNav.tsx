@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bot,
+  ClipboardList,
   DollarSign,
   Inbox,
   LayoutDashboard,
@@ -48,6 +49,11 @@ const ADMIN_NAV_ITEMS = [
     href: "/admin_dashboard/income",
     label: { en: "Revenue", ar: "الإيرادات" },
     icon: DollarSign,
+  },
+  {
+    href: "/admin_dashboard/audit-log",
+    label: { en: "Audit Log", ar: "سجل المراجعة" },
+    icon: ClipboardList,
   },
 ] as const satisfies readonly AdminNavItem[];
 

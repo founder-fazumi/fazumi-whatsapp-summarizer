@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
     const pageSize = Math.min(100, Math.max(10, parseInt(searchParams.get("pageSize") ?? "50", 10)));
-    const data = await getAdminUsersData(page, pageSize);
+    const search = searchParams.get("q")?.trim() ?? "";
+    const data = await getAdminUsersData(page, pageSize, search || undefined);
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     return NextResponse.json(

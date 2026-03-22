@@ -1,34 +1,17 @@
-import { AdminThemeSwitcher } from "@/components/admin/AdminThemeSwitcher";
-import { AdminLoginScreen } from "@/components/admin/AdminLoginScreen";
-import { redirectAuthenticatedAdmin } from "@/lib/admin/auth";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function LegacyAdminLoginPage({
+/**
+ * Legacy login path — redirects to the canonical admin login route.
+ * The canonical path is /admin/login (see lib/admin/auth.ts ADMIN_LOGIN_PATH).
+ */
+export default async function LegacyAdminLoginRedirectPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  await redirectAuthenticatedAdmin();
-
   const { next } = await searchParams;
-
-  return (
-    <>
-      <div
-        data-admin-login="true"
-        className="relative min-h-screen flex flex-col items-center justify-center bg-[var(--background)] p-4"
-      >
-        <div className="absolute top-4 end-4">
-          <AdminThemeSwitcher />
-        </div>
-        <AdminLoginScreen next={next} />
-      </div>
-      <style>{`
-        div[data-admin-login="true"] ~ footer {
-          display: none;
-        }
-      `}</style>
-    </>
-  );
+  const destination = next
+    ? `/admin/login?next=${encodeURIComponent(next)}`
+    : "/admin/login";
+  redirect(destination);
 }

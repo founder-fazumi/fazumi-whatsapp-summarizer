@@ -226,10 +226,55 @@ export interface AdminUserRecord {
   email: string | null;
   phone: string | null;
   subscriptionType: AdminPlanType;
+  /** Derived from the user's most recent active Lemon Squeezy subscription. */
+  subscriptionStatus: "active" | "cancelled" | "past_due" | "expired" | null;
+  /** ISO date string from profiles.trial_expires_at */
+  trialExpiresAt: string | null;
+  /** Number of summaries created in the last 30 days */
+  summariesLast30Days: number;
   activityAt: string | null;
   joinedAt: string | null;
   bannedUntil: string | null;
   country: string;
+}
+
+export type AdminSubscriptionStatusValue = "active" | "cancelled" | "past_due" | "expired";
+
+/** Full per-user detail returned by /api/admin/users/[id] */
+export interface AdminUserDetail {
+  id: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  subscriptionType: AdminPlanType;
+  subscriptionStatus: AdminSubscriptionStatusValue | null;
+  trialExpiresAt: string | null;
+  lifetimeFreeUsed: number;
+  summariesTotal: number;
+  summariesLast30Days: number;
+  activityAt: string | null;
+  joinedAt: string | null;
+  bannedUntil: string | null;
+  country: string;
+  langPref: string | null;
+  subscriptions: Array<{
+    id: string;
+    planType: string;
+    status: string;
+    currentPeriodEnd: string | null;
+    lsSubscriptionId: string | null;
+    lsOrderId: string | null;
+    createdAt: string;
+    updatedAt: string | null;
+  }>;
+  recentAuditLog: Array<{
+    id: string;
+    adminUsername: string;
+    action: string;
+    details: Record<string, unknown>;
+    ip: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface AdminUsersData {
