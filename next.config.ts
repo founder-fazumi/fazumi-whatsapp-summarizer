@@ -25,17 +25,11 @@ const nextConfig: NextConfig = {
     return config;
   },
   async rewrites() {
-    // Map the clean canonical /admin-dashboard/* URLs to the underlying page
-    // files in /admin_dashboard/* and /admin/login without changing the browser URL.
+    // /admin-dashboard and /admin-dashboard/login are now real route files —
+    // no rewrite needed for those two.
+    // Sub-routes (/admin-dashboard/users, /inbox, etc.) are still served from
+    // the underlying app/admin_dashboard/(dashboard)/* page files via this rewrite.
     return [
-      {
-        source: "/admin-dashboard/login",
-        destination: "/admin/login",
-      },
-      {
-        source: "/admin-dashboard",
-        destination: "/admin_dashboard",
-      },
       {
         source: "/admin-dashboard/:path*",
         destination: "/admin_dashboard/:path*",
